@@ -1,0 +1,5 @@
+  --version                         Query Agent SDK version
+  --install                         Install Agent SDK package in the current directory
+  --install-path=<path>             Install or upgrade Agent SDK packages directly to a target directory (absolute or relative).
+                                    Need to specify the --install or --upgrade parameter.
+  --upgrade                         Upgrade Agent SDK package in the current directory

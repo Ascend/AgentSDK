@@ -1,0 +1,320 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+-------------------------------------------------------------------------
+This file is part of the AgentSDK project.
+Copyright (c) 2025 Huawei Technologies Co.,Ltd.
+
+AgentSDK is licensed under Mulan PSL v2.
+You can use this software according to the terms and conditions of the Mulan PSL v2.
+You may obtain a copy of Mulan PSL v2 at:
+
+         http://license.coscl.org.cn/MulanPSL2
+
+THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+See the Mulan PSL v2 for more details.
+-------------------------------------------------------------------------
+"""
+from typing import Iterator
+
+from agentic_rl.trainer.train_adapter.mindspeed_rl import patch
+
+patch.apply_patch()
+
+import ray
+from ray.exceptions import RayError
+from mindspeed_rl import RayGRPOTrainer, RLConfig, MegatronConfig, GenerateConfig, RayActorGroup, RuleReward
+from mindspeed_rl.trainer.utils.transfer_dock import put_prompts_experience
+from mindspeed_rl.utils.pad_process import (
+    remove_padding_tensor_dict_to_dict,
+    remove_padding_and_split_to_list
+)
+from mindspeed_rl.utils.tokenizer import BaseTokenizer
+
+from agentic_rl.base.utils.file_utils import FileCheck
+from agentic_rl.base.log.loggers import Loggers
+from agentic_rl.configs.agentic_rl_config import AgenticRLConfig, GenConfig, SamplingConfig
+from agentic_rl.trainer.rollout.rollout_worker import RolloutWorker
+
+logger = Loggers(__name__)
+
+
+class AgentGRPOTrainer(RayGRPOTrainer):
+
+    def __init__(self,
+                 rl_config: RLConfig,
+                 actor_config: MegatronConfig,
+                 generate_config: GenerateConfig,
+                 agentic_rl_config: AgenticRLConfig,
+                 actor_worker: RayActorGroup,
+                 reference_worker: RayActorGroup,
+                 reward_list: list[RuleReward],
+                 tokenizer: BaseTokenizer):
+        """
+        AgentGPPOTrainer class. This class implements the training method to update agent perform.
+
+        Args:
+            rl_config: RLConfig Configuration for reinforcement learning (e.g., PPO settings).
+            actor_config: MegatronConfig for main model training/optimization.
+            generate_config: GenerateConfig Configuration for generation/inference (e.g., vLLM settings).
+            agentic_rl_config: AgenticRLConfig Configuration for create trajectory.
+            actor_worker: RayActorGroup, the worker as actor model.
+            reference_worker: RayActorGroup, the worker as ref model.
+            reward_list: list[RuleReward], reword model or reward method.
+            tokenizer: BaseTokenizer = None Object to retrieve the tokenizer.
+        """
+        self._check_args(rl_config, actor_config, generate_config, agentic_rl_config,
+                         actor_worker, reference_worker, reward_list, tokenizer)
+        self.actor_config = actor_config
+
+        try:
+            self.rollout_worker = RolloutWorker.remote(
+                n_parallel_agents=rl_config.n_samples_per_prompt,
+                max_prompt_length=rl_config.max_prompt_length,
+                actor_rollout_dispatch_size=rl_config.actor_rollout_dispatch_size,
+                simplify_think_content=agentic_rl_config.simplify_think_content,
+                tokenizer_name_or_path=actor_config.tokenizer_name_or_path,
+                dataset_additional_keys=actor_config.dataset_additional_keys,
+                generate_config=self._convert_generate_config(generate_config),
+                agentic_rl_config=agentic_rl_config,
+                worker_group=actor_worker,
+                remove_padding_tensor_dict_to_dict=remove_padding_tensor_dict_to_dict,
+                remove_padding_and_split_to_list=remove_padding_and_split_to_list)
+            ray.get(self.rollout_worker.wait_init_finished.remote())
+        except AttributeError as e:
+            raise AttributeError("initialize rollout worker miss attribute") from e
+        except RayError as e:
+            raise RuntimeError("initialize rollout worker by ray failed") from e
+        except Exception as e:
+            raise RuntimeError("Unexpected error occurred when initialize rollout worker") from e
+
+        try:
+            ray.get([actor.init_sharding_manager.remote() for actor in reference_worker.actor_handlers])
+        except RayError as e:
+            raise RuntimeError("initialize sharding manager by ray failed") from e
+        except Exception as e:
+            raise RuntimeError("Unexpected error occurred when initialize sharding manager") from e
+
+        try:
+            super().__init__(actor_worker=actor_worker,
+                             ref_worker=reference_worker,
+                             reward_list=reward_list,
+                             tokenizer=tokenizer,
+                             global_batch_size=actor_config.global_batch_size,
+                             micro_batch_size=rl_config.adv_dispatch_size,
+                             train_iters=actor_config.train_iters,
+                             save_interval=actor_config.save_interval,
+                             dataset_additional_keys=actor_config.dataset_additional_keys,
+                             **rl_config.dict())
+        except AttributeError as e:
+            raise AttributeError("trainer does not have the attribute") from e
+        except Exception as e:
+            raise RuntimeError("Unexpected error occurred when trainer initialize") from e
+
+    @staticmethod
+    def _check_args(rl_config: RLConfig,
+                    actor_config: MegatronConfig,
+                    generate_config: GenerateConfig,
+                    agentic_rl_config: AgenticRLConfig,
+                    actor_worker: RayActorGroup,
+                    reference_worker: RayActorGroup,
+                    reward_list: list[RuleReward],
+                    tokenizer: BaseTokenizer):
+        if rl_config is None or not isinstance(rl_config, RLConfig):
+            raise ValueError(f"rl_config must not be none or is not an instance of {RLConfig.__name__}")
+        if actor_config is None or not isinstance(actor_config, MegatronConfig):
+            raise ValueError(f"actor_config must not be none or is not an instance of {MegatronConfig.__name__}")
+        if generate_config is None or not isinstance(generate_config, GenerateConfig):
+            raise ValueError(f"generate_config must not be none or is not an instance of {GenerateConfig.__name__}")
+        if agentic_rl_config is None or not isinstance(agentic_rl_config, AgenticRLConfig):
+            raise ValueError(f"agentic_rl_config must not be none or is not an instance of {AgenticRLConfig.__name__}")
+        if actor_worker is None or not isinstance(actor_worker, RayActorGroup):
+            raise ValueError(f"actor_worker must not be none or is not an instance of {RayActorGroup.__name__}")
+        if reference_worker is None or not isinstance(reference_worker, RayActorGroup):
+            raise ValueError(f"reference_worker must not be none or is not an instance of {RayActorGroup.__name__}")
+        if tokenizer is not None and not isinstance(tokenizer, BaseTokenizer):
+            raise ValueError(f"tokenizer must not be none or is not an instance of {BaseTokenizer.__name__}")
+        if not isinstance(reward_list, list):
+            raise ValueError(f"reward_list must be a list")
+        for reward in reward_list:
+            if not isinstance(reward, ray.actor.ActorHandle):
+                raise ValueError(f"reward in reward_list must be an instance of ray.actor.ActorHandle")
+
+    @staticmethod
+    def _convert_generate_config(config: GenerateConfig) -> GenConfig:
+        return GenConfig(limit_mm_image_per_prompt=config.limit_mm_image_per_prompt,
+                         limit_mm_video_per_prompt=config.limit_mm_video_per_prompt,
+                         data_parallel_size=config.data_parallel_size,
+                         tokenizer_name_or_path=config.tokenizer_name_or_path,
+                         trust_remote_code=config.trust_remote_code,
+                         dtype=config.dtype,
+                         infer_tensor_parallel_size=config.infer_tensor_parallel_size,
+                         infer_pipeline_parallel_size=config.infer_pipeline_parallel_size,
+                         infer_expert_parallel_size=config.infer_expert_parallel_size,
+                         max_num_seqs=config.max_num_seqs,
+                         max_num_batched_tokens=config.max_num_batched_tokens,
+                         max_model_len=config.max_model_len,
+                         gpu_memory_utilization=config.gpu_memory_utilization,
+                         offload_train_optimizer=config.offload_train_optimizer,
+                         offload_train_grad=config.offload_train_grad,
+                         offload_train_param=config.offload_train_param,
+                         enable_prefix_caching=config.enable_prefix_caching,
+                         num_scheduler_steps=config.num_scheduler_steps,
+                         enforce_eager=config.enforce_eager,
+                         torchair_graph=config.torchair_graph,
+                         enable_expert_parallel=config.enable_expert_parallel,
+                         ascend_scheduler_config_enabled=config.ascend_scheduler_config_enabled,
+                         sampling_config=SamplingConfig(
+                             logprobs=getattr(config.sampling_config, "logprobs", 1),
+                             max_tokens=getattr(config.sampling_config, "max_tokens", 128),
+                             top_p=getattr(config.sampling_config, "top_p", 1.0),
+                             top_k=getattr(config.sampling_config, "top_k", 50),
+                             min_p=getattr(config.sampling_config, "min_p", 0.0),
+                             temperature=getattr(config.sampling_config, "temperature", 0.2),
+                             detokenize=getattr(config.sampling_config, "detokenize", False),
+                             seed=getattr(config.sampling_config, "seed", None),
+                         ))
+
+    def transfer_dock_init(self):
+        """
+        Initialize transfer dock for data communication.
+        """
+        dataset_additional_keys = self.dataset_additional_keys if self.dataset_additional_keys is not None else []
+        self.dataset_additional_keys = dataset_additional_keys + ["response_mask"]
+
+        try:
+            super().transfer_dock_init()
+        except RayError as e:
+            logger.error(f"init transfer docker by ray failed: {e}")
+            raise RuntimeError("init transfer docker by ray failed") from e
+        except Exception as e:
+            logger.error(f"Unexpected error occurred when init transfer docker: {e}")
+            raise RuntimeError("Unexpected error occurred when init transfer docker") from e
+
+        self.dataset_additional_keys = dataset_additional_keys
+
+        ray.get(self.rollout_worker.init_data_manager.remote(self.transfer_dock))
+
+    def fit(self, data_iters: Iterator):
+        """
+        The utils loop of GRPO.
+
+        Args:
+            data_iters: Iterations to get data to create Trajectories.
+        """
+        try:
+            iteration = self.actor_worker.get_iteration()
+        except AttributeError as e:
+            raise AttributeError("trainer does not have iteration attribute") from e
+        except Exception as e:
+            raise RuntimeError("Unexpected error occurred when trainer get iteration") from e
+
+        if self.blocking:
+            logger.info('trainer sync start grpo training at iteration: {}/{} ...'.format(iteration, self.train_iters))
+        else:
+            logger.info('trainer async start grpo training at iteration: {}/{} ...'.format(iteration, self.train_iters))
+
+        while iteration < self.train_iters:
+
+            try:
+                batch = next(data_iters)
+            except StopIteration:
+                logger.warning(f"iteration {iteration}/{self.train_iters}, but the data is already exhausted.")
+                return
+
+            self._prepare_for_update(batch)
+
+            try:
+                self.actor_worker.update(self.kl_ctrl, self.skip_actor_log_prob)
+            except RayError as e:
+                raise RuntimeError("trainer update actor by ray failed") from e
+            except Exception as e:
+                raise RuntimeError("Unexpected error occurred when trainer update actor") from e
+            logger.debug(f"trainer update actor finished.")
+
+            iteration += 1
+
+            try:
+                ray.get(self.transfer_dock.clear.remote())
+            except RayError as e:
+                raise RuntimeError("clear transfer dock by ray failed") from e
+            except Exception as e:
+                raise RuntimeError("Unexpected error occurred when clear transfer dock") from e
+            logger.debug(f"trainer clear transfer dock finished.")
+
+            if iteration % self.save_interval == 0 or iteration == self.train_iters:
+                try:
+                    logger.debug(f"save checkpoint at iteration {iteration}...")
+                    self.save_checkpoint(iteration)
+                except RayError as e:
+                    raise RuntimeError("save checkpoint by ray failed") from e
+                except Exception as e:
+                    raise RuntimeError("Unexpected error occurred when save checkpoint") from e
+                logger.debug(f"save checkpoint finished.")
+
+                try:
+                    FileCheck.check_data_path_is_valid(self.actor_config.save)
+                except ValueError as e:
+                    raise ValueError("Permission check error for the weight save path. "
+                                     "Please check if the umask parameter is set.") from e
+                except Exception as e:
+                    raise RuntimeError("Unexpected error occurred when check permission for weight save path") from e
+
+        logger.info('grpo training finished.')
+
+    def _prepare_for_update(self, batch):
+        try:
+            batch_dict, indexes = put_prompts_experience(batch,
+                                                         self.n_samples_per_prompt,
+                                                         self.dataset_additional_keys)
+            ray.get(self.transfer_dock.put_experience.remote(data_dict=batch_dict, indexes=indexes, is_prompt=True))
+        except RayError as e:
+            raise RuntimeError("trainer put prompts experience failed") from e
+        except Exception as e:
+            raise RuntimeError("Unexpected error occurred when trainer put prompts experience") from e
+
+        try:
+            ray.get(self.rollout_worker.generate_sequences.remote())
+        except RayError as e:
+            raise RuntimeError("trainer generate sequences failed") from e
+        except Exception as e:
+            raise RuntimeError("Unexpected error occurred when trainer generate sequences") from e
+        logger.debug(f"trainer generate sequences finished.")
+
+        try:
+            self.compute_advantage(blocking=False, guarantee_order=self.guarantee_order)
+        except RayError as e:
+            raise RuntimeError("trainer compute advantage failed") from e
+        except Exception as e:
+            raise RuntimeError("Unexpected error occurred when trainer compute advantage") from e
+        logger.debug(f"trainer compute advantage finished.")
+
+        try:
+            self.ref_worker.compute_ref_log_prob(blocking=self.blocking)
+        except RayError as e:
+            raise RuntimeError("trainer compute ref log prob failed") from e
+        except Exception as e:
+            raise RuntimeError("Unexpected error occurred when trainer compute ref log prob") from e
+        logger.debug(f"trainer compute ref log prob finished.")
+
+        if not self.skip_actor_log_prob:
+            try:
+                self.actor_worker.compute_log_prob(blocking=self.blocking)
+            except RayError as e:
+                raise RuntimeError("trainer compute actor log prob failed") from e
+            except Exception as e:
+                raise RuntimeError("Unexpected error occurred when trainer compute actor log prob") from e
+            logger.debug(f"trainer compute actor log prob finished.")
+
+        try:
+            self.actor_worker.wait_all_ref_objs_run_over()
+            self.ref_worker.wait_all_ref_objs_run_over()
+            for _, reward in enumerate(self.reward_list):
+                if hasattr(reward, 'wait_all_ref_objs_run_over'):
+                    reward.wait_all_ref_objs_run_over()
+        except RayError as e:
+            raise RuntimeError("trainer wait all process run over failed") from e
+        except Exception as e:
+            raise RuntimeError("Unexpected error occurred when trainer wait all process run over") from e
