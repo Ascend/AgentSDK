@@ -223,7 +223,7 @@ pip3 install ray==2.42.1
         bash script/compile.sh
 3.  解压tar包，执行命令：
     
-        tar -zxvf output/Ascend-mindsdk-agentsdk__linux-aarch64.tar.gz -c output
+        tar -zxvf output/Ascend-mindsdk-agentsdk__linux-aarch64.tar.gz -C output
 4.  安装whl包
 
         pip3 install output/agentic_rl-7.0.0-py3-none-any.whl
