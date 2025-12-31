@@ -55,6 +55,6 @@ bash $PROCESS_DIR/makeself.sh --chown --nomd5 --sha256 --nocrc \
   --packaging-date "" \
   --tar-extra '--owner=root --group=root' \
   $RESOURCE_DIR \
-  $TARGET_DIR/Ascend-agentsdk_${VERSION}_linux-aarch64.run \
+  $TARGET_DIR/Ascend-mindxsdk-agentsdk_${VERSION}_linux-aarch64.run \
   "ASCEND Agent SDK RUN PACKAGE" \
   ./install.sh
