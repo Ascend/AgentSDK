@@ -27,18 +27,21 @@ workdir=$workdir/..
 
 # 获取第一个入参，版本号
 VERSION="${1:-7.0.0}"
-
-# 处理版本号和Python版本号，如果版本号是7.0.T3，修改python版本号为7.0+T3，其他类型的版本号不处理
-if [[ "$VERSION" =~ ^([0-9]+\.[0-9]+)\.(T[0-9]*)$ ]]; then
-  PYTHON_WHL_VERSION=$(echo $VERSION | sed -E 's/^([0-9]+\.[0-9]+)\./\1+/')
-else
-  PYTHON_WHL_VERSION=$VERSION
-fi
+VERSION_FILE="${workdir}"/ci/config/config.ini
+get_version() {
+  if [ -f "$VERSION_FILE" ]; then
+    VERSION=$(sed -n 's/^version:[[:space:]]*//p' "$VERSION_FILE")
+    if [[ "$VERSION" == *.[b/B]* ]] && [[ "$VERSION" != *.[RC/rc]* ]]; then
+      VERSION=${VERSION%.*}
+    fi
+  fi
+}
+get_version
 
 function modify_init_py() {
   cd $workdir
   # 替换agentic_rl/__init__.py中记录的版本号，setup.py中进行解析
-  sed -i "s/^__version__ = .*/__version__ = \"${PYTHON_WHL_VERSION}\"/" agentic_rl/__init__.py
+  sed -i "s/^__version__ = .*/__version__ = \"${VERSION}\"/" agentic_rl/__init__.py
 }
 
 function compile() {
