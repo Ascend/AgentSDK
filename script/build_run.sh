@@ -25,7 +25,16 @@ workdir=$(
 
 # 获取第一个入参，版本号
 VERSION="${1:-7.0.0}"
-
+VERSION_FILE="${workdir}"/../ci/config/config.ini
+get_version() {
+  if [ -f "$VERSION_FILE" ]; then
+    VERSION=$(sed -n 's/^version:[[:space:]]*//p' "$VERSION_FILE")
+    if [[ "$VERSION" == *.[b/B]* ]] && [[ "$VERSION" != *.[RC/rc]* ]]; then
+      VERSION=${VERSION%.*}
+    fi
+  fi
+}
+get_version
 echo $VERSION
 
 PROCESS_DIR=$workdir/../output/process
