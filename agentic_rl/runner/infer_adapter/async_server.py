@@ -177,7 +177,8 @@ class AsyncServerManager:
             for rollout_dp_rank, server in servers.items():
                 try:
                     ray.get(server.__ray_ready__.remote(), timeout=self.SERVER_HEALTH_CHECK_TIMEOUT_SECONDS)
-                    self.server_addresses[rollout_dp_rank] = server
+                    address = ray.get(server.get_server_address.remote())
+                    self.server_addresses[rollout_dp_rank] = address
                     self.async_servers[rollout_dp_rank] = server
                     unready_dp_ranks.remove(rollout_dp_rank)
                 except RayError as e:

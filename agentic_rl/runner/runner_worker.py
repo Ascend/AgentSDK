@@ -54,6 +54,10 @@ class RunnerWorker:
             validator=lambda x: isinstance(x, int) and 0 < x <= 100,
             message="n_parallel_agents must be in range [1, 100]",
         ),
+        servers=dict(
+            validator=lambda x: isinstance(x, list) and len(x) > 0,
+            message="servers must be a non-empty list",
+        ),
         addresses=dict(
             validator=lambda x: isinstance(x, list) and len(x) > 0,
             message="addresses must be a non-empty list",
@@ -71,6 +75,7 @@ class RunnerWorker:
             max_model_len=16384,
             n_parallel_agents=8,
             agent_engine_wrapper_path: Optional[str] = None,
+            servers=None,
             addresses=None,
             agentic_rl_config=None,
     ):
@@ -84,7 +89,8 @@ class RunnerWorker:
             max_model_len (int): Maximum length of the model.
             n_parallel_agents (int): Number of parallel agents.
             agent_engine_wrapper_path (str): Path to the agent engine wrapper implementation.
-            addresses: Inference instance.
+            servers: Inference instance.
+            addresses: Inference server addresses.
             agentic_rl_config (dict): Agent environment configuration.
         """
         FileCheck.check_data_path_is_valid(tokenizer_name_or_path)
@@ -120,9 +126,9 @@ class RunnerWorker:
 
         # Initialize engine wrapper with exception handling
         try:
-            def get_completion(address):
+            def get_completion(servers):
                 def _internal_func(*args, **kwargs):
-                    return ray.get(address.completions.remote(*args, **kwargs))
+                    return ray.get(servers.completions.remote(*args, **kwargs))
 
                 return _internal_func
 
@@ -135,7 +141,8 @@ class RunnerWorker:
                 n_parallel_agents=n_parallel_agents,
                 max_steps=self.agentic_rl_config.max_steps
             )
-            self.agent_executor_wrapper.completions = [get_completion(addr) for addr in addresses]
+            self.agent_executor_wrapper.completions = [get_completion(server) for server in servers]
+            self.agent_executor_wrapper.server_addresses = addresses
             self.agent_executor_wrapper.initialize()
         except TypeError as e:
             logger.error(f"Invalid arguments for engine wrapper initialization: {str(e)}")

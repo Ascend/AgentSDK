@@ -152,6 +152,7 @@ def server_stub():
             self.init_engine = _Remote()
             self.wake_up = _Remote()
             self.sleep = _Remote()
+            self.get_server_address = _Remote()
     
     class _Opts:
         def remote(self, *args, **kwargs):
@@ -289,8 +290,8 @@ class TestAsyncServerManager:
             if call_count[0] == 1:
                 # First call for worker info
                 return original_get(x, **kwargs)
-            elif call_count[0] <= 5:
-                # Health check calls for 4 server instances (rollout_dp_size=4)
+            elif call_count[0] <= 9:
+                # Health check calls for 4 server instances (rollout_dp_size=4) + 4 get_server_address
                 return original_get(x, **kwargs)
             else:
                 # Engine init call - fail here
@@ -346,14 +347,14 @@ class TestAsyncServerManager:
     def test_wake_up_success(self, async_server_mod, valid_inputs, server_stub, monkeypatch):
         """Test successful wake_up of all server instances."""
         cfg, agent_cfg, wg = valid_inputs
-        
+
         monkeypatch.setenv("VLLM_DP_SIZE", "1")
         monkeypatch.setattr(
             async_server_mod, "FileCheck",
             types.SimpleNamespace(check_data_path_is_valid=lambda _: None)
         )
         monkeypatch.setattr(async_server_mod, "async_server_class", lambda infer_backend: server_stub)
-        
+
         manager = async_server_mod.AsyncServerManager(cfg, agent_cfg, "/path/to/tokenizer", wg)
         manager.wake_up()  # Should complete without error
 
@@ -362,47 +363,47 @@ class TestAsyncServerManager:
         cfg, agent_cfg, wg = valid_inputs
         RayError = sys.modules["ray.exceptions"].RayError
         ray_mod = sys.modules["ray"]
-        
+
         original_get = ray_mod.get
         call_count = [0]
-        
+
         def mock_get(x, **kwargs):
             call_count[0] += 1
-            if call_count[0] <= 5:
-                # Calls during init: worker info (1) + health checks (4)
+            if call_count[0] <= 9:
+                # Calls during init: worker info (1) + health checks (4) + get_server_address(4)
                 return original_get(x, **kwargs)
-            elif call_count[0] == 6:
+            elif call_count[0] == 10:
                 # Engine init call
                 return original_get(x, **kwargs)
             else:
                 # Wake up call - fail here
                 raise RayError("Wake up failed")
-        
+
         ray_mod.get = mock_get
-        
+
         monkeypatch.setenv("VLLM_DP_SIZE", "1")
         monkeypatch.setattr(
             async_server_mod, "FileCheck",
             types.SimpleNamespace(check_data_path_is_valid=lambda _: None)
         )
         monkeypatch.setattr(async_server_mod, "async_server_class", lambda infer_backend: server_stub)
-        
+
         manager = async_server_mod.AsyncServerManager(cfg, agent_cfg, "/path/to/tokenizer", wg)
-        
+
         with pytest.raises(RuntimeError, match="Failed to wake up server instances"):
             manager.wake_up()
 
     def test_sleep_success(self, async_server_mod, valid_inputs, server_stub, monkeypatch):
         """Test successful sleep of all server instances."""
         cfg, agent_cfg, wg = valid_inputs
-        
+
         monkeypatch.setenv("VLLM_DP_SIZE", "1")
         monkeypatch.setattr(
             async_server_mod, "FileCheck",
             types.SimpleNamespace(check_data_path_is_valid=lambda _: None)
         )
         monkeypatch.setattr(async_server_mod, "async_server_class", lambda infer_backend: server_stub)
-        
+
         manager = async_server_mod.AsyncServerManager(cfg, agent_cfg, "/path/to/tokenizer", wg)
         manager.sleep()  # Should complete without error
 
@@ -411,30 +412,30 @@ class TestAsyncServerManager:
         cfg, agent_cfg, wg = valid_inputs
         RayError = sys.modules["ray.exceptions"].RayError
         ray_mod = sys.modules["ray"]
-        
+
         original_get = ray_mod.get
         call_count = [0]
-        
+
         def mock_get(x, **kwargs):
             call_count[0] += 1
-            if call_count[0] <= 6:
+            if call_count[0] <= 10:
                 # First calls for init
                 return original_get(x, **kwargs)
             else:
                 # Sleep call
                 raise RayError("Sleep failed")
-        
+
         ray_mod.get = mock_get
-        
+
         monkeypatch.setenv("VLLM_DP_SIZE", "1")
         monkeypatch.setattr(
             async_server_mod, "FileCheck",
             types.SimpleNamespace(check_data_path_is_valid=lambda _: None)
         )
         monkeypatch.setattr(async_server_mod, "async_server_class", lambda infer_backend: server_stub)
-        
+
         manager = async_server_mod.AsyncServerManager(cfg, agent_cfg, "/path/to/tokenizer", wg)
-        
+
         with pytest.raises(RuntimeError, match="Failed to put server instances to sleep"):
             manager.sleep()
 
@@ -442,22 +443,22 @@ class TestAsyncServerManager:
         """Test cleanup_servers successfully kills all servers."""
         cfg, agent_cfg, wg = valid_inputs
         ray_mod = sys.modules["ray"]
-        
+
         killed_actors = []
         ray_mod.kill = lambda actor: killed_actors.append(actor)
-        
+
         monkeypatch.setenv("VLLM_DP_SIZE", "1")
         monkeypatch.setattr(
             async_server_mod, "FileCheck",
             types.SimpleNamespace(check_data_path_is_valid=lambda _: None)
         )
         monkeypatch.setattr(async_server_mod, "async_server_class", lambda infer_backend: server_stub)
-        
+
         manager = async_server_mod.AsyncServerManager(cfg, agent_cfg, "/path/to/tokenizer", wg)
         initial_servers = [s for s in manager.async_servers if s is not None]
-        
+
         manager._cleanup_servers()
-        
+
         assert len(killed_actors) == len(initial_servers)
         assert all(s is None for s in manager.async_servers)
         assert all(s is None for s in manager.server_addresses)
@@ -466,23 +467,23 @@ class TestAsyncServerManager:
         """Test cleanup_servers handles ray.kill failures gracefully."""
         cfg, agent_cfg, wg = valid_inputs
         ray_mod = sys.modules["ray"]
-        
+
         def failing_kill(actor):
             raise Exception("Kill failed")
-        
+
         ray_mod.kill = failing_kill
-        
+
         monkeypatch.setenv("VLLM_DP_SIZE", "1")
         monkeypatch.setattr(
             async_server_mod, "FileCheck",
             types.SimpleNamespace(check_data_path_is_valid=lambda _: None)
         )
         monkeypatch.setattr(async_server_mod, "async_server_class", lambda infer_backend: server_stub)
-        
+
         manager = async_server_mod.AsyncServerManager(cfg, agent_cfg, "/path/to/tokenizer", wg)
-        
+
         # Should not raise exception despite kill failures
         manager._cleanup_servers()
-        
+
         assert all(s is None for s in manager.async_servers)
         assert all(s is None for s in manager.server_addresses)

@@ -31,6 +31,9 @@ class AsyncServerBase(ABC):
 
     def __init__(self):
         self.server_ready = asyncio.Event()
+        self.address = "127.0.0.1"
+        self.port = None
+        self._server_task = None
 
     @abstractmethod
     async def completions(self, raw_request: Request):
@@ -40,15 +43,15 @@ class AsyncServerBase(ABC):
 
     @abstractmethod
     async def init_engine(self):
-        """Init async LLM engine."""
+        """Init async LLM inference engine."""
         raise NotImplementedError
 
     @abstractmethod
     async def wake_up(self):
-        """Wake up engine to load model weights and build kv cache."""
+        """Wake up inference engine to load model weights and build kv cache."""
         raise NotImplementedError
 
     @abstractmethod
     async def sleep(self):
-        """Sleep engine to offload model weights and discard kv cache."""
+        """Sleep inference engine to offload model weights and discard kv cache."""
         raise NotImplementedError

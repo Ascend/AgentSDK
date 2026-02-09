@@ -27,6 +27,7 @@ from tokenizers.models import BPE
 from tokenizers.pre_tokenizers import Whitespace
 from transformers import PreTrainedTokenizerFast
 from agentic_rl import BaseEngineWrapper, Trajectory
+from agentic_rl.base.utils.checker import ValidatorReturnTypeError
 
 logger = logging.getLogger(__name__)
 
@@ -42,8 +43,8 @@ class MockEngineWrapper(BaseEngineWrapper):
             n_parallel_agents=8,
             max_steps=5
     ):
-        super().__init__(agent_name, tokenizer, sampling_params, max_prompt_length, max_response_length,
-                         n_parallel_agents, max_steps)
+        super().__init__(agent_name, tokenizer, sampling_params, max_prompt_length,
+                         max_response_length, n_parallel_agents, max_steps)
 
     def initialize(self):
         pass
@@ -126,76 +127,91 @@ sampling_params_input = {
 
 
 class TestMockEngineWrapper:
+
     def test_init_agent_name_fail(self):
         with pytest.raises(ValueError) as exc_info:
-            MockEngineWrapper(agent_name="", tokenizer=tokenizer_demo, sampling_params=sampling_params_input)
+            MockEngineWrapper(agent_name="", tokenizer=tokenizer_demo,
+                              sampling_params=sampling_params_input)
         assert "agent_name must be a non-empty valid Python identifier" in str(exc_info.value)
 
     def test_init_tokenizer_fail(self):
         with pytest.raises(ValueError) as exc_info:
-            MockEngineWrapper(agent_name="agent", tokenizer=None, sampling_params=sampling_params_input)
+            MockEngineWrapper(agent_name="agent", tokenizer=None,
+                              sampling_params=sampling_params_input)
         assert "tokenizer must be provided" in str(exc_info.value)
 
     def test_init_sampling_params_fail(self):
         with pytest.raises(ValueError) as exc_info:
-            MockEngineWrapper(agent_name="agent", tokenizer=tokenizer_demo, sampling_params=["", "123"])
+            MockEngineWrapper(agent_name="agent", tokenizer=tokenizer_demo,
+                              sampling_params=["", "123"])
         assert "sampling_params must be a dictionary or None and all keys must be strings" in str(exc_info.value)
 
     def test_init_agent_name_type_fail(self):
         with pytest.raises(ValueError) as exc_info:
-            MockEngineWrapper(agent_name=123, tokenizer=tokenizer_demo, sampling_params=sampling_params_input)
+            MockEngineWrapper(agent_name=123, tokenizer=tokenizer_demo,
+                              sampling_params=sampling_params_input)
         assert "agent_name must be a non-empty valid Python identifier" in str(exc_info.value)
 
     def test_init_sampling_params_type_fail(self):
         with pytest.raises(ValueError) as exc_info:
-            MockEngineWrapper(agent_name="agent", tokenizer=tokenizer_demo, sampling_params="sampling_params_input")
+            MockEngineWrapper(agent_name="agent", tokenizer=tokenizer_demo,
+                              sampling_params="sampling_params_input")
         assert "sampling_params must be a dictionary or None and all keys must be strings" in str(exc_info.value)
 
     def test_init_sampling_params_content_type_fail(self):
         with pytest.raises(ValueError) as exc_info:
-            MockEngineWrapper(agent_name="agent", tokenizer=tokenizer_demo, sampling_params={123: 0.9})
+            MockEngineWrapper(agent_name="agent", tokenizer=tokenizer_demo,
+                              sampling_params={123: 0.9})
         assert "sampling_params must be a dictionary or None and all keys must be strings" in str(exc_info.value)
 
     def test_generate_agent_trajectories_async_success(self):
-        mock_engine = MockEngineWrapper(agent_name="agent", tokenizer=tokenizer_demo, sampling_params=sampling_params_input)
+        mock_engine = MockEngineWrapper(agent_name="agent", tokenizer=tokenizer_demo,
+                                        sampling_params=sampling_params_input)
         trajectories = mock_engine.generate_agent_trajectories_async(tasks_input)
         assert isinstance(trajectories, List)
-        assert all(isinstance(item, Trajectory) for item in trajectories)      
+        assert all(isinstance(item, Trajectory) for item in trajectories)
 
     def test_generate_agent_trajectories_async_empty_task_fail(self):
-        mock_engine = MockEngineWrapper(agent_name="agent", tokenizer=tokenizer_demo, sampling_params=sampling_params_input)
+        mock_engine = MockEngineWrapper(agent_name="agent", tokenizer=tokenizer_demo,
+                                        sampling_params=sampling_params_input)
         with pytest.raises(ValueError) as exc_info:
             mock_engine.generate_agent_trajectories_async([])
         assert "tasks list cannot be empty" in str(exc_info.value)
 
     def test_generate_agent_trajectories_async_task_type_fail(self):
-        mock_engine = MockEngineWrapper(agent_name="agent", tokenizer=tokenizer_demo, sampling_params=sampling_params_input)
+        mock_engine = MockEngineWrapper(agent_name="agent", tokenizer=tokenizer_demo,
+                                        sampling_params=sampling_params_input)
         with pytest.raises(TypeError) as exc_info:
             mock_engine.generate_agent_trajectories_async("tasks_input")
         assert "tasks must be a list" in str(exc_info.value)
 
     def test_generate_agent_trajectories_async_task_content_type_fail(self):
-        mock_engine = MockEngineWrapper(agent_name="agent", tokenizer=tokenizer_demo, sampling_params=sampling_params_input)
+        mock_engine = MockEngineWrapper(agent_name="agent", tokenizer=tokenizer_demo,
+                                        sampling_params=sampling_params_input)
         with pytest.raises(TypeError) as exc_info:
             mock_engine.generate_agent_trajectories_async(tasks=[[]])
         assert "tasks must be a list of dictionary" in str(exc_info.value)
 
     def test_generate_agent_trajectories_async_max_prompt_length_fail(self):
         with pytest.raises(ValueError) as exc_info:
-            MockEngineWrapper(agent_name="agent", tokenizer=tokenizer_demo, sampling_params=sampling_params_input, max_prompt_length=256*1024)
+            MockEngineWrapper(agent_name="agent", tokenizer=tokenizer_demo,
+                              sampling_params=sampling_params_input, max_prompt_length=256 * 1024)
         assert "max_prompt_length must be an integer between [1, 128K]" in str(exc_info.value)
 
     def test_generate_agent_trajectories_async_max_response_length_fail(self):
         with pytest.raises(ValueError) as exc_info:
-            MockEngineWrapper(agent_name="agent", tokenizer=tokenizer_demo, sampling_params=sampling_params_input, max_response_length="16*1024")
+            MockEngineWrapper(agent_name="agent", tokenizer=tokenizer_demo,
+                              sampling_params=sampling_params_input, max_response_length="16*1024")
         assert "max_response_length must be an integer between [1, 8K]" in str(exc_info.value)
 
     def test_generate_agent_trajectories_async_n_parallel_agents_fail(self):
         with pytest.raises(ValueError) as exc_info:
-            MockEngineWrapper(agent_name="agent", tokenizer=tokenizer_demo, sampling_params=sampling_params_input, n_parallel_agents=[128])
+            MockEngineWrapper(agent_name="agent", tokenizer=tokenizer_demo,
+                              sampling_params=sampling_params_input, n_parallel_agents=[128])
         assert "n_parallel_agents must be an integer between [1, 64]" in str(exc_info.value)
 
     def test_generate_agent_trajectories_async_max_steps_fail(self):
         with pytest.raises(ValueError) as exc_info:
-            MockEngineWrapper(agent_name="agent", tokenizer=tokenizer_demo, sampling_params=sampling_params_input, max_steps={})
+            MockEngineWrapper(agent_name="agent", tokenizer=tokenizer_demo,
+                              sampling_params=sampling_params_input, max_steps={})
         assert "max_steps must be an integer between [1, 10]" in str(exc_info.value)

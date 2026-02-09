@@ -66,6 +66,7 @@ class TestRunnerWorkerInit(unittest.TestCase):
             n_parallel_agents=4,
             agent_engine_wrapper_path="/path/to/wrapper.py",
             addresses=[mock_address],
+            servers=[mock_address],
             agentic_rl_config=config,
         )
 
@@ -114,6 +115,7 @@ class TestRunnerWorkerInit(unittest.TestCase):
                 tokenizer_name_or_path="/invalid/path",
                 agent_engine_wrapper_path="/path/to/wrapper.py",
                 addresses=[mock_address],
+                servers=[mock_address],
                 agentic_rl_config=config,
             )
         self.assertIn("Invalid tokenizer path", str(context.exception))
@@ -147,6 +149,7 @@ class TestRunnerWorkerInit(unittest.TestCase):
                 tokenizer_name_or_path="/path/to/tokenizer",
                 agent_engine_wrapper_path="/invalid/wrapper.py",
                 addresses=[mock_address],
+                servers=[mock_address],
                 agentic_rl_config=config,
             )
         self.assertIn("Invalid wrapper path", str(context.exception))
@@ -176,6 +179,7 @@ class TestRunnerWorkerInit(unittest.TestCase):
                 tokenizer_name_or_path="/path/to/tokenizer",
                 agent_engine_wrapper_path="/path/to/wrapper.py",
                 addresses=[mock_address],
+                servers=[mock_address],
                 agentic_rl_config=config,
             )
         self.assertIn("Failed to load tokenizer", str(context.exception))
@@ -205,6 +209,7 @@ class TestRunnerWorkerInit(unittest.TestCase):
                 tokenizer_name_or_path="/path/to/tokenizer",
                 agent_engine_wrapper_path="/path/to/wrapper.py",
                 addresses=[mock_address],
+                servers=[mock_address],
                 agentic_rl_config=config,
             )
         self.assertIn("Invalid tokenizer configuration", str(context.exception))
@@ -234,6 +239,7 @@ class TestRunnerWorkerInit(unittest.TestCase):
                 tokenizer_name_or_path="/path/to/tokenizer",
                 agent_engine_wrapper_path="/path/to/wrapper.py",
                 addresses=[mock_address],
+                servers=[mock_address],
                 agentic_rl_config=config,
             )
         self.assertIn("Unexpected tokenizer error", str(context.exception))
@@ -265,6 +271,7 @@ class TestRunnerWorkerInit(unittest.TestCase):
                 tokenizer_name_or_path="/path/to/tokenizer",
                 agent_engine_wrapper_path="/path/to/wrapper.py",
                 addresses=[mock_address],
+                servers=[mock_address],
                 agentic_rl_config=config,
             )
         self.assertIn("Failed to import wrapper module", str(context.exception))
@@ -296,6 +303,7 @@ class TestRunnerWorkerInit(unittest.TestCase):
                 tokenizer_name_or_path="/path/to/tokenizer",
                 agent_engine_wrapper_path="/path/to/wrapper.py",
                 addresses=[mock_address],
+                servers=[mock_address],
                 agentic_rl_config=config,
             )
         self.assertIn("Unexpected loading error", str(context.exception))
@@ -328,6 +336,7 @@ class TestRunnerWorkerInit(unittest.TestCase):
                 tokenizer_name_or_path="/path/to/tokenizer",
                 agent_engine_wrapper_path="/path/to/wrapper.py",
                 addresses=[mock_address],
+                servers=[mock_address],
                 agentic_rl_config=config,
             )
         self.assertIn("Invalid argument type", str(context.exception))
@@ -360,6 +369,7 @@ class TestRunnerWorkerInit(unittest.TestCase):
                 tokenizer_name_or_path="/path/to/tokenizer",
                 agent_engine_wrapper_path="/path/to/wrapper.py",
                 addresses=[mock_address],
+                servers=[mock_address],
                 agentic_rl_config=config,
             )
         self.assertIn("Invalid configuration", str(context.exception))
@@ -392,6 +402,7 @@ class TestRunnerWorkerInit(unittest.TestCase):
                 tokenizer_name_or_path="/path/to/tokenizer",
                 agent_engine_wrapper_path="/path/to/wrapper.py",
                 addresses=[mock_address],
+                servers=[mock_address],
                 agentic_rl_config=config,
             )
         self.assertIn("Unexpected init error", str(context.exception))
@@ -419,6 +430,7 @@ class TestRunnerWorkerInit(unittest.TestCase):
                 sampling_params="invalid",  # Should be dict or None
                 agent_engine_wrapper_path="/path/to/wrapper.py",
                 addresses=[mock_address],
+                servers=[mock_address],
                 agentic_rl_config=config,
             )
         self.assertIn("sampling_params must be a dictionary", str(context.exception))
@@ -446,6 +458,7 @@ class TestRunnerWorkerInit(unittest.TestCase):
                 max_prompt_length=0,  # Must be positive
                 agent_engine_wrapper_path="/path/to/wrapper.py",
                 addresses=[mock_address],
+                servers=[mock_address],
                 agentic_rl_config=config,
             )
         self.assertIn("max_prompt_length must be an positive integer", str(context.exception))
@@ -473,6 +486,7 @@ class TestRunnerWorkerInit(unittest.TestCase):
                 max_prompt_length=-100,  # Must be positive
                 agent_engine_wrapper_path="/path/to/wrapper.py",
                 addresses=[mock_address],
+                servers=[mock_address],
                 agentic_rl_config=config,
             )
         self.assertIn("max_prompt_length must be an positive integer", str(context.exception))
@@ -500,6 +514,7 @@ class TestRunnerWorkerInit(unittest.TestCase):
                 max_model_len=0,  # Must be positive
                 agent_engine_wrapper_path="/path/to/wrapper.py",
                 addresses=[mock_address],
+                servers=[mock_address],
                 agentic_rl_config=config,
             )
         self.assertIn("max_model_len must be an positive integer", str(context.exception))
@@ -527,6 +542,7 @@ class TestRunnerWorkerInit(unittest.TestCase):
                 max_model_len=-100,  # Must be positive
                 agent_engine_wrapper_path="/path/to/wrapper.py",
                 addresses=[mock_address],
+                servers=[mock_address],
                 agentic_rl_config=config,
             )
         self.assertIn("max_model_len must be an positive integer", str(context.exception))
@@ -554,6 +570,7 @@ class TestRunnerWorkerInit(unittest.TestCase):
                 n_parallel_agents=0,  # Must be in range [1, 100]
                 agent_engine_wrapper_path="/path/to/wrapper.py",
                 addresses=[mock_address],
+                servers=[mock_address],
                 agentic_rl_config=config,
             )
         self.assertIn("n_parallel_agents must be in range [1, 100]", str(context.exception))
@@ -581,6 +598,7 @@ class TestRunnerWorkerInit(unittest.TestCase):
                 n_parallel_agents=101,  # Must be in range [1, 100]
                 agent_engine_wrapper_path="/path/to/wrapper.py",
                 addresses=[mock_address],
+                servers=[mock_address],
                 agentic_rl_config=config,
             )
         self.assertIn("n_parallel_agents must be in range [1, 100]", str(context.exception))
@@ -605,6 +623,7 @@ class TestRunnerWorkerInit(unittest.TestCase):
                 tokenizer_name_or_path="/path/to/tokenizer",
                 agent_engine_wrapper_path="/path/to/wrapper.py",
                 addresses=[mock_address],
+                servers=[mock_address],
                 agentic_rl_config={"invalid": "config"},  # Must be AgenticRLConfig instance
             )
         self.assertIn("agentic_rl_config must be an AgenticRLConfig", str(context.exception))
@@ -658,6 +677,7 @@ class TestRunnerWorkerGenerateAgentTrajectoriesAsync(unittest.TestCase):
                     tokenizer_name_or_path="/path/to/tokenizer",
                     agent_engine_wrapper_path="/path/to/wrapper.py",
                     addresses=[mock_address],
+                    servers=[mock_address],
                     agentic_rl_config=config,
                 )
                 

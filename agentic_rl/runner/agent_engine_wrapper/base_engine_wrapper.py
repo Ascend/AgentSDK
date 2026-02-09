@@ -84,7 +84,6 @@ class BaseEngineWrapper(ABC):
                     f"Expected a PreTrainedTokenizer or PreTrainedTokenizerFast, "f"got {type(tokenizer).__name__}")
         else:
             raise ValueError("tokenizer must be provided")
-
         self.agent_name = agent_name
         self.tokenizer = tokenizer
         self.sampling_params = sampling_params
@@ -93,6 +92,7 @@ class BaseEngineWrapper(ABC):
         self.n_parallel_agents = n_parallel_agents
         self.max_steps = max_steps
         self.completions = None
+        self.server_addresses = None
 
     @abstractmethod
     def initialize(self):
