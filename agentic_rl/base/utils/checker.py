@@ -84,6 +84,7 @@ def validate_params(**validators):
                         raise ValidatorReturnTypeError(
                             f"Validator function for parameter '{arg_name}' in function '{func.__name__}' "
                             f"must return a boolean value, but got {type(result).__name__}: {result!r}"
+                            f"{validator.get('message', 'Validation failed')}"
                         )
                     if not result:
                         raise ValueError(f"The parameter '{arg_name}' of function '{func.__name__}' "
@@ -138,6 +139,12 @@ class CompletionRequestChecker:
         "seed", "presence_penalty", "frequency_penalty",
     }
 
+    CHAT_ALLOWED_FIELDS = {
+        "messages", "n", "temperature", "top_k", "top_p", "min_p",
+        "max_tokens", "min_tokens", "logprobs", "detokenize",
+        "seed", "presence_penalty", "frequency_penalty",
+    }
+
     @staticmethod
     def validate_input(raw_request: Dict[str, Any]) -> None:
         """Validate completion request input parameters.
@@ -167,6 +174,34 @@ class CompletionRequestChecker:
         CompletionRequestChecker._validate_misc_params(raw_request)
 
     @staticmethod
+    def validate_chat_input(raw_request: Dict[str, Any]) -> None:
+        """Validate completion request input parameters.
+
+        Args:
+            raw_request: The raw completion request dictionary
+
+        Raises:
+            ValueError or TypeError: If any validation fails
+        """
+        if not isinstance(raw_request, dict):
+            raise TypeError("raw_request must be a dictionary")
+        if not all(isinstance(key, str) for key in raw_request.keys()):
+            raise ValueError("all keys in raw_request must be strings")
+
+        # Validate no unrecognized fields are present
+        CompletionRequestChecker._validate_chat_allowed_fields(raw_request)
+
+        # Validate required fields
+        CompletionRequestChecker._validate_chat_required_fields(raw_request)
+        CompletionRequestChecker._validate_messages_field(raw_request["messages"])
+
+        # Validate optional parameters by category
+        CompletionRequestChecker._validate_sampling_params(raw_request)
+        CompletionRequestChecker._validate_token_params(raw_request)
+        CompletionRequestChecker._validate_penalty_params(raw_request)
+        CompletionRequestChecker._validate_misc_params(raw_request)
+
+    @staticmethod
     def _validate_allowed_fields(raw_request: Dict[str, Any]) -> None:
         """Validate that only allowed fields are present in the request.
 
@@ -184,6 +219,26 @@ class CompletionRequestChecker:
             raise ValueError(
                 f"Unrecognized field(s) in request: {', '.join(unknown_list)}. "
                 f"Allowed fields are: {', '.join(sorted(CompletionRequestChecker.ALLOWED_FIELDS))}"
+            )
+
+    @staticmethod
+    def _validate_chat_allowed_fields(raw_request: Dict[str, Any]) -> None:
+        """Validate that only allowed fields are present in the request.
+
+        Args:
+            raw_request: The raw completion request dictionary
+
+        Raises:
+            ValueError: If any unrecognized field is present
+        """
+        request_fields = set(raw_request.keys())
+        unknown_fields = request_fields - CompletionRequestChecker.CHAT_ALLOWED_FIELDS
+
+        if unknown_fields:
+            unknown_list = sorted(unknown_fields)
+            raise ValueError(
+                f"Unrecognized field(s) in request: {', '.join(unknown_list)}. "
+                f"Allowed fields are: {', '.join(sorted(CompletionRequestChecker.CHAT_ALLOWED_FIELDS))}"
             )
 
     @staticmethod
@@ -238,6 +293,21 @@ class CompletionRequestChecker:
                 raise ValueError(f"Missing required field: '{field}'")
 
     @staticmethod
+    def _validate_chat_required_fields(raw_request: Dict[str, Any]) -> None:
+        """Validate presence of required fields.
+
+        Args:
+            raw_request: The raw completion request dictionary
+
+        Raises:
+            ValueError: If any required field is missing
+        """
+        required_fields = ["messages"]
+        for field in required_fields:
+            if field not in raw_request:
+                raise ValueError(f"Missing required field: '{field}'")
+
+    @staticmethod
     def _validate_prompt_field(prompt: Any) -> None:
         """Validate prompt field format and content.
 
@@ -251,6 +321,38 @@ class CompletionRequestChecker:
             raise TypeError("Field 'prompt' must be a string")
         if not prompt:
             raise ValueError("Field 'prompt' cannot be an empty string")
+
+    @staticmethod
+    def _validate_messages_field(messages: Any) -> None:
+        """Validate messages field format and content.
+
+        Args:
+            messages: messages field value
+
+        Raises:
+            ValueError: If validation fails
+        """
+        if messages is None or not isinstance(messages, list):
+            raise TypeError("Field 'messages' must be a list")
+        if len(messages) == 0:
+            raise ValueError("Field 'messages' cannot be an empty list")
+
+        for i, msg in enumerate(messages):
+            if not isinstance(msg, dict):
+                raise TypeError(f"The member {i} of field 'messages' must be a dict")
+            if "role" not in msg:
+                raise ValueError(f"The member {i} of field 'messages' missing required field: 'role'")
+            if "content" not in msg:
+                raise ValueError(f"The member {i} of field 'messages' missing required field: 'content'")
+
+            role = msg["role"]
+            content = msg["content"]
+            if role not in ["system", "user", "assistant", "tool"]:
+                raise ValueError(f"The member {i} 'role' is invalid")
+            if not isinstance(content, str):
+                raise TypeError(f"The member {i} 'content' must be a string")
+            if content.strip() == "":
+                raise ValueError(f"The member {i} 'content' cannot be an empty string")
 
     @staticmethod
     def _validate_sampling_params(raw_request: Dict[str, Any]) -> None:

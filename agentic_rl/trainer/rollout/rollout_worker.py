@@ -151,6 +151,7 @@ class RolloutWorker:
             "detokenize": self.generate_config.sampling_config.detokenize,
             "model_name": self.tokenizer_name_or_path,
         }
+        servers = self.rollout_engine.async_servers
         addresses = self.rollout_engine.server_addresses
 
         self.runner_worker = RunnerWorker.remote(
@@ -160,6 +161,7 @@ class RolloutWorker:
             max_prompt_length=max_prompt_length,
             max_model_len=self.generate_config.max_model_len,
             agentic_rl_config=self.agentic_rl_config,
+            servers=servers,
             addresses=addresses,
             agent_engine_wrapper_path=self.agentic_rl_config.agent_engine_wrapper_path
         )
@@ -337,7 +339,7 @@ class RolloutWorker:
         prompts_batch = self._pad_sequences(all_initial_tokens, left_pad=True)
         response_batch = self._pad_sequences(all_response_tokens, left_pad=False)
         input_ids_list, prompt_length_list = self._create_input_ids(all_initial_tokens, all_response_tokens)
-        traj_mask = self._pad_sequences(all_masks, left_pad=False)
+        traj_mask = torch.nn.utils.rnn.pad_sequence(all_masks, batch_first=True, padding_value=0)
         if len(response_batch.shape) < 2 or len(prompts_batch.shape) < 2:
             raise ValueError("response_batch and prompts_batch must have at least two dimensions")
         trajectory_batch = torch.concat([prompts_batch, response_batch], dim=1)

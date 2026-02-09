@@ -480,7 +480,7 @@ class TestRolloutWorker(unittest.TestCase):
 
         # Mock the return values of the dependent methods
         self.worker._extract_trajectory_data.return_value = (
-            ['initial_tokens'], ['response_tokens'], ['masks'], [1.0], ['chat_completions']
+            ['initial_tokens'], ['response_tokens'], [torch.tensor([1, 1, 1])], [1.0], ['chat_completions']
         )
         self.worker.run_trajectories_perf_metric.return_value = {'metric': 1.0}
         self.worker._pad_sequences.return_value = torch.tensor([[1, 2, 3]])
@@ -496,7 +496,6 @@ class TestRolloutWorker(unittest.TestCase):
         self.worker.run_trajectories_perf_metric.assert_called_once_with(trajectories)
         self.worker._pad_sequences.assert_any_call(['initial_tokens'], left_pad=True)
         self.worker._pad_sequences.assert_any_call(['response_tokens'], left_pad=False)
-        self.worker._pad_sequences.assert_any_call(['masks'], left_pad=False)
         self.worker._create_input_ids.assert_called_once_with(['initial_tokens'], ['response_tokens'])
 
         self.assertIsInstance(result, dict)

@@ -18,14 +18,19 @@ See the Mulan PSL v2 for more details.
 -------------------------------------------------------------------------
 """
 
+import asyncio
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
+import socket
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import cloudpickle
+from fastapi import FastAPI
 import ray
 from ray.exceptions import RayError
+import uvicorn
 from vllm.engine.arg_utils import AsyncEngineArgs
-from vllm.entrypoints.openai.protocol import CompletionRequest
+from vllm.entrypoints.openai.protocol import CompletionRequest, ChatCompletionRequest
 from vllm.entrypoints.openai.serving_chat import OpenAIServingChat
 from vllm.entrypoints.openai.serving_completion import OpenAIServingCompletion
 from vllm.entrypoints.openai.serving_models import BaseModelPath, OpenAIServingModels
@@ -217,8 +222,49 @@ class AsyncVLLMServer(AsyncServerBase):
         self.engine: Optional[AsyncLLM] = None
         self.openai_serving_chat: Optional[OpenAIServingChat] = None
         self.openai_serving_completion: Optional[OpenAIServingCompletion] = None
+        self._server_task = asyncio.create_task(self._start_fastapi_server())
 
         logger.info(f"AsyncVLLMServer initialized successfully for rank {vllm_dp_rank}/{vllm_dp_size}")
+
+    async def _start_fastapi_server(self) -> None:
+        """Start vllm inference server by fastapi and uvicorn"""
+        @asynccontextmanager
+        async def lifespan(app: FastAPI):
+            logger.info("Vllm inference server lifespan startup begin.")
+            try:
+                self.server_ready.set()
+                yield
+            finally:
+                logger.info("Vllm inference server lifespan end")
+
+        app = FastAPI(lifespan=lifespan)
+        app.router.add_api_route("/v1/completions", self.completions, methods=["POST"])
+        app.router.add_api_route("/v1/chat/completions", self.chat_completions, methods=["POST"])
+
+        self.port = self._get_free_port()
+        config = uvicorn.Config(
+            app,
+            host=self.address,
+            port=self.port,
+            log_level="warning",
+            lifespan="on"
+        )
+        server = uvicorn.Server(config)
+        try:
+            await server.serve()
+        except asyncio.CancelledError as e:
+            logger.info("Vllm inference server canceled")
+            server.should_exit = True
+            raise e
+        except Exception as e:
+            raise RuntimeError(f"Unexpected error during start vllm inference: {e}") from e
+        finally:
+            logger.info("Vllm inference server exited.")
+
+    def _get_free_port(self) -> int:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.bind((f"{self.address}", 0))
+            return sock.getsockname()[1]
 
     @staticmethod
     def _build_generation_config(sampling_config: SamplingConfig) -> Dict[str, Any]:
@@ -231,6 +277,10 @@ class AsyncVLLMServer(AsyncServerBase):
             "min_p": sampling_config.min_p,
             "temperature": sampling_config.temperature,
         }
+
+    async def get_server_address(self) -> str:
+        await self.server_ready.wait()
+        return f"{self.address}:{self.port}"
 
     async def init_engine(self) -> None:
         """Initialize vLLM AsyncLLM engine and OpenAI serving components."""
@@ -261,9 +311,31 @@ class AsyncVLLMServer(AsyncServerBase):
         except Exception as e:
             raise RuntimeError(f"Unexpected error occurred when initializing AsyncLLM engine: {e}") from e
 
-        model_name = "/".join(self.vllm_config.model_path.split("/")[-2:])
+        model_name = "/".join(self.vllm_config.model_path.split("/")[-1:])
         self._setup_openai_serving(model_config, model_name, self.vllm_config.model_path)
         logger.info("VLLM AsyncLLM engine initialization completed successfully")
+
+    async def chat_completions(self, raw_request: Dict[str, Any]):
+        """OpenAI-compatible HTTP endpoint.
+        API reference: https://docs.vllm.ai/en/latest/serving/openai_compatible_server/
+        """
+        if "model_name" in raw_request:
+            raw_request.pop("model_name")
+        try:
+            CompletionRequestChecker.validate_chat_input(raw_request)
+        except ValueError as e:
+            raise ValueError(f"Input validation failed: {e}") from e
+        if self.openai_serving_chat is None:
+            raise RuntimeError("OpenAI serving chat is not initialized. Call init_engine first.")
+        try:
+            request = ChatCompletionRequest(**raw_request)
+        except ValueError as e:
+            raise ValueError(f"Failed to parse chat completion request: {e}") from e
+        except Exception as e:
+            raise ValueError(f"Unexpected error occurred when parsing chat completion: {e}") from e
+
+        generator = await self.openai_serving_chat.create_chat_completion(request)
+        return generator.model_dump()
 
     async def completions(self, raw_request: Dict[str, Any]):
         """OpenAI completions API.
@@ -393,7 +465,9 @@ class AsyncVLLMServer(AsyncServerBase):
                 "assistant",
                 request_logger=None,
                 chat_template=None,
-                chat_template_content_format="auto"
+                chat_template_content_format="auto",
+                enable_auto_tools=True,
+                tool_parser="pythonic"
             )
 
             self.openai_serving_completion = OpenAIServingCompletion(

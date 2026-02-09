@@ -57,6 +57,12 @@ class TestCompletionRequestChecker(unittest.TestCase):
         # Should not raise any exception
         CompletionRequestChecker.validate_input(request)
 
+    def test_valid_minimal_chat_request(self):
+        request = {
+            "messages": [{"role": "user", "content": "hello"}]
+        }
+        CompletionRequestChecker.validate_chat_input(request)
+
     def test_valid_complete_request(self):
         """Test validation passes with all valid fields."""
         request = {
@@ -77,10 +83,36 @@ class TestCompletionRequestChecker(unittest.TestCase):
         # Should not raise any exception
         CompletionRequestChecker.validate_input(request)
 
+    def test_valid_complete_chat_request(self):
+        """Test validation passes with all valid fields."""
+        request = {
+            "messages": [{"role": "user", "content": "hello"}],
+            "n": 1,
+            "temperature": 0.7,
+            "top_k": 50,
+            "top_p": 0.9,
+            "min_p": 0.1,
+            "max_tokens": 100,
+            "min_tokens": 10,
+            "logprobs": True,
+            "detokenize": False,
+            "seed": 12345,
+            "presence_penalty": 0.5,
+            "frequency_penalty": 0.5
+        }
+        # Should not raise any exception
+        CompletionRequestChecker.validate_chat_input(request)
+
     def test_invalid_request_type(self):
         """Test validation fails when request is not a dictionary."""
         with self.assertRaises(TypeError) as context:
             CompletionRequestChecker.validate_input("not a dict")
+        self.assertIn("must be a dictionary", str(context.exception))
+
+    def test_invalid_chat_request_type(self):
+        """Test validation fails when request is not a dictionary."""
+        with self.assertRaises(TypeError) as context:
+            CompletionRequestChecker.validate_chat_input("not a dict")
         self.assertIn("must be a dictionary", str(context.exception))
 
     def test_unrecognized_field(self):
@@ -91,6 +123,17 @@ class TestCompletionRequestChecker(unittest.TestCase):
         }
         with self.assertRaises(ValueError) as context:
             CompletionRequestChecker.validate_input(request)
+        self.assertIn("Unrecognized field(s)", str(context.exception))
+        self.assertIn("invalid_field", str(context.exception))
+
+    def test_unrecognized_chat_field(self):
+        """Test validation fails with unrecognized field."""
+        request = {
+            "messages": [{"role": "user", "content": "hello"}],
+            "invalid_field": "value"
+        }
+        with self.assertRaises(ValueError) as context:
+            CompletionRequestChecker.validate_chat_input(request)
         self.assertIn("Unrecognized field(s)", str(context.exception))
         self.assertIn("invalid_field", str(context.exception))
 
@@ -111,6 +154,12 @@ class TestCompletionRequestChecker(unittest.TestCase):
             CompletionRequestChecker.validate_input({})
         self.assertIn("Missing required field: 'prompt'", str(context.exception))
 
+    def test_missing_messages_field(self):
+        """Test validation fails when messages field is missing."""
+        with self.assertRaises(ValueError) as context:
+            CompletionRequestChecker.validate_chat_input({})
+        self.assertIn("Missing required field: 'messages'", str(context.exception))
+
     def test_invalid_prompt_type(self):
         """Test validation fails when prompt is not a string."""
         request = {"prompt": 123}
@@ -118,12 +167,62 @@ class TestCompletionRequestChecker(unittest.TestCase):
             CompletionRequestChecker.validate_input(request)
         self.assertIn("'prompt' must be a string", str(context.exception))
 
+    def test_invalid_messages_type(self):
+        """Test validation fails when messages is not a string."""
+        request = {"messages": {"role": "user", "content": "hello"}}
+        with self.assertRaises(TypeError) as context:
+            CompletionRequestChecker.validate_chat_input(request)
+        self.assertIn("Field 'messages' must be a list", str(context.exception))
+
     def test_empty_prompt_string(self):
         """Test validation fails when prompt is an empty string."""
         request = {"prompt": ""}
         with self.assertRaises(ValueError) as context:
             CompletionRequestChecker.validate_input(request)
         self.assertIn("'prompt' cannot be an empty string", str(context.exception))
+
+    def test_empty_messages_string(self):
+        """Test validation fails when messages is an empty string."""
+        request = {"messages": []}
+        with self.assertRaises(ValueError) as context:
+            CompletionRequestChecker.validate_chat_input(request)
+        self.assertIn("Field 'messages' cannot be an empty list", str(context.exception))
+
+    def test_invalid_messages_non_list_dict(self):
+        request = {"messages": [{"role": "user", "content": "hello"}, "not a dict"]}
+        with self.assertRaises(TypeError) as context:
+            CompletionRequestChecker.validate_chat_input(request)
+        self.assertIn("The member 1 of field 'messages' must be a dict", str(context.exception))
+
+    def test_invalid_messages_without_role(self):
+        request = {"messages": [{"content": "hello"}]}
+        with self.assertRaises(ValueError) as context:
+            CompletionRequestChecker.validate_chat_input(request)
+        self.assertIn("The member 0 of field 'messages' missing required field: 'role'", str(context.exception))
+
+    def test_invalid_messages_without_content(self):
+        request = {"messages": [{"role": "user"}]}
+        with self.assertRaises(ValueError) as context:
+            CompletionRequestChecker.validate_chat_input(request)
+        self.assertIn("The member 0 of field 'messages' missing required field: 'content'", str(context.exception))
+
+    def test_invalid_messages_with_invalid_role(self):
+        request = {"messages": [{"role": "invalid", "content": "hello"}]}
+        with self.assertRaises(ValueError) as context:
+            CompletionRequestChecker.validate_chat_input(request)
+        self.assertIn("The member 0 'role' is invalid", str(context.exception))
+
+    def test_invalid_messages_with_invalid_content(self):
+        request = {"messages": [{"role": "user", "content": 123}]}
+        with self.assertRaises(TypeError) as context:
+            CompletionRequestChecker.validate_chat_input(request)
+        self.assertIn("The member 0 'content' must be a string", str(context.exception))
+
+    def test_invalid_messages_with_empty_content(self):
+        request = {"messages": [{"role": "user", "content": ""}]}
+        with self.assertRaises(ValueError) as context:
+            CompletionRequestChecker.validate_chat_input(request)
+        self.assertIn("The member 0 'content' cannot be an empty string", str(context.exception))
 
     def test_temperature_valid_range(self):
         """Test temperature validation with valid values."""

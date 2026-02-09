@@ -51,7 +51,8 @@ function pre_install() {
   word2number==1.1 \
   codetiming==1.4.0 \
   torchvision==0.20.1 \
-  ray==2.42.1
+  ray==2.42.1 \
+  uvicorn==0.38.0
 
   megatron_path=$workdir/AgenticRL/third-party/Megatron-LM-core_r0.8.0/
   mindspeed_path=$workdir/AgenticRL/third-party/MindSpeed-2.1.0_core_r0.8.0/
