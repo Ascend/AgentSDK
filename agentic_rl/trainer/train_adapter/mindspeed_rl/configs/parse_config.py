@@ -104,7 +104,7 @@ def _gen_rl_config() -> RLConfig:
             'verifier_weight': [1.0],
             'verifier_parallel': 1,
             'verifier_timeout': 300,
-            'use_tensorboard': False,
+            'use_tensorboard': True,
         })
     )
     return rl_config

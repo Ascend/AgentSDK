@@ -19,19 +19,24 @@ See the Mulan PSL v2 for more details.
 """
 from typing import Iterator
 
+from codetiming import Timer
+
 from agentic_rl.trainer.train_adapter.mindspeed_rl import patch
 
 patch.apply_patch()
 
 import ray
 from ray.exceptions import RayError
-from mindspeed_rl import RayGRPOTrainer, RLConfig, MegatronConfig, GenerateConfig, RayActorGroup, RuleReward
+
+from mindspeed_rl import RayGRPOTrainer, RLConfig, MegatronConfig, GenerateConfig, RayActorGroup, RuleReward, Metric
+from mindspeed_rl.trainer.utils import compute_grpo_data_metrics
 from mindspeed_rl.trainer.utils.transfer_dock import put_prompts_experience
 from mindspeed_rl.utils.pad_process import (
     remove_padding_tensor_dict_to_dict,
     remove_padding_and_split_to_list
 )
 from mindspeed_rl.utils.tokenizer import BaseTokenizer
+from mindspeed_rl.utils.utils import metrics_post_processing, metrics_sort, compute_tps
 
 from agentic_rl.base.utils.file_utils import FileCheck
 from agentic_rl.base.log.loggers import Loggers
@@ -204,6 +209,8 @@ class AgentGRPOTrainer(RayGRPOTrainer):
         Args:
             data_iters: Iterations to get data to create Trajectories.
         """
+        metrics = Metric()
+
         try:
             iteration = self.actor_worker.get_iteration()
         except AttributeError as e:
@@ -212,103 +219,125 @@ class AgentGRPOTrainer(RayGRPOTrainer):
             raise RuntimeError("Unexpected error occurred when trainer get iteration") from e
 
         if self.blocking:
-            logger.info('trainer sync start grpo training at iteration: {}/{} ...'.format(iteration, self.train_iters))
+            logger.info(
+                'trainer sync start grpo training at iteration: {}/{} ...'.format(iteration + 1, self.train_iters))
         else:
-            logger.info('trainer async start grpo training at iteration: {}/{} ...'.format(iteration, self.train_iters))
+            logger.info(
+                'trainer async start grpo training at iteration: {}/{} ...'.format(iteration + 1, self.train_iters))
 
         while iteration < self.train_iters:
+            with Timer(name='iteration', logger=None) as all_timer:
+                try:
+                    batch = next(data_iters)
+                except StopIteration:
+                    logger.warning(f"iteration {iteration + 1}/{self.train_iters}, but the data is already exhausted.")
+                    return
 
-            try:
-                batch = next(data_iters)
-            except StopIteration:
-                logger.warning(f"iteration {iteration}/{self.train_iters}, but the data is already exhausted.")
-                return
+                self._prepare_for_update(batch)
 
-            self._prepare_for_update(batch)
+                self._update_actor()
 
-            try:
-                self.actor_worker.update(self.kl_ctrl, self.skip_actor_log_prob)
-            except RayError as e:
-                raise RuntimeError("trainer update actor by ray failed") from e
-            except Exception as e:
-                raise RuntimeError("Unexpected error occurred when trainer update actor") from e
-            logger.debug(f"trainer update actor finished.")
+                logger.info("compute_grpo_data_metrics start ...")
+                grpo_data_metrics = compute_grpo_data_metrics(self.transfer_dock,
+                                                              self.global_batch_size * self.n_samples_per_prompt,
+                                                              self.tokenizer,
+                                                              self.global_batch_size * self.n_samples_per_prompt,
+                                                              self.guarantee_order)
+                metrics_result = ray.get(self.transfer_dock.get_metrics.remote())
+
+            self._update_metrics(metrics_result, grpo_data_metrics, metrics, all_timer)
 
             iteration += 1
+            logger.info(metrics.metric, iteration, self.train_iters)
 
-            try:
-                ray.get(self.transfer_dock.clear.remote())
-            except RayError as e:
-                raise RuntimeError("clear transfer dock by ray failed") from e
-            except Exception as e:
-                raise RuntimeError("Unexpected error occurred when clear transfer dock") from e
-            logger.debug(f"trainer clear transfer dock finished.")
+            self._clear_transfer_dock()
+
+            self._add_scalar(iteration, metrics)
 
             if iteration % self.save_interval == 0 or iteration == self.train_iters:
-                try:
-                    logger.debug(f"save checkpoint at iteration {iteration}...")
-                    self.save_checkpoint(iteration)
-                except RayError as e:
-                    raise RuntimeError("save checkpoint by ray failed") from e
-                except Exception as e:
-                    raise RuntimeError("Unexpected error occurred when save checkpoint") from e
-                logger.debug(f"save checkpoint finished.")
-
-                try:
-                    FileCheck.check_data_path_is_valid(self.actor_config.save)
-                except ValueError as e:
-                    raise ValueError("Permission check error for the weight save path. "
-                                     "Please check if the umask parameter is set.") from e
-                except Exception as e:
-                    raise RuntimeError("Unexpected error occurred when check permission for weight save path") from e
+                self._save_checkpoint(iteration)
 
         logger.info('grpo training finished.')
 
+    def _add_scalar(self, iteration, metrics):
+        if self.tensorboard is not None:
+            for k, v in metrics.metric.items():
+                try:
+                    self.tensorboard.add_scalar(f"train/{k}", v, iteration)
+                except (TypeError, ValueError) as e:
+                    raise ValueError(f"Invalid data for tensorboard: "
+                                     f"tag=train/{k}, value={v}, step={iteration}, error={e}") from e
+                except Exception as e:
+                    raise RuntimeError(f"Unexpected error occurred when add scalar to tensorboard: "
+                                       f"tag=train/{k}, value={v}, step={iteration}, error={e}") from e
+
+    def _clear_transfer_dock(self):
+        try:
+            ray.get(self.transfer_dock.clear.remote())
+        except RayError as e:
+            raise RuntimeError("clear transfer dock by ray failed") from e
+        except Exception as e:
+            raise RuntimeError("Unexpected error occurred when clear transfer dock") from e
+        logger.debug(f"trainer clear transfer dock finished.")
+
+    def _update_actor(self):
+        try:
+            logger.info("update start ...")
+            self.actor_worker.update(self.kl_ctrl, self.skip_actor_log_prob)
+            self.actor_worker.wait_all_ref_objs_run_over()
+        except RayError as e:
+            raise RuntimeError("trainer update actor by ray failed") from e
+        except Exception as e:
+            raise RuntimeError("Unexpected error occurred when trainer update actor") from e
+        logger.info(f"trainer update actor finished.")
+
+    def _save_checkpoint(self, iteration):
+        try:
+            logger.debug(f"save checkpoint at iteration {iteration}...")
+            self.save_checkpoint(iteration)
+        except RayError as e:
+            raise RuntimeError("save checkpoint by ray failed") from e
+        except Exception as e:
+            raise RuntimeError("Unexpected error occurred when save checkpoint") from e
+        logger.debug(f"save checkpoint finished.")
+
+        try:
+            FileCheck.check_data_path_is_valid(self.actor_config.save)
+        except ValueError as e:
+            raise ValueError("Permission check error for the weight save path. "
+                             "Please check if the umask parameter is set.") from e
+        except Exception as e:
+            raise RuntimeError("Unexpected error occurred when check permission for weight save path") from e
+
+    def _update_metrics(self, metrics_result, grpo_data_metrics, metrics, all_timer):
+        metrics_result = metrics_post_processing(metrics_result)
+        metrics_result = metrics_sort(metrics_result, all_timer.last)
+        log_max_throughput = False
+        tps = compute_tps(self.kwargs, grpo_data_metrics, self.global_batch_size, self.n_samples_per_prompt,
+                          all_timer.last, log_max_throughput)
+        update_tps = compute_tps(self.kwargs, grpo_data_metrics, self.global_batch_size, self.n_samples_per_prompt,
+                                 metrics_result['timing/update'], log_max_throughput)
+        vllm_tps = compute_tps(self.kwargs, grpo_data_metrics, self.global_batch_size, self.n_samples_per_prompt,
+                               metrics_result['timing/rollout'], log_max_throughput)
+        metrics.update(value=metrics_result)
+        metrics.update(value=grpo_data_metrics)
+        metrics.update("tokens/p/s", tps)
+        metrics.update("update_tps", update_tps)
+        metrics.update("vllm_throughput", vllm_tps)
+
     def _prepare_for_update(self, batch):
-        try:
-            batch_dict, indexes = put_prompts_experience(batch,
-                                                         self.n_samples_per_prompt,
-                                                         self.dataset_additional_keys)
-            ray.get(self.transfer_dock.put_experience.remote(data_dict=batch_dict, indexes=indexes, is_prompt=True))
-        except RayError as e:
-            raise RuntimeError("trainer put prompts experience failed") from e
-        except Exception as e:
-            raise RuntimeError("Unexpected error occurred when trainer put prompts experience") from e
+        self._put_prompts_experience(batch)
+
+        self._generate_sequences()
+
+        self._compute_advantage()
+
+        self._compute_ref_log_prob()
+
+        self._compute_log_prob()
 
         try:
-            ray.get(self.rollout_worker.generate_sequences.remote())
-        except RayError as e:
-            raise RuntimeError("trainer generate sequences failed") from e
-        except Exception as e:
-            raise RuntimeError("Unexpected error occurred when trainer generate sequences") from e
-        logger.debug(f"trainer generate sequences finished.")
-
-        try:
-            self.compute_advantage(blocking=False, guarantee_order=self.guarantee_order)
-        except RayError as e:
-            raise RuntimeError("trainer compute advantage failed") from e
-        except Exception as e:
-            raise RuntimeError("Unexpected error occurred when trainer compute advantage") from e
-        logger.debug(f"trainer compute advantage finished.")
-
-        try:
-            self.ref_worker.compute_ref_log_prob(blocking=self.blocking)
-        except RayError as e:
-            raise RuntimeError("trainer compute ref log prob failed") from e
-        except Exception as e:
-            raise RuntimeError("Unexpected error occurred when trainer compute ref log prob") from e
-        logger.debug(f"trainer compute ref log prob finished.")
-
-        if not self.skip_actor_log_prob:
-            try:
-                self.actor_worker.compute_log_prob(blocking=self.blocking)
-            except RayError as e:
-                raise RuntimeError("trainer compute actor log prob failed") from e
-            except Exception as e:
-                raise RuntimeError("Unexpected error occurred when trainer compute actor log prob") from e
-            logger.debug(f"trainer compute actor log prob finished.")
-
-        try:
+            logger.info("wait_all_ref_objs_run_over start ...")
             self.actor_worker.wait_all_ref_objs_run_over()
             self.ref_worker.wait_all_ref_objs_run_over()
             for _, reward in enumerate(self.reward_list):
@@ -318,3 +347,55 @@ class AgentGRPOTrainer(RayGRPOTrainer):
             raise RuntimeError("trainer wait all process run over failed") from e
         except Exception as e:
             raise RuntimeError("Unexpected error occurred when trainer wait all process run over") from e
+
+    def _compute_log_prob(self):
+        logger.info(f"compute_log_prob start self.skip_actor_log_prob={self.skip_actor_log_prob}...")
+        if not self.skip_actor_log_prob:
+            try:
+                self.actor_worker.compute_log_prob(blocking=self.blocking)
+            except RayError as e:
+                raise RuntimeError("trainer compute actor log prob failed") from e
+            except Exception as e:
+                raise RuntimeError("Unexpected error occurred when trainer compute actor log prob") from e
+            logger.debug(f"trainer compute actor log prob finished.")
+
+    def _compute_ref_log_prob(self):
+        try:
+            logger.info("compute_ref_log_prob start ...")
+            self.ref_worker.compute_ref_log_prob(blocking=self.blocking)
+        except RayError as e:
+            raise RuntimeError("trainer compute ref log prob failed") from e
+        except Exception as e:
+            raise RuntimeError("Unexpected error occurred when trainer compute ref log prob") from e
+        logger.debug(f"trainer compute ref log prob finished.")
+
+    def _compute_advantage(self):
+        try:
+            logger.info("compute_advantage start ...")
+            self.compute_advantage(blocking=False, guarantee_order=self.guarantee_order)
+        except RayError as e:
+            raise RuntimeError("trainer compute advantage failed") from e
+        except Exception as e:
+            raise RuntimeError("Unexpected error occurred when trainer compute advantage") from e
+        logger.debug(f"trainer compute advantage finished.")
+
+    def _generate_sequences(self):
+        try:
+            logger.info('rollout_worker start ...')
+            ray.get(self.rollout_worker.generate_sequences.remote())
+        except RayError as e:
+            raise RuntimeError("trainer generate sequences failed") from e
+        except Exception as e:
+            raise RuntimeError("Unexpected error occurred when trainer generate sequences") from e
+        logger.debug(f"trainer generate sequences finished.")
+
+    def _put_prompts_experience(self, batch):
+        try:
+            batch_dict, indexes = put_prompts_experience(batch,
+                                                         self.n_samples_per_prompt,
+                                                         self.dataset_additional_keys)
+            ray.get(self.transfer_dock.put_experience.remote(data_dict=batch_dict, indexes=indexes, is_prompt=True))
+        except RayError as e:
+            raise RuntimeError("trainer put prompts experience failed") from e
+        except Exception as e:
+            raise RuntimeError("Unexpected error occurred when trainer put prompts experience") from e

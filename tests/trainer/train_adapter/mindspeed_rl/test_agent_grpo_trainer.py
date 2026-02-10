@@ -29,7 +29,7 @@ from workers.test_agent_hybrid_worker import (MockRLConfig,
 
 
 class MockRayGRPOTrainer:
-    def __init__(self, actor_worker, ref_worker, reward_list, **kwargs):
+    def __init__(self, actor_worker, ref_worker, reward_list, tokenizer, **kwargs):
         self.actor_worker = actor_worker
         self.ref_worker = ref_worker
         self.reward_list = reward_list
@@ -41,6 +41,13 @@ class MockRayGRPOTrainer:
         self.save_interval = 5
         self.guarantee_order = False
         self.kl_ctrl = None
+        self.global_batch_size = 32
+        self.tokenizer = tokenizer
+        self.n_samples_per_prompt = 2
+        self.guarantee_order = False
+        self.kwargs = {}
+        self.tensorboard = MagicMock()
+        self.tensorboard.add_scalar = MagicMock()
 
         self.transfer_dock_init()
 
@@ -55,6 +62,8 @@ class MockRayGRPOTrainer:
             def __init__(self):
                 self.clear = MagicMock()
                 self.put_experience = MagicMock()
+                self.get_metrics = MagicMock()
+                self.get_metrics.remote = MagicMock()
 
         self.transfer_dock = TransferDock()
 
@@ -118,6 +127,7 @@ class TestAgentGRPO:
             "mindspeed_rl.trainer.utils": MagicMock(),
             "mindspeed_rl.trainer.utils.transfer_dock": MagicMock(),
             "mindspeed_rl.utils": MagicMock(),
+            "mindspeed_rl.utils.utils": MagicMock(),
             "mindspeed_rl.utils.pad_process": MagicMock(),
             "mindspeed_rl.utils.tokenizer": MagicMock(),
             "tensordict": MagicMock(),
@@ -127,19 +137,23 @@ class TestAgentGRPO:
 
     @pytest.fixture(scope="class")
     def patch_target(self, patch_modules):
-        with patch("ray.remote") as mock_remote, \
+        with (patch("ray.remote") as mock_remote, \
                 patch("ray.get") as mock_ray_get, \
                 patch("mindspeed_rl.MegatronConfig", MockMegatronConfig), \
                 patch("mindspeed_rl.RLConfig", MockRLConfig), \
                 patch("mindspeed_rl.GenerateConfig", MockGenerateConfig), \
+                patch("mindspeed_rl.trainer.utils.compute_grpo_data_metrics") as mock_compute_grpo_data_metrics, \
                 patch("mindspeed_rl.utils.tokenizer.BaseTokenizer", MockBaseTokenizer), \
+                patch("mindspeed_rl.utils.utils.metrics_post_processing") as mock_metrics_post_processing, \
+                patch("mindspeed_rl.trainer.utils.metrics_sort") as mock_metrics_sort, \
+                patch("mindspeed_rl.trainer.utils.compute_tps") as mock_compute_tps, \
                 patch("mindspeed_rl.RayActorGroup", MockRayActorGroup), \
                 patch("mindspeed_rl.RuleReward", MockRuleReward), \
                 patch("mindspeed_rl.RayGRPOTrainer", MockRayGRPOTrainer), \
                 patch("tensordict.TensorDict"), \
                 patch("agentic_rl.trainer.rollout.rollout_worker.RolloutWorker", MockRolloutWorker), \
                 patch("agentic_rl.trainer.train_adapter.mindspeed_rl.patch.apply_patch"), \
-                patch("agentic_rl.base.utils.file_utils.FileCheck.check_data_path_is_valid"):
+                patch("agentic_rl.base.utils.file_utils.FileCheck.check_data_path_is_valid")):
 
             def fake_ray_get(*args):
                 return args
@@ -159,6 +173,22 @@ class TestAgentGRPO:
                     return decorator
 
             mock_remote.side_effect = fake_remote
+
+            def fake_compute_grpo_data_metrics(*args, **kwargs):
+                return {"grpo/score/mean": 0.1}
+            mock_compute_grpo_data_metrics.side_effect = fake_compute_grpo_data_metrics
+
+            def fake_metrics_post_processing(*args, **kwargs):
+                return {"grpo/score/mean": 0.1, "timing/all": 100.0}
+            mock_metrics_post_processing.side_effect = fake_metrics_post_processing
+
+            def fake_metrics_sort(*args, **kwargs):
+                return {"timing/all": 100.0, "grpo/score/mean": 0.1}
+            mock_metrics_sort.side_effect = fake_metrics_sort
+
+            def fake_compute_tps(*args, **kwargs):
+                return 4.9
+            mock_compute_tps.side_effect = fake_compute_tps
 
             yield
 
@@ -429,6 +459,26 @@ class TestAgentGRPO:
             mock_check_path.side_effect = AttributeError("error")
             with pytest.raises(RuntimeError):
                 trainer.fit(iter([1]))
+
+    def test_fit_type_error_with_tensorboard(self, agent_grpo_trainer):
+        trainer, _, _ = agent_grpo_trainer
+        trainer.tensorboard.add_scalar.side_effect = TypeError("error")
+        def fake_update_metrics(metrics_result, grpo_data_metrics, metrics, all_timer):
+            metrics.metric.items = {"loss": 1.0}.items
+        trainer._update_metrics = fake_update_metrics
+
+        with pytest.raises(ValueError):
+            trainer.fit(iter([1]))
+
+    def test_fit_io_error_with_tensorboard(self, agent_grpo_trainer):
+        trainer, _, _ = agent_grpo_trainer
+        trainer.tensorboard.add_scalar.side_effect = IOError("error")
+        def fake_update_metrics(metrics_result, grpo_data_metrics, metrics, all_timer):
+            metrics.metric.items = {"loss": 1.0}.items
+        trainer._update_metrics = fake_update_metrics
+
+        with pytest.raises(RuntimeError):
+            trainer.fit(iter([1]))
 
     def test_fit_success_with_no_error(self, agent_grpo_trainer):
         trainer, _, _ = agent_grpo_trainer

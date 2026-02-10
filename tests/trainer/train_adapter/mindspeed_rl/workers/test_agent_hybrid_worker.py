@@ -280,7 +280,24 @@ class TestAgentActorHybridWorkerBase:
         def fake_mstx_timer_decorator(func):
             return func
 
-        with patch("mindspeed_rl.config_cls.generate_config.GenerateConfig", MockGenerateConfig), \
+        def mock_ray_get(*args):
+            return args
+
+        def mock_remote(*args, **kwargs):
+            if len(args) == 1 and callable(args[0]) and not kwargs:
+                obj = args[0]
+                obj.remote = obj
+                return obj
+            else:
+                def decorator(obj):
+                    obj.remote = obj
+                    return obj
+
+                return decorator
+
+        with patch("ray.remote", mock_remote), \
+                patch("ray.get", mock_ray_get), \
+                patch("mindspeed_rl.config_cls.generate_config.GenerateConfig", MockGenerateConfig), \
                 patch("mindspeed_rl.config_cls.megatron_config.MegatronConfig", MockMegatronConfig), \
                 patch("mindspeed_rl.config_cls.rl_config.RLConfig", MockRLConfig), \
                 patch("mindspeed_rl.models.actor_rollout_hybrid.ActorRolloutHybrid", MockActorRolloutHybrid), \
@@ -288,7 +305,6 @@ class TestAgentActorHybridWorkerBase:
                 patch("mindspeed_rl.workers.actor_hybrid_worker.ActorHybridWorkerBase", MockActorHybridWorkerBase), \
                 patch("mindspeed_rl.workers.actor_hybrid_worker.ActorState", MockActorState), \
                 patch("mindspeed_rl.workers.resharding.megatron_off_loader.MegatronOffLoader", MockMegatronOffLoader), \
-                patch("mindspeed_rl.config_cls.megatron_config.MegatronConfig", MockMegatronConfig), \
                 patch("mindspeed_rl.models.rollout.vllm_adapter.vllm_parallel_state.initialize_parallel_state"), \
                 patch("mindspeed_rl.models.base.base_inference_engine.BaseInferEngine", MockBaseInferEngine), \
                 patch("vllm.worker.worker_base.WorkerWrapperBase", MagicMock), \
@@ -328,6 +344,16 @@ class TestAgentActorHybridWorkerBase:
                                             initialize_func=initialize_func,
                                             tokenizer=tokenizer,
                                             get_megatron_module=get_megatron_module)
+
+        from mindspeed_rl import Metric
+        worker.td = MagicMock()
+        worker.td.metrics = Metric()
+        worker.td.update_metrics = MagicMock()
+
+        def fake_update_metrics(key="", value=None, cumulate=False):
+            worker.td.metrics.update(key, value, cumulate=cumulate)
+
+        worker.td.update_metrics.remote = fake_update_metrics
 
         yield (
             worker,
@@ -677,6 +703,7 @@ class TestAgentActorHybridWorkerBase:
 
         assert worker.state == MockActorState.INFER
         mock_enter_infer_mode.assert_called_once()
+        worker.td.metrics.update.assert_called()
 
     def test_enter_infer_mode_skip_with_state_infer(self, actor_hybrid_worker_init_shard_manager):
         worker, targets, patches = actor_hybrid_worker_init_shard_manager
@@ -715,6 +742,7 @@ class TestAgentActorHybridWorkerBase:
 
         assert worker.state == MockActorState.NONE
         mock_exit_infer_mode.assert_called_once()
+        worker.td.metrics.update.assert_called()
 
     def test_exit_infer_mode_failed_with_state_not_infer(self, actor_hybrid_worker_init_shard_manager):
         worker, targets, patches = actor_hybrid_worker_init_shard_manager
@@ -770,6 +798,7 @@ class TestAgentActorHybridWorkerBase:
 
             assert worker.inference_model.is_sleep is True
             mock_model_sleep.assert_called_once()
+            worker.td.metrics.update.assert_called()
 
     def test_wake_up_success_with_no_error(self, actor_hybrid_worker_init_shard_manager):
         worker, targets, patches = actor_hybrid_worker_init_shard_manager
@@ -786,6 +815,7 @@ class TestAgentActorHybridWorkerBase:
 
             assert worker.inference_model.is_sleep is False
             mock_model_wake_up.assert_called_once()
+            worker.td.metrics.update.assert_called()
 
     def test_execute_method_success_with_no_error(self, actor_hybrid_worker_init_shard_manager):
         worker, targets, patches = actor_hybrid_worker_init_shard_manager
@@ -825,3 +855,4 @@ class TestAgentActorHybridWorkerBase:
                    "ActorRolloutHybrid.update_actor") as mock_update_actor:
             worker.update(kl_ctrl, skip_actor_log_prob=skip_actor_log_prob)
             mock_update_actor.assert_called_once()
+            worker.td.metrics.update.assert_called()
