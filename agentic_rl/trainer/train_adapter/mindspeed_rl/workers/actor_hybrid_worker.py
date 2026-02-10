@@ -18,7 +18,10 @@ See the Mulan PSL v2 for more details.
 -------------------------------------------------------------------------
 """
 import os
+import time
 from typing import Any, Dict, List, Union, Callable
+
+import torch.cuda
 
 from agentic_rl.trainer.train_adapter.mindspeed_rl import patch
 
@@ -109,6 +112,7 @@ class AgentActorHybridWorkerBase(ActorHybridWorkerBase):
         self.agentic_rl_config = agentic_rl_config
         self.rl_config.zmq_communication = False
         self.continue_infer_running = False
+        self.start_time_defined = False
 
     def initialize(self):
         """
@@ -295,6 +299,7 @@ class AgentActorHybridWorkerBase(ActorHybridWorkerBase):
         if self.state == ActorState.INFER:
             return
 
+        start_time = time.time()
         try:
             self.sharding_manager.enter_infer_mode()
         except RuntimeError as e:
@@ -303,12 +308,23 @@ class AgentActorHybridWorkerBase(ActorHybridWorkerBase):
             raise Exception("Unexpected error occurred when actor worker enter infer mode") from e
 
         self.state = ActorState.INFER
+        end_time = time.time()
+        ray.get(
+            self.td.update_metrics.remote(
+                "timing/resharding_to_infer",
+                value=[end_time - start_time],
+                cumulate=True
+            )
+        )
         logger.debug("actor worker enter infer mode")
+
+        torch.cuda.empty_cache()
 
     def exit_infer_mode(self):
         if self.state != ActorState.INFER:
             raise RuntimeError("current state is not INFER, it is no available to exit infer mode")
 
+        start_time = time.time()
         try:
             self.sharding_manager.exit_infer_mode()
         except RuntimeError as e:
@@ -317,6 +333,14 @@ class AgentActorHybridWorkerBase(ActorHybridWorkerBase):
             raise Exception("Unexpected error occurred when actor worker exit infer mode") from e
 
         self.state = ActorState.NONE
+        end_time = time.time()
+        ray.get(
+            self.td.update_metrics.remote(
+                "timing/resharding_exit_infer",
+                value=[end_time - start_time],
+                cumulate=True
+            )
+        )
         logger.debug("actor worker exit infer mode")
 
     def init_worker(self, all_kwargs: List[Dict[str, Any]]):
@@ -386,12 +410,14 @@ class AgentActorHybridWorkerBase(ActorHybridWorkerBase):
         if kl_ctrl is None:
             raise ValueError("kl_ctrl must not be none for actor worker to perform update")
 
+        start_sharding_enter_train = time.time()
         try:
             self.sharding_manager.enter_train_mode()
         except RuntimeError as e:
             raise RuntimeError("actor worker enter train mode failed") from e
         except Exception as e:
             raise Exception("Unexpected error occurred when actor worker enter train mode") from e
+        sharding_train_interval = time.time() - start_sharding_enter_train
 
         self.args.curr_iteration = self.iteration
 
@@ -407,6 +433,16 @@ class AgentActorHybridWorkerBase(ActorHybridWorkerBase):
 
         if skip_actor_log_prob:
             experience_columns.remove('old_log_prob')
+
+        learning_rate = None
+        temp_learning_rates = []
+        for param_group in self.optimizer.param_groups:
+            learning_rate = param_group['lr'] if 'lr' in param_group else learning_rate
+            if learning_rate is not None and learning_rate not in temp_learning_rates:
+                temp_learning_rates.append(learning_rate)
+        if len(temp_learning_rates) > 1:
+            logger.warning(f"Multiple learning rates found, using the last one in {temp_learning_rates}.")
+        ray.get(self.td.update_metrics.remote(key='actor/lr', value=learning_rate))
 
         sorted_indexes = None
         try:
@@ -425,12 +461,18 @@ class AgentActorHybridWorkerBase(ActorHybridWorkerBase):
         self.iteration += 1
         self.prof_iteration += 1
 
+        start_sharding_exit_train = time.time()
         try:
             self.sharding_manager.exit_train_mode()
         except RuntimeError as e:
             raise RuntimeError("actor worker exit train mode failed") from e
         except Exception as e:
             raise Exception("Unexpected error occurred when actor worker exit train mode") from e
+
+        sharding_train_interval += (time.time() - start_sharding_exit_train)
+        ray.get(
+            self.td.update_metrics.remote('timing/resharding_to_train', value=[sharding_train_interval], cumulate=True)
+        )
 
         self.continue_infer_running = False
         logger.debug("finish actor update")
@@ -455,9 +497,13 @@ class AgentActorHybridWorkerBase(ActorHybridWorkerBase):
         except Exception as e:
             raise Exception("Unexpected error occurred when actor worker dispatch transfer dock data") from e
 
+        if not self.start_time_defined:
+            self.update_start_time = time.time()
+            self.start_time_defined = True
+
         if batch_data and index:
             try:
-                self.actor_hybrid.update_actor(batch_data, kl_ctrl)
+                metrics = self.actor_hybrid.update_actor(batch_data, kl_ctrl)
             except ValueError as e:
                 raise ValueError("actor worker update actor failed with parameters conflict") from e
             except Exception as e:
@@ -469,3 +515,15 @@ class AgentActorHybridWorkerBase(ActorHybridWorkerBase):
                     self.megatron_config.global_batch_size // self.rl_config.n_samples_per_prompt)
             self.num_floating_point_operations_so_far += (
                 num_floating_point_operations(self.args, self.megatron_config.global_batch_size))
+
+            if (self.parallel_state.is_pipeline_last_stage(ignore_virtual=True) and
+                    self.parallel_state.get_tensor_model_parallel_rank() == 0 and
+                    self.parallel_state.get_context_parallel_rank() == 0):
+                ray.get(self.td.update_metrics.remote(value=metrics, cumulate=True))
+                ray.get(
+                    self.td.update_metrics.remote(
+                        "timing/update",
+                        value=[round(time.time(), 4), round(self.update_start_time, 4)],
+                        cumulate=True
+                    )
+                )

@@ -17,6 +17,9 @@ MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 See the Mulan PSL v2 for more details.
 -------------------------------------------------------------------------
 """
+import os
+from unittest import mock
+
 import pytest
 
 from agentic_rl.base.log.loggers import Loggers
@@ -37,25 +40,56 @@ class TestLoggersInfo:
         with caplog.at_level('INFO', logger="agentic_rl"):
             logger.info('test message', 1, 10)
 
-        assert caplog.text == "INFO     agentic_rl:test_loggers.py:38 iteration: 1 / 10 |  test message\n"
+        assert "INFO     agentic_rl:test_loggers.py" in caplog.text
+        assert "iteration: 1 / 10 |  test message" in caplog.text
 
     def test_debug_log_success(self, logger, caplog):
         with caplog.at_level('DEBUG', logger="agentic_rl"):
             logger.debug("test message", 1, 10)
 
-        assert caplog.text == "DEBUG    agentic_rl:test_loggers.py:44 iteration: 1 / 10 |  test message\n"
+        assert "DEBUG    agentic_rl:test_loggers.py" in caplog.text
+        assert "iteration: 1 / 10 |  test message" in caplog.text
 
     def test_warning_log_success(self, logger, caplog):
         with caplog.at_level('WARNING', logger="agentic_rl"):
             logger.warning("test message", 1, 10)
 
-        assert caplog.text == "WARNING  agentic_rl:test_loggers.py:50 iteration: 1 / 10 |  test message\n"
+        assert "WARNING  agentic_rl:test_loggers.py" in caplog.text
+        assert "iteration: 1 / 10 |  test message" in caplog.text
 
     def test_error_log_success(self, logger, caplog):
         with caplog.at_level('ERROR', logger="agentic_rl"):
             logger.error("test message", 1, 10)
 
-        assert caplog.text == "ERROR    agentic_rl:test_loggers.py:56 iteration: 1 / 10 |  test message\n"
+        assert "ERROR    agentic_rl:test_loggers.py" in caplog.text
+        assert "iteration: 1 / 10 |  test message" in caplog.text
+
+    @mock.patch('torch.distributed.is_initialized', return_value=True)
+    @mock.patch('torch.distributed.get_rank', return_value=0)
+    @mock.patch('torch.distributed.get_world_size', return_value=2)
+    def test_info_distributed_non_last_rank(self, mock_world_size, mock_rank, mock_is_initialized, logger, caplog):
+        with caplog.at_level('INFO', logger="agentic_rl"):
+            logger.info("test message", 1, 10)
+
+        assert caplog.text == ""
+
+    @mock.patch('torch.distributed.is_initialized', return_value=True)
+    @mock.patch('torch.distributed.get_rank', return_value=1)
+    @mock.patch('torch.distributed.get_world_size', return_value=2)
+    def test_info_distributed_last_rank(self, mock_world_size, mock_rank, mock_is_initialized, logger, caplog):
+        with caplog.at_level('INFO', logger="agentic_rl"):
+            logger.info("test message", 1, 10)
+
+        assert "INFO     agentic_rl:test_loggers.py" in caplog.text
+        assert "iteration: 1 / 10 |  test message" in caplog.text
+
+    @mock.patch('torch.distributed.is_initialized', return_value=True)
+    @mock.patch.dict(os.environ, {'RANK': 'not_an_integer', 'WORLD_SIZE': '2'})
+    def test_info_invalid_rank_env(self, mock_is_initialized, logger, caplog):
+        with pytest.raises(ValueError) as excinfo:
+            logger.info("test message", 1, 10)
+
+        assert "RANK environment variable must be an integer" in str(excinfo.value)
 
     def test_filter_invalid_chars(self):
         test_cases = [

@@ -18,8 +18,12 @@ See the Mulan PSL v2 for more details.
 -------------------------------------------------------------------------
 """
 import logging
+import os
 import re
 from datetime import datetime
+
+import torch
+import torch.distributed as dist
 
 
 class _MicroSecondFormatter(logging.Formatter):
@@ -128,8 +132,16 @@ class Loggers(object):
             iteration (int): The current iteration count.
             steps (int): The total number of iterations.
         """
-        format_msg = Loggers._handle_msg(msg, iteration, steps)
-        self.logger.info(format_msg, stacklevel=2)
+        if torch.distributed.is_initialized():
+            try:
+                if int(os.getenv("RANK", dist.get_rank())) == int(os.getenv("WORLD_SIZE", dist.get_world_size())) - 1:
+                    format_msg = Loggers._handle_msg(msg, iteration, steps)
+                    self.logger.info(format_msg, stacklevel=2)
+            except (ValueError, IndexError, TypeError) as e:
+                raise ValueError(f"RANK environment variable must be an integer: {e}") from e
+        else:
+            format_msg = Loggers._handle_msg(msg, iteration, steps)
+            self.logger.info(format_msg, stacklevel=2)
 
     def warning(self, msg, iteration: int = None, steps: int = None):
         """
