@@ -329,3 +329,424 @@ def server_instance(vllm_async_server_mod, valid_configs):
     )
 
     return server
+
+
+class TestBuildHelpers:
+    """Tests for helper methods on AsyncVLLMServer."""
+
+    def test_build_generation_config(self, vllm_async_server_mod):
+        SamplingCfg = SamplingConfig(
+            logprobs=3,
+            max_tokens=512,
+            top_p=0.8,
+            top_k=64,
+            min_p=0.2,
+            temperature=0.5,
+        )
+
+        cfg = vllm_async_server_mod.AsyncVLLMServer._build_generation_config(SamplingCfg)
+
+        assert cfg['n'] == 1
+        assert cfg['logprobs'] == SamplingCfg.logprobs
+        assert cfg['max_new_tokens'] == SamplingCfg.max_tokens
+        assert cfg['top_p'] == SamplingCfg.top_p
+        assert cfg['top_k'] == SamplingCfg.top_k
+        assert cfg['min_p'] == SamplingCfg.min_p
+        assert cfg['temperature'] == SamplingCfg.temperature
+
+    def test_build_vllm_config_success(self, server_instance, valid_configs, vllm_async_server_mod):
+        gen_cfg, agent_cfg = valid_configs
+        vllm_config = server_instance._build_vllm_config(gen_cfg, "/model/path")
+
+        assert isinstance(vllm_config, vllm_async_server_mod.VLLMConfig)
+        assert vllm_config.model_path == "/model/path"
+        assert vllm_config.tensor_parallel_size == gen_cfg.infer_tensor_parallel_size
+        assert vllm_config.pipeline_parallel_size == gen_cfg.infer_pipeline_parallel_size
+        assert vllm_config.max_model_len == gen_cfg.max_model_len
+        assert vllm_config.max_num_batched_tokens == gen_cfg.max_num_batched_tokens
+        assert vllm_config.dtype == gen_cfg.dtype
+        assert vllm_config.enforce_eager == gen_cfg.enforce_eager
+        assert vllm_config.gpu_memory_utilization == gen_cfg.gpu_memory_utilization
+        assert vllm_config.load_format == agent_cfg.load_format
+        assert vllm_config.enable_sleep_mode == agent_cfg.enable_sleep_mode
+        assert vllm_config.enable_prefix_caching == gen_cfg.enable_prefix_caching
+        assert vllm_config.trust_remote_code == gen_cfg.trust_remote_code
+        assert vllm_config.max_num_seqs == gen_cfg.max_num_seqs
+        assert vllm_config.sampling_config is gen_cfg.sampling_config
+
+    def test_build_vllm_config_missing_attribute_raises(self, server_instance):
+        bad_cfg = types.SimpleNamespace()
+
+        with pytest.raises(AttributeError, match="Missing required config field"):
+            server_instance._build_vllm_config(bad_cfg, "/model/path")
+
+    def test_build_engine_args_success(self, server_instance, valid_configs, vllm_async_server_mod):
+        gen_cfg, _ = valid_configs
+        vllm_config = server_instance._build_vllm_config(gen_cfg, "/model/path")
+        generation_config = server_instance._build_generation_config(vllm_config.sampling_config)
+
+        engine_args = server_instance._build_engine_args(vllm_config, generation_config)
+
+        kwargs = engine_args.kwargs
+        assert kwargs['model'] == vllm_config.model_path
+        assert kwargs['enable_sleep_mode'] == vllm_config.enable_sleep_mode
+        assert kwargs['tensor_parallel_size'] == vllm_config.tensor_parallel_size
+        assert kwargs['pipeline_parallel_size'] == vllm_config.pipeline_parallel_size
+        assert kwargs['dtype'] == vllm_config.dtype
+        assert kwargs['enforce_eager'] == vllm_config.enforce_eager
+        assert kwargs['gpu_memory_utilization'] == vllm_config.gpu_memory_utilization
+        assert kwargs['max_model_len'] == vllm_config.max_model_len
+        assert kwargs['max_num_batched_tokens'] == vllm_config.max_num_batched_tokens
+        assert kwargs['enable_prefix_caching'] == vllm_config.enable_prefix_caching
+        assert kwargs['trust_remote_code'] == vllm_config.trust_remote_code
+        assert kwargs['seed'] == server_instance.server_config.vllm_dp_rank
+        assert kwargs['max_num_seqs'] == vllm_config.max_num_seqs
+        assert kwargs['override_generation_config'] == generation_config
+        assert kwargs['distributed_executor_backend'] is vllm_async_server_mod.ExternalRayDistributedExecutor
+        assert kwargs['load_format'] == 'dummy'
+
+    def test_build_engine_args_large_batch_logs_warning(
+            self, server_instance, valid_configs, vllm_async_server_mod, monkeypatch):
+        gen_cfg, _ = valid_configs
+        gen_cfg.max_num_batched_tokens = vllm_async_server_mod.MAX_BATCHED_TOKENS_WARNING_THRESHOLD + 1
+        vllm_config = server_instance._build_vllm_config(gen_cfg, "/model/path")
+        generation_config = server_instance._build_generation_config(vllm_config.sampling_config)
+
+        warnings = []
+
+        def _warn(msg):
+            warnings.append(msg)
+
+        monkeypatch.setattr(vllm_async_server_mod.logger, "warning", _warn)
+
+        _ = server_instance._build_engine_args(vllm_config, generation_config)
+
+        assert any("max_num_batched_tokens" in msg for msg in warnings)
+        assert any(str(vllm_async_server_mod.MAX_BATCHED_TOKENS_WARNING_THRESHOLD) in msg for msg in warnings)
+
+
+class TestInitEngine:
+    """Tests for AsyncVLLMServer.init_engine.
+    These tests are written as synchronous tests that drive the underlying
+    async API via asyncio.run so that they do not require pytest-asyncio or
+    any other async test plugin.
+    """
+
+    def test_init_engine_happy_path(self, server_instance, vllm_async_server_mod):
+        asyncio.run(server_instance.init_engine())
+
+        assert server_instance.engine is not None
+        engine = server_instance.engine
+
+        expected_instance_id = (
+            f"test_ns:{server_instance.server_config.wg_prefix}:"
+            f"{server_instance.server_config.vllm_dp_size}:{server_instance.server_config.vllm_dp_rank}"
+        )
+        assert engine.config.instance_id == expected_instance_id
+
+        assert server_instance.openai_serving_chat is not None
+        assert server_instance.openai_serving_completion is not None
+
+    def test_init_engine_failure_create_engine_config(self, server_instance, vllm_async_server_mod, monkeypatch):
+        class BadArgs:
+            def create_engine_config(self):
+                raise ValueError("bad config")
+
+        monkeypatch.setattr(server_instance, "_build_engine_args", lambda *_args, **_kwargs: BadArgs())
+
+        with pytest.raises(RuntimeError, match="Failed to create engine config"):
+            asyncio.run(server_instance.init_engine())
+
+    def test_init_engine_failure_async_llm_init(self, server_instance, vllm_async_server_mod, monkeypatch):
+        class DummyArgs:
+            def create_engine_config(self):
+                return SimpleNamespace(instance_id=None, train_backend=None)
+
+        monkeypatch.setattr(server_instance, "_build_engine_args", lambda *_args, **_kwargs: DummyArgs())
+
+        def _raise(_config):
+            raise ValueError("engine init failed")
+
+        monkeypatch.setattr(vllm_async_server_mod.AsyncLLM, "from_vllm_config", staticmethod(_raise))
+
+        with pytest.raises(RuntimeError, match="Failed to initialize AsyncLLM engine"):
+            asyncio.run(server_instance.init_engine())
+
+
+class TestCompletions:
+    """Tests for AsyncVLLMServer.completions."""
+
+    def test_completions_happy_path(self, server_instance, vllm_async_server_mod, monkeypatch):
+        # Ensure validation is a no-op
+        monkeypatch.setattr(
+            vllm_async_server_mod.CompletionRequestChecker,
+            "validate_input",
+            staticmethod(lambda _req: None),
+        )
+
+        class StubCompletion:
+            def __init__(self):
+                self.last_request = None
+
+            async def create_completion(self, request):
+                self.last_request = request
+                return types.SimpleNamespace(model_dump=lambda: {"choices": ["ok"]})
+
+        server_instance.openai_serving_completion = StubCompletion()
+        raw_request = {"prompt": "hello", "model_name": "foo"}
+        result = asyncio.run(server_instance.completions(dict(raw_request)))
+
+        assert result == {"choices": ["ok"]}
+        assert "model_name" not in vllm_async_server_mod.CompletionRequest.last_kwargs
+        assert vllm_async_server_mod.CompletionRequest.last_kwargs["prompt"] == "hello"
+
+    def test_completions_validation_failure(self, server_instance, vllm_async_server_mod, monkeypatch):
+        def _raise(_req):
+            raise ValueError("invalid")
+
+        monkeypatch.setattr(
+            vllm_async_server_mod.CompletionRequestChecker,
+            "validate_input",
+            staticmethod(_raise),
+        )
+
+        with pytest.raises(ValueError, match="Input validation failed"):
+            asyncio.run(server_instance.completions({"prompt": "bad"}))
+
+    def test_completions_missing_serving_completion(self, server_instance):
+        server_instance.openai_serving_completion = None
+
+        with pytest.raises(RuntimeError, match="OpenAI serving completion not initialized"):
+            asyncio.run(server_instance.completions({"prompt": "hello"}))
+
+    def test_completions_request_parsing_failure(self, server_instance, vllm_async_server_mod, monkeypatch):
+        def _raise(**_kwargs):
+            raise ValueError("bad request")
+
+        monkeypatch.setattr(vllm_async_server_mod, "CompletionRequest", _raise)
+        monkeypatch.setattr(
+            vllm_async_server_mod.CompletionRequestChecker,
+            "validate_input",
+            staticmethod(lambda _req: None),
+        )
+        server_instance.openai_serving_completion = types.SimpleNamespace(
+            create_completion=lambda _req: types.SimpleNamespace(model_dump=lambda: {})
+        )
+
+        with pytest.raises(ValueError, match="Failed to parse completion request"):
+            asyncio.run(server_instance.completions({"prompt": "hello"}))
+
+
+class TestChatCompletions:
+    """Tests for AsyncVLLMServer.chat_completions."""
+
+    def test_chat_completions_happy_path(self, server_instance, vllm_async_server_mod, monkeypatch):
+        # Ensure validation is a no-op
+        monkeypatch.setattr(
+            vllm_async_server_mod.CompletionRequestChecker,
+            "validate_chat_input",
+            staticmethod(lambda _req: None),
+        )
+
+        class StubChatCompletion:
+            def __init__(self):
+                self.last_request = None
+
+            async def create_chat_completion(self, request):
+                self.last_request = request
+                return types.SimpleNamespace(model_dump=lambda: {"choices": ["ok"]})
+
+        server_instance.openai_serving_chat = StubChatCompletion()
+        raw_request = {"messages": [{"role": "user", "content": "hello"}], "model_name": "foo"}
+        result = asyncio.run(server_instance.chat_completions(dict(raw_request)))
+
+        assert result == {"choices": ["ok"]}
+        assert "model_name" not in vllm_async_server_mod.ChatCompletionRequest.last_kwargs
+        assert vllm_async_server_mod.ChatCompletionRequest.last_kwargs["messages"] == [
+            {"role": "user", "content": "hello"}]
+
+    def test_chat_completions_validation_failure(self, server_instance, vllm_async_server_mod, monkeypatch):
+        def _raise(_req):
+            raise ValueError("invalid")
+
+        monkeypatch.setattr(
+            vllm_async_server_mod.CompletionRequestChecker,
+            "validate_chat_input",
+            staticmethod(_raise),
+        )
+
+        with pytest.raises(ValueError, match="Input validation failed"):
+            asyncio.run(server_instance.chat_completions({"messages": [{"role": "user", "content": "bad"}]}))
+
+    def test_chat_completions_missing_serving_chat(self, server_instance):
+        server_instance.openai_serving_chat = None
+
+        with pytest.raises(RuntimeError, match="OpenAI serving chat is not initialized"):
+            asyncio.run(server_instance.chat_completions({"messages": [{"role": "user", "content": "hello"}]}))
+
+    def test_chat_completions_request_parsing_failure(self, server_instance, vllm_async_server_mod, monkeypatch):
+        def _raise(**_kwargs):
+            raise ValueError("bad request")
+
+        monkeypatch.setattr(vllm_async_server_mod, "ChatCompletionRequest", _raise)
+        monkeypatch.setattr(
+            vllm_async_server_mod.CompletionRequestChecker,
+            "validate_chat_input",
+            staticmethod(lambda _req: None),
+        )
+        server_instance.openai_serving_chat = types.SimpleNamespace(
+            create_chat_completion=lambda _req: types.SimpleNamespace(model_dump=lambda: {})
+        )
+
+        with pytest.raises(ValueError, match="Failed to parse chat completion request"):
+            asyncio.run(server_instance.chat_completions({"messages": [{"role": "user", "content": "hello"}]}))
+
+
+class TestStartFastapiServer:
+    """Tests for start FastAPI Server."""
+
+    def test_start_fastapi_server_success(self, server_instance, vllm_async_server_mod, monkeypatch):
+        monkeypatch.setattr(server_instance, "_get_free_port", lambda: 8000)
+        asyncio.run(server_instance._start_fastapi_server())
+
+        assert server_instance.port == 8000
+
+    def test_start_fastapi_server_cancelled_error(self, server_instance, vllm_async_server_mod, monkeypatch):
+        monkeypatch.setattr(server_instance, "_get_free_port", lambda: 8000)
+
+        async def _raise(self):
+            raise asyncio.CancelledError()
+
+        monkeypatch.setattr(vllm_async_server_mod.uvicorn.Server, "serve", _raise)
+
+        with pytest.raises(asyncio.CancelledError):
+            asyncio.run(server_instance._start_fastapi_server())
+            assert vllm_async_server_mod.uvicorn.Server.should_exit is True
+
+    def test_start_fastapi_server_other_error(self, server_instance, vllm_async_server_mod, monkeypatch):
+        monkeypatch.setattr(server_instance, "_get_free_port", lambda: 8000)
+        monkeypatch.setattr(vllm_async_server_mod.uvicorn.Server, "serve", RuntimeError)
+        with pytest.raises(RuntimeError, match="Unexpected error during start vllm inference"):
+            asyncio.run(server_instance._start_fastapi_server())
+
+    @patch('socket.socket')
+    def test_get_free_port(self, mock_socket, server_instance):
+        import socket
+        mock_sock = MagicMock()
+        mock_socket.return_value.__enter__.return_value = mock_sock
+
+        mock_sock.getsockname.return_value = ("127.0.0.1", 12345)
+        port = server_instance._get_free_port()
+
+        mock_socket.assert_called_once_with(socket.AF_INET, socket.SOCK_STREAM)
+        mock_sock.bind.assert_called_once_with(("127.0.0.1", 0))
+        assert port == 12345
+
+
+class TestWakeUpAndSleep:
+    """Tests for AsyncVLLMServer.wake_up and sleep."""
+
+    def test_wake_up_success_and_validation(self, server_instance):
+        class StubEngine:
+            def __init__(self):
+                self.calls = []
+
+            async def wake_up(self, tags=None):
+                self.calls.append(("wake_up", tags))
+
+        engine = StubEngine()
+        server_instance.engine = engine
+
+        asyncio.run(server_instance.wake_up(["tag1"]))
+        asyncio.run(server_instance.wake_up(tags=None))
+
+        assert ("wake_up", ["tag1"]) in engine.calls
+        assert ("wake_up", None) in engine.calls
+
+        with pytest.raises(ValueError, match="tags must be a list"):
+            asyncio.run(server_instance.wake_up(tags="not-a-list"))
+
+    def test_wake_up_missing_engine(self, server_instance):
+        server_instance.engine = None
+
+        with pytest.raises(RuntimeError, match="Engine not initialized"):
+            asyncio.run(server_instance.wake_up())
+
+    def test_sleep_success_and_errors(self, server_instance):
+        class StubEngine:
+            def __init__(self):
+                self.slept = False
+
+            async def sleep(self):
+                self.slept = True
+
+        engine = StubEngine()
+        server_instance.engine = engine
+
+        asyncio.run(server_instance.sleep())
+        assert engine.slept is True
+
+        class ValueErrorEngine:
+            async def sleep(self):
+                raise ValueError("sleep error")
+
+        server_instance.engine = ValueErrorEngine()
+        with pytest.raises(RuntimeError, match="Failed to put engine to sleep"):
+            asyncio.run(server_instance.sleep())
+
+        class GenericErrorEngine:
+            async def sleep(self):
+                raise RuntimeError("boom")
+
+        server_instance.engine = GenericErrorEngine()
+        with pytest.raises(RuntimeError, match="Unexpected error occurred when putting engine to sleep"):
+            asyncio.run(server_instance.sleep())
+
+    def test_sleep_missing_engine(self, server_instance):
+        server_instance.engine = None
+
+        with pytest.raises(RuntimeError, match="Engine not initialized"):
+            asyncio.run(server_instance.sleep())
+
+
+class TestInitValidation:
+    """Minimal tests for __init__ parameter validation."""
+
+    def test_init_invalid_agentic_rl_config(self, vllm_async_server_mod, valid_configs):
+        gen_cfg, _ = valid_configs
+        AsyncVLLMServer = vllm_async_server_mod.AsyncVLLMServer
+
+        with pytest.raises(ValueError, match="agentic_rl_config must be a AgenticRLConfig"):
+            AsyncVLLMServer(
+                gen_cfg,
+                object(),  # invalid config
+                "/path/to/tokenizer",
+                vllm_dp_size=1,
+                vllm_dp_rank=0,
+                wg_prefix="wg",
+            )
+
+    @pytest.mark.parametrize(
+        "field, value, msg",
+        [
+            ("vllm_dp_size", "1", "vllm_dp_size must be an integer"),
+            ("vllm_dp_rank", "0", "vllm_dp_rank must be an integer"),
+            ("wg_prefix", 123, "wg_prefix must be a string"),
+        ],
+    )
+    def test_init_invalid_numeric_and_string_params(self, vllm_async_server_mod, valid_configs, field, value, msg):
+        gen_cfg, agent_cfg = valid_configs
+        AsyncVLLMServer = vllm_async_server_mod.AsyncVLLMServer
+
+        kwargs = {
+            "config": gen_cfg,
+            "agentic_rl_config": agent_cfg,
+            "tokenizer_name_or_path": "/path/to/tokenizer",
+            "vllm_dp_size": 1,
+            "vllm_dp_rank": 0,
+            "wg_prefix": "wg",
+        }
+        kwargs[field] = value
+
+        with pytest.raises(ValueError, match=msg):
+            AsyncVLLMServer(**kwargs)
