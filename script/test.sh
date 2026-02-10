@@ -77,6 +77,7 @@ function run_test() {
   echo "[INFO] >>>>>>>>>>> start running tests >>>>>>>>>>>"
   python3 -m pytest \
     --cov=agentic_rl/ \
+    --cov-report=term \
     --cov-report=html:script/coverage/html \
     --cov-report=xml:script/coverage/coverage.xml \
     --junit-xml=script/coverage/final.xml \
@@ -92,6 +93,12 @@ function run_test() {
   echo "  XML : ${workdir}/script/coverage/coverage.xml"
   echo "  JUnit: ${workdir}/script/coverage/final.xml"
   echo "  HTML test report: ${workdir}/script/coverage/final.html"
+
+  LINE_RATE=$(grep -o 'line-rate="[^"]*"' ${workdir}/script/coverage/coverage.xml | head -1 | cut -d'"' -f2)
+ 	BRANCH_RATE=$(grep -o 'branch-rate="[^"]*"' ${workdir}/script/coverage/coverage.xml | head -1 | cut -d'"' -f2)
+
+ 	echo "[INFO] Line coverage   : $(awk "BEGIN {print ${LINE_RATE}*100}")%"
+ 	echo "[INFO] Branch coverage : $(awk "BEGIN {print ${BRANCH_RATE}*100}")%"
 
   echo "[INFO] Test done!"
 }
