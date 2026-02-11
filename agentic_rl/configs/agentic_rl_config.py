@@ -64,7 +64,6 @@ class SamplingConfig:
 class GenConfig:
     limit_mm_image_per_prompt: int = 1
     limit_mm_video_per_prompt: int = 0
-    data_parallel_size: int = None
     tokenizer_name_or_path: str = "./"
     trust_remote_code: bool = False
     dtype: str = "bfloat16"
@@ -89,7 +88,6 @@ class GenConfig:
     def __post_init__(self):
         Checker.validate_param("limit_mm_image_per_prompt", int, self.limit_mm_image_per_prompt)
         Checker.validate_param("limit_mm_video_per_prompt", int, self.limit_mm_video_per_prompt)
-        Checker.validate_param("data_parallel_size", int, self.data_parallel_size)
         if self.tokenizer_name_or_path:
             FileCheck.check_data_path_is_valid(self.tokenizer_name_or_path)
         Checker.validate_param("trust_remote_code", bool, self.trust_remote_code)

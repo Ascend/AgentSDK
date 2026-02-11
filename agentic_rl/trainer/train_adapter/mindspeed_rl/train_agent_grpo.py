@@ -36,7 +36,7 @@ from ray.util import placement_group
 from agentic_rl.base.log.loggers import Loggers
 from agentic_rl.configs.agentic_rl_config import AgenticRLConfig
 from agentic_rl.trainer.train_adapter.mindspeed_rl.agent_grpo_trainer import AgentGRPOTrainer
-from agentic_rl.trainer.train_adapter.mindspeed_rl.configs.parse_config import ConfigParser
+from agentic_rl.trainer.train_adapter.mindspeed_rl.configs.parse_msrl_config import MSRLConfigParser
 from agentic_rl.trainer.train_adapter.mindspeed_rl.workers.integrated_worker import IntegratedWorker
 
 logger = Loggers(__name__)
@@ -163,7 +163,7 @@ def _process_dataset(actor_config: MegatronConfig, training_samples: int, consum
 
 @ray.remote
 def train(config: Dict[str, Any]):
-    configs = ConfigParser(config).process_config()
+    configs = MSRLConfigParser(config).process_config()
 
     agentic_rl_config = configs.get("agentic_rl_config")
     actor_config = configs.get("actor_config")
