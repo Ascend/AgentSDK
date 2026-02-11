@@ -215,7 +215,7 @@ class VerlConfig(BaseConfig):
     @classmethod
     def unique_list_validator(cls, v):
         if len(v) != len(set(v)):
-            raise ValueError("Value in list {v} must be unique.")
+            raise ValueError(f"Value in list {v} must be unique.")
         return v
     
     @model_validator(mode="after")
