@@ -43,7 +43,6 @@ class MockGenerateConfig:
     sampling_config: dict = field(default_factory=lambda: {"temperature": 1.0})
     limit_mm_image_per_prompt = None
     limit_mm_video_per_prompt = None
-    data_parallel_size: int = 2
     tokenizer_name_or_path: str = ""
     max_num_batched_tokens: int = 1024
     enable_prefix_caching: bool = False

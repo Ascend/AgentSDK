@@ -60,7 +60,7 @@ class TestTrainAgentGrpo:
             "mindspeed_rl.workers.scheduler": MagicMock(),
             "mindspeed_rl.workers.scheduler.launcher": MagicMock(),
             "agentic_rl.trainer.train_adapter.mindspeed_rl.configs": MagicMock(),
-            "agentic_rl.trainer.train_adapter.mindspeed_rl.configs.parse_config": MagicMock(),
+            "agentic_rl.trainer.train_adapter.mindspeed_rl.configs.parse_msrl_config": MagicMock(),
             "agentic_rl.trainer.train_adapter.mindspeed_rl.agent_grpo_trainer": MagicMock(),
             "agentic_rl.trainer.train_adapter.mindspeed_rl.workers.integrated_worker": MagicMock(),
         }):
@@ -107,8 +107,8 @@ class TestTrainAgentGrpo:
                 patch("ray.util.placement_group"), \
                 patch("mindspeed_rl.datasets.dataloader.PromptDataLoader"), \
                 patch("mindspeed_rl.datasets.build_dataset.build_train_valid_test_datasets") as mock_build_dataset, \
-                patch("agentic_rl.trainer.train_adapter.mindspeed_rl.configs.parse_config."
-                      "ConfigParser") as mock_config_parser_class, \
+                patch("agentic_rl.trainer.train_adapter.mindspeed_rl.configs.parse_msrl_config."
+                      "MSRLConfigParser") as mock_config_parser_class, \
                 patch("agentic_rl.trainer.train_adapter.mindspeed_rl.agent_grpo_trainer."
                       "AgentGRPOTrainer", MockTrainer):
             parser = mock_config_parser_class.return_value
@@ -149,7 +149,7 @@ class TestTrainAgentGrpo:
                 train({})
 
         with patch("agentic_rl.trainer.train_adapter.mindspeed_rl.train_agent_grpo."
-                   "ConfigParser") as mock_config_parser_class:
+                   "MSRLConfigParser") as mock_config_parser_class:
             parser = mock_config_parser_class.return_value
             parser.process_config.return_value = {
                 "agentic_rl_config": AgenticRLConfig(),
@@ -176,7 +176,7 @@ class TestTrainAgentGrpo:
                 train({})
 
         with patch("agentic_rl.trainer.train_adapter.mindspeed_rl.train_agent_grpo."
-                   "ConfigParser") as mock_config_parser_class:
+                   "MSRLConfigParser") as mock_config_parser_class:
             parser = mock_config_parser_class.return_value
             parser.process_config.return_value = {
                 "agentic_rl_config": AgenticRLConfig(),

@@ -151,7 +151,6 @@ class AgentGRPOTrainer(RayGRPOTrainer):
     def _convert_generate_config(config: GenerateConfig) -> GenConfig:
         return GenConfig(limit_mm_image_per_prompt=config.limit_mm_image_per_prompt,
                          limit_mm_video_per_prompt=config.limit_mm_video_per_prompt,
-                         data_parallel_size=config.data_parallel_size,
                          tokenizer_name_or_path=config.tokenizer_name_or_path,
                          trust_remote_code=config.trust_remote_code,
                          dtype=config.dtype,
