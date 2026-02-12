@@ -1,14 +1,14 @@
 # 快速入门<a name="ZH-CN_TOPIC_0000002459355024"></a>
 
-**简介<a name="section142771553125211"></a>**
+## **简介<a name="section142771553125211"></a>**
 
 Agent SDK提供agentic\_rl命令，本章节通过介绍该命令的使用，帮助用户熟悉本软件。
 
-**环境准备<a name="section543617275526"></a>**
+## **环境准备<a name="section543617275526"></a>**
 
 安装Agent SDK以及相关依赖，具体安装过程请参见[安装部署](installation_guide.md#安装部署)。
 
-**使用流程<a name="section167395353541"></a>**
+## **使用流程<a name="section167395353541"></a>**
 
 Agent SDK提供了训练模型示例。
 
@@ -74,3 +74,8 @@ Agent SDK提供了训练模型示例。
 >-   请确保路径权限为750，文件为640。
 >-   请确保模型文件来源可信，文件未被篡改，且已完成了训练模型转换和数据集处理。如果模型来源不可靠，可能会发生torch.load导致的序列化问题。
 
+## **后续步骤<a name="section167395353541"></a>**
+
+**Agent使用样例请参考[使用指南](user_guide/user_guide.md)**
+
+**AgentSDK 支持的后端与模型列表请参考[支持推理后端](appendix.md/#支持的推理后端a-namezh-cn_topic_0000002504002753a)，[支持训练后端](appendix.md/#支持的训练后端a-namezh-cn_topic_0000002504002753a)，[支持模型列表](appendix.md/#支持的模型列表a-namezh-cn_topic_0000002504002753a)**

@@ -266,7 +266,7 @@ export PYTHONPATH=$PYTHONPATH:/home/third-party/Megatron-LM/:/home/third-party/M
     chmod u+x Ascend-mindsdk-agentsdk_7.3.0_linux-aarch64.run
     ```
 
-3.  使用软件包升级命令升级当前AgentSDK软件包，升级命令如下，相关参数说明请参见[表 接口参数表](#table1361972315353)。
+3.  使用软件包升级命令升级当前AgentSDK软件包，升级命令如下，相关参数说明请参见[表1 接口参数表](#table1361972315353)。
 
     ```
     ./Ascend-mindsdk-agentsdk_7.3.0_linux-aarch64.run --upgrade
