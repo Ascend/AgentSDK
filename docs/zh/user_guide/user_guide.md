@@ -2,7 +2,7 @@
 
 ## AgentEngine对接示例<a name="ZH-CN_TOPIC_0000002459514660"></a>
 
-使用AgenticRL框架时，开发者需自行实现一个继承自BaseEngineWrapper的子类，以完成与自定义代理引擎的对接。本文档提供了一个模拟示例，帮助开发者快速进行调试和验证。
+使用AgenticRL框架时，开发者需自行实现一个继承自BaseEngineWrapper的子类，以完成与自定义代理样例的对接。本文档提供了一个模拟示例，帮助开发者快速进行调试和验证。
 
 **实现自定义MockEngineWrapper<a name="section142771553125211"></a>**
 
@@ -92,4 +92,6 @@ agent_engine_wrapper_path: "/your_forder/mock_engine_wrapper.py"
 agentic_rl --config-path /your_config_directory_path/your_config_file_name.yaml
 ```
 
-
+## 更多Agent场景实践<a name="ZH-CN_TOPIC_0000002492554189"></a>
+- 数学 Math Agent 请参考：[数学](math_agent.md)
+- 网络搜索 Web Search Agent 请参考：[Web 搜索](websearch_agent.md)
