@@ -59,7 +59,7 @@ def mock_ray_remote(*args, **kwargs):
 
 
 with patch('ray.remote', mock_ray_remote):
-    from agentic_rl.trainer.rollout.rollout_worker import parse_qwen_messages, RolloutWorker
+    from agentic_rl.trainer.rollout.rollout_worker import RolloutWorker
 
 
 class TestRolloutWorker(unittest.TestCase):
@@ -105,29 +105,6 @@ class TestRolloutWorker(unittest.TestCase):
             remove_padding_and_split_to_list=self.remove_padding_and_split_to_list,
         )
 
-    def test_non_string_input(self):
-        with self.assertRaises(TypeError):
-            parse_qwen_messages(123)
-
-    def test_input_too_long(self):
-        with self.assertRaises(ValueError):
-            parse_qwen_messages("a" * 100001)
-
-    def test_no_im_tags(self):
-        self.assertEqual(parse_qwen_messages("Hello, world!"), [])
-
-    def test_valid_input(self):
-        prompt = "<|im_start|>system\nHello, world!\n<|im_end|>\n<|im_start|>user\nHow are you?\n<|im_end|>\n<|im_start|>assistant\nI'm fine, thank you.\n<|im_end|>"
-        expected_output = [
-            {"role": "system", "content": "Hello, world!"},
-            {"role": "user", "content": "How are you?"},
-            {"role": "assistant", "content": "I'm fine, thank you."}
-        ]
-        self.assertEqual(parse_qwen_messages(prompt), expected_output)
-
-    def test_invalid_role(self):
-        prompt = "<|im_start|>invalid\nHello, world!\n<|im_end|>"
-        self.assertEqual(parse_qwen_messages(prompt), [])
 
     def test_init(self):
         self.assertEqual(self.worker.actor_rollout_dispatch_size, 0)
@@ -275,68 +252,6 @@ class TestRolloutWorker(unittest.TestCase):
         self.worker.data_manager.get_data.return_value = ({'data': 'value'}, 'index')
         result = self.loop.run_until_complete(self.worker._get_batch_data('stage', ['column'], 1))
         self.assertEqual(result, ({'data': 'value'}, 'index'))
-
-    @patch('agentic_rl.trainer.rollout.rollout_worker.parse_qwen_messages')
-    @patch('agentic_rl.trainer.rollout.rollout_worker.AutoTokenizer')
-    def test_preprocess_batch_data(self, mock_tokenizer, mock_parse_qwen_messages):
-        mock_tokenizer.decode.side_effect = lambda x: f"decoded_{x}"
-        self.worker.tokenizer = mock_tokenizer
-        self.worker.remove_padding_tensor_dict_to_dict = Mock()
-        self.worker.remove_padding_tensor_dict_to_dict.side_effect = lambda x: x
-
-        mock_parse_qwen_messages.side_effect = lambda x, max_length=100: [{'role': 'user', 'content': x}]
-
-        batch_data = {'prompts': ['Test prompt 1']}
-        expected_problems = ['decoded_Test prompt 1']
-        self.assertEqual(self.worker._preprocess_batch_data(batch_data), expected_problems)
-
-        # Test case 2: Multiple prompts with user role
-        batch_data = {'prompts': ['Test prompt 1', 'Test prompt 2']}
-        expected_problems = ['decoded_Test prompt 1', 'decoded_Test prompt 2']
-        self.assertEqual(self.worker._preprocess_batch_data(batch_data), expected_problems)
-
-        # Test case 3: Prompts with different roles
-        batch_data = {'prompts': ['User prompt']}
-        expected_problems = ['decoded_User prompt']
-        self.assertEqual(self.worker._preprocess_batch_data(batch_data), expected_problems)
-
-        # Test case 4: No user role in prompts
-        mock_parse_qwen_messages.side_effect = lambda x, max_length=100: [{'role': 'assistant', 'content': x}]
-        batch_data = {'prompts': ['Assistant response']}
-        expected_problems = []
-        self.assertEqual(self.worker._preprocess_batch_data(batch_data), expected_problems)
-
-    def test_generate_tasks(self):
-        self.worker.dataset_additional_keys = ["question", "labels", "other"]
-        self.worker.tokenizer.decode.side_effect = lambda x: f"decoded_{x}"
-        batch_data = {
-            "question": torch.tensor([1, 2, 3]),
-            "labels": torch.tensor([4, 5, 6]),
-            "other": torch.tensor([7, 8, 9])
-        }
-        problems = ["problem1", "problem2", "problem3"]
-        index = [0, 1, 2]
-
-        tasks = self.worker._generate_tasks(batch_data, problems, index)
-
-        self.assertEqual(len(tasks), 3)
-        for i, task in enumerate(tasks):
-            self.assertEqual(task["id"], index[i])
-            self.assertEqual(task["question"], f"decoded_{batch_data['question'][i]}")
-            self.assertEqual(task["ground_truth"], f"decoded_{batch_data['labels'][i]}")
-            self.assertEqual(task["other"], f"decoded_{batch_data['other'][i]}")
-
-    def test_generate_tasks_index_error(self):
-        self.worker.dataset_additional_keys = ["question", "labels"]
-        self.worker.tokenizer.decode.side_effect = lambda x: f"decoded_{x}"
-        batch_data = {
-            "question": [1, 2, 3],
-            "labels": [4, 5]
-        }
-        problems = ["question1", "question2", "question3"]
-        index = [0, 1, 2]
-        with self.assertRaises(IndexError):
-            self.worker._generate_tasks(batch_data, problems, index)
 
     @patch('ray.get')
     def test_generate_trajectories_success(self, mock_ray_get):

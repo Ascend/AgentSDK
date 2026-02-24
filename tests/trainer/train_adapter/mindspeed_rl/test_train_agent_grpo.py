@@ -105,8 +105,7 @@ class TestTrainAgentGrpo:
     def train_patches(self, patch_target):
         with patch("mindspeed_rl.utils.get_tokenizer"), \
                 patch("ray.util.placement_group"), \
-                patch("mindspeed_rl.datasets.dataloader.PromptDataLoader"), \
-                patch("mindspeed_rl.datasets.build_dataset.build_train_valid_test_datasets") as mock_build_dataset, \
+                patch("datasets.load_dataset") as mock_build_dataset, \
                 patch("agentic_rl.trainer.train_adapter.mindspeed_rl.configs.parse_msrl_config."
                       "MSRLConfigParser") as mock_config_parser_class, \
                 patch("agentic_rl.trainer.train_adapter.mindspeed_rl.agent_grpo_trainer."
@@ -121,7 +120,27 @@ class TestTrainAgentGrpo:
                 "generate_config": MockGenerateConfig(),
             }
 
-            mock_build_dataset.return_value = MagicMock(), None, None
+            from datasets import Dataset, DatasetDict
+
+            data = {
+                "question": [
+                    "Hello world",
+                    "How are you",
+                    "Goodbye",
+                ],
+                "answer": [0, 1, 0]
+            }
+
+            dataset = Dataset.from_dict(data)
+
+            dataset = DatasetDict({
+                "train": dataset
+            })
+
+            def fake_load_dataset(*args, **kwargs):
+                return dataset
+
+            mock_build_dataset.side_effect = fake_load_dataset
 
             yield
 
@@ -193,22 +212,12 @@ class TestTrainAgentGrpo:
         from agentic_rl.trainer.train_adapter.mindspeed_rl.train_agent_grpo import train
 
         with patch("agentic_rl.trainer.train_adapter.mindspeed_rl.train_agent_grpo."
-                   "build_train_valid_test_datasets") as mock_build_dataset:
+                   "load_dataset") as mock_build_dataset:
             mock_build_dataset.side_effect = ValueError("test")
             with pytest.raises(ValueError):
                 train({})
 
             mock_build_dataset.side_effect = AttributeError("test")
-            with pytest.raises(RuntimeError):
-                train({})
-
-        with patch("agentic_rl.trainer.train_adapter.mindspeed_rl.train_agent_grpo."
-                   "PromptDataLoader") as mock_data_loader_class:
-            mock_data_loader_class.side_effect = AttributeError("test")
-            with pytest.raises(AttributeError):
-                train({})
-
-            mock_data_loader_class.side_effect = ValueError("test")
             with pytest.raises(RuntimeError):
                 train({})
 

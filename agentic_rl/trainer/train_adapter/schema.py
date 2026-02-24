@@ -19,20 +19,21 @@ See the Mulan PSL v2 for more details.
 """
 
 from typing import Optional, List, Literal
-from pathlib import Path
-import os
+
 from pydantic import BaseModel, field_validator, ConfigDict, model_validator
+
 from agentic_rl.base.utils.file_utils import FileCheck
- 
+
 _verl_ckpt_type = Literal["model", "optimizer", "extra", "hf_model"]
 
 
 class BaseConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", validate_assignment=True, strict=True)
- 
- 
+
+
 class MindspeedRLConfig(BaseConfig):
     data_path: str
+    test_data_path: Optional[str] = None
     load_params_path: str
     save_params_path: str
     epochs: int = 1
@@ -46,7 +47,7 @@ class MindspeedRLConfig(BaseConfig):
     pipeline_model_parallel_size: int = 1
     actor_rollout_dispatch_size: int = 2
     adv_estimator: Literal['group_norm', 'gae'] = 'group_norm'
- 
+
     @field_validator(
         "epochs",
         "seq_length",
@@ -64,39 +65,21 @@ class MindspeedRLConfig(BaseConfig):
         if v <= 0:
             raise ValueError(f"Value {v} must be positive.")
         return v
- 
-    @field_validator("data_path")
-    @classmethod
-    def validate_data_path(cls, v):
-        path_obj = Path(v)
-        directory = str(path_obj.parent)
-        prefix = path_obj.name
- 
-        FileCheck.check_data_path_is_valid(directory)
- 
-        valid_data_files_suffix = [
-            "_packed_attention_mask_document.bin",
-            "_packed_attention_mask_document.idx",
-            "_packed_input_ids_document.bin",
-            "_packed_input_ids_document.idx",
-            "_packed_labels_document.bin",
-            "_packed_labels_document.idx",
-        ]
- 
-        for suffix in valid_data_files_suffix:
-            expected_file = os.path.join(directory, prefix + suffix)
-            if not os.path.exists(expected_file):
-                raise ValueError(f"File {expected_file} does not exist.")
- 
-        return v
- 
-    @field_validator("load_params_path", "save_params_path")
+
+    @field_validator("data_path", "load_params_path", "save_params_path")
     @classmethod
     def validate_path_exists(cls, v):
         FileCheck.check_data_path_is_valid(v)
         return v
- 
- 
+
+    @field_validator("test_data_path")
+    @classmethod
+    def validate_test_path_exists(cls, v):
+        if v:
+            FileCheck.check_data_path_is_valid(v)
+        return v
+
+
 class VerlConfig(BaseConfig):
     train_files: str
     val_files: str
@@ -192,7 +175,7 @@ class VerlConfig(BaseConfig):
         if v <= 0:
             raise ValueError(f"Value {v} must be positive.")
         return v
- 
+
     @field_validator("train_files", "val_files")
     @classmethod
     def validate_paths(cls, v):
@@ -200,16 +183,15 @@ class VerlConfig(BaseConfig):
         return v
 
     @field_validator(
-    "policy_loss_ppo_kl_coef", 
-    "kl_loss_coef",
-    "min_lr_ratio"
+        "policy_loss_ppo_kl_coef",
+        "kl_loss_coef",
+        "min_lr_ratio"
     )
     @classmethod
     def validate_fraction(cls, v):
         if not (0.0 <= v <= 1.0):
             raise ValueError(f"Value {v} must be between 0 and 1.")
         return v
-    
 
     @field_validator("ckpt_content")
     @classmethod
@@ -217,14 +199,14 @@ class VerlConfig(BaseConfig):
         if len(v) != len(set(v)):
             raise ValueError(f"Value in list {v} must be unique.")
         return v
-    
+
     @model_validator(mode="after")
     def validate_nested_config(self):
         if self.policy_loss_clip_cov_lb >= self.policy_loss_clip_cov_ub:
             raise ValueError("clip_cov upper bound should be larger than its lower bound!")
         return self
- 
- 
+
+
 class GlobalConfig(BaseConfig):
     # Shared Parameters
     tokenizer_name_or_path: str
@@ -234,7 +216,7 @@ class GlobalConfig(BaseConfig):
     train_backend: Literal["mindspeed_rl", "verl"]
     use_stepwise_advantage: bool = False
     use_tensorboard: bool = False
- 
+
     # Inference / Model Params
     infer_tensor_parallel_size: int = 4
     infer_pipeline_parallel_size: int = 1
@@ -244,7 +226,7 @@ class GlobalConfig(BaseConfig):
     max_model_len: int = 16384
     gpu_memory_utilization: float = 0.85
     max_tokens: int = 8192
- 
+
     # Sampling / Generation
     dtype: Literal["bfloat16", "float16"] = "bfloat16"
     top_k: int = 20
@@ -252,7 +234,7 @@ class GlobalConfig(BaseConfig):
     min_p: float = 0.01
     temperature: float = 0.6
     enforce_eager: bool = True
- 
+
     # RL Hyperparams
     use_kl_in_reward: bool = False
     clip_ratio: float = 0.2
@@ -271,39 +253,39 @@ class GlobalConfig(BaseConfig):
     lr_warmup_fraction: float = 0.0
     clip_grad: float = 1.0
     weight_decay: float = 0.01
- 
+
     # Resources / Training
     num_gpus_per_node: int = 8
     max_prompt_length: int = 2048
     rollout_n: int = 2
- 
+
     # Sub-configs
     mindspeed_rl: Optional[MindspeedRLConfig] = None
     verl: Optional[VerlConfig] = None
- 
+
     dataset_additional_keys: Optional[List[str]] = None
- 
+
     @field_validator("tokenizer_name_or_path", "agent_engine_wrapper_path")
     @classmethod
     def validate_paths(cls, v):
         FileCheck.check_data_path_is_valid(v)
         return v
- 
+
     @field_validator(
-        "gpu_memory_utilization", 
-        "top_p", "min_p", 
+        "gpu_memory_utilization",
+        "top_p", "min_p",
         "lr_warmup_fraction",
         "gamma",
         "lam",
         "weight_decay",
         "clip_ratio",
-        )
+    )
     @classmethod
     def validate_fraction(cls, v):
         if not (0.0 <= v <= 1.0):
             raise ValueError(f"Value {v} must be between 0 and 1.")
         return v
- 
+
     @field_validator(
         "num_gpus_per_node",
         "max_num_seqs",
@@ -320,7 +302,7 @@ class GlobalConfig(BaseConfig):
         "max_num_batched_tokens",
         "max_tokens",
         "max_prompt_length",
-        )
+    )
     @classmethod
     def validate_positive(cls, v):
         if v <= 0:
@@ -330,13 +312,13 @@ class GlobalConfig(BaseConfig):
     @field_validator(
         "entropy_coeff",
         "kl_target",
-        )
+    )
     @classmethod
     def validate_non_negative(cls, v):
         if v < 0:
             raise ValueError(f"Value {v} must be non-negative.")
         return v
- 
+
     @model_validator(mode="after")
     def validate_backend_config(self):
         if self.train_backend == "mindspeed_rl" and self.mindspeed_rl is None:

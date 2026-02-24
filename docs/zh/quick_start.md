@@ -39,25 +39,9 @@ Agent SDK提供了训练模型示例。
     cd /home/datasets/deepscalar/
     # 下载数据集
     wget https://huggingface.co/datasets/agentica-org/DeepScaleR-Preview-Dataset/resolve/main/deepscaler.json
-    
-    # 修改 /home/third-party/MindSpeed-RL/configs/datasets/deepscaler.json
-    input: /home/datasets/deepscalar/deepscaler.json
-    tokenizer_name_or_path: /home/models/Qwen2.5-7B-Instruct/
-    output_prefix: /home/datasets/deepscalar/data
-    handler_name: R1AlpacaStyleInstructionHandler
-    tokenizer_type: HuggingFaceTokenizer
-    workers: 8
-    log_interval: 1000
-    prompt_type: qwen_r1
-    map_keys: {"prompt":"problem", "query":"", "response": "answer", "system":""}
-    dataset_additional_keys: ["labels"]
-    
-    # 处理数据集
-    cd /home/third-party/MindSpeed-RL/
-    bash examples/data/preprocess_data.sh deepscaler
     ```
 
--   完成训练模型转换和数据集处理后，开始进行训练。
+-   完成训练模型转换和数据集下载后，开始进行训练。
 
     ```
     # 进入自己的工作目录
