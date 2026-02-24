@@ -91,8 +91,8 @@ def _gen_megatron_config(config: Dict[str, Any]) -> MegatronConfig:
         "save_interval": ms_config.get("save_interval", 1000), "train_iters": ms_config.get("train_iters", 1),
         "stage": "ray_grpo", "attention_dropout": 0, "init_method_std": 0.01, "hidden_dropout": 0,
         "distributed_backend": "nccl", "no_shared_storage": True, "variable_seq_lengths": False,
-        "norm_epsilon": 0.00001, "dataset_additional_keys": ["labels"],
-        "data_path": ms_config.get("data_path"), "split": "100,0,0",
+        "norm_epsilon": 0.00001, "dataset_additional_keys": config.get("dataset_additional_keys"),
+        "data_path": ms_config.get("data_path"),
         "reset_position_ids": False, "micro_batch_size": ms_config.get("micro_batch_size", 1),
         "tensor_model_parallel_size": ms_config.get("tensor_model_parallel_size", 4),
         "pipeline_model_parallel_size": ms_config.get("pipeline_model_parallel_size", 1),
@@ -203,6 +203,7 @@ class MSRLConfigParser(ConfigParser):
         agentic_rl_config.agent_name = global_config.agent_name
         agentic_rl_config.agent_engine_wrapper_path = global_config.agent_engine_wrapper_path
         agentic_rl_config.use_stepwise_advantage = global_config.use_stepwise_advantage
+        agentic_rl_config.test_data_path = global_config.mindspeed_rl.test_data_path
  
         actor_config = _gen_megatron_config(config_dict)
         ref_config = actor_config

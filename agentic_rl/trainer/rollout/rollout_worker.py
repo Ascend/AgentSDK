@@ -35,69 +35,6 @@ from agentic_rl.runner.infer_adapter.async_server import AsyncServerManager
 from agentic_rl.runner.runner_worker import RunnerWorker
 
 
-def _parse_text(text):
-    start_tag = "<|im_start|>"
-    end_tag = "<|im_end|>"
-
-    i = 0
-    results = []
-
-    while True:
-        start = text.find(start_tag, i)
-        if start == -1:
-            break
-
-        role_start = start + len(start_tag)
-
-        content_end = text.find(end_tag, role_start)
-        if content_end == -1:
-            break
-
-        before_content_start = text.find('\n', role_start, content_end)
-        if before_content_start == -1:
-            i = content_end + len(end_tag)
-            continue
-
-        lt_pos = text.find('<', role_start, content_end)
-        if lt_pos != -1 and lt_pos < before_content_start:
-            i = role_start
-            continue
-
-        role = text[role_start:before_content_start]
-        content = text[before_content_start + 1:content_end]
-
-        results.append((role, content))
-        i = content_end + len(end_tag)
-
-    return results
-
-
-def parse_qwen_messages(prompt, max_length=100000):
-    if not isinstance(prompt, str):
-        raise TypeError("Prompt must be a string")
-
-    if len(prompt) > max_length:
-        raise ValueError(f"The length of prompt is too long: {len(prompt)} > {max_length}")
-
-    if "<|im_start|>" not in prompt or "<|im_end|>" not in prompt:
-        return []
-
-    matches = _parse_text(prompt)
-
-    extracted_messages = []
-    for role, content in matches:
-        role_clean = role.strip()
-        content_clean = content.strip()
-
-        if role_clean in ["system", "user", "assistant"]:
-            extracted_messages.append({
-                "role": role_clean,
-                "content": content_clean
-            })
-
-    return extracted_messages
-
-
 @ray.remote
 class RolloutWorker:
     def __init__(
@@ -216,39 +153,6 @@ class RolloutWorker:
             return batch_data, index
         return None, None
 
-    def _preprocess_batch_data(self, batch_data):
-        batch_data = self.remove_padding_tensor_dict_to_dict(batch_data)
-        prompts = [parse_qwen_messages(self.tokenizer.decode(s)) for s in batch_data['prompts']]
-        problems = []
-        for messages in prompts:
-            for content in messages:
-                if content['role'] == 'user':
-                    problems.append(content['content'])
-        return problems
-
-    def _generate_tasks(self, batch_data, problems, index):
-        additional_keys_dict = {"question": problems}
-        for key in self.dataset_additional_keys:
-            decode_list = [self.tokenizer.decode(s) for s in batch_data[key]]
-            if "labels" == key:
-                additional_keys_dict["ground_truth"] = decode_list
-            else:
-                additional_keys_dict[key] = decode_list
-
-        tasks = []
-        for idx, index_value in enumerate(index):
-            task = {
-                "id": index_value
-            }
-            for key in additional_keys_dict.keys():
-                if len(additional_keys_dict[key]) <= idx:
-                    raise IndexError(
-                        f"Data length of key {key} mismatch for idx {idx}, "
-                        f"actual length is {len(additional_keys_dict[key])}")
-                task[key] = additional_keys_dict[key][idx]
-            tasks.append(task)
-        return tasks
-
     async def _generate_trajectories(self, tasks):
         self.rollout_engine.wake_up()
         try:
@@ -285,7 +189,7 @@ class RolloutWorker:
 
     async def generate_sequences(self):
         experience_consumer_stage = 'actor_rollout'
-        experience_columns = ['prompts', 'prompt_length']
+        experience_columns = []
         experience_columns.extend(self.dataset_additional_keys)
         experience_count = self.actor_rollout_dispatch_size
 
@@ -303,8 +207,15 @@ class RolloutWorker:
                 start_time = time.time()
                 start_time_defined = True
 
-            problems = self._preprocess_batch_data(batch_data)
-            tasks.extend(self._generate_tasks(batch_data, problems, index))
+            _tasks = [dict() for _ in range(len(index))]
+            batch_data = self.remove_padding_tensor_dict_to_dict(batch_data)
+
+            for i, index_value in enumerate(index):
+                _tasks[i]["id"] = index_value
+                for key in self.dataset_additional_keys:
+                    _tasks[i][key] = self.tokenizer.decode(batch_data[key][i])
+
+            tasks.extend(_tasks)
             indexes.extend(index)
 
         trajectories = await self._generate_trajectories(tasks)
@@ -319,8 +230,7 @@ class RolloutWorker:
 
         self.data_manager.update_metrics("timing/rollout",
                                          value=[round(end_time, 4), round(start_time, 4)],
-                                         cumulate=True
-                                         )
+                                         cumulate=True)
 
     def _transform_agent_trajectories(self, trajectories):
         """

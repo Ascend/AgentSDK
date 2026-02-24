@@ -20,6 +20,7 @@ import sys
 from unittest.mock import patch, MagicMock
 
 import pytest
+import torch
 from ray.exceptions import RayError
 
 from workers.test_agent_hybrid_worker import (MockRLConfig,
@@ -36,7 +37,7 @@ class MockRayGRPOTrainer:
         self.blocking = False
         self.train_iters = 5
         self.n_samples_per_prompt = 2
-        self.dataset_additional_keys = []
+        self.dataset_additional_keys = ["a", "b"]
         self.skip_actor_log_prob = False
         self.save_interval = 5
         self.guarantee_order = False
@@ -117,7 +118,7 @@ class MockRolloutWorker:
         return MockRolloutWorker(*args, **kwargs)
 
 
-class TestAgentGRPO:
+class TestAgentGRPOTrainer:
 
     @pytest.fixture(scope="class")
     def patch_modules(self):
@@ -138,22 +139,22 @@ class TestAgentGRPO:
     @pytest.fixture(scope="class")
     def patch_target(self, patch_modules):
         with (patch("ray.remote") as mock_remote, \
-                patch("ray.get") as mock_ray_get, \
-                patch("mindspeed_rl.MegatronConfig", MockMegatronConfig), \
-                patch("mindspeed_rl.RLConfig", MockRLConfig), \
-                patch("mindspeed_rl.GenerateConfig", MockGenerateConfig), \
-                patch("mindspeed_rl.trainer.utils.compute_grpo_data_metrics") as mock_compute_grpo_data_metrics, \
-                patch("mindspeed_rl.utils.tokenizer.BaseTokenizer", MockBaseTokenizer), \
-                patch("mindspeed_rl.utils.utils.metrics_post_processing") as mock_metrics_post_processing, \
-                patch("mindspeed_rl.trainer.utils.metrics_sort") as mock_metrics_sort, \
-                patch("mindspeed_rl.trainer.utils.compute_tps") as mock_compute_tps, \
-                patch("mindspeed_rl.RayActorGroup", MockRayActorGroup), \
-                patch("mindspeed_rl.RuleReward", MockRuleReward), \
-                patch("mindspeed_rl.RayGRPOTrainer", MockRayGRPOTrainer), \
-                patch("tensordict.TensorDict"), \
-                patch("agentic_rl.trainer.rollout.rollout_worker.RolloutWorker", MockRolloutWorker), \
-                patch("agentic_rl.trainer.train_adapter.mindspeed_rl.patch.apply_patch"), \
-                patch("agentic_rl.base.utils.file_utils.FileCheck.check_data_path_is_valid")):
+              patch("ray.get") as mock_ray_get, \
+              patch("mindspeed_rl.MegatronConfig", MockMegatronConfig), \
+              patch("mindspeed_rl.RLConfig", MockRLConfig), \
+              patch("mindspeed_rl.GenerateConfig", MockGenerateConfig), \
+              patch("mindspeed_rl.trainer.utils.compute_grpo_data_metrics") as mock_compute_grpo_data_metrics, \
+              patch("mindspeed_rl.utils.tokenizer.BaseTokenizer", MockBaseTokenizer), \
+              patch("mindspeed_rl.utils.utils.metrics_post_processing") as mock_metrics_post_processing, \
+              patch("mindspeed_rl.trainer.utils.metrics_sort") as mock_metrics_sort, \
+              patch("mindspeed_rl.trainer.utils.compute_tps") as mock_compute_tps, \
+              patch("mindspeed_rl.RayActorGroup", MockRayActorGroup), \
+              patch("mindspeed_rl.RuleReward", MockRuleReward), \
+              patch("mindspeed_rl.RayGRPOTrainer", MockRayGRPOTrainer), \
+              patch("tensordict.TensorDict"), \
+              patch("agentic_rl.trainer.rollout.rollout_worker.RolloutWorker", MockRolloutWorker), \
+              patch("agentic_rl.trainer.train_adapter.mindspeed_rl.patch.apply_patch"), \
+              patch("agentic_rl.base.utils.file_utils.FileCheck.check_data_path_is_valid")):
 
             def fake_ray_get(*args):
                 return args
@@ -176,18 +177,22 @@ class TestAgentGRPO:
 
             def fake_compute_grpo_data_metrics(*args, **kwargs):
                 return {"grpo/score/mean": 0.1}
+
             mock_compute_grpo_data_metrics.side_effect = fake_compute_grpo_data_metrics
 
             def fake_metrics_post_processing(*args, **kwargs):
                 return {"grpo/score/mean": 0.1, "timing/all": 100.0}
+
             mock_metrics_post_processing.side_effect = fake_metrics_post_processing
 
             def fake_metrics_sort(*args, **kwargs):
                 return {"timing/all": 100.0, "grpo/score/mean": 0.1}
+
             mock_metrics_sort.side_effect = fake_metrics_sort
 
             def fake_compute_tps(*args, **kwargs):
                 return 4.9
+
             mock_compute_tps.side_effect = fake_compute_tps
 
             yield
@@ -212,7 +217,7 @@ class TestAgentGRPO:
         tokenizer = BaseTokenizer()
 
         with patch("agentic_rl.trainer.train_adapter.mindspeed_rl.agent_grpo_trainer."
-                   "put_prompts_experience") as mock_put_prompts_experience, \
+                   "padding_dict_to_tensor_dict") as mock_padding_dict_to_tensor_dict, \
                 patch("agentic_rl.trainer.train_adapter.mindspeed_rl.agent_grpo_trainer."
                       "ray.actor.ActorHandle", MockRuleReward):
             trainer = AgentGRPOTrainer(rl_config=rl_config,
@@ -224,7 +229,7 @@ class TestAgentGRPO:
                                        reward_list=reward_list,
                                        tokenizer=tokenizer)
 
-            mock_put_prompts_experience.return_value = {}, []
+            mock_padding_dict_to_tensor_dict.return_value = None
 
             yield (trainer,
                    {"rl_config": rl_config,
@@ -235,7 +240,7 @@ class TestAgentGRPO:
                     "reference_worker": reference_worker,
                     "reward_list": reward_list,
                     "tokenizer": tokenizer},
-                   {"mock_put_prompts_experience": mock_put_prompts_experience})
+                   {"mock_padding_dict_to_tensor_dict": mock_padding_dict_to_tensor_dict})
 
     def test_init_success_with_no_error(self, agent_grpo_trainer):
         worker, _, _ = agent_grpo_trainer
@@ -362,26 +367,26 @@ class TestAgentGRPO:
     def test_fit_failed_with_put_prompts_experience(self, agent_grpo_trainer):
         trainer, _, patches = agent_grpo_trainer
 
-        mock_put_prompts_experience = patches["mock_put_prompts_experience"]
+        mock_padding_dict_to_tensor_dict = patches["mock_padding_dict_to_tensor_dict"]
 
-        mock_put_prompts_experience.side_effect = RayError("error")
-        with pytest.raises(RuntimeError):
-            trainer.fit(iter([1]))
+        mock_padding_dict_to_tensor_dict.side_effect = ValueError("error")
+        with pytest.raises(ValueError):
+            trainer.fit(iter([{"a": [torch.Tensor([1])], "b": [torch.Tensor([2])]}]))
 
-        mock_put_prompts_experience.side_effect = AttributeError("error")
+        mock_padding_dict_to_tensor_dict.side_effect = AttributeError("error")
         with pytest.raises(RuntimeError):
-            trainer.fit(iter([1]))
+            trainer.fit(iter([{"a": [torch.Tensor([1])], "b": [torch.Tensor([2])]}]))
 
     def test_fit_failed_with_generate_sequences(self, agent_grpo_trainer):
         trainer, _, _ = agent_grpo_trainer
 
         trainer.rollout_worker.generate_sequences.remote.side_effect = RayError("error")
         with pytest.raises(RuntimeError):
-            trainer.fit(iter([1]))
+            trainer.fit(iter([{"a": [torch.Tensor([1])], "b": [torch.Tensor([2])]}]))
 
         trainer.rollout_worker.generate_sequences.remote.side_effect = AttributeError("error")
         with pytest.raises(RuntimeError):
-            trainer.fit(iter([1]))
+            trainer.fit(iter([{"a": [torch.Tensor([1])], "b": [torch.Tensor([2])]}]))
 
     def test_fit_failed_with_compute_advantage(self, agent_grpo_trainer):
         trainer, _, _ = agent_grpo_trainer
@@ -390,11 +395,11 @@ class TestAgentGRPO:
                    "RayGRPOTrainer.compute_advantage") as mock_compute_advantage:
             mock_compute_advantage.side_effect = RayError("error")
             with pytest.raises(RuntimeError):
-                trainer.fit(iter([1]))
+                trainer.fit(iter([{"a": [torch.Tensor([1])], "b": [torch.Tensor([2])]}]))
 
             mock_compute_advantage.side_effect = AttributeError("error")
             with pytest.raises(RuntimeError):
-                trainer.fit(iter([1]))
+                trainer.fit(iter([{"a": [torch.Tensor([1])], "b": [torch.Tensor([2])]}]))
 
     def test_fit_failed_with_compute_ref_log_prob(self, agent_grpo_trainer):
         trainer, _, _ = agent_grpo_trainer
@@ -403,11 +408,11 @@ class TestAgentGRPO:
                    "RayActorGroup.compute_ref_log_prob") as mock_compute_ref_log_prob:
             mock_compute_ref_log_prob.side_effect = RayError("error")
             with pytest.raises(RuntimeError):
-                trainer.fit(iter([1]))
+                trainer.fit(iter([{"a": [torch.Tensor([1])], "b": [torch.Tensor([2])]}]))
 
             mock_compute_ref_log_prob.side_effect = AttributeError("error")
             with pytest.raises(RuntimeError):
-                trainer.fit(iter([1]))
+                trainer.fit(iter([{"a": [torch.Tensor([1])], "b": [torch.Tensor([2])]}]))
 
     def test_fit_failed_with_compute_log_prob(self, agent_grpo_trainer):
         trainer, _, _ = agent_grpo_trainer
@@ -416,11 +421,11 @@ class TestAgentGRPO:
                    "RayActorGroup.compute_log_prob") as mock_compute_log_prob:
             mock_compute_log_prob.side_effect = RayError("error")
             with pytest.raises(RuntimeError):
-                trainer.fit(iter([1]))
+                trainer.fit(iter([{"a": [torch.Tensor([1])], "b": [torch.Tensor([2])]}]))
 
             mock_compute_log_prob.side_effect = AttributeError("error")
             with pytest.raises(RuntimeError):
-                trainer.fit(iter([1]))
+                trainer.fit(iter([{"a": [torch.Tensor([1])], "b": [torch.Tensor([2])]}]))
 
     def test_fit_failed_update(self, agent_grpo_trainer):
         trainer, _, _ = agent_grpo_trainer
@@ -429,11 +434,11 @@ class TestAgentGRPO:
                    "RayActorGroup.update") as mock_update:
             mock_update.side_effect = RayError("error")
             with pytest.raises(RuntimeError):
-                trainer.fit(iter([1]))
+                trainer.fit(iter([{"a": [torch.Tensor([1])], "b": [torch.Tensor([2])]}]))
 
             mock_update.side_effect = AttributeError("error")
             with pytest.raises(RuntimeError):
-                trainer.fit(iter([1]))
+                trainer.fit(iter([{"a": [torch.Tensor([1])], "b": [torch.Tensor([2])]}]))
 
     def test_fit_failed_save_checkpoint(self, agent_grpo_trainer):
         trainer, _, _ = agent_grpo_trainer
@@ -442,11 +447,11 @@ class TestAgentGRPO:
                    "RayGRPOTrainer.save_checkpoint") as mock_save_checkpoint:
             mock_save_checkpoint.side_effect = RayError("error")
             with pytest.raises(RuntimeError):
-                trainer.fit(iter([1]))
+                trainer.fit(iter([{"a": [torch.Tensor([1])], "b": [torch.Tensor([2])]}]))
 
             mock_save_checkpoint.side_effect = AttributeError("error")
             with pytest.raises(RuntimeError):
-                trainer.fit(iter([1]))
+                trainer.fit(iter([{"a": [torch.Tensor([1])], "b": [torch.Tensor([2])]}]))
 
     def test_fit_failed_with_check_path(self, agent_grpo_trainer):
         trainer, _, _ = agent_grpo_trainer
@@ -454,33 +459,37 @@ class TestAgentGRPO:
         with patch("agentic_rl.base.utils.file_utils.FileCheck.check_data_path_is_valid") as mock_check_path:
             mock_check_path.side_effect = ValueError("error")
             with pytest.raises(ValueError):
-                trainer.fit(iter([1]))
+                trainer.fit(iter([{"a": [torch.Tensor([1])], "b": [torch.Tensor([2])]}]))
 
             mock_check_path.side_effect = AttributeError("error")
             with pytest.raises(RuntimeError):
-                trainer.fit(iter([1]))
+                trainer.fit(iter([{"a": [torch.Tensor([1])], "b": [torch.Tensor([2])]}]))
 
     def test_fit_type_error_with_tensorboard(self, agent_grpo_trainer):
         trainer, _, _ = agent_grpo_trainer
         trainer.tensorboard.add_scalar.side_effect = TypeError("error")
+
         def fake_update_metrics(metrics_result, grpo_data_metrics, metrics, all_timer):
             metrics.metric.items = {"loss": 1.0}.items
+
         trainer._update_metrics = fake_update_metrics
 
         with pytest.raises(ValueError):
-            trainer.fit(iter([1]))
+            trainer.fit(iter([{"a": [torch.Tensor([1])], "b": [torch.Tensor([2])]}]))
 
     def test_fit_io_error_with_tensorboard(self, agent_grpo_trainer):
         trainer, _, _ = agent_grpo_trainer
         trainer.tensorboard.add_scalar.side_effect = IOError("error")
+
         def fake_update_metrics(metrics_result, grpo_data_metrics, metrics, all_timer):
             metrics.metric.items = {"loss": 1.0}.items
+
         trainer._update_metrics = fake_update_metrics
 
         with pytest.raises(RuntimeError):
-            trainer.fit(iter([1]))
+            trainer.fit(iter([{"a": [torch.Tensor([1])], "b": [torch.Tensor([2])]}]))
 
     def test_fit_success_with_no_error(self, agent_grpo_trainer):
         trainer, _, _ = agent_grpo_trainer
 
-        trainer.fit(iter([1]))
+        trainer.fit(iter([{"a": [torch.Tensor([1])], "b": [torch.Tensor([2])]}]))

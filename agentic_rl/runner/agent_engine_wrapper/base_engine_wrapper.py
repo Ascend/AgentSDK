@@ -52,16 +52,16 @@ class BaseEngineWrapper(ABC):
             message="max_prompt_length must be an integer between [1, 128K]",
         ),
         max_response_length=dict(
-            validator=lambda x: isinstance(x, int) and 1 <= x <= 8 * 1024,
-            message="max_response_length must be an integer between [1, 8K]",
+            validator=lambda x: isinstance(x, int) and 1 <= x <= 64 * 1024,
+            message="max_response_length must be an integer between [1, 64K]",
         ),
         n_parallel_agents=dict(
             validator=lambda x: isinstance(x, int) and 1 <= x <= 64,
             message="n_parallel_agents must be an integer between [1, 64]",
         ),
         max_steps=dict(
-            validator=lambda x: isinstance(x, int) and 1 <= x <= 10,
-            message="max_steps must be an integer between [1, 10]",
+            validator=lambda x: isinstance(x, int) and 1 <= x <= 100,
+            message="max_steps must be an integer between [1, 100]",
         ),
     )
     def __init__(

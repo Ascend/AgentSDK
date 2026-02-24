@@ -17,7 +17,7 @@ MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 See the Mulan PSL v2 for more details.
 -------------------------------------------------------------------------
 """
-from typing import Iterator
+from typing import Iterator, Dict
 
 from codetiming import Timer
 
@@ -25,15 +25,15 @@ from agentic_rl.trainer.train_adapter.mindspeed_rl import patch
 
 patch.apply_patch()
 
+import torch
 import ray
 from ray.exceptions import RayError
-
 from mindspeed_rl import RayGRPOTrainer, RLConfig, MegatronConfig, GenerateConfig, RayActorGroup, RuleReward, Metric
 from mindspeed_rl.trainer.utils import compute_grpo_data_metrics
-from mindspeed_rl.trainer.utils.transfer_dock import put_prompts_experience
 from mindspeed_rl.utils.pad_process import (
     remove_padding_tensor_dict_to_dict,
-    remove_padding_and_split_to_list
+    remove_padding_and_split_to_list,
+    padding_dict_to_tensor_dict
 )
 from mindspeed_rl.utils.tokenizer import BaseTokenizer
 from mindspeed_rl.utils.utils import metrics_post_processing, metrics_sort, compute_tps
@@ -389,10 +389,48 @@ class AgentGRPOTrainer(RayGRPOTrainer):
         logger.debug(f"trainer generate sequences finished.")
 
     def _put_prompts_experience(self, batch):
+        def put_data_experience(batch: Dict[str, list[torch.Tensor]], n_samples_per_prompt):
+            new_data = dict()
+
+            if len(batch) == 0:
+                raise ValueError("Empty batch data is not valid.")
+
+            length = {len(v) for v in batch.values()}
+
+            if len(length) != 1:
+                raise ValueError("Batch data should have same length.")
+
+            length = list(length)[0]
+
+            for key in batch.keys():
+                new_data[key] = []
+                for value in batch[key]:
+                    for _ in range(n_samples_per_prompt):
+                        new_data[key].append(value)
+
+            new_size = length * n_samples_per_prompt
+
+            indexes = [i for i in range(new_size)]
+
+            return padding_dict_to_tensor_dict(new_data), indexes
+
+        new_batch_data = dict()
+
+        for key in self.dataset_additional_keys:
+            new_batch_data[key] = batch[key]
+
+        for key in new_batch_data.keys():
+            for i, value in enumerate(new_batch_data[key]):
+                new_batch_data[key][i] = torch.tensor(self.tokenizer.tokenize(value))
+
         try:
-            batch_dict, indexes = put_prompts_experience(batch,
-                                                         self.n_samples_per_prompt,
-                                                         self.dataset_additional_keys)
+            batch_dict, indexes = put_data_experience(new_batch_data, self.n_samples_per_prompt)
+        except ValueError as e:
+            raise ValueError("trainer failed to padding batch data") from e
+        except Exception as e:
+            raise RuntimeError("Unexpected error occurred when trainer padding batch data") from e
+
+        try:
             ray.get(self.transfer_dock.put_experience.remote(data_dict=batch_dict, indexes=indexes, is_prompt=True))
         except RayError as e:
             raise RuntimeError("trainer put prompts experience failed") from e

@@ -21,10 +21,8 @@ from typing import Any, Dict
 
 import ray
 from cli.train_grpo import gpt_model_provider, initialize_megatron, get_megatron_module
+from datasets import load_dataset
 from mindspeed_rl import MegatronConfig, GenerateConfig, RLConfig
-from mindspeed_rl.datasets.build_dataset import build_train_valid_test_datasets
-from mindspeed_rl.datasets.dataloader import PromptDataLoader
-from mindspeed_rl.datasets.prompt_dataset import PromptDataset
 from mindspeed_rl.utils import get_tokenizer
 from mindspeed_rl.utils.tokenizer import BaseTokenizer
 from mindspeed_rl.utils.utils import get_node_nums
@@ -34,6 +32,7 @@ from ray.exceptions import RayError
 from ray.util import placement_group
 
 from agentic_rl.base.log.loggers import Loggers
+from agentic_rl.base.utils.data_loader import GRPODataLoader
 from agentic_rl.configs.agentic_rl_config import AgenticRLConfig
 from agentic_rl.trainer.train_adapter.mindspeed_rl.agent_grpo_trainer import AgentGRPOTrainer
 from agentic_rl.trainer.train_adapter.mindspeed_rl.configs.parse_msrl_config import MSRLConfigParser
@@ -109,47 +108,47 @@ def _create_reward_worker(reward_config: MegatronConfig, rl_config: RLConfig, to
     return reward_list
 
 
-def _process_dataset(actor_config: MegatronConfig, training_samples: int, consumed_train_samples: int):
+def _process_dataset(
+        actor_config: MegatronConfig, test_data_path: str, training_samples: int, consumed_train_samples: int):
     try:
-        train_ds, _, _ = build_train_valid_test_datasets(
-            data_prefix=actor_config.data_path,
-            splits_string=actor_config.split,
-            seq_length=actor_config.seq_length,
-            train_valid_test_num_samples=(training_samples, 0, 0),
-            seed=actor_config.seed,
-            dataset_cls=PromptDataset,
-            extra_param=actor_config
-        )
+        train_ds = load_dataset("json", data_files=actor_config.data_path)['train']
+        test_ds = None
+        if test_data_path:
+            test_ds = load_dataset("json", data_files=test_data_path)['train']
     except ValueError as e:
-        logger.error(f"build datasets failed by value not correct, error: {e}")
-        raise ValueError("build datasets failed by value not correct") from e
+        logger.error(f"loading data failed with value error: {e}")
+        raise ValueError(f"loading data failed with value error") from e
     except Exception as e:
-        logger.error(f"Unexpected error occurred when build datasets, error: {e}")
-        raise RuntimeError("Unexpected error occurred when build datasets") from e
+        logger.error(f"Unexpected error occurred when loading data, error: {e}")
+        raise RuntimeError("Unexpected error occurred when loading data") from e
 
     if consumed_train_samples > _MAX_CONSUMED_SAMPLES:
-        logger.error(f"consumed samples exceed the limit of consumed samples: {_MAX_CONSUMED_SAMPLES}")
-        raise ValueError(f"consumed samples exceed the limit of consumed samples: {_MAX_CONSUMED_SAMPLES}")
+        logger.error(f"consumed samples exceed the limit： {_MAX_CONSUMED_SAMPLES}")
+        raise ValueError(f"consumed samples exceed the limit： {_MAX_CONSUMED_SAMPLES}")
 
-    try:
-        data_loader = PromptDataLoader(
-            train_ds,
-            actor_config.global_batch_size,
-            actor_config.num_workers,
-            actor_config.seed,
-            actor_config.dataset_additional_keys,
-            actor_config.no_shuffle
+    data_loader = GRPODataLoader(
+        dataset=train_ds,
+        dataset_additional_keys=actor_config.dataset_additional_keys,
+        global_batch_size=actor_config.global_batch_size,
+        num_samples=training_samples,
+        num_workers=actor_config.num_workers,
+        seed=actor_config.seed,
+        no_shuffle=actor_config.no_shuffle
+    )
+
+    test_iters = None
+    if test_ds:
+        test_loader = GRPODataLoader(
+            dataset=test_ds,
+            dataset_additional_keys=actor_config.dataset_additional_keys,
+            global_batch_size=actor_config.global_batch_size,
+            num_workers=actor_config.num_workers,
         )
-    except AttributeError as e:
-        logger.error(f"create data_loader failed with missing attribute, error: {e}")
-        raise AttributeError("create data_loader failed with missing attribute") from e
-    except Exception as e:
-        logger.error(f"Unexpected error occurred when create data_loader, error: {e}")
-        raise RuntimeError("Unexpected error occurred when create data_loader") from e
+        test_iters = iter(test_loader)
 
     if actor_config.global_batch_size is None or actor_config.global_batch_size <= 0:
-        logger.error("actor_config.global_batch_size must not be set or greater to 0.")
-        raise ValueError("actor_config.global_batch_size must not be set or greater to 0.")
+        logger.error("actor_config.global_batch_size must not be set and greater than 0.")
+        raise ValueError("actor_config.global_batch_size must not be set and greater than 0.")
 
     try:
         data_iters = iter(data_loader)
@@ -158,7 +157,7 @@ def _process_dataset(actor_config: MegatronConfig, training_samples: int, consum
         logger.error(f"try to iter data_loader for skipping consumed samples failed, error: {e}")
         raise RuntimeError("try to iter data_loader for skipping consumed samples failed") from e
 
-    return data_iters
+    return data_iters, test_iters
 
 
 @ray.remote
@@ -185,9 +184,10 @@ def train(config: Dict[str, Any]):
     reward_list = _create_reward_worker(reward_config, rl_config, tokenizer)
     logger.debug("reward workers created success")
 
-    data_iters = _process_dataset(actor_config,
-                                  actor_config.train_iters * actor_config.global_batch_size,
-                                  actor_worker.get_consumed_train_samples())
+    data_iters, _ = _process_dataset(actor_config,
+                                     agentic_rl_config.test_data_path,
+                                     actor_config.train_iters * actor_config.global_batch_size,
+                                     actor_worker.get_consumed_train_samples())
     logger.debug("dataset created and processed success")
 
     actor_worker.wait_all_ref_objs_run_over()

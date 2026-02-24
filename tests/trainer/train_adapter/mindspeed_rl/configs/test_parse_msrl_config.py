@@ -23,7 +23,7 @@ from unittest.mock import patch, MagicMock
 import pytest
 
 
-class TestConfigParser:
+class TestMSRLConfigParser:
     @pytest.fixture
     def config(self):
         config = {
@@ -60,7 +60,6 @@ class TestConfigParser:
               patch("mindspeed_rl.config_cls.validate_config.validate_rl_args", MagicMock())):
             yield
 
-
     def test_missing_required_key(self, config, patch_target):
         from agentic_rl.trainer.train_adapter.mindspeed_rl.configs.parse_msrl_config import MSRLConfigParser
         config = config.copy()
@@ -78,7 +77,6 @@ class TestConfigParser:
             with pytest.raises(ValueError) as context:
                 parser = MSRLConfigParser(config)
                 parser.process_config()
-
 
     def test_invalid_path(self, config, patch_target):
         from agentic_rl.trainer.train_adapter.mindspeed_rl.configs.parse_msrl_config import MSRLConfigParser
@@ -118,29 +116,6 @@ class TestConfigParser:
               patch("os.path.exists", return_value=True)):
             parser = MSRLConfigParser(config)
             parser._validate_config()
-
-    def test_data_path_directory_is_empty(self, config, patch_target):
-        from agentic_rl.trainer.train_adapter.mindspeed_rl.configs.parse_msrl_config import MSRLConfigParser
-        config = config.copy()
-        config["mindspeed_rl"]["data_path"] = "/valid/path/to/data"
-        with patch("agentic_rl.base.utils.file_utils.FileCheck.check_data_path_is_valid", return_value=True):
-            with patch("os.walk", return_value=[
-                ("/valid/path/to", [], [])
-            ]):
-                with pytest.raises(ValueError) as context:
-                    parser = MSRLConfigParser(config)
-                    parser._validate_config()
-
-    def test_data_path_does_not_end_with_data(self, config, patch_target):
-        from agentic_rl.trainer.train_adapter.mindspeed_rl.configs.parse_msrl_config import MSRLConfigParser
-        config = config.copy()
-        config["mindspeed_rl"]["data_path"] = "/valid/path/to/invalid"
-        with (patch("agentic_rl.base.utils.file_utils.FileCheck.check_data_path_is_valid", return_value=True),
-              patch("os.path.exists", return_value=False)):
-            with pytest.raises(ValueError) as context:
-                parser = MSRLConfigParser(config)
-                parser._validate_config()
-
 
     def test_data_path_parent_directory_invalid(self, config, patch_target):
         from agentic_rl.trainer.train_adapter.mindspeed_rl.configs.parse_msrl_config import MSRLConfigParser

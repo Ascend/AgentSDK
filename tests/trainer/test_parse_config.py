@@ -94,9 +94,7 @@ class TestConfigParser(unittest.TestCase):
  
     @patch("os.path.exists")
     @patch("agentic_rl.trainer.train_adapter.schema.FileCheck.check_data_path_is_valid")
-    @patch("agentic_rl.trainer.train_adapter.schema.MindspeedRLConfig.validate_data_path")
-    def test_validate_config_mindspeed_rl_success(self, mock_validate_data, mock_check, mock_exists):
-        mock_validate_data.return_value = "/path/to/data"
+    def test_validate_config_mindspeed_rl_success(self, mock_check, mock_exists):
         mock_exists.return_value = True
         parser = ConfigParser(self.valid_msrl_config)
         global_config = parser._validate_config()

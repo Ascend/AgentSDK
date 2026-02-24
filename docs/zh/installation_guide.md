@@ -145,7 +145,7 @@ cd ..
 
 git clone https://github.com/Ascend/MindSpeed-RL.git
 cd MindSpeed-RL
-git checkout v2.2.0
+git checkout 2.2.0
 cd ..
 
 git clone https://github.com/vllm-project/vllm.git
@@ -179,23 +179,24 @@ export PYTHONPATH=$PYTHONPATH:/home/third-party/Megatron-LM/:/home/third-party/M
 
 **表 1**  依赖名称对应版本
 
-|依赖名称|版本建议|获取建议|
-|--|--|--|
-|transformers|4.52.3|建议通过pip安装，安装命令参考如下。<br>pip3 install transformers==4.52.3|
-|sympy|1.13.1|建议通过pip安装，安装命令参考如下。<br>pip3 install sympy==1.13.1|
-|pylatexenc|2.10|建议通过pip安装，安装命令参考如下。<br>pip3 install pylatexenc==2.10|
-|openai|1.99.6|建议通过pip安装，安装命令参考如下。<br>pip3 install openai==1.99.6|
-|torch|2.5.1|建议通过pip安装，安装命令参考如下。<br>pip3 install torch==2.5.1|
-|torch_npu|2.5.1.post1|建议通过pip安装，安装命令参考如下。<br>pip3 install torch_npu==2.5.1.post1|
-|vertexai|1.64.0|建议通过pip安装，安装命令参考如下。<br>pip3 install vertexai==1.64.0|
-|sentence_transformers|5.1.0|建议通过pip安装，安装命令参考如下。<br>pip3 install sentence_transformers==5.1.0|
-|hydra-core|1.3.2|建议通过pip安装，安装命令参考如下。<br>pip3 install hydra-core==1.3.2|
-|regex|2025.8.29|建议通过pip安装，安装命令参考如下。<br>pip3 install regex==2025.8.29|
-|tensordict|0.1.2|建议通过pip安装，安装命令参考如下。<br>pip3 install tensordict==0.1.2|
-|word2number|1.1|建议通过pip安装，安装命令参考如下。<br>pip3 install word2number==1.1|
-|codetiming|1.4.0|建议通过pip安装，安装命令参考如下。<br>pip3 install codetiming==1.4.0|
-|torchvision|0.20.1|建议通过pip安装，安装命令参考如下。<br>pip3 install torchvision==0.20.1|
-|ray|2.42.1|建议通过pip安装，安装命令参考如下。<br>pip3 install ray==2.42.1|
+| 依赖名称                  | 版本建议        | 获取建议                                                             |
+|-----------------------|-------------|------------------------------------------------------------------|
+| transformers          | 4.52.3      | 建议通过pip安装，安装命令参考如下。<br>pip3 install transformers==4.52.3         |
+| sympy                 | 1.13.1      | 建议通过pip安装，安装命令参考如下。<br>pip3 install sympy==1.13.1                |
+| pylatexenc            | 2.10        | 建议通过pip安装，安装命令参考如下。<br>pip3 install pylatexenc==2.10             |
+| openai                | 1.99.6      | 建议通过pip安装，安装命令参考如下。<br>pip3 install openai==1.99.6               |
+| torch                 | 2.5.1       | 建议通过pip安装，安装命令参考如下。<br>pip3 install torch==2.5.1                 |
+| torch_npu             | 2.5.1.post1 | 建议通过pip安装，安装命令参考如下。<br>pip3 install torch_npu==2.5.1.post1       |
+| vertexai              | 1.64.0      | 建议通过pip安装，安装命令参考如下。<br>pip3 install vertexai==1.64.0             |
+| sentence_transformers | 5.1.0       | 建议通过pip安装，安装命令参考如下。<br>pip3 install sentence_transformers==5.1.0 |
+| hydra-core            | 1.3.2       | 建议通过pip安装，安装命令参考如下。<br>pip3 install hydra-core==1.3.2            |
+| regex                 | 2025.8.29   | 建议通过pip安装，安装命令参考如下。<br>pip3 install regex==2025.8.29             |
+| tensordict            | 0.1.2       | 建议通过pip安装，安装命令参考如下。<br>pip3 install tensordict==0.1.2            |
+| word2number           | 1.1         | 建议通过pip安装，安装命令参考如下。<br>pip3 install word2number==1.1             |
+| codetiming            | 1.4.0       | 建议通过pip安装，安装命令参考如下。<br>pip3 install codetiming==1.4.0            |
+| torchvision           | 0.20.1      | 建议通过pip安装，安装命令参考如下。<br>pip3 install torchvision==0.20.1          |
+| ray                   | 2.42.1      | 建议通过pip安装，安装命令参考如下。<br>pip3 install ray==2.42.1                  |
+| datasets              | 4.4.1       | 建议通过pip安装，安装命令参考如下。<br>pip3 install datasets==4.4.1              |
 
 
 

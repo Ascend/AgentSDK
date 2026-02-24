@@ -38,8 +38,8 @@ class MockEngineWrapper(BaseEngineWrapper):
             agent_name: str,
             tokenizer: Any,
             sampling_params: Dict[str, Any],
-            max_prompt_length=128*1024,
-            max_response_length=8*1024,
+            max_prompt_length=128 * 1024,
+            max_response_length=8 * 1024,
             n_parallel_agents=8,
             max_steps=5
     ):
@@ -64,7 +64,7 @@ class MockEngineWrapper(BaseEngineWrapper):
                 raise TypeError("tasks must be a list of dictionary")
 
         logger.info(f"Generating trajectories for {len(tasks)} tasks")
-        
+
         mock_results = {
             "prompt_tokens": torch.tensor([101, 200, 300, 400], dtype=torch.long),
             "response_tokens": torch.tensor([500, 600, 700], dtype=torch.long),
@@ -116,14 +116,14 @@ tokenizer_demo = PreTrainedTokenizerFast(
 )
 
 sampling_params_input = {
-            "temperature": 0.9,
-            "top_k": 50,
-            "logprobs": 1,
-            "max_tokens": 8192,
-            "top_p": 0.9,
-            "min_p": 0.01,
-            "detokenize": False
-        }
+    "temperature": 0.9,
+    "top_k": 50,
+    "logprobs": 1,
+    "max_tokens": 8192,
+    "top_p": 0.9,
+    "min_p": 0.01,
+    "detokenize": False
+}
 
 
 class TestMockEngineWrapper:
@@ -201,8 +201,8 @@ class TestMockEngineWrapper:
     def test_generate_agent_trajectories_async_max_response_length_fail(self):
         with pytest.raises(ValueError) as exc_info:
             MockEngineWrapper(agent_name="agent", tokenizer=tokenizer_demo,
-                              sampling_params=sampling_params_input, max_response_length="16*1024")
-        assert "max_response_length must be an integer between [1, 8K]" in str(exc_info.value)
+                              sampling_params=sampling_params_input, max_response_length="64 * 1024")
+        assert "max_response_length must be an integer between [1, 64K]" in str(exc_info.value)
 
     def test_generate_agent_trajectories_async_n_parallel_agents_fail(self):
         with pytest.raises(ValueError) as exc_info:
@@ -214,4 +214,4 @@ class TestMockEngineWrapper:
         with pytest.raises(ValueError) as exc_info:
             MockEngineWrapper(agent_name="agent", tokenizer=tokenizer_demo,
                               sampling_params=sampling_params_input, max_steps={})
-        assert "max_steps must be an integer between [1, 10]" in str(exc_info.value)
+        assert "max_steps must be an integer between [1, 100]" in str(exc_info.value)

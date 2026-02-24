@@ -33,6 +33,7 @@ class AgenticRLConfig:
     enable_sleep_mode: bool = True
     load_format: str = "megatron"
     infer_backend: str = "vllm"
+    test_data_path: str = None
 
     agent_name: str = "default_agent"
     agent_engine_wrapper_path: str = "rllm"

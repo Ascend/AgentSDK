@@ -23,6 +23,7 @@ from typing import Callable
 from unittest.mock import patch, MagicMock, Mock
 
 import pytest
+import torch
 
 from agentic_rl.configs.agentic_rl_config import AgenticRLConfig
 
@@ -69,7 +70,7 @@ class MockMegatronConfig:
     stage: MockActorState = MockActorState.NONE
     micro_batch_size: int = 10
     global_batch_size: int = 20
-    dataset_additional_keys = []
+    dataset_additional_keys = ["question", "answer"]
     train_iters: int = 10
     save_interval: int = 100
     load: str = "/test/path"
@@ -125,7 +126,8 @@ class MockActorRolloutHybrid:
 
 
 class MockBaseTokenizer:
-    pass
+    def tokenize(self, *args, **kwargs):
+        return torch.Tensor([1])
 
 
 class MockMegatronOffLoader:
