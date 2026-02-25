@@ -36,7 +36,7 @@ class MemoryConfig(BaseModel):
     - Model endpoints for chat and embeddings
 
     Attributes:
-        simplify_thinking: Whether to remove/simplify thinking content from messages.
+        simplify_thinking: Whether to simplify thinking content from messages.
 
         Summary Configuration:
             use_summary: Enable automatic summarization of conversation history.
