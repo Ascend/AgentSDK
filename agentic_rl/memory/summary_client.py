@@ -33,7 +33,6 @@ logger = Loggers(__name__)
 
 class SummaryGenerationError(Exception):
     """Raised when summary generation fails."""
-
     pass
 
 
