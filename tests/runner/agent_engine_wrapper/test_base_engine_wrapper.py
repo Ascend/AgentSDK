@@ -80,6 +80,8 @@ class MockEngineWrapper(BaseEngineWrapper):
                 "env_time": round(random.uniform(0.01, 0.05), 4),
                 "llm_time": round(random.uniform(0.01, 0.02), 4),
                 "total_time": 0.08,
+                "res_reward": 0.0,
+                "toolcall_reward": 0.0
             },
         }
         trajectories = [Trajectory(**mock_results) for _ in tasks]

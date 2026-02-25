@@ -258,6 +258,18 @@ class RolloutWorker:
         from verl import DataProto
         return DataProto.from_dict(tensors=outputs), metrics
 
+    async def generate_validation(self, batch_data, index):
+        tasks = [dict() for _ in range(len(index))]
+        for i, index_value in enumerate(index):
+            tasks[i]["id"] = index_value
+            for key in self.dataset_additional_keys:
+                tasks[i][key] = self.tokenizer.decode(batch_data[key][i])
+    
+        trajectories = await self._generate_trajectories(tasks)
+        outputs, _ = self._process_trajectories(trajectories)
+        batch_reward_tensor = outputs["token_level_rewards"]
+        return batch_reward_tensor.sum(-1).detach().cpu()
+    
     def _transform_agent_trajectories(self, trajectories):
         """
         Helper function to transform a list of trajectories into tokenized DataProto format.

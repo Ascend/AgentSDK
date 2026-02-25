@@ -263,7 +263,13 @@ class TestRolloutWorker(unittest.TestCase):
             Trajectory(prompt_tokens=torch.tensor([]), response_tokens=torch.tensor([4, 5, 6]),
                        response_masks=torch.tensor([1, 1, 1]), trajectory_reward=1.0,
                        chat_completions=[{"role": "assistant", "content": "test"}],
-                       metrics={"steps": 1, "reward_time": 2.0, "env_time": 3.0, "llm_time": 4.0, "total_time": 0.08}),
+                        metrics={"steps": 1, 
+                                "reward_time": 2.0, 
+                                "env_time": 3.0, 
+                                "llm_time": 4.0, 
+                                "total_time": 0.08, 
+                                "toolcall_reward": 0.0, 
+                                "res_reward": -2}),
         ]
         mock_ray_get.return_value = traj
         tasks = ['task1', 'task2']
@@ -325,12 +331,24 @@ class TestRolloutWorker(unittest.TestCase):
             Trajectory(idx=1, prompt_tokens=torch.tensor([1, 2, 3]), response_tokens=torch.tensor([4, 5, 6]),
                        response_masks=torch.tensor([1, 1, 1]), trajectory_reward=1.0,
                        chat_completions=[{"role": "assistant", "content": "test"}],
-                       metrics={"steps": 1, "reward_time": 2.0, "env_time": 3.0, "llm_time": 4.0, "total_time": 0.08}),
+                       metrics={"steps": 1, 
+                                "reward_time": 2.0, 
+                                "env_time": 3.0, 
+                                "llm_time": 4.0, 
+                                "total_time": 0.08, 
+                                "toolcall_reward": 0.0, 
+                                "res_reward": -2}),
 
             Trajectory(idx=0, prompt_tokens=torch.tensor([7, 8, 9]), response_tokens=torch.tensor([10, 11, 12]),
                        response_masks=torch.tensor([1, 1, 1]), trajectory_reward=2.0,
                        chat_completions=[{"role": "assistant", "content": "test"}],
-                       metrics={"steps": 1, "reward_time": 2.0, "env_time": 3.0, "llm_time": 4.0, "total_time": 0.08}),
+                       metrics={"steps": 1, 
+                                "reward_time": 2.0, 
+                                "env_time": 3.0, 
+                                "llm_time": 4.0, 
+                                "total_time": 0.08, 
+                                "toolcall_reward": 0.0, 
+                                "res_reward": -2}),
         ]
 
         outputs, metrics = self.worker._process_trajectories(trajectories)
@@ -450,12 +468,24 @@ class TestRolloutWorker(unittest.TestCase):
             Trajectory(prompt_tokens=torch.tensor([1, 2, 3]), response_tokens=torch.tensor([4, 5, 6]),
                        response_masks=torch.tensor([1, 1, 1]), trajectory_reward=1.0,
                        chat_completions=[{"role": "assistant", "content": "test"}],
-                       metrics={"steps": 1, "reward_time": 2.0, "env_time": 3.0, "llm_time": 4.0, "total_time": 0.08}),
+                       metrics={"steps": 1, 
+                                "reward_time": 2.0, 
+                                "env_time": 3.0, 
+                                "llm_time": 4.0, 
+                                "total_time": 0.08, 
+                                "toolcall_reward": 0.0, 
+                                "res_reward": -2}),
 
             Trajectory(prompt_tokens=torch.tensor([7, 8, 9]), response_tokens=torch.tensor([10, 11, 12]),
                        response_masks=torch.tensor([1, 1, 1]), trajectory_reward=2.0,
                        chat_completions=[{"role": "assistant", "content": "test"}],
-                       metrics={"steps": 1, "reward_time": 2.0, "env_time": 3.0, "llm_time": 4.0, "total_time": 0.08}),
+                       metrics={"steps": 1, 
+                                "reward_time": 2.0, 
+                                "env_time": 3.0, 
+                                "llm_time": 4.0, 
+                                "total_time": 0.08, 
+                                "toolcall_reward": 0.0, 
+                                "res_reward": -2}),
         ]
 
         all_initial_tokens, all_response_tokens, all_masks, traj_scores, chat_completions = self.worker._extract_trajectory_data(
@@ -479,7 +509,13 @@ class TestRolloutWorker(unittest.TestCase):
             Trajectory(prompt_tokens=torch.tensor([]), response_tokens=torch.tensor([4, 5, 6]),
                        response_masks=torch.tensor([1, 1, 1]), trajectory_reward=1.0,
                        chat_completions=[{"role": "assistant", "content": "test"}],
-                       metrics={"steps": 1, "reward_time": 2.0, "env_time": 3.0, "llm_time": 4.0, "total_time": 0.08}),
+                       metrics={"steps": 1, 
+                                "reward_time": 2.0, 
+                                "env_time": 3.0, 
+                                "llm_time": 4.0, 
+                                "total_time": 0.08, 
+                                "toolcall_reward": 0.0, 
+                                "res_reward": -2}),
         ]
 
         with self.assertRaises(ValueError):
@@ -490,7 +526,13 @@ class TestRolloutWorker(unittest.TestCase):
             Trajectory(prompt_tokens=torch.tensor([1, 2, 3]), response_tokens=torch.tensor([]),
                        response_masks=torch.tensor([1, 1, 1]), trajectory_reward=1.0,
                        chat_completions=[{"role": "assistant", "content": "test"}],
-                       metrics={"steps": 1, "reward_time": 2.0, "env_time": 3.0, "llm_time": 4.0, "total_time": 0.08}),
+                       metrics={"steps": 1, 
+                                "reward_time": 2.0, 
+                                "env_time": 3.0, 
+                                "llm_time": 4.0, 
+                                "total_time": 0.08, 
+                                "toolcall_reward": 0.0, 
+                                "res_reward": -2}),
         ]
 
         with self.assertRaises(ValueError):
@@ -554,6 +596,8 @@ class TestRolloutWorker(unittest.TestCase):
                     "env_time": 0.1,
                     "llm_time": 0.2,
                     "total_time": 0.08,
+                    "toolcall_reward": 0.0, 
+                    "res_reward": -2
                 }
             ),
             Trajectory(
@@ -569,6 +613,8 @@ class TestRolloutWorker(unittest.TestCase):
                     "env_time": 0.1,
                     "llm_time": 0.2,
                     "total_time": 0.08,
+                    "toolcall_reward": 0.0, 
+                    "res_reward": -2
                 }
             )
         ]

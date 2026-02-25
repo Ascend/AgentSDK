@@ -514,7 +514,7 @@ class TrajectoryChecker:
         if not all(isinstance(key, str) for key in metrics.keys()):
             raise TypeError("all keys in metrics must be strings")
 
-        expected_keys = {'steps', 'reward_time', 'env_time', 'llm_time', 'total_time'}
+        expected_keys = {'steps', 'reward_time', 'env_time', 'llm_time', 'total_time', 'toolcall_reward', 'res_reward'}
         current_keys = set(metrics.keys())
         if current_keys != expected_keys:
             raise ValueError(f"metrics must contain exactly these keys: {sorted(expected_keys)}")
@@ -522,10 +522,16 @@ class TrajectoryChecker:
         if not isinstance(metrics['steps'], int):
             raise TypeError(f"metric steps must be an integer, got {type(metrics['steps']).__name__}")
 
+        if not np.issubdtype(type(metrics['toolcall_reward']), np.number):
+            raise TypeError(f"metric toolcall_reward must be a number, got {type(metrics['toolcall_reward']).__name__}")
+
+        if not np.issubdtype(type(metrics['res_reward']), np.number):
+            raise TypeError(f"metric res_reward must be a number, got {type(metrics['res_reward']).__name__}")
+
         if metrics['steps'] < 0:
             raise ValueError("metric steps must be non-negative")
 
-        for key in current_keys - {'steps'}:
+        for key in current_keys - {'steps', 'toolcall_reward', 'res_reward'}:
             if metrics[key] is not None and not isinstance(metrics[key], (int, float)):
                 raise TypeError(f"metric {key} must be a number or None, got {type(metrics[key]).__name__}")
 

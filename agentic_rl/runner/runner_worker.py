@@ -127,9 +127,8 @@ class RunnerWorker:
         # Initialize engine wrapper with exception handling
         try:
             def get_completion(servers):
-                def _internal_func(*args, **kwargs):
-                    return ray.get(servers.completions.remote(*args, **kwargs))
-
+                async def _internal_func(*args, **kwargs):
+                    return await servers.completions.remote(*args, **kwargs)
                 return _internal_func
 
             self.agent_executor_wrapper = engine_wrapper_class(

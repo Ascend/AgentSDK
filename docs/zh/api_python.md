@@ -20,6 +20,8 @@ class Trajectory:
     trajectory_reward: float | int = 0.0
     chat_completions: list[dict[str, str]] = field(default_factory=list)
     metrics: dict[str, Any] = field(default_factory=lambda: {"steps": 0,
+                                                             "toolcall_reward": 0.0,
+                                                             "res_reward": 0.0,
                                                              "reward_time": 0.0,
                                                              "env_time": 0.0,
                                                              "llm_time": 0.0,
@@ -36,7 +38,7 @@ class Trajectory:
 |response_masks|torch.Tensor|响应token的掩码，用于标识有效的token。不能包含Nan和Inf。|
 |trajectory_reward|float \| int|轨迹的奖励值，默认为0.0。|
 |chat_completions|list[dict[str,str]]|大模型对话列表，默认为空列表。|
-|metrics|dict[str, Any]|轨迹的各项性能指标。其中，Any的取值为：<li>steps：表示轨迹的总执行步数。整数类型，默认为0。<li>reward_time：表示计算奖励值所花费的时间。数值类型，默认为0.0。<li>env_time：表示与环境交互所花费的时间。数值类型，默认为0.0。<li>llm_time：表示LLM推理所花费的时间。数值类型，默认为0.0。<li>total_time：表示整个轨迹执行的总时间。数值类型，默认为0.0。|
+|metrics|dict[str, Any]|轨迹的各项性能指标。其中，Any的取值为：<li>steps：表示轨迹的总执行步数。整数类型，默认为0。<li>reward_time：表示计算奖励值所花费的时间。数值类型，默认为0.0。<li>toolcall_reward：表示轨迹生成过程中工具调用奖励值。数值类型，默认为0.0。<li>res_reward：表示最终答案的奖励值。数值类型，默认为0.0。<li>env_time：表示与环境交互所花费的时间。数值类型，默认为0.0。<li>llm_time：表示LLM推理所花费的时间。数值类型，默认为0.0。<li>total_time：表示整个轨迹执行的总时间。数值类型，默认为0.0。|
 
 
 
