@@ -145,6 +145,8 @@ def train(config: Dict[str, Any]):
             dataset_additional_keys=input_config.get("dataset_additional_keys"),
             generate_config=gen_config,
             agentic_rl_config=agentic_rl_config,
+            use_tensorboard=input_config.get("use_tensorboard", False),
+            tensorboard_flush_interval=input_config.get("tensorboard_flush_interval", 20),
         )
         trainer.init_workers()
         trainer.fit()

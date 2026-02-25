@@ -374,7 +374,7 @@ class TestAgentGRPOTrainer:
             targets["ray_worker_group_cls"],
             agentic_configs,
         )
-
+ 
     def test_check_args_invalid_agentic_configs(self, agent_grpo_trainer):
         """_check_args raises when agentic_configs tuple has invalid generate_config or agentic_rl_config."""
         from agentic_rl.trainer.train_adapter.verl.agent_grpo_trainer import AgentGRPOTrainer
@@ -473,6 +473,164 @@ class TestAgentGRPOTrainer:
             mock_from_single_dict.side_effect = Exception("error")
             with pytest.raises(Exception):
                 trainer._prepare_batch({"prompts": ["test prompt"]})
+
+    def test_default_console_metrics_returns_expected_list(self, patch_target):
+        from agentic_rl.trainer.train_adapter.verl.agent_grpo_trainer import AgentGRPOTrainer
+
+        result = AgentGRPOTrainer._default_console_metrics()
+        assert isinstance(result, list)
+        assert len(result) == 15
+        assert "actor/entropy" in result
+        assert "actor/grad_norm" in result
+        assert "actor/lr" in result
+        assert "traj/steps_mean" in result
+        assert "batch/solve_all" in result
+        assert "batch/solve_partial" in result
+        assert "batch/solve_none" in result
+        assert "perf/max_memory_allocated_gb" in result
+        assert "timing_s/update_actor" in result
+
+    def test_format_metrics_for_console_empty_metrics(self, agent_grpo_trainer):
+        trainer, _ = agent_grpo_trainer
+        result = trainer._format_metrics_for_console({})
+        assert result == ""
+
+    def test_format_metrics_for_console_float_normal_range(self, agent_grpo_trainer):
+        trainer, _ = agent_grpo_trainer
+        metrics = {"actor/entropy": 1.2345, "actor/lr": 5.0}
+        result = trainer._format_metrics_for_console(metrics)
+        assert "actor/entropy=1.2345" in result
+        assert "actor/lr=5.0000" in result
+
+    def test_format_metrics_for_console_float_small_scientific(self, agent_grpo_trainer):
+        trainer, _ = agent_grpo_trainer
+        metrics = {"actor/entropy": 1e-5}
+        result = trainer._format_metrics_for_console(metrics)
+        assert "1.00e-05" in result or "1e-05" in result
+
+    def test_format_metrics_for_console_float_large_scientific(self, agent_grpo_trainer):
+        trainer, _ = agent_grpo_trainer
+        metrics = {"actor/entropy": 15000.0}
+        result = trainer._format_metrics_for_console(metrics)
+        assert "1.50e+04" in result or "15000" in result
+
+    def test_format_metrics_for_console_non_float_values(self, agent_grpo_trainer):
+        trainer, _ = agent_grpo_trainer
+        metrics = {"batch/solve_all": 42}
+        result = trainer._format_metrics_for_console(metrics)
+        assert "batch/solve_all=42" in result
+
+    def test_format_metrics_for_console_only_in_console_metrics(self, agent_grpo_trainer):
+        trainer, _ = agent_grpo_trainer
+        metrics = {"actor/entropy": 0.5, "unknown/key": 1.0}
+        result = trainer._format_metrics_for_console(metrics)
+        assert "actor/entropy" in result
+        assert "unknown/key" not in result
+
+    def test_format_metrics_for_console_custom_console_metrics(self, patch_target):
+        from agentic_rl.trainer.train_adapter.verl.agent_grpo_trainer import AgentGRPOTrainer
+
+        with patch("verl.trainer.ppo.ray_trainer.RayPPOTrainer"):
+            trainer = AgentGRPOTrainer(
+                config=MockConfig(),
+                tokenizer=MockBaseTokenizer(),
+                role_worker_mapping={"role1": MockRayWorkerGroup()},
+                resource_pool_manager=MockResourcePoolManager(),
+                ray_worker_group_cls=MockRayWorkerGroup,
+                reward_fn=MockRewardFn(),
+                val_reward_fn=MockRewardFn(),
+                tokenizer_path="/path/to/tokenizer",
+                dataset_additional_keys=[],
+                generate_config=GenConfig(),
+                agentic_rl_config=AgenticRLConfig(),
+                console_metrics=["custom/a", "custom/b"],
+            )
+        result = trainer._format_metrics_for_console({"custom/a": 1.0, "custom/b": 2.0})
+        assert "custom/a=1.0000" in result
+        assert "custom/b=2.0000" in result
+
+    def test_log_metrics_to_tensorboard_no_writer(self, agent_grpo_trainer):
+        trainer, _ = agent_grpo_trainer
+        trainer.tensorboard_writer = None
+        trainer._log_metrics_to_tensorboard({"actor/entropy": 0.5}, step=1)
+        # No exception; no writer to call
+
+    def test_log_metrics_to_tensorboard_calls_add_scalar(self, agent_grpo_trainer):
+        trainer, _ = agent_grpo_trainer
+        mock_writer = MagicMock()
+        trainer.tensorboard_writer = mock_writer
+        trainer.tensorboard_flush_interval = 10
+        metrics = {"actor/entropy": 0.5, "actor/lr": 1e-4}
+        trainer._log_metrics_to_tensorboard(metrics, step=1)
+        assert mock_writer.add_scalar.call_count == 2
+        mock_writer.add_scalar.assert_any_call("train/actor/entropy", 0.5, 1)
+        mock_writer.add_scalar.assert_any_call("train/actor/lr", 1e-4, 1)
+
+    def test_log_metrics_to_tensorboard_skips_nan_and_inf(self, agent_grpo_trainer):
+        trainer, _ = agent_grpo_trainer
+        mock_writer = MagicMock()
+        trainer.tensorboard_writer = mock_writer
+        trainer.tensorboard_flush_interval = 10
+        metrics = {"valid": 1.0, "nan_val": float("nan"), "inf_val": float("inf")}
+        trainer._log_metrics_to_tensorboard(metrics, step=1)
+        mock_writer.add_scalar.assert_called_once_with("train/valid", 1.0, 1)
+
+    def test_log_metrics_to_tensorboard_skips_non_numeric(self, agent_grpo_trainer):
+        trainer, _ = agent_grpo_trainer
+        mock_writer = MagicMock()
+        trainer.tensorboard_writer = mock_writer
+        trainer.tensorboard_flush_interval = 10
+        metrics = {"num": 1.0, "str_val": "hello", "list_val": [1, 2]}
+        trainer._log_metrics_to_tensorboard(metrics, step=1)
+        mock_writer.add_scalar.assert_called_once_with("train/num", 1.0, 1)
+
+    def test_log_metrics_to_tensorboard_flushes_on_interval(self, agent_grpo_trainer):
+        trainer, _ = agent_grpo_trainer
+        mock_writer = MagicMock()
+        trainer.tensorboard_writer = mock_writer
+        trainer.tensorboard_flush_interval = 5
+        with patch.object(trainer, "_flush_tensorboard") as mock_flush:
+            trainer._log_metrics_to_tensorboard({"a": 1.0}, step=10)
+            mock_writer.add_scalar.assert_called_once_with("train/a", 1.0, 10)
+            mock_flush.assert_called_once()
+
+    def test_log_metrics_to_tensorboard_no_flush_when_not_interval(self, agent_grpo_trainer):
+        trainer, _ = agent_grpo_trainer
+        mock_writer = MagicMock()
+        trainer.tensorboard_writer = mock_writer
+        trainer.tensorboard_flush_interval = 5
+        with patch.object(trainer, "_flush_tensorboard") as mock_flush:
+            trainer._log_metrics_to_tensorboard({"a": 1.0}, step=3)
+            mock_flush.assert_not_called()
+
+    def test_flush_tensorboard_no_writer(self, agent_grpo_trainer):
+        trainer, _ = agent_grpo_trainer
+        trainer.tensorboard_writer = None
+        trainer._flush_tensorboard()
+        # No exception
+
+    def test_flush_tensorboard_calls_flush(self, agent_grpo_trainer):
+        trainer, _ = agent_grpo_trainer
+        mock_writer = MagicMock()
+        trainer.tensorboard_writer = mock_writer
+        trainer._flush_tensorboard()
+        mock_writer.flush.assert_called_once()
+
+    def test_flush_tensorboard_handles_oserror(self, agent_grpo_trainer):
+        trainer, _ = agent_grpo_trainer
+        mock_writer = MagicMock()
+        mock_writer.flush.side_effect = OSError("disk full")
+        trainer.tensorboard_writer = mock_writer
+        trainer._flush_tensorboard()
+        mock_writer.flush.assert_called_once()
+
+    def test_flush_tensorboard_handles_runtime_error(self, agent_grpo_trainer):
+        trainer, _ = agent_grpo_trainer
+        mock_writer = MagicMock()
+        mock_writer.flush.side_effect = RuntimeError("writer closed")
+        trainer.tensorboard_writer = mock_writer
+        trainer._flush_tensorboard()
+        mock_writer.flush.assert_called_once()
 
     def test_pad_dataproto_to_world_size_success(self, agent_grpo_trainer):
         trainer, _ = agent_grpo_trainer
