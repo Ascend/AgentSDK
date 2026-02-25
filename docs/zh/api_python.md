@@ -41,6 +41,55 @@ class Trajectory:
 |metrics|dict[str, Any]|轨迹的各项性能指标。其中，Any的取值为：<li>steps：表示轨迹的总执行步数。整数类型，默认为0。<li>reward_time：表示计算奖励值所花费的时间。数值类型，默认为0.0。<li>toolcall_reward：表示轨迹生成过程中工具调用奖励值。数值类型，默认为0.0。<li>res_reward：表示最终答案的奖励值。数值类型，默认为0.0。<li>env_time：表示与环境交互所花费的时间。数值类型，默认为0.0。<li>llm_time：表示LLM推理所花费的时间。数值类型，默认为0.0。<li>total_time：表示整个轨迹执行的总时间。数值类型，默认为0.0。|
 
 
+### StepTrajectory<a name="ZH-CN_TOPIC_0000002492474285"></a>
+
+**功能描述<a name="section7608155812579"></a>**
+
+该类用于记录step-level模式下Agent运行的轨迹信息。
+
+**函数原型<a name="section1483104721911"></a>**
+
+```
+@dataclass
+class Step:
+    chat_completions: list[dict[str, str]] = field(default_factory=list)
+    thought: str = ""
+    action: Any = None
+    observation: Any = None
+    model_response: str = ""
+    info: dict = field(default_factory=dict)
+    reward: float = 0.0
+    done: bool = False
+    mc_return: float = 0.0
+    
+@dataclass
+class StepTrajectory(Trajectory):
+    task: Any = None
+    steps: list[Step] = field(default_factory=list)
+```
+
+**参数说明<a name="section5277832016"></a>**
+
+**Step类参数说明**
+
+|参数名|类型| 说明                                             |
+|--|--|------------------------------------------------|
+|chat_completions|list[dict[str, str]]| 推理所有的完整对话上下文（含历史轮次），用于构造模型输入。                  |
+|thought|str| 模型回复中 `<think>` 标签内的内容，表示模型在本步骤的内部推理。          |
+|action|Any| 模型回复中 `<tool call>` 标签内的内容，表示模型决定执行的动作（如工具调用）。 |
+|observation|Any| 本步骤接收到的外部观测：第 0 轮为用户原始提问，后续轮次为上一轮动作的执行结果（如工具返回）。 |
+|model_response|str| 大模型生成的完整回复内容（即 `'role': 'assistant'` 的 `content`）。 |
+|info|dict| 附加信息字典，默认为空，可用于记录工具 ID、耗时等元数据。                 |
+|reward|float| 本步骤获得的即时奖励，默认为 `0.0`，反映当前动作的质量。                |
+|done|bool| 是否在本步骤终止轨迹，默认为 `False`，标识任务是否完成。               |
+|mc_return|float| 从本步骤开始的 Monte Carlo 回报，默认为 `0.0`，用于策略梯度训练。     |
+
+**StepTrajectory类参数说明**
+
+|参数名|类型| 说明                                    |
+|---|--|---------------------------------------|
+|task|Any| 原始任务输入（如用户问题），默认为 `None`，作为整个轨迹的初始目标。 |
+|steps|list[Step]| 第 i 个Step包含从第 1 轮到第 i+1 轮的完整对话上下文。    |
 
 
 ## 功能函数参考<a name="ZH-CN_TOPIC_0000002492554185"></a>
