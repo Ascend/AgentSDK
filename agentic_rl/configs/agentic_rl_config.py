@@ -38,6 +38,9 @@ class AgenticRLConfig:
     agent_name: str = "default_agent"
     agent_engine_wrapper_path: str = "rllm"
 
+    test_before_train: bool = False
+    test_only: bool = False
+    
 
 @dataclass
 class SamplingConfig:

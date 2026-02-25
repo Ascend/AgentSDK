@@ -34,6 +34,8 @@ class Trajectory:
     trajectory_reward: float | int = 0.0
     chat_completions: list[dict[str, str]] = field(default_factory=list)
     metrics: dict[str, Any] = field(default_factory=lambda: {"steps": 0,
+                                                             "toolcall_reward": 0.0,
+                                                             "res_reward": 0.0,
                                                              "reward_time": 0.0,
                                                              "env_time": 0.0,
                                                              "llm_time": 0.0,

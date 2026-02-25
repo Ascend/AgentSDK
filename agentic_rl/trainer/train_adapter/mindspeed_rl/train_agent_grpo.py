@@ -184,7 +184,7 @@ def train(config: Dict[str, Any]):
     reward_list = _create_reward_worker(reward_config, rl_config, tokenizer)
     logger.debug("reward workers created success")
 
-    data_iters, _ = _process_dataset(actor_config,
+    data_iters, test_iters = _process_dataset(actor_config,
                                      agentic_rl_config.test_data_path,
                                      actor_config.train_iters * actor_config.global_batch_size,
                                      actor_worker.get_consumed_train_samples())
@@ -208,7 +208,7 @@ def train(config: Dict[str, Any]):
 
     logger.info("training start")
     try:
-        trainer.fit(data_iters)
+        trainer.fit(data_iters, test_iters)
     except (AttributeError, RuntimeError, ValueError) as e:
         logger.error(f"trainer fit failed, error: {e}")
         raise

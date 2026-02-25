@@ -52,6 +52,8 @@
 | max_prompt_length         | int | 最大提示词长度 | 默认值为2048，应为大于0的正整数，当前最大支持至128K。|
 | rollout_n                 | int | 每一轮rollout阶段生成回复的数量 | 默认值为2，应为大于0且不超过64的正整数。|
 | use_tensorboard           | bool | 是否启用tensorboard | 默认值为False。|
+| test_only                 | bool | 是否只进行测试而不训练                                                     |
+| test_before_train         | bool | 是否在训练前针对原始模型做测试                                             |
 
 
 **mindspeed-rl相关参数**

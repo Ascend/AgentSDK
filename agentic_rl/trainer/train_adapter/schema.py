@@ -216,6 +216,8 @@ class GlobalConfig(BaseConfig):
     train_backend: Literal["mindspeed_rl", "verl"]
     use_stepwise_advantage: bool = False
     use_tensorboard: bool = False
+    test_before_train: bool = False
+    test_only: bool = False
 
     # Inference / Model Params
     infer_tensor_parallel_size: int = 4

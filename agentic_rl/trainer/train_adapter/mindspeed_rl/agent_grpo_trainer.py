@@ -73,7 +73,8 @@ class AgentGRPOTrainer(RayGRPOTrainer):
         self._check_args(rl_config, actor_config, generate_config, agentic_rl_config,
                          actor_worker, reference_worker, reward_list, tokenizer)
         self.actor_config = actor_config
-
+        self.agentic_rl_config = agentic_rl_config
+        
         try:
             self.rollout_worker = RolloutWorker.remote(
                 n_parallel_agents=rl_config.n_samples_per_prompt,
@@ -201,12 +202,13 @@ class AgentGRPOTrainer(RayGRPOTrainer):
 
         ray.get(self.rollout_worker.init_data_manager.remote(self.transfer_dock))
 
-    def fit(self, data_iters: Iterator):
+    def fit(self, train_data_iters: Iterator, test_data_iters: Iterator):
         """
         The utils loop of GRPO.
 
         Args:
-            data_iters: Iterations to get data to create Trajectories.
+            train_data_iters: Iterator to get data to create Trajectories during training phase.
+            test_data_iters: Iterator to get data to create Trajectories during test phase.
         """
         metrics = Metric()
 
@@ -216,6 +218,16 @@ class AgentGRPOTrainer(RayGRPOTrainer):
             raise AttributeError("trainer does not have iteration attribute") from e
         except Exception as e:
             raise RuntimeError("Unexpected error occurred when trainer get iteration") from e
+
+        if self.agentic_rl_config.test_before_train and test_data_iters is not None:
+            logger.info("Start testing processing before training...")
+            test_metrics = self._validate_agent(test_data_iters)
+            logger.info("Testing processing done")
+            for key, value in test_metrics.items():
+                logger.info(f"{key}: {value}")
+            if self.agentic_rl_config.test_only:
+                return
+
 
         if self.blocking:
             logger.info(
@@ -227,7 +239,7 @@ class AgentGRPOTrainer(RayGRPOTrainer):
         while iteration < self.train_iters:
             with Timer(name='iteration', logger=None) as all_timer:
                 try:
-                    batch = next(data_iters)
+                    batch = next(train_data_iters)
                 except StopIteration:
                     logger.warning(f"iteration {iteration + 1}/{self.train_iters}, but the data is already exhausted.")
                     return
@@ -255,6 +267,13 @@ class AgentGRPOTrainer(RayGRPOTrainer):
 
             if iteration % self.save_interval == 0 or iteration == self.train_iters:
                 self._save_checkpoint(iteration)
+
+        if test_data_iters is not None:
+            logger.info("Start testing processing after training...")
+            test_metrics = self._validate_agent(test_data_iters)
+            logger.info("Testing processing done")
+            for key, value in test_metrics.items():
+                logger.info(f"{key}: {value}")
 
         logger.info('grpo training finished.')
 
@@ -388,32 +407,32 @@ class AgentGRPOTrainer(RayGRPOTrainer):
             raise RuntimeError("Unexpected error occurred when trainer generate sequences") from e
         logger.debug(f"trainer generate sequences finished.")
 
+    def _put_data_experience(self, batch: Dict[str, list[torch.Tensor]], n_samples_per_prompt):
+        new_data = dict()
+
+        if len(batch) == 0:
+            raise ValueError("Empty batch data is not valid.")
+
+        length = {len(v) for v in batch.values()}
+
+        if len(length) != 1:
+            raise ValueError("Batch data should have same length.")
+
+        length = list(length)[0]
+
+        for key in batch.keys():
+            new_data[key] = []
+            for value in batch[key]:
+                for _ in range(n_samples_per_prompt):
+                    new_data[key].append(value)
+
+        new_size = length * n_samples_per_prompt
+
+        indexes = [i for i in range(new_size)]
+
+        return padding_dict_to_tensor_dict(new_data), indexes
+        
     def _put_prompts_experience(self, batch):
-        def put_data_experience(batch: Dict[str, list[torch.Tensor]], n_samples_per_prompt):
-            new_data = dict()
-
-            if len(batch) == 0:
-                raise ValueError("Empty batch data is not valid.")
-
-            length = {len(v) for v in batch.values()}
-
-            if len(length) != 1:
-                raise ValueError("Batch data should have same length.")
-
-            length = list(length)[0]
-
-            for key in batch.keys():
-                new_data[key] = []
-                for value in batch[key]:
-                    for _ in range(n_samples_per_prompt):
-                        new_data[key].append(value)
-
-            new_size = length * n_samples_per_prompt
-
-            indexes = [i for i in range(new_size)]
-
-            return padding_dict_to_tensor_dict(new_data), indexes
-
         new_batch_data = dict()
 
         for key in self.dataset_additional_keys:
@@ -424,7 +443,7 @@ class AgentGRPOTrainer(RayGRPOTrainer):
                 new_batch_data[key][i] = torch.tensor(self.tokenizer.tokenize(value))
 
         try:
-            batch_dict, indexes = put_data_experience(new_batch_data, self.n_samples_per_prompt)
+            batch_dict, indexes = self._put_data_experience(new_batch_data, self.n_samples_per_prompt)
         except ValueError as e:
             raise ValueError("trainer failed to padding batch data") from e
         except Exception as e:
@@ -436,3 +455,29 @@ class AgentGRPOTrainer(RayGRPOTrainer):
             raise RuntimeError("trainer put prompts experience failed") from e
         except Exception as e:
             raise RuntimeError("Unexpected error occurred when trainer put prompts experience") from e
+
+    def _generate_validation(self, batch):
+        batch, index = self._put_data_experience(batch, 1)
+        return ray.get(self.rollout_worker.generate_validation.remote(batch, index))
+    
+    def _validate_agent(self, data_iterator):
+        rewards_list = []
+        step = 1
+        try:
+            for batch_data in data_iterator:
+                logger.info(f"validate iteration: {step}")
+                reward = self._generate_validation(batch_data)
+                rewards_list.append(reward)
+                step += 1
+
+            if not rewards_list:
+                logger.warning("Validation data iterator is empty, skipping validation.")
+                return {}
+
+            reward = torch.cat(rewards_list, dim=0).mean().item()
+            logger.info(f"validation mean reward: {reward}")
+            return {"test score": reward}
+
+        except Exception as e:
+            logger.error(f"Validation process failed with error: {e}, skipping validation.")
+            return {}

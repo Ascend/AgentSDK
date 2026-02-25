@@ -647,7 +647,9 @@ class TestRunnerWorkerGenerateAgentTrajectoriesAsync(unittest.TestCase):
             'reward_time': 0.1,
             'env_time': 0.2,
             'llm_time': 0.3,
-            'total_time': 0.6
+            'total_time': 0.6,
+            'toolcall_reward': 0.0,
+            'res_reward': -1
         }
         return traj
 
