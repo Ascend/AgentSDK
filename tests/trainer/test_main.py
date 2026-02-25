@@ -147,13 +147,13 @@ class TestMain:
         with pytest.raises(SystemExit):
             with caplog.at_level('ERROR', ):
                 main()
-        assert "Training using mindspeed-rl failed with ray" in caplog.text
+        assert "Training using mindspeed_rl failed with ray" in caplog.text
 
         mock_train.remote.side_effect = Exception("error")
         with pytest.raises(SystemExit):
             with caplog.at_level('ERROR', ):
                 main()
-        assert "Unexpected error occurred when training using mindspeed-rl" in caplog.text
+        assert "Unexpected error occurred when training using mindspeed_rl" in caplog.text
 
         mock_train.remote.side_effect = None
 
@@ -162,9 +162,11 @@ class TestMain:
         mock_ray_is_initialized = patches["mock_ray_is_initialized"]
         mock_ray_init = patches["mock_ray_init"]
         mock_ray_get = patches["mock_ray_get"]
+        mock_train = patches["mock_train"]
 
         mock_ray_init.reset_mock()
         mock_ray_get.reset_mock()
+        mock_train.remote.side_effect = None
 
         mock_ray_is_initialized.return_value = False
 
