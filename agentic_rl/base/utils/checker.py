@@ -21,6 +21,7 @@ import inspect
 import functools
 from typing import Any, Dict
 import torch
+import numpy as np
 
 
 class ValidatorReturnTypeError(TypeError):
@@ -480,7 +481,7 @@ class TrajectoryChecker:
 
         if trajectory_reward is None:
             raise ValueError(f"Trajectory's trajectory_reward is not set")
-        if not isinstance(trajectory_reward, (int, float)):
+        if not np.issubdtype(type(trajectory_reward), np.number):
             raise TypeError(f"trajectory_reward must be a number, got {type(trajectory_reward).__name__}")
 
         if not isinstance(idx, int):

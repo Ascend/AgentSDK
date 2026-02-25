@@ -30,15 +30,18 @@ class DataManager:
             raise ValueError("train_backend cannot be empty")
         if not isinstance(train_backend, str):
             raise TypeError("train_backend must be a string")
-        logger.info(f"DataManager initialized")
+        logger.info("DataManager initialized")
         self.train_backend = train_backend
+        if train_backend == "verl":
+            logger.info("verl train backend use DataProto, skip init data manager")
+            return
         self.data_manager_instance = data_manager_class(train_backend)()
-        logger.debug(f"Created data_manager_instance")
+        logger.debug("Created data_manager_instance")
 
     def sync_init_data_manager(self, data_manager):
         if data_manager is None:
             raise ValueError("data_manager is None")
-        logger.info(f"Starting to sync_init_data_manager with data_manager")
+        logger.info("Starting to sync_init_data_manager with data_manager")
         self.data_manager_instance.sync_init_data_manager(data_manager)
         logger.info("sync_init_data_manager completed successfully")
 
