@@ -52,6 +52,7 @@
 | max_prompt_length         | int | 最大提示词长度 | 默认值为2048，应为大于0的正整数，当前最大支持至128K。|
 | rollout_n                 | int | 每一轮rollout阶段生成回复的数量 | 默认值为2，应为大于0且不超过64的正整数。|
 | use_tensorboard           | bool | 是否启用tensorboard | 默认值为False。|
+| dataset_additional_keys   | List[str] | 设置数据集使用的字段 | 当前仅在后端为mindspeed_rl时生效，应传入一个列表，且列表中每一个值都应为字符串。
 | test_only                 | bool | 是否只进行测试而不训练                                                     |
 | test_before_train         | bool | 是否在训练前针对原始模型做测试                                             |
 
@@ -60,7 +61,7 @@
 
 | 参数名 | 类型 | 含义 | 约束 |
 |-------------------|------------|----------------------------------|----------------------------------|
-| data_path         | str | 数据路径 | 路径存在且路径中所有文件夹的权限为750，文件权限位640，且所有文件/文件夹属主均为当前属主，且文件名应为以下后缀之一：<br>“_packed_attention_mask_document.bin”，<br>“_packed_attention_mask_document.idx”，<br>“_packed_input_ids_document.bin”，<br>“_packed_input_ids_document.idx”，<br>“_packed_labels_document.bin”，<br>“_packed_labels_document.idx”。|
+| data_path         | str | 数据路径 | 路径存在且路径中所有文件夹的权限为750，文件权限位640，且所有文件/文件夹属主均为当前属主，必须通过dataset_additional_keys指定使用字段。|
 | load_params_path  | str | 训练模型的文件路径，需要包含完整的Megatron格式模型 | 路径存在且路径中所有文件夹的权限为750，文件权限位640，且所有文件/文件夹属主均为当前属主。|
 | save_params_path  | str | 训练模型的文件保存路径 | 路径存在且路径中所有文件夹的权限为750，文件权限位640，且所有文件/文件夹属主均为当前属主。|
 | train_iters      | int | 训练迭代次数 | 默认值为1，应为大于0的正整数。|
@@ -127,3 +128,76 @@
 >-   该路径的字符串长度不能大于1024。
 >-   该路径的属主为当前用户。
 
+**mindspeed_rl参考配置文件**
+处于配置文件参数类别下的需要放置在配置文件第一级
+
+处于mindspeed_rl相关参数类别下的配置参数需放置在第二级中
+
+配置结构示例如下，注意本配置文件为参考模板，不可直接复制使用，请您根据实际情况自行增删以及修改参数：
+
+```
+tokenizer_name_or_path: /path/to/model
+model_name: qwen2.5-7b
+agent_name: math
+agent_engine_wrapper_path: /path/to/rllm_engine_wrapper.py
+use_stepwise_advantage: false
+train_backend: mindspeed_rl
+max_model_len: 10240
+gpu_memory_utilization: 0.7
+infer_tensor_parallel_size: 4
+max_tokens: 1024
+top_k: 10
+num_gpus_per_node: 4
+max_prompt_length: 1024
+max_num_seqs: 8
+rollout_n: 1
+lr: 0.000005
+entropy_coeff: 0.01
+use_tensorboard: true
+dataset_additional_keys: ["problem", "answer"]
+mindspeed_rl:
+  data_path: /path/to/data
+  load_params_path: /path/to/params
+  save_params_path: /path/to/save_params
+```
+
+**verl参考配置文件**
+
+处于配置文件参数类别下的需要放置在配置文件第一级
+
+处于verl相关参数类别下的配置参数需放置在第二级中
+
+配置结构示例如下，注意本配置文件为参考模板，不可直接复制使用，请您根据实际情况自行增删以及修改参数：
+
+```
+tokenizer_name_or_path: /path/to/model
+model_name: qwen2.5-7b
+agent_name: math
+agent_engine_wrapper_path: /path/to/rllm_engine_wrapper.py
+use_stepwise_advantage: false
+train_backend: verl
+max_model_len: 10240
+gpu_memory_utilization: 0.7
+infer_tensor_parallel_size: 4
+max_tokens: 1024
+top_k: 10
+num_gpus_per_node: 4
+max_prompt_length: 1024
+max_num_seqs: 8
+rollout_n: 1
+lr: 0.000005
+entropy_coeff: 0.01
+use_tensorboard: true
+verl:
+  total_epochs: 1
+  total_training_steps: 100
+  save_freq: 100
+  train_batch_size: 4
+  val_batch_size: 4
+  project_name: default-agent
+  experiment_name: default-experiment
+  train_files: /data/gsm8k/train.parquet
+  val_files: /data/gsm8k/test.parquet
+  critic_model_path: /data/models/qwen/Qwen2.5-7B-Instruct
+  reward_model_path: /data/models/qwen/Qwen2.5-7B-Instruct
+```
