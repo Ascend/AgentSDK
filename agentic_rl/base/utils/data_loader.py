@@ -49,15 +49,40 @@ class GRPODataLoader(torch.utils.data.DataLoader):
                 raise ValueError(f"Datasets must contain key '{key}' (from required keys: {dataset_additional_keys}), "
                                  f"but it was not found.")
 
-        sampler = RepeatSampler(len(dataset), num_samples, seed, no_shuffle)
+        for key in dataset.column_names:
+            if key not in dataset_additional_keys:
+                dataset = dataset.remove_columns(key)
 
+        sampler = RepeatSampler(len(dataset), num_samples, seed, no_shuffle)
+        
+        def collate_take_first(batch):
+            collated = {}
+
+            for key in batch[0].keys():
+                values = [sample[key] for sample in batch]
+
+                if isinstance(values[0], list):
+                    values = [v[0] if len(v) > 0 else None for v in values]
+
+                if isinstance(values[0], (int, float)):
+                    collated[key] = values
+
+                elif isinstance(values[0], str):
+                    collated[key] = values
+
+                else:
+                    collated[key] = values
+
+            return collated
+        
         super().__init__(dataset,
                          num_workers=num_workers,
                          generator=torch.Generator().manual_seed(seed),
                          pin_memory=True,
                          sampler=sampler,
                          batch_size=global_batch_size,
-                         drop_last=True)
+                         drop_last=True,
+                         collate_fn=collate_take_first)
 
 
 class RepeatSampler(Sampler):

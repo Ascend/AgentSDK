@@ -341,6 +341,7 @@ class AgentActorHybridWorkerBase(ActorHybridWorkerBase):
                 cumulate=True
             )
         )
+        torch.cuda.empty_cache()
         logger.debug("actor worker exit infer mode")
 
     def init_worker(self, all_kwargs: List[Dict[str, Any]]):
@@ -361,6 +362,7 @@ class AgentActorHybridWorkerBase(ActorHybridWorkerBase):
         self.inference_model.sleep(*args, **kwargs)
         self.inference_model.is_sleep = True
         self.continue_infer_running = True
+        torch.cuda.empty_cache()
         logger.debug("actor inference model sleep success")
 
     def wake_up(self, *args, **kwargs):
@@ -380,6 +382,7 @@ class AgentActorHybridWorkerBase(ActorHybridWorkerBase):
 
         self.inference_model.wake_up(*args, **kwargs)
         self.inference_model.is_sleep = False
+        torch.cuda.empty_cache()
         logger.debug("actor inference model wake up success")
 
     def execute_method(self, method: Union[str, bytes], *args, **kwargs):

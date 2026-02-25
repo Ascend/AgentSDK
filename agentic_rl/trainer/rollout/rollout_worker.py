@@ -325,6 +325,7 @@ class RolloutWorker:
 
     async def generate_validation(self, batch_data, index):
         tasks = [dict() for _ in range(len(index))]
+        batch_data = self.remove_padding_tensor_dict_to_dict(batch_data)
         for i, index_value in enumerate(index):
             tasks[i]["id"] = index_value
             for key in self.dataset_additional_keys:
