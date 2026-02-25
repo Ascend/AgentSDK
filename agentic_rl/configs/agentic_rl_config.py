@@ -29,6 +29,7 @@ class AgenticRLConfig:
     max_steps: int = 5
     max_tool_length: int = 8192
     simplify_think_content: bool = False
+    use_stepwise_advantage: bool = False
     train_backend: str = "mindspeed_rl"
     enable_sleep_mode: bool = True
     load_format: str = "megatron"

@@ -109,3 +109,56 @@ def _check(master_addr: str, master_port: int, world_size: int, rank: int):
     if not (0 <= rank < world_size):
         logger.error("rank index must within range [0, world_size)")
         raise ValueError("rank index must within range [0, world_size)")
+
+
+def update_ref_dispatch_size(self, batch_len: int):
+    """Update ref_dispatch_size, experience count every forward step for reference"""
+    if not isinstance(batch_len, int):
+        raise ValueError("batch_len should be int type")
+    actor_train_objs = []
+    for actor in self.actor_handlers:
+        actor_train_objs.append(actor.update_ref_dispatch_size.remote(batch_len))
+    return ray.get(actor_train_objs)
+
+
+def update_actor_logprob_dispatch_size(self, batch_len: int):
+    """Update actor_logprob_dispatch_size, experience count every forward step for actor_logprob"""
+    if not isinstance(batch_len, int):
+        raise ValueError("batch_len should be int type")
+    actor_train_objs = []
+    for actor in self.actor_handlers:
+        actor_train_objs.append(actor.update_actor_logprob_dispatch_size.remote(batch_len))
+    return ray.get(actor_train_objs)
+
+
+def update_actor_update_dispatch_size(self, batch_len: int):
+    """Update actor_update_dispatch_size, experience count every forward step for actor update"""
+    if not isinstance(batch_len, int):
+        raise ValueError("batch_len should be int type")
+    actor_train_objs = []
+    for actor in self.actor_handlers:
+        actor_train_objs.append(actor.update_actor_update_dispatch_size.remote(batch_len))
+    return ray.get(actor_train_objs)
+
+
+def update_mini_batch_size(
+    self,
+    original_n_samples_per_prompt: int,
+    new_samples_per_prompt: int,
+    use_stepwise_advantage: bool
+):
+    """Update mini_batch_size, mini batch size"""
+    if not isinstance(original_n_samples_per_prompt, int) or not isinstance(new_samples_per_prompt, int):
+        raise ValueError("original_n_samples_per_prompt and new_samples_per_prompt should be int type")
+    if not isinstance(use_stepwise_advantage, bool):
+        raise ValueError("use_stepwise_advantage should be bool type")
+    actor_train_objs = []
+    for actor in self.actor_handlers:
+        actor_train_objs.append(
+            actor.update_mini_batch_size.remote(
+                original_n_samples_per_prompt,
+                new_samples_per_prompt,
+                use_stepwise_advantage
+            )
+        )
+    return ray.get(actor_train_objs)

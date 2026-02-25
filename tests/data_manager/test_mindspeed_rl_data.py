@@ -181,6 +181,22 @@ class TestMindSpeedRLDataManager(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             self.mind_speed_rl_data_manager.update_metrics('test_key', [1, 2, 3], True)
 
+    def test_reset_experience_len_positive_integer(self):
+        self.mind_speed_rl_data_manager.reset_experience_len(10)
+        self.mind_speed_rl_data_manager.data_manager.reset_experience_len.remote.assert_called_once_with(10)
+
+    def test_reset_experience_len_non_integer(self):
+        with self.assertRaises(ValueError):
+            self.mind_speed_rl_data_manager.reset_experience_len(3.14)
+
+    def test_reset_experience_len_zero(self):
+        with self.assertRaises(ValueError):
+            self.mind_speed_rl_data_manager.reset_experience_len(0)
+
+    def test_reset_experience_len_negative(self):
+        with self.assertRaises(ValueError):
+            self.mind_speed_rl_data_manager.reset_experience_len(-5)
+
 
 if __name__ == '__main__':
     unittest.main()

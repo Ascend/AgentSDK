@@ -527,3 +527,19 @@ class AgentActorHybridWorkerBase(ActorHybridWorkerBase):
                         cumulate=True
                     )
                 )
+
+    def update_actor_logprob_dispatch_size(self, new_actor_logprob_dispatch_size: int):
+        """Update actor_logprob_dispatch_size, experience count every forward step for actor_logprob"""
+        self.rl_config.actor_logprob_dispatch_size = (new_actor_logprob_dispatch_size //
+                                                      self.parallel_state.get_data_parallel_world_size())
+
+    def update_actor_update_dispatch_size(self, new_actor_update_dispatch_size: int):
+        """Update actor_update_dispatch_size, experience count every forward step for actor update"""
+        self.rl_config.actor_update_dispatch_size = (new_actor_update_dispatch_size //
+                                                     self.parallel_state.get_data_parallel_world_size())
+
+    def update_mini_batch_size(self, original_n_samples_per_prompt: int, new_samples_per_prompt: int,
+                               use_stepwise_advantage: bool):
+        """Update mini_batch_size, mini batch size"""
+        self.actor_hybrid.update_mini_batch_size(original_n_samples_per_prompt, new_samples_per_prompt,
+                                                 use_stepwise_advantage)

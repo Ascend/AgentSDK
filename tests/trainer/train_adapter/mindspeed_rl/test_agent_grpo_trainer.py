@@ -63,10 +63,23 @@ class MockRayGRPOTrainer:
             def __init__(self):
                 self.clear = MagicMock()
                 self.put_experience = MagicMock()
+                self.reset_experience_len = MagicMock()
                 self.get_metrics = MagicMock()
                 self.get_metrics.remote = MagicMock()
 
         self.transfer_dock = TransferDock()
+
+    def update_ref_dispatch_size(self, batch_len):
+        pass
+
+    def update_actor_logprob_dispatch_size(self, batch_len):
+        pass
+
+    def update_actor_update_dispatch_size(self, batch_len):
+        pass
+
+    def update_mini_batch_size(self, original_n_samples_per_prompt, new_samples_per_prompt, use_stepwise_advantage):
+        pass
 
 
 class MockRayActorGroup:
@@ -93,6 +106,18 @@ class MockRayActorGroup:
 
     def get_consumed_train_samples(self):
         return 0
+
+    def update_ref_dispatch_size(self, batch_len):
+        pass
+
+    def update_actor_logprob_dispatch_size(self, batch_len):
+        pass
+
+    def update_actor_update_dispatch_size(self, batch_len):
+        pass
+
+    def update_mini_batch_size(self, original_n_samples_per_prompt, new_samples_per_prompt, use_stepwise_advantage):
+        pass
 
 
 class MockRuleReward:
@@ -393,7 +418,15 @@ class TestAgentGRPOTrainer:
         trainer, _, _ = agent_grpo_trainer
 
         with patch("agentic_rl.trainer.train_adapter.mindspeed_rl.agent_grpo_trainer."
-                   "RayGRPOTrainer.compute_advantage") as mock_compute_advantage:
+                   "RayGRPOTrainer.compute_advantage") as mock_compute_advantage, \
+                patch("agentic_rl.trainer.train_adapter.mindspeed_rl.agent_grpo_trainer."
+                      "RayGRPOTrainer.update_ref_dispatch_size"), \
+                patch("agentic_rl.trainer.train_adapter.mindspeed_rl.agent_grpo_trainer."
+                      "RayGRPOTrainer.update_actor_logprob_dispatch_size"), \
+                patch("agentic_rl.trainer.train_adapter.mindspeed_rl.agent_grpo_trainer."
+                      "RayGRPOTrainer.update_actor_update_dispatch_size"), \
+                patch("agentic_rl.trainer.train_adapter.mindspeed_rl.agent_grpo_trainer."
+                      "RayGRPOTrainer.update_mini_batch_size"):
             mock_compute_advantage.side_effect = RayError("error")
             with pytest.raises(RuntimeError):
                 trainer.fit(iter([{"a": [torch.Tensor([1])], "b": [torch.Tensor([2])]}]), iter([{"a": [torch.Tensor([1])], "b": [torch.Tensor([2])]}]))
@@ -496,6 +529,12 @@ class TestAgentGRPOTrainer:
             import torch
             mock_ray_get.return_value = torch.tensor([1.0])
             trainer.fit(iter([{"a": [torch.Tensor([1])], "b": [torch.Tensor([2])]}]), iter([{"a": [torch.Tensor([1])], "b": [torch.Tensor([2])]}]))
+
+    def test_fit_success_with_stepwise_advantage(self, agent_grpo_trainer):
+        trainer, _, _ = agent_grpo_trainer
+        trainer.use_stepwise_advantage = True
+
+        trainer.fit(iter([{"a": [torch.Tensor([1])], "b": [torch.Tensor([2])]}]), iter([{"a": [torch.Tensor([1])], "b": [torch.Tensor([2])]}]))
 
     def test_generate_validation_success(self, agent_grpo_trainer):
         trainer, _, _ = agent_grpo_trainer

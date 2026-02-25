@@ -207,3 +207,6 @@ class IntegratedWorker(raw_integrated_worker_cls, AgentActorHybridWorkerBase, Re
 
     def update(self, kl_ctrl=None, skip_actor_log_prob: bool = False):
         AgentActorHybridWorkerBase.update(self, kl_ctrl, skip_actor_log_prob)
+
+    def update_ref_dispatch_size(self, new_ref_dispatch_size: int):
+        self.rl_config.ref_dispatch_size = new_ref_dispatch_size // self.parallel_state.get_data_parallel_world_size()

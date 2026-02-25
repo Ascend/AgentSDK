@@ -31,7 +31,8 @@ def compute_group_norm_advantage_return_patch(
         token_level_rewards: torch.Tensor,
         eos_mask: torch.Tensor,
         response_length: torch.Tensor,
-        n_sample_per_prompt: int
+        n_sample_per_prompt: int,
+        use_stepwise_advantage: bool = False
 ):
     """
     Compute advantage and return values.
@@ -41,6 +42,7 @@ def compute_group_norm_advantage_return_patch(
         eos_mask (torch.Tensor): Mask indicating the end of sequences.
         response_length (torch.Tensor): Length of the responses.
         n_sample_per_prompt (int): Number of samples per prompt.
+        use_stepwise_advantage (bool): Whether to use step-wise advantage mode.
 
     Returns:
         tuple: A tuple containing advantage and its copy.
@@ -48,7 +50,8 @@ def compute_group_norm_advantage_return_patch(
     _check_compute_group_norm_shape(token_level_rewards,
                                     eos_mask,
                                     response_length,
-                                    n_sample_per_prompt)
+                                    n_sample_per_prompt,
+                                    use_stepwise_advantage)
 
     scores = torch.tensor(
         token_level_rewards,
@@ -56,15 +59,25 @@ def compute_group_norm_advantage_return_patch(
         device=response_length.device
     )
     scores = scores.sum(dim=-1)
-    scores = scores.reshape(-1, n_sample_per_prompt)
-    scores = (scores - scores.mean(dim=1, keepdim=True)) / (scores.std(dim=1, keepdim=True) + 1e-6)
-    scores = scores.reshape(response_length.shape)
-    scores = torch.tensor(
-        scores,
-        dtype=torch.float32,
-        device=response_length.device
-    )
-    new_token_level_rewards = scores.repeat(1, eos_mask.shape[1])
+
+    if use_stepwise_advantage:
+        scores = torch.tensor(
+            scores,
+            dtype=torch.float32,
+            device=response_length.device
+        )
+        new_token_level_rewards = scores.unsqueeze(1).repeat(1, eos_mask.shape[1])
+    else:
+        scores = scores.reshape(-1, n_sample_per_prompt)
+        scores = (scores - scores.mean(dim=1, keepdim=True)) / (scores.std(dim=1, keepdim=True) + 1e-6)
+        scores = scores.reshape(response_length.shape)
+        scores = torch.tensor(
+            scores,
+            dtype=torch.float32,
+            device=response_length.device
+        )
+        new_token_level_rewards = scores.repeat(1, eos_mask.shape[1])
+
     new_token_level_rewards = new_token_level_rewards * eos_mask
     advantages = deepcopy(new_token_level_rewards)
     returns = deepcopy(advantages)
@@ -75,7 +88,8 @@ def compute_group_norm_advantage_return_patch(
 def _check_compute_group_norm_shape(token_level_rewards: torch.Tensor,
                                     eos_mask: torch.Tensor,
                                     response_length: torch.Tensor,
-                                    n_sample_per_prompt: int):
+                                    n_sample_per_prompt: int,
+                                    use_stepwise_advantage: bool):
     if token_level_rewards is None or not isinstance(token_level_rewards, torch.Tensor):
         logger.error("token_level_rewards must not be none and must be a torch.Tensor")
         raise TypeError("token_level_rewards must not be none and must be a torch.Tensor")
@@ -111,6 +125,6 @@ def _check_compute_group_norm_shape(token_level_rewards: torch.Tensor,
         logger.error("response_length must have a shape of (N, 1)")
         raise ValueError("response_length must have a shape of (N, 1)")
 
-    if token_level_rewards.shape[0] % n_sample_per_prompt != 0:
+    if not use_stepwise_advantage and token_level_rewards.shape[0] % n_sample_per_prompt != 0:
         logger.error("the first dimension of token_level_rewards need to be a multiple of n_sample_per_prompt")
         raise ValueError("the first dimension of token_level_rewards need to be a multiple of n_sample_per_prompt")

@@ -17,6 +17,10 @@ MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 See the Mulan PSL v2 for more details.
 -------------------------------------------------------------------------
 """
-from agentic_rl.runner.agent_engine_wrapper import Trajectory, BaseEngineWrapper, StepTrajectory, Step
 
-__all__ = ['Trajectory', 'BaseEngineWrapper', 'StepTrajectory', 'Step']
+
+def update_mini_batch_size(self, original_n_samples_per_prompt: int, new_samples_per_prompt: int,
+                           use_stepwise_advantage: bool):
+    """Update mini_batch_size while use_stepwise_advantage is true"""
+    self.train_actor.update_mini_batch_size(original_n_samples_per_prompt, new_samples_per_prompt,
+                                            use_stepwise_advantage)

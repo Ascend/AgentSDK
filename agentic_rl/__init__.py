@@ -19,6 +19,6 @@ See the Mulan PSL v2 for more details.
 """
 __version__ = "0.0.0"
 
-from agentic_rl.runner import Trajectory, BaseEngineWrapper
+from agentic_rl.runner import Trajectory, BaseEngineWrapper, StepTrajectory, Step
 
-__all__ = ['Trajectory', 'BaseEngineWrapper']
+__all__ = ['Trajectory', 'BaseEngineWrapper', 'StepTrajectory', 'Step']

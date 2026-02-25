@@ -537,3 +537,30 @@ class TrajectoryChecker:
 
             if metrics[key] is not None and metrics[key] < 0:
                 raise ValueError(f"metric {key} must be non-negative if not None")
+
+    @staticmethod
+    def _validate_chat_completions(chat_completions: object) -> None:
+        """Verify if chat_completions is valid"""
+        if not isinstance(chat_completions, list) or not all(isinstance(item, dict) for item in chat_completions):
+            raise TypeError(f"chat_completions must be a list of dict, got {type(chat_completions).__name__}")
+
+        for item in chat_completions:
+            if not all(isinstance(k, str) and isinstance(v, str) for k, v in item.items()):
+                raise TypeError("all keys and values in chat_completions dicts must be strings")
+
+    @staticmethod
+    def validate_step(chat_completions, thought, model_response, info, reward, done, mc_return):
+        """Verify if Step dataclass is valid"""
+        TrajectoryChecker._validate_chat_completions(chat_completions)
+        if not isinstance(thought, str):
+            raise TypeError(f"thought must be a string, got {type(thought).__name__}")
+        if not isinstance(model_response, str):
+            raise TypeError(f"model_response must be a string, got {type(model_response).__name__}")
+        if not isinstance(info, dict):
+            raise TypeError(f"info must be a dict, got {type(info).__name__}")
+        if not isinstance(reward, (int, float)):
+            raise TypeError(f"reward must be a number, got {type(reward).__name__}")
+        if not isinstance(done, bool):
+            raise TypeError(f"done must be a boolean, got {type(done).__name__}")
+        if not isinstance(mc_return, (int, float)):
+            raise TypeError(f"mc_return must be a number, got {type(mc_return).__name__}")

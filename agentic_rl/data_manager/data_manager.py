@@ -77,3 +77,8 @@ class DataManager:
         if not isinstance(cumulate, bool):
             raise TypeError("cumulate must be a boolean")
         self.data_manager_instance.update_metrics(k, value, cumulate)
+
+    def reset_experience_len(self, experience_len):
+        if not isinstance(experience_len, int) or experience_len <= 0:
+            raise ValueError("experience_len must be a positive integer")
+        self.data_manager_instance.reset_experience_len(experience_len)
