@@ -1,17 +1,19 @@
 # -*- coding: utf-8 -*-
+# Copyright (c) 2025 Huawei Technologies Co.,Ltd.
 # ruff: noqa: E402
+from typing import Optional, List
 from functools import reduce
+import os
 import math
-from typing import Optional
 import uuid
-
-from tqdm import tqdm
-
-import numpy as np
-import ray
-from ray.exceptions import RayError
 import torch
+import ray
+import numpy as np
+from tqdm import tqdm
+from ray.exceptions import RayError
 from transformers import PreTrainedTokenizerBase
+from torch.utils.tensorboard import SummaryWriter
+
 from verl import DataProto
 from verl.protocol import pad_dataproto_to_divisor
 from verl.trainer.ppo.core_algos import agg_loss
@@ -20,18 +22,16 @@ from verl.trainer.ppo.ray_trainer import (
     RayWorkerGroup,
     ResourcePoolManager,
     compute_advantage,
-    compute_data_metrics,
-    compute_timing_metrics,
     marked_timer,
-    reduce_metrics,
 )
+from verl.utils.metric import reduce_metrics
+from verl.trainer.ppo.metric_utils import compute_data_metrics, compute_timing_metrics, compute_throughout_metrics
 from agentic_rl.base.log.loggers import Loggers
 from agentic_rl.configs.agentic_rl_config import AgenticRLConfig, GenConfig
 from agentic_rl.trainer.rollout.rollout_worker import RolloutWorker
 from agentic_rl.trainer.train_adapter.verl import patch
 
 patch.apply_patch()
-
 
 
 logger = Loggers(__name__)
@@ -111,6 +111,10 @@ class AgentGRPOTrainer(RayPPOTrainer):
         dataset_additional_keys=None,
         generate_config: Optional[GenConfig] = None,
         agentic_rl_config: Optional[AgenticRLConfig] = None,
+        use_tensorboard: bool = False,
+        tensorboard_flush_interval: int = 50,
+        tensorboard_log_dir: Optional[str] = None,
+        console_metrics: Optional[List[str]] = None,
     ):
         self._check_args(
             tokenizer,
@@ -144,6 +148,20 @@ class AgentGRPOTrainer(RayPPOTrainer):
         self.agentic_rl_config = agentic_rl_config
         self.rollout_worker = None
         self.is_last_step = False
+
+        # Initialize tensorboard if enabled
+        self.use_tensorboard = use_tensorboard
+        self.tensorboard_flush_interval = tensorboard_flush_interval
+        self.console_metrics = console_metrics or self._default_console_metrics()
+        self.tensorboard_writer = None
+        if self.use_tensorboard:
+            log_dir = tensorboard_log_dir or "tensorboard_logs"
+            project_name = self.config.trainer.get("project_name", "default-agent")
+            experiment_name = self.config.trainer.get("experiment_name", "default-experiment")
+            log_dir = os.path.join(log_dir, f"{project_name}/{experiment_name}")
+            os.makedirs(log_dir, exist_ok=True)
+            self.tensorboard_writer = SummaryWriter(log_dir=log_dir)
+            logger.info(f"Tensorboard logging enabled. Log directory: {log_dir}")
 
     def init_workers(self):
         super().init_workers()
@@ -191,6 +209,40 @@ class AgentGRPOTrainer(RayPPOTrainer):
             raise ValueError("generate_config must be an instance of GenConfig")
         if agentic_rl_config is None or not isinstance(agentic_rl_config, AgenticRLConfig):
             raise ValueError("agentic_rl_config must be an instance of AgenticRLConfig")
+
+    @staticmethod
+    def _default_console_metrics() -> List[str]:
+        return [
+            "actor/entropy",
+            "actor/grad_norm",
+            "actor/lr",
+            "traj/steps_mean",
+            "traj/env_time_mean",
+            "traj/llm_time_mean",
+            "traj/total_time_mean",
+            "perf/max_memory_allocated_gb",
+            "perf/max_memory_reserved_gb",
+            "perf/cpu_memory_used_gb",
+            "timing_s/update_actor",
+            "timing_per_token_ms/update_actor",
+            "batch/solve_all",
+            "batch/solve_partial",
+            "batch/solve_none",
+        ]
+
+    def _format_metrics_for_console(self, metrics):
+        result = []
+        for key in self.console_metrics:
+            if key in metrics:
+                val = metrics[key]
+                if isinstance(val, float):
+                    if abs(val) < 0.0001 or abs(val) >= 10000:
+                        result.append(f"{key}={val:.2e}")
+                    else:
+                        result.append(f"{key}={val:.4f}")
+                else:
+                    result.append(f"{key}={val}")
+        return " | ".join(result)
 
     def _prepare_batch(self, batch_dict):
         batch: DataProto = DataProto.from_single_dict(batch_dict)
@@ -248,27 +300,27 @@ class AgentGRPOTrainer(RayPPOTrainer):
         metrics["batch/solve_partial"] = len(unique_uids) - solve_none - solve_all
 
     def _compute_rollout_probs_diff(self, batch):
-        if "rollout_log_probs" in batch.batch.keys():
-            rollout_old_log_probs = batch.batch["rollout_log_probs"]
-            actor_old_log_probs = batch.batch["actor_log_probs"]
-            attention_mask = batch.batch["attention_mask"]
-            responses = batch.batch["responses"]
-            response_length = responses.size(1)
-            response_mask = attention_mask[:, -response_length:]
+        if "rollout_log_probs" not in batch.batch.keys():
+            return {}
+        rollout_old_log_probs = batch.batch["rollout_log_probs"]
+        actor_old_log_probs = batch.batch["actor_log_probs"]
+        attention_mask = batch.batch["attention_mask"]
+        responses = batch.batch["responses"]
+        response_length = responses.size(1)
+        response_mask = attention_mask[:, -response_length:]
 
-            rollout_probs = torch.exp(rollout_old_log_probs)
-            actor_probs = torch.exp(actor_old_log_probs)
-            rollout_probs_diff = torch.abs(rollout_probs - actor_probs)
-            rollout_probs_diff = torch.masked_select(rollout_probs_diff, response_mask.bool())
-            rollout_probs_diff_max = torch.max(rollout_probs_diff)
-            rollout_probs_diff_mean = torch.mean(rollout_probs_diff)
-            rollout_probs_diff_std = torch.std(rollout_probs_diff)
-            return {
-                "training/rollout_probs_diff_max": rollout_probs_diff_max.item(),
-                "training/rollout_probs_diff_mean": rollout_probs_diff_mean.item(),
-                "training/rollout_probs_diff_std": rollout_probs_diff_std.item(),
-            }
-        return {}
+        rollout_probs = torch.exp(rollout_old_log_probs)
+        actor_probs = torch.exp(actor_old_log_probs)
+        rollout_probs_diff = torch.abs(rollout_probs - actor_probs)
+        rollout_probs_diff = torch.masked_select(rollout_probs_diff, response_mask.bool())
+        rollout_probs_diff_max = torch.max(rollout_probs_diff)
+        rollout_probs_diff_mean = torch.mean(rollout_probs_diff)
+        rollout_probs_diff_std = torch.std(rollout_probs_diff)
+        return {
+            "training/rollout_probs_diff_max": rollout_probs_diff_max.item(),
+            "training/rollout_probs_diff_mean": rollout_probs_diff_mean.item(),
+            "training/rollout_probs_diff_std": rollout_probs_diff_std.item(),
+        }
 
     def _compute_rewards_and_advantages(self, batch, metrics, timing_raw):
         # Compute reward model score
@@ -293,7 +345,6 @@ class AgentGRPOTrainer(RayPPOTrainer):
         loss_agg_mode = self.config.actor_rollout_ref.actor.loss_agg_mode
         entropy_agg = agg_loss(loss_mat=entropys, loss_mask=response_masks, loss_agg_mode=loss_agg_mode)
         metrics["actor/entropy"] = entropy_agg.detach().item()
-
         # Warn about very low entropy which may indicate policy collapse
         entropy_val = entropy_agg.detach().item()
         if entropy_val < 0.1:
@@ -343,7 +394,10 @@ class AgentGRPOTrainer(RayPPOTrainer):
                 self._save_checkpoint()
 
     def shutdown(self):
-        pass
+        """Shutdown the trainer."""
+        self._flush_tensorboard()
+        if self.tensorboard_writer is not None:
+            self.tensorboard_writer.close()
 
     def _should_save_checkpoint(self) -> bool:
         save_freq = self.config.trainer.save_freq
@@ -358,29 +412,32 @@ class AgentGRPOTrainer(RayPPOTrainer):
         timing_raw = {}
 
         try:
-            final_gen_batch_output, generate_metrics = ray.get(
-                self.rollout_worker.generate_sequences_verl.remote(batch=batch)
-            )
-            if batch.batch.is_locked:
-                batch.batch.unlock_()
-            batch = batch.union(final_gen_batch_output)
-            metrics.update(generate_metrics)
-            # Compute values
-            if self.use_critic:
-                values = self.critic_wg.compute_values(batch)
-                batch = batch.union(values)
-            # Compute rewards and advantages
-            self._compute_rewards_and_advantages(batch, metrics, timing_raw)
-            # Balance batch
-            batch = self._pad_dataproto_to_world_size(batch=batch)
-            self._balance_batch(batch, metrics=metrics)
-            # Compute global valid tokens
-            batch.meta_info["global_token_num"] = torch.sum(batch.batch["attention_mask"], dim=-1).tolist()
+            with marked_timer("step", timing_raw):
+                final_gen_batch_output, generate_metrics = ray.get(
+                    self.rollout_worker.generate_sequences_verl.remote(batch=batch)
+                )
+                if batch.batch.is_locked:
+                    batch.batch.unlock_()
+                batch = batch.union(final_gen_batch_output)
+                metrics.update(generate_metrics)
+                # Compute values
+                if self.use_critic:
+                    values = self.critic_wg.compute_values(batch)
+                    batch = batch.union(values)
+                # Compute rewards and advantages
+                self._compute_rewards_and_advantages(batch, metrics, timing_raw)
+                # Balance batch
+                batch = self._pad_dataproto_to_world_size(batch=batch)
+                self._balance_batch(batch, metrics=metrics)
+                # Compute global valid tokens
+                batch.meta_info["global_token_num"] = torch.sum(batch.batch["attention_mask"], dim=-1).tolist()
             # Update actor and critic
             self._update_actor_and_critic(batch, metrics, timing_raw)
             # Collect metrics
             metrics.update(compute_data_metrics(batch, use_critic=self.use_critic))
             metrics.update(compute_timing_metrics(batch=batch, timing_raw=timing_raw))
+            n_gpus = self.resource_pool_manager.get_n_gpus()
+            metrics.update(compute_throughout_metrics(batch=batch, n_gpus=n_gpus, timing_raw=timing_raw))
             return metrics
         except RayError as e:
             logger.error(f"Rollout worker generate sequences failed: {e}")
@@ -388,6 +445,30 @@ class AgentGRPOTrainer(RayPPOTrainer):
         except Exception as e:
             logger.error(f"Failed to train step: {e}")
             raise e
+
+    def _log_metrics_to_tensorboard(self, metrics, step):
+        """
+        Log metrics to tensorboard.
+        
+        Args:
+            metrics (dict): A dictionary of metrics to log.
+            step (int): The current training step.
+        """
+        if self.tensorboard_writer is None:
+            return
+        for key, value in metrics.items():
+            if isinstance(value, (int, float)) and not math.isnan(value) and not math.isinf(value):
+                self.tensorboard_writer.add_scalar(f"train/{key}", value, step)
+        if step % self.tensorboard_flush_interval == 0:
+            self._flush_tensorboard()
+
+    def _flush_tensorboard(self):
+        if self.tensorboard_writer is not None:
+            try:
+                self.tensorboard_writer.flush()
+                logger.info("Tensorboard flushed")
+            except (OSError, RuntimeError) as e:
+                logger.error(f"Failed to flush tensorboard: {e}")
 
     def fit(self):
         """The training loop of GRPO"""
@@ -411,6 +492,7 @@ class AgentGRPOTrainer(RayPPOTrainer):
                     metrics = self._train_step(batch)
                     progress_bar.update(1)
                     self.global_steps += 1
+                    self._log_metrics_to_tensorboard(metrics, self.global_steps)
                     self.is_last_step = self.global_steps >= self.total_training_steps
                     if self._should_save_checkpoint():
                         logger.info(f"Step {self.global_steps}, metrics: {metrics}")
@@ -426,3 +508,4 @@ class AgentGRPOTrainer(RayPPOTrainer):
             raise e
         finally:
             progress_bar.close()
+            self._flush_tensorboard()
