@@ -116,3 +116,8 @@ class MindSpeedRLDataManager:
             raise RuntimeError(f"Ray operation failed in update_metrics: {str(e)}") from e
         except Exception as e:
             raise RuntimeError(f"Failed to update metrics: {str(e)}") from e
+
+    def reset_experience_len(self, experience_len):
+        if not isinstance(experience_len, int) or experience_len <= 0:
+            raise ValueError("experience_len must be a positive integer")
+        self.data_manager.reset_experience_len.remote(experience_len)

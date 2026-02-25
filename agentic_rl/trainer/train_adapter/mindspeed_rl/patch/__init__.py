@@ -34,12 +34,35 @@ def apply_patch():
     from .compute_utils import compute_group_norm_advantage_return_patch
     from .logprob_computer import compute
     from .grpo_actor_loss_func import get_policy_loss_input_patch
-    from .launcher import create_actor_handlers_patch
+    from .launcher import (create_actor_handlers_patch, update_ref_dispatch_size, update_actor_logprob_dispatch_size,
+                           update_actor_update_dispatch_size, update_mini_batch_size as group_update_mini_batch_size)
     from .get_current_node_ip import get_current_node_ip_patch
 
     RayActorGroup.create_actor_handlers = create_actor_handlers_patch
+    RayActorGroup.update_ref_dispatch_size = update_ref_dispatch_size
+    RayActorGroup.update_actor_logprob_dispatch_size = update_actor_logprob_dispatch_size
+    RayActorGroup.update_actor_update_dispatch_size = update_actor_update_dispatch_size
+    RayActorGroup.update_mini_batch_size = group_update_mini_batch_size
+
     StandardLogProbComputer.computer = compute
     GRPOActorLossFunc._get_policy_loss_input = get_policy_loss_input_patch
     ms_compute_utils.compute_group_norm_advantage_return = compute_group_norm_advantage_return_patch
     base_worker.get_current_node_ip = get_current_node_ip_patch
     utils.get_current_node_ip = get_current_node_ip_patch
+
+    from mindspeed_rl.trainer import grpo_trainer_hybrid
+    from .grpo_transfer_dock import GRPOTransferDock as GRPOTransferDockPatch
+    grpo_trainer_hybrid.GRPOTransferDock = GRPOTransferDockPatch
+
+    from mindspeed_rl.trainer.grpo_trainer_hybrid import RayGRPOTrainer
+    from .compute_advantage import compute_advantage
+    RayGRPOTrainer.compute_advantage = compute_advantage
+
+    from mindspeed_rl.models.actor_rollout_hybrid import ActorRolloutHybrid
+    from .actor_rollout_hybrid import update_mini_batch_size as hybrid_update_mini_batch_size
+    ActorRolloutHybrid.update_mini_batch_size = hybrid_update_mini_batch_size
+
+    from mindspeed_rl.models.base.base_training_engine import BaseTrainingEngine
+    from .base_training_engine import update_mini_batch_size as engine_update_mini_batch_size, update
+    BaseTrainingEngine.update_mini_batch_size = engine_update_mini_batch_size
+    BaseTrainingEngine.update = update

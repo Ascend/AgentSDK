@@ -17,7 +17,7 @@ MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 See the Mulan PSL v2 for more details.
 -------------------------------------------------------------------------
 """
-from agentic_rl.runner.agent_engine_wrapper.base import Trajectory
+from agentic_rl.runner.agent_engine_wrapper.base import Trajectory, StepTrajectory, Step
 from agentic_rl.runner.agent_engine_wrapper.base_engine_wrapper import BaseEngineWrapper
 
 __all__ = ['Trajectory', 'BaseEngineWrapper']

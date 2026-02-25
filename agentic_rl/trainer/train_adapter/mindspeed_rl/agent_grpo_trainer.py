@@ -74,6 +74,7 @@ class AgentGRPOTrainer(RayGRPOTrainer):
                          actor_worker, reference_worker, reward_list, tokenizer)
         self.actor_config = actor_config
         self.agentic_rl_config = agentic_rl_config
+        self.use_stepwise_advantage = agentic_rl_config.use_stepwise_advantage
         
         try:
             self.rollout_worker = RolloutWorker.remote(
@@ -83,6 +84,7 @@ class AgentGRPOTrainer(RayGRPOTrainer):
                 simplify_think_content=agentic_rl_config.simplify_think_content,
                 tokenizer_name_or_path=actor_config.tokenizer_name_or_path,
                 dataset_additional_keys=actor_config.dataset_additional_keys,
+                global_batch_size=actor_config.global_batch_size,
                 generate_config=self._convert_generate_config(generate_config),
                 agentic_rl_config=agentic_rl_config,
                 worker_group=actor_worker,
@@ -236,6 +238,7 @@ class AgentGRPOTrainer(RayGRPOTrainer):
             logger.info(
                 'trainer async start grpo training at iteration: {}/{} ...'.format(iteration + 1, self.train_iters))
 
+        original_n_samples_per_prompt = self.n_samples_per_prompt
         while iteration < self.train_iters:
             with Timer(name='iteration', logger=None) as all_timer:
                 try:
@@ -244,9 +247,16 @@ class AgentGRPOTrainer(RayGRPOTrainer):
                     logger.warning(f"iteration {iteration + 1}/{self.train_iters}, but the data is already exhausted.")
                     return
 
-                self._prepare_for_update(batch)
+                self._prepare_for_update(batch, original_n_samples_per_prompt)
 
-                self._update_actor()
+                try:
+                    self.actor_worker.update(self.kl_ctrl, self.skip_actor_log_prob)
+                    self.actor_worker.wait_all_ref_objs_run_over()
+                except RayError as e:
+                    raise RuntimeError("trainer update actor by ray failed") from e
+                except Exception as e:
+                    raise RuntimeError("Unexpected error occurred when trainer update actor") from e
+                logger.info(f"trainer update actor finished.")
 
                 logger.info("compute_grpo_data_metrics start ...")
                 grpo_data_metrics = compute_grpo_data_metrics(self.transfer_dock,
@@ -267,6 +277,11 @@ class AgentGRPOTrainer(RayGRPOTrainer):
 
             if iteration % self.save_interval == 0 or iteration == self.train_iters:
                 self._save_checkpoint(iteration)
+            if self.use_stepwise_advantage:
+                """reset n_samples_per_prompt before next iteration while step mode"""
+                self.n_samples_per_prompt = original_n_samples_per_prompt
+                self.transfer_dock.reset_experience_len.remote(
+                    self.actor_config.global_batch_size * self.n_samples_per_prompt)
 
         if test_data_iters is not None:
             logger.info("Start testing processing after training...")
@@ -343,10 +358,21 @@ class AgentGRPOTrainer(RayGRPOTrainer):
         metrics.update("update_tps", update_tps)
         metrics.update("vllm_throughput", vllm_tps)
 
-    def _prepare_for_update(self, batch):
+    def _prepare_for_update(self, batch, original_n_samples_per_prompt):
         self._put_prompts_experience(batch)
 
-        self._generate_sequences()
+        new_samples_per_prompt = self._generate_sequences()
+
+        if self.use_stepwise_advantage:
+            # total num changed after padding in generate_sequences while step mode
+            self.n_samples_per_prompt = new_samples_per_prompt
+            batch_len = self.actor_config.global_batch_size * self.n_samples_per_prompt
+            self.ref_worker.update_ref_dispatch_size(batch_len)
+            self.actor_worker.update_actor_logprob_dispatch_size(batch_len)
+            self.actor_worker.update_actor_update_dispatch_size(batch_len)
+        self.actor_worker.update_mini_batch_size(original_n_samples_per_prompt,
+                                                 new_samples_per_prompt,
+                                                 self.use_stepwise_advantage)
 
         self._compute_advantage()
 
@@ -400,12 +426,13 @@ class AgentGRPOTrainer(RayGRPOTrainer):
     def _generate_sequences(self):
         try:
             logger.info('rollout_worker start ...')
-            ray.get(self.rollout_worker.generate_sequences.remote())
+            new_samples_per_prompt = ray.get(self.rollout_worker.generate_sequences.remote())
         except RayError as e:
             raise RuntimeError("trainer generate sequences failed") from e
         except Exception as e:
             raise RuntimeError("Unexpected error occurred when trainer generate sequences") from e
         logger.debug(f"trainer generate sequences finished.")
+        return new_samples_per_prompt
 
     def _put_data_experience(self, batch: Dict[str, list[torch.Tensor]], n_samples_per_prompt):
         new_data = dict()

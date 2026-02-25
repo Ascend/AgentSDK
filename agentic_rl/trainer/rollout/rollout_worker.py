@@ -31,7 +31,7 @@ from agentic_rl.base.utils.file_utils import FileCheck
 from agentic_rl.configs.agentic_rl_config import AgenticRLConfig
 from agentic_rl.configs.agentic_rl_config import GenConfig
 from agentic_rl.data_manager.data_manager import DataManager
-from agentic_rl.runner.agent_engine_wrapper.base import Trajectory
+from agentic_rl.runner.agent_engine_wrapper.base import Trajectory, StepTrajectory
 from agentic_rl.runner.infer_adapter.async_server import AsyncServerManager
 from agentic_rl.runner.runner_worker import RunnerWorker
 
@@ -68,6 +68,7 @@ class RolloutWorker:
         self.max_prompt_length = max_prompt_length
         self.simplify_think_content = simplify_think_content
         self.worker_group = worker_group
+        self.use_stepwise_advantage = agentic_rl_config.use_stepwise_advantage
         self.global_batch_size = global_batch_size
         self._param_check()
 
@@ -141,6 +142,8 @@ class RolloutWorker:
         RolloutWorker._validate_param(self.max_prompt_length, "max_prompt_length", int, min_val=1)
         RolloutWorker._validate_param(self.actor_rollout_dispatch_size, "actor_rollout_dispatch_size", int, min_val=0)
         RolloutWorker._validate_param(self.simplify_think_content, "simplify_think_content", bool)
+        RolloutWorker._validate_param(self.use_stepwise_advantage, "use_stepwise_advantage", bool)
+        RolloutWorker._validate_param(self.global_batch_size, "global_batch_size", int, min_val=1)
 
     def wait_init_finished(self):
         pass
@@ -162,8 +165,14 @@ class RolloutWorker:
         self.rollout_engine.wake_up()
         try:
             trajectories = ray.get(self.runner_worker.generate_agent_trajectories_async.remote(tasks))
-            if not isinstance(trajectories, list) or not all((isinstance(traj, Trajectory) for traj in trajectories)):
-                raise TypeError("Trajectories must be a list of Trajectory objects")
+            if self.use_stepwise_advantage:
+                if not isinstance(trajectories, list) or not all(
+                        (isinstance(traj, StepTrajectory) for traj in trajectories)):
+                    raise TypeError("Trajectories must be a list of StepTrajectory objects")
+            else:
+                if not isinstance(trajectories, list) or not all(
+                        (isinstance(traj, Trajectory) for traj in trajectories)):
+                    raise TypeError("Trajectories must be a list of Trajectory objects")
         except (RuntimeError, TypeError) as e:
             raise RuntimeError(f"Failed to get response from API: {str(e)}") from e
         except Exception as e:
@@ -174,6 +183,17 @@ class RolloutWorker:
 
     def _process_trajectories(self, trajectories):
         trajectories.sort(key=lambda x: x.idx)
+        if self.use_stepwise_advantage:
+            traj_reward_list = []
+            for traj in trajectories:
+                traj_reward_list.append(traj.trajectory_reward)
+            max_traj_reward = max(traj_reward_list)
+            min_traj_reward = min(traj_reward_list)
+            mean_traj_reward = sum(traj_reward_list) / len(traj_reward_list)
+            self.data_manager.update_metrics("traj_reward/max", value=[float(max_traj_reward)], cumulate=True)
+            self.data_manager.update_metrics("traj_reward/min", value=[float(min_traj_reward)], cumulate=True)
+            self.data_manager.update_metrics("traj_reward/mean", value=[float(mean_traj_reward)], cumulate=True)
+            self._normalize_trajectory_reward(trajectories)
         final_gen_batch_output, metrics = self._transform_agent_trajectories(trajectories)
         responses = final_gen_batch_output["responses"]
         input_ids = final_gen_batch_output["input_ids"]
@@ -228,6 +248,11 @@ class RolloutWorker:
         outputs, metrics = self._process_trajectories(trajectories)
 
         self.iteration += 1
+        if self.use_stepwise_advantage:
+            outputs = RolloutWorker._pad_batch_to_divisor(outputs, self.global_batch_size)
+            indexes = [i for i in range(len(outputs["input_ids"]))]
+            # reset experience length to padding length
+            self.data_manager.reset_experience_len(len(indexes))
         self.data_manager.put_data(outputs, indexes)
         end_time = time.time()
         for k, value in metrics.items():
@@ -237,6 +262,46 @@ class RolloutWorker:
         self.data_manager.update_metrics(
             "timing/rollout", value=[round(end_time, 4), round(start_time, 4)], cumulate=True
         )
+        # number of n_samples_per_prompt after padding. batch_len = global_batch_size x n_samples_per_prompt
+        return len(indexes) // self.global_batch_size
+
+    @staticmethod
+    def _pad_batch_to_divisor(tensor_batch: dict, size_divisor: int):
+        """
+        Align output tensor batch with global_batch_size before put into data_manager.
+
+        If the tensor is not an integer multiple of global_batch_size, then the beginning of the tensor will be
+        padded to the end of the tensor to align it.
+        Exception: 'token_level_scores' padding data not considered to compute advantage
+        """
+        current_len = len(tensor_batch["input_ids"])
+        if current_len % size_divisor == 0:
+            return tensor_batch
+
+        remaining_pad = size_divisor - current_len % size_divisor
+        for key, value in tensor_batch.items():
+            if isinstance(value, list):
+                tensor_batch[key] = value + value[:remaining_pad]
+            else:
+                if key == "token_level_scores":
+                    size = value[0].size()[0]
+                    pad_tensor = torch.zeros(remaining_pad, size)
+                else:
+                    pad_tensor = value[:remaining_pad]
+                tensor_batch[key] = torch.concat([value, pad_tensor], dim=0)
+        return tensor_batch
+
+    def _normalize_trajectory_reward(self, trajectories):
+        """Normalize trajectory_reward for compute advantages for each agent"""
+        scores = torch.tensor(
+            [trajectory.trajectory_reward for trajectory in trajectories],
+            dtype=torch.float64
+        )
+        scores = scores.reshape(-1, self.n_parallel_agents)
+        scores = (scores - scores.mean(dim=-1, keepdim=True)) / (scores.std(dim=-1, keepdim=True) + 1e-6)
+        scores = scores.reshape(-1)
+        for i, trajectory in zip(range(len(trajectories)), trajectories):
+            trajectory.trajectory_reward = scores[i]
 
     async def generate_sequences_verl(self, batch=None):
         tasks = []
@@ -280,9 +345,8 @@ class RolloutWorker:
         Returns:
             DataProto: A structured dataset containing input tokens, masks, and rewards.
         """
-        all_initial_tokens, all_response_tokens, all_masks, traj_scores, chat_completions = (
+        all_initial_tokens, all_response_tokens, all_masks, traj_scores, step_nums, chat_completions = \
             self._extract_trajectory_data(trajectories)
-        )
         metrics = self.run_trajectories_perf_metric(trajectories)
 
         prompts_batch = self._pad_sequences(all_initial_tokens, left_pad=True)
@@ -302,10 +366,14 @@ class RolloutWorker:
         prompt_length = response_batch.shape[1]
         valid_response_length_sequences = attention_mask[:, prompt_length:].sum(dim=-1)
 
-        for i, traj_score in enumerate(traj_scores):
-            last_valid_idx = valid_response_length_sequences[i] - 1
-            if 0 <= last_valid_idx < score_batch.shape[1]:
-                score_batch[i, last_valid_idx] = traj_score
+        if self.use_stepwise_advantage:
+            RolloutWorker._assign_stepwise_scores(score_batch, traj_scores, step_nums, valid_response_length_sequences)
+        else:
+            for i, traj_score in enumerate(traj_scores):
+                last_valid_idx = valid_response_length_sequences[i] - 1
+                if RolloutWorker._is_valid_index(score_batch, last_valid_idx):
+                    score_batch[i, last_valid_idx] = traj_score
+
         if self.train_backend == "verl":
             tensor_batch = {
                 "input_ids": trajectory_batch,
@@ -333,7 +401,24 @@ class RolloutWorker:
         return tensor_batch, metrics
 
     @staticmethod
-    def _extract_trajectory_data(trajectories):
+    def _assign_stepwise_scores(score_batch, traj_scores, step_nums, valid_response_length_sequences):
+        """Assign trajectory reward at the end of the corresponding step batch of data"""
+        step_index = 0
+        for i, traj_score in enumerate(traj_scores):
+            step_num = step_nums[i]
+            for _ in range(step_num):
+                last_valid_idx = valid_response_length_sequences[step_index] - 1
+                if RolloutWorker._is_valid_index(score_batch, last_valid_idx):
+                    score_batch[step_index, last_valid_idx] = traj_score
+                step_index += 1
+
+    @staticmethod
+    def _is_valid_index(score_batch, index):
+        """Check if the index is valid"""
+        return 0 <= index < score_batch.shape[1]
+
+    def _extract_trajectory_data(self, trajectories):
+        step_nums = []
         all_initial_tokens = []
         all_response_tokens = []
         all_masks = []
@@ -341,23 +426,52 @@ class RolloutWorker:
         chat_completions = []
 
         for traj in trajectories:
-            prompt_tokens = traj.prompt_tokens
-            response_tokens = traj.response_tokens
+            if self.use_stepwise_advantage:
+                # step mode extract data and convert to tokens
+                self._extract_trajectory_step_data(traj, all_initial_tokens, all_response_tokens, step_nums)
+            else:
+                prompt_tokens = traj.prompt_tokens
+                response_tokens = traj.response_tokens
 
-            if prompt_tokens.numel() == 0 or response_tokens.numel() == 0:
-                raise ValueError(
-                    f"Both prompt {prompt_tokens.numel()} and response {response_tokens.numel()} "
-                    f"of trajectory shouldn't be empty. "
-                    f"Please check to make sure the environment is working and the config is correct."
-                )
+                if prompt_tokens.numel() == 0 or response_tokens.numel() == 0:
+                    raise ValueError(
+                        f"Both prompt {prompt_tokens.numel()} and response {response_tokens.numel()} "
+                        f"of trajectory shouldn't be empty. "
+                        f"Please check to make sure the environment is working and the config is correct."
+                    )
 
-            all_initial_tokens.append(prompt_tokens)
-            all_response_tokens.append(response_tokens)
-            all_masks.append(traj.response_masks)
+                all_initial_tokens.append(prompt_tokens)
+                all_response_tokens.append(response_tokens)
+                all_masks.append(traj.response_masks)
             traj_scores.append(traj.trajectory_reward)
             chat_completions.append(traj.chat_completions)
 
-        return all_initial_tokens, all_response_tokens, all_masks, traj_scores, chat_completions
+        return all_initial_tokens, all_response_tokens, all_masks, traj_scores, step_nums, chat_completions
+
+    def _extract_trajectory_step_data(self, trajectory, all_initial_tokens, all_response_tokens, step_nums):
+        """Extract chat_completions of trajectory step data and convert to tokens"""
+        for step in trajectory.steps:
+            chat_completions = step.chat_completions
+            prompt = self._parse_messages(chat_completions[:-1], add_generation_prompt=True)
+            prompt = torch.tensor(self.tokenizer.encode(prompt, add_special_tokens=False), dtype=torch.long)
+            if "content" not in chat_completions[-1]:
+                raise ValueError("The response message must have a 'content' attribute.")
+            response = chat_completions[-1]["content"]
+            response = torch.tensor(self.tokenizer.encode(response, add_special_tokens=False), dtype=torch.long)
+            if prompt.numel() == 0 or response.numel() == 0:
+                raise ValueError(
+                    f"Both prompt {prompt.numel()} and response {response.numel()} "
+                    f"of trajectory shouldn't be empty. Please check to make sure the environment is working and the "
+                    f"config is correct."
+                )
+            all_initial_tokens.append(prompt)
+            all_response_tokens.append(response)
+
+        step_nums.append(len(trajectory.steps))
+
+    def _parse_messages(self, messages, add_generation_prompt=False):
+        """Convert text data to tokens"""
+        return self.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=add_generation_prompt)
 
     def _pad_sequences(self, sequences, left_pad=False):
         if left_pad:
@@ -394,7 +508,7 @@ class RolloutWorker:
                 raise TypeError("Each trajectory must be a Trajectory and contain 'metrics' key")
             traj_metrics.append(traj.metrics)
 
-        flattened_metrics = {k: [d[k] for d in traj_metrics] for k in traj_metrics[0]}
+        all_keys = set(traj_metrics[0].keys())
         metrics = {}
 
         # Define a helper function to log and aggregate metrics
@@ -413,18 +527,22 @@ class RolloutWorker:
             )
 
         # Aggregate and log metrics
-        for key, values in flattened_metrics.items():
+        for key in all_keys:
             if key == "traj_start_time":
                 continue
 
-            if key in ["llm_step_times", "env_step_times", "step_reward"]:
-                values = [
-                    item
-                    for sublist in values
-                    for item in sublist
-                ]
-            else:
-                values = [v for v in values if v is not None]
-            update_and_aggregate(key, values)
+            raw_values = [d.get(key) for d in traj_metrics]
+
+            flattened = []
+            for v in raw_values:
+                if v is None:
+                    continue
+                if isinstance(v, (list, tuple)):
+                    flattened.extend(v)
+                else:
+                    flattened.append(v)
+
+            if flattened:
+                update_and_aggregate(key, flattened)
 
         return metrics

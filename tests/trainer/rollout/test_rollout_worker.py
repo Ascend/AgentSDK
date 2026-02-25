@@ -28,7 +28,7 @@ import torch
 
 from agentic_rl.configs.agentic_rl_config import AgenticRLConfig
 from agentic_rl.configs.agentic_rl_config import GenConfig
-from agentic_rl.runner.agent_engine_wrapper.base import Trajectory
+from agentic_rl.runner.agent_engine_wrapper.base import Trajectory, Step, StepTrajectory
 
 
 def dummy_compile(*compile_args, **compile_kwargs):
@@ -101,6 +101,20 @@ class TestRolloutWorker(unittest.TestCase):
             dataset_additional_keys=None,
             generate_config=self.generate_config,
             agentic_rl_config=self.agentic_rl_config,
+            worker_group=None,
+            remove_padding_tensor_dict_to_dict=self.remove_padding_tensor_dict_to_dict,
+            remove_padding_and_split_to_list=self.remove_padding_and_split_to_list,
+        )
+
+        self.step_worker = RolloutWorker(
+            n_parallel_agents=8,
+            max_prompt_length=8192,
+            actor_rollout_dispatch_size=0,
+            simplify_think_content=False,
+            tokenizer_name_or_path='tokenizer',
+            dataset_additional_keys=None,
+            generate_config=self.generate_config,
+            agentic_rl_config=AgenticRLConfig(use_stepwise_advantage=True),
             worker_group=None,
             remove_padding_tensor_dict_to_dict=self.remove_padding_tensor_dict_to_dict,
             remove_padding_and_split_to_list=self.remove_padding_and_split_to_list,
@@ -363,6 +377,55 @@ class TestRolloutWorker(unittest.TestCase):
         self.assertTrue(torch.equal(outputs['token_level_rewards'][1], torch.tensor([0.4, 0.5, 0.6])))
         self.assertEqual(outputs['response_mask'].tolist(), [[1, 1, 1], [1, 1, 1]])
 
+    def test_process_trajectories_with_stepwise_advantage(self):
+        step = Step(chat_completions=[{"key1": "value1"}, {"key2": "value2"}],
+                    thought="valid thought",
+                    action="action",
+                    observation={"key": "value"},
+                    model_response="valid response",
+                    info={"key": "value"},
+                    reward=1.0,
+                    done=True,
+                    mc_return=2.0)
+        step_trajectory = StepTrajectory(prompt_tokens=torch.tensor([1, 2, 3]), response_tokens=torch.tensor([4, 5, 6]),
+                                         response_masks=torch.tensor([1, 1, 1]),
+                                         idx=0, trajectory_reward=1.0, chat_completions=[],
+                                         metrics={"steps": 1, "reward_time": 2.0, "env_time": 3.0, "llm_time": 4.0,
+                                                  "total_time": 0.08, "toolcall_reward": 0.0, "res_reward": -2},
+                                         task={"task": "task info"}, steps=[step, step])
+        trajectories = [step_trajectory, step_trajectory]
+
+        self.step_worker._transform_agent_trajectories = Mock()
+        self.step_worker.remove_padding_and_split_to_list = Mock()
+        self.step_worker._transform_agent_trajectories.return_value = (
+            {
+                'responses': torch.tensor([[1, 2, 3], [4, 5, 6]]),
+                'input_ids': torch.tensor([[7, 8, 9], [10, 11, 12]]),
+                'prompt_length': torch.tensor([3, 3]),
+                'token_level_scores': torch.tensor([[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]]),
+                'traj_mask': torch.tensor([[1, 1, 1], [1, 1, 1]])
+            },
+            {'metric1': 1.0, 'metric2': 2.0}
+        )
+        self.step_worker.remove_padding_and_split_to_list.return_value = [[1, 2, 3], [4, 5, 6]]
+        self.step_worker.data_manager = Mock()
+        self.step_worker.data_manager.update_metrics = Mock()
+        self.step_worker._normalize_trajectory_reward = Mock()
+
+        outputs, metrics = self.step_worker._process_trajectories(trajectories)
+        self.assertEqual(metrics, {'metric1': 1.0, 'metric2': 2.0})
+        self.assertEqual(outputs['responses'], [[1, 2, 3], [4, 5, 6]])
+        self.assertEqual(outputs['input_ids'].tolist(), [[7, 8, 9], [10, 11, 12]])
+        self.assertEqual(outputs['response_length'], [torch.tensor([3]), torch.tensor([3])])
+        self.assertEqual(outputs['prompt_length'].tolist(), [3, 3])
+        self.assertTrue(torch.equal(outputs['rm_scores'][0], torch.tensor([0.1, 0.2, 0.3])))
+        self.assertTrue(torch.equal(outputs['rm_scores'][1], torch.tensor([0.4, 0.5, 0.6])))
+        self.assertTrue(torch.equal(outputs['token_level_rewards'][0], torch.tensor([0.1, 0.2, 0.3])))
+        self.assertTrue(torch.equal(outputs['token_level_rewards'][1], torch.tensor([0.4, 0.5, 0.6])))
+        self.assertEqual(outputs['response_mask'].tolist(), [[1, 1, 1], [1, 1, 1]])
+        self.assertEqual(self.step_worker.data_manager.update_metrics.call_count, 3)
+        self.assertEqual(self.step_worker._normalize_trajectory_reward.call_count, 1)
+
     @patch('time.time', return_value=12345)
     def test_generate_sequences(self, mock_time):
         # Mock the return values of the private methods
@@ -409,7 +472,8 @@ class TestRolloutWorker(unittest.TestCase):
 
         # Mock the return values of the dependent methods
         self.worker._extract_trajectory_data.return_value = (
-            ['initial_tokens'], ['response_tokens'], torch.tensor([[1.0]]), torch.tensor([[1.0]]), ['chat_completions']
+            ['initial_tokens'], ['response_tokens'], torch.tensor([[1.0]]), torch.tensor([[1.0]]), [],
+            ['chat_completions']
         )
         self.worker.run_trajectories_perf_metric.return_value = {'metric': 1.0}
         self.worker._pad_sequences.return_value = torch.tensor([[1, 2, 3]])
@@ -488,8 +552,8 @@ class TestRolloutWorker(unittest.TestCase):
                                 "res_reward": -2}),
         ]
 
-        all_initial_tokens, all_response_tokens, all_masks, traj_scores, chat_completions = self.worker._extract_trajectory_data(
-            traj)
+        all_initial_tokens, all_response_tokens, all_masks, traj_scores, step_nums, chat_completions = (
+            self.worker._extract_trajectory_data(traj))
 
         self.assertTrue(torch.equal(all_initial_tokens[0], torch.tensor([1, 2, 3])))
         self.assertTrue(torch.equal(all_initial_tokens[1], torch.tensor([7, 8, 9])))

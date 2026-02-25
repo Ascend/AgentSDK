@@ -17,11 +17,12 @@ MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 See the Mulan PSL v2 for more details.
 -------------------------------------------------------------------------
 """
-import pytest
 import math
+import unittest
+import pytest
 import torch
 import numpy as np
-from agentic_rl.runner.agent_engine_wrapper.base import Trajectory
+from agentic_rl.runner.agent_engine_wrapper.base import Trajectory, Step, StepTrajectory
 
 
 _idx = 3
@@ -225,3 +226,68 @@ class TestTrajectopy:
         with pytest.raises(expected_exception) as exc_info:
             Trajectory(**kwargs)
         assert expected_msg in str(exc_info.value)
+
+
+class TestStep(unittest.TestCase):
+    def test_validate_step_all_valid(self):
+        try:
+            Step(chat_completions=[{"key1": "value1"}, {"key2": "value2"}],
+                 thought="valid thought",
+                 action="action",
+                 observation={"key": "value"},
+                 model_response="valid response",
+                 info={"key": "value"},
+                 reward=1.0,
+                 done=True,
+                 mc_return=2.0)
+        except Exception as e:
+            self.fail(f"step failed with valid inputs: {e}")
+
+
+class TestStepTrajectory(unittest.TestCase):
+    def test_validate_step_trajectory_all_valid(self):
+        try:
+            step = Step(chat_completions=[{"key1": "value1"}, {"key2": "value2"}],
+                        thought="valid thought",
+                        action="action",
+                        observation={"key": "value"},
+                        model_response="valid response",
+                        info={"key": "value"},
+                        reward=1.0,
+                        done=True,
+                        mc_return=2.0)
+            StepTrajectory(prompt_tokens=_prompt_tokens, response_tokens=_response_tokens,
+                           response_masks=_response_masks,
+                           idx=_idx, trajectory_reward=_trajectory_reward, chat_completions=_chat_completions,
+                           metrics=_metrics,
+                           task={"task": "task info"}, steps=[step, step])
+        except Exception as e:
+            self.fail(f"step trajectory failed with valid inputs: {e}")
+
+    def test_invalid_trajectory(self):
+        with self.assertRaises(TypeError) as context:
+            StepTrajectory(idx="error_idx", prompt_tokens=_prompt_tokens, response_tokens=_response_tokens,
+                           response_masks=_response_masks, steps=[Step(action="move", reward=1.0)])
+        self.assertEqual(str(context.exception), "Trajectory's idx must be an integer, got str")
+
+    def test_empty_steps(self):
+        # 测试空的steps列表
+        with self.assertRaises(ValueError) as context:
+            StepTrajectory(prompt_tokens=_prompt_tokens, response_tokens=_response_tokens,
+                           response_masks=_response_masks, steps=[])
+        self.assertEqual(str(context.exception), "steps must be a non empty list of Step instances")
+
+    def test_non_list_steps(self):
+        # 测试非列表的steps
+        with self.assertRaises(ValueError) as context:
+            StepTrajectory(prompt_tokens=_prompt_tokens, response_tokens=_response_tokens,
+                           response_masks=_response_masks, steps="not a list")
+        self.assertEqual(str(context.exception), "steps must be a non empty list of Step instances")
+
+    def test_steps_with_non_step_instance(self):
+        # 测试steps列表中包含非Step实例
+        with self.assertRaises(ValueError) as context:
+            StepTrajectory(prompt_tokens=_prompt_tokens, response_tokens=_response_tokens,
+                           response_masks=_response_masks,
+                           steps=[Step(action="move", reward=1.0), "not a Step instance"])
+        self.assertEqual(str(context.exception), "steps must be a non empty list of Step instances")

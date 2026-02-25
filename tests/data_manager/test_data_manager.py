@@ -177,6 +177,30 @@ class TestDataManagerInit(unittest.TestCase):
         with self.assertRaises(TypeError):
             self.data_manager.update_metrics("test_key", [1, 2, 3], "True")
 
+    def test_reset_experience_len_with_positive_integer(self):
+        experience_len = 10
+        self.data_manager.reset_experience_len(experience_len)
+
+    def test_reset_experience_len_with_zero(self):
+        with self.assertRaises(ValueError):
+            self.data_manager.reset_experience_len(0)
+
+    def test_reset_experience_len_with_negative_integer(self):
+        with self.assertRaises(ValueError):
+            self.data_manager.reset_experience_len(-10)
+
+    def test_reset_experience_len_with_non_integer(self):
+        with self.assertRaises(ValueError):
+            self.data_manager.reset_experience_len(3.14)
+
+    def test_reset_experience_len_with_string(self):
+        with self.assertRaises(ValueError):
+            self.data_manager.reset_experience_len("10")
+
+    def test_reset_experience_len_with_none(self):
+        with self.assertRaises(ValueError):
+            self.data_manager.reset_experience_len(None)
+
 
 if __name__ == '__main__':
     unittest.main()
