@@ -129,7 +129,7 @@ class MemorySimple(MemoryBase):
             else:
                 # Ensure end_id doesn't exceed list length
                 end_id = min(end_id, len(messages))
-            
+
             # Ensure start_id doesn't exceed end_id
             if start_id >= end_id:
                 logger.warning(f"Invalid range: start_id ({start_id}) must be less than end_id ({end_id})")

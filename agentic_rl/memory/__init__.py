@@ -19,5 +19,6 @@ See the Mulan PSL v2 for more details.
 """
 
 from agentic_rl.memory.memory_config import MemoryConfig
+from agentic_rl.memory.memory_summary import MemorySummary
 
-__all__ = ["MemoryConfig"]
+__all__ = ["MemoryConfig", "MemorySummary"]
