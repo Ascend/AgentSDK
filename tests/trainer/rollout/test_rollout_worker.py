@@ -19,9 +19,10 @@ See the Mulan PSL v2 for more details.
 """
 import asyncio
 import os
+import sys
 import unittest
 from functools import wraps
-from unittest.mock import patch, Mock, MagicMock
+from unittest.mock import AsyncMock, patch, Mock, MagicMock
 
 import torch
 
@@ -104,7 +105,6 @@ class TestRolloutWorker(unittest.TestCase):
             remove_padding_tensor_dict_to_dict=self.remove_padding_tensor_dict_to_dict,
             remove_padding_and_split_to_list=self.remove_padding_and_split_to_list,
         )
-
 
     def test_init(self):
         self.assertEqual(self.worker.actor_rollout_dispatch_size, 0)
@@ -364,15 +364,11 @@ class TestRolloutWorker(unittest.TestCase):
             return [MagicMock(spec=Trajectory), MagicMock(spec=Trajectory)]
 
         self.worker._get_batch_data = MagicMock(side_effect=mock_get_batch_data)
-        self.worker._preprocess_batch_data = MagicMock()
-        self.worker._generate_tasks = MagicMock()
         self.worker._generate_trajectories = MagicMock(side_effect=mock_generate_trajectories)
         self.worker._process_trajectories = MagicMock()
 
         self.worker._get_batch_data.return_value = (
             {'prompts': ['prompt1', 'prompt2'], 'prompt_length': [5, 6]}, [1, 2])
-        self.worker._preprocess_batch_data.return_value = ['problem1', 'problem2']
-        self.worker._generate_tasks.return_value = ['task1', 'task2']
         traj = [MagicMock(spec=Trajectory), MagicMock(spec=Trajectory)]
         self.worker._generate_trajectories.return_value = traj
         self.worker._process_trajectories.return_value = (
@@ -395,7 +391,7 @@ class TestRolloutWorker(unittest.TestCase):
 
         # Mock the return values of the dependent methods
         self.worker._extract_trajectory_data.return_value = (
-            ['initial_tokens'], ['response_tokens'], [torch.tensor([1, 1, 1])], [1.0], ['chat_completions']
+            ['initial_tokens'], ['response_tokens'], torch.tensor([[1.0]]), torch.tensor([[1.0]]), ['chat_completions']
         )
         self.worker.run_trajectories_perf_metric.return_value = {'metric': 1.0}
         self.worker._pad_sequences.return_value = torch.tensor([[1, 2, 3]])
@@ -591,6 +587,53 @@ class TestRolloutWorker(unittest.TestCase):
         with self.assertRaises(TypeError) as context:
             self.worker.run_trajectories_perf_metric("123")
         self.assertEqual(str(context.exception), "Parameter trajectories must be a not empty list")
+
+    def test_generate_sequences_verl(self):
+        # Mock the batch parameter
+        mock_batch = MagicMock()
+        mock_batch.non_tensor_batch = {
+            "reward_model": [{"ground_truth": "ground_truth_1"}, {"ground_truth": "ground_truth_2"}],
+            "extra_info": [{"question": "question_1", "index": "id_1"}, {"question": "question_2", "index": "id_2"}],
+        }
+
+        # Mock the _generate_trajectories method
+        mock_traj = MagicMock()
+        mock_traj.idx = 0
+        mock_traj2 = MagicMock()
+        mock_traj2.idx = 1
+        self.worker._generate_trajectories = AsyncMock(return_value=[mock_traj, mock_traj2])
+
+        # Mock the _transform_agent_trajectories method
+        mock_outputs = {"key1": "value1", "key2": "value2"}
+        mock_metrics = {"metric1": 1.0, "metric2": 2.0}
+        self.worker._transform_agent_trajectories = MagicMock()
+        self.worker._transform_agent_trajectories.return_value = (mock_outputs, mock_metrics)
+
+        mock_dataproto_instance = MagicMock()
+        mock_verl = MagicMock()
+        mock_verl.DataProto.from_dict.return_value = mock_dataproto_instance
+
+        with patch.dict("sys.modules", {"verl": mock_verl}):
+            result_dataproto, result_metrics = self.loop.run_until_complete(
+                self.worker.generate_sequences_verl(mock_batch)
+            )
+
+        # Verify the results
+        self.assertEqual(result_dataproto, mock_dataproto_instance)
+        self.assertEqual(result_metrics, mock_metrics)
+
+        # Verify that _generate_trajectories was called with the correct tasks
+        expected_tasks = [
+            {"question": "question_1", "ground_truth": "ground_truth_1", "id": "id_1"},
+            {"question": "question_2", "ground_truth": "ground_truth_2", "id": "id_2"},
+        ]
+        self.worker._generate_trajectories.assert_called_once_with(expected_tasks)
+
+        # Verify that _transform_agent_trajectories was called with the sorted trajectories
+        self.worker._transform_agent_trajectories.assert_called_once_with([mock_traj, mock_traj2])
+
+        # Verify that DataProto.from_dict was called with the correct tensors
+        mock_verl.DataProto.from_dict.assert_called_once_with(tensors=mock_outputs)
 
 
 if __name__ == "__main__":

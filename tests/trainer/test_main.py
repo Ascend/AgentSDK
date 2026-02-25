@@ -162,11 +162,9 @@ class TestMain:
         mock_ray_is_initialized = patches["mock_ray_is_initialized"]
         mock_ray_init = patches["mock_ray_init"]
         mock_ray_get = patches["mock_ray_get"]
-        mock_train = patches["mock_train"]
 
         mock_ray_init.reset_mock()
         mock_ray_get.reset_mock()
-        mock_train.remote.side_effect = None
 
         mock_ray_is_initialized.return_value = False
 
