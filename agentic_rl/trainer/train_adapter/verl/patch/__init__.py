@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 -------------------------------------------------------------------------
@@ -36,8 +37,11 @@ def apply_patch():
     try:
         from verl.experimental import agent_loop
         from .patch_verl_init import MockAgentLoopManager
+        from verl.workers.sharding_manager.fsdp_vllm import FSDPVLLMShardingManager
+        from .patch_verl_init import mock__exit__
 
         agent_loop.AgentLoopManager = MockAgentLoopManager
+        FSDPVLLMShardingManager.__exit__ = mock__exit__
     except ImportError:
         # Skip agent loop patch if agent_loop is not available
         pass

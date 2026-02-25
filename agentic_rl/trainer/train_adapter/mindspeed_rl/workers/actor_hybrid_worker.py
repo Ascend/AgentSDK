@@ -42,7 +42,7 @@ from transformers import AutoConfig
 
 from agentic_rl.base.log.loggers import Loggers
 from agentic_rl.configs.agentic_rl_config import AgenticRLConfig
-from agentic_rl.runner.infer_adapter.vllm.vllm_worker import AsyncVLLMInferEngine
+from agentic_rl.trainer.train_adapter.mindspeed_rl.vllm_infer_engine import AsyncVLLMInferEngine
 from agentic_rl.base.utils.file_utils import FileCheck
 
 logger = Loggers(__name__)

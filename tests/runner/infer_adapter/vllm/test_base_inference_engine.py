@@ -23,6 +23,24 @@ import sys
 from types import ModuleType
 from unittest.mock import patch
 import pytest
+from agentic_rl.runner.infer_adapter.vllm.base_inference_engine import BaseInferEngine
+ 
+ 
+class ConcreteInferEngine(BaseInferEngine):
+    def init_cache_engine(self):
+        pass
+ 
+    def free_cache_engine(self):
+        pass
+ 
+    def offload_model_weights(self):
+        pass
+ 
+    def sync_model_weights(self, params, load_format='megatron'):
+        pass
+ 
+    def generate_sequences(self, prompts=None, sampling_params=None, prompt_token_ids=None, use_tqdm=None, **kwargs):
+        pass
 
 
 @pytest.fixture
@@ -158,7 +176,7 @@ class TestBaseInferEngine:
     ])
     @patch('agentic_rl.runner.infer_adapter.vllm.base_inference_engine.FileCheck.check_data_path_is_valid')
     def test_invalid_paths(
-        self, mock_file_check, valid_params, BaseInferEngine, invalid_path, error_match
+        self, mock_file_check, valid_params, invalid_path, error_match
     ):
         """Test validation errors for invalid paths."""
         def side_effect(path):
@@ -168,7 +186,7 @@ class TestBaseInferEngine:
         mock_file_check.side_effect = side_effect
         
         with pytest.raises(ValueError, match=error_match):
-            BaseInferEngine(**valid_params)
+            ConcreteInferEngine(**valid_params)
 
     @pytest.mark.parametrize("param_name,invalid_value,error_match", [
         ("train_tensor_parallel_size", -1, "must be a positive integer"),
@@ -186,7 +204,7 @@ class TestBaseInferEngine:
     ])
     @patch('agentic_rl.runner.infer_adapter.vllm.base_inference_engine.FileCheck.check_path_is_exist_and_valid')
     def test_parameter_validation(
-        self, mock_file_check, valid_params, BaseInferEngine, 
+        self, mock_file_check, valid_params, 
         param_name, invalid_value, error_match
     ):
         """Test validation errors for invalid parameter values."""
@@ -194,4 +212,4 @@ class TestBaseInferEngine:
         valid_params[param_name] = invalid_value
         
         with pytest.raises(ValueError, match=error_match):
-            BaseInferEngine(**valid_params)
+            ConcreteInferEngine(**valid_params)

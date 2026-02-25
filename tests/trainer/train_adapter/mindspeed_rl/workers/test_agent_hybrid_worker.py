@@ -315,7 +315,7 @@ class TestAgentActorHybridWorkerBase:
                 patch("mindspeed_rl.utils.utils.mstx_timer_decorator", fake_mstx_timer_decorator), \
                 patch("agentic_rl.runner.infer_adapter.vllm.patch.apply_patch"), \
                 patch("agentic_rl.trainer.train_adapter.mindspeed_rl.patch.apply_patch"), \
-                patch("agentic_rl.runner.infer_adapter.vllm.vllm_worker."
+                patch("agentic_rl.trainer.train_adapter.mindspeed_rl.vllm_infer_engine."
                       "AsyncVLLMInferEngine", MockAsyncVLLMInferEngine):
             yield
 

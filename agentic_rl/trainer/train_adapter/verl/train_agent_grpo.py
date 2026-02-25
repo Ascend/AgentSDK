@@ -1,28 +1,100 @@
 # -*- coding: utf-8 -*-
 # ruff: noqa: E402
 from typing import Any, Dict
+from agentic_rl.trainer.train_adapter.verl.patch.verl_vllm_model_patch import apply_vllm_model_patch
 
+apply_vllm_model_patch()
+
+from agentic_rl.trainer.train_adapter.verl import patch
+
+patch.apply_patch()
 import ray
-
+from omegaconf import OmegaConf, DictConfig
+import torch
+import torch.distributed
+from torch.distributed.device_mesh import init_device_mesh 
+from verl.utils.device import get_device_name
+from verl.workers.sharding_manager.fsdp_vllm import FSDPVLLMShardingManager 
 from verl.single_controller.ray import RayWorkerGroup
 from verl.trainer.ppo.ray_trainer import ResourcePoolManager, Role
 from verl.workers.fsdp_workers import ActorRolloutRefWorker, AsyncActorRolloutRefWorker
+
 
 from agentic_rl.base.log.loggers import Loggers
 from agentic_rl.trainer.train_adapter.verl.configs.parse_verl_config import (
     VerlConfigParser,
 )
-from agentic_rl.trainer.train_adapter.verl.patch.verl_vllm_model_patch import (
-    apply_vllm_model_patch,
-)
-
-apply_vllm_model_patch()
-
+from agentic_rl.trainer.train_adapter.verl.vllm_infer_engine import AsyncVLLMInferEngine
 
 logger = Loggers(__name__)
 
 
-class VerlAsyncActorRolloutRefWorker(AsyncActorRolloutRefWorker):
+class VerlActorRolloutRefWorker(ActorRolloutRefWorker):
+    def __init__(
+            self,
+            config: DictConfig,
+            role: str,
+            **kwargs):
+        self.config = config
+        self.continue_infer_running = False
+
+        self.train_tensor_parallel_size = kwargs.get('train_tensor_parallel_size', 4)
+        self.train_pipeline_parallel_size = kwargs.get('train_pipeline_parallel_size', 1) 
+        self.train_expert_parallel_size = kwargs.get('train_expert_parallel_size', 1)
+        self.train_context_parallel_size = kwargs.get('train_context_parallel_size', 1)
+
+        super().__init__(config, role, **kwargs)
+
+    def _build_rollout(self, trust_remote_code=False):
+        infer_tp = self.config.rollout.tensor_model_parallel_size
+        dp = self.world_size // infer_tp
+        if self.world_size % infer_tp != 0:
+            raise ValueError(f"rollout world_size: {self.world_size} is not divisible by infer_tp: {infer_tp}")
+        device_name = get_device_name()
+
+        rollout_device_mesh = init_device_mesh(
+            device_name, mesh_shape=(dp, infer_tp), mesh_dim_names=["dp", "infer_tp"]
+        )
+        rollout_name = self.config.rollout.name
+
+        logger.info(f"rollout_name: {rollout_name}")
+        if rollout_name != "vllm":
+            raise NotImplementedError(f"Rollout name: {self.config.rollout.name} is not supported")
+
+        rollout = AsyncVLLMInferEngine(
+            tokenizer_name_or_path=self.config.model.path,
+            train_tensor_parallel_size=self.train_tensor_parallel_size,
+            train_pipeline_parallel_size=self.train_pipeline_parallel_size,
+            train_expert_parallel_size=self.train_expert_parallel_size,
+            train_context_parallel_size=self.train_context_parallel_size,
+            infer_tensor_parallel_size=infer_tp,
+            infer_pipeline_parallel_size=self.infer_pipeline_parallel_size,
+            infer_expert_parallel_size=self.infer_expert_parallel_size,
+            max_num_seqs=self.config.rollout.max_num_seqs,
+            max_model_len=self.config.rollout.max_model_len,
+            dtype=self.config.rollout.dtype,
+            gpu_memory_utilization=self.config.rollout.gpu_memory_utilization,
+            trust_remote_code=self.config.model.trust_remote_code,
+            enable_sleep_mode=True
+        )
+        logger.info(f"After building {rollout_name} rollout")
+        full_params = torch.distributed.get_world_size() == 1
+        rollout_sharding_manager = FSDPVLLMShardingManager(
+            module=self.actor_module_fsdp,
+            inference_engine=rollout.inference_engine,
+            model_config=self.actor_model_config,
+            rollout_config=self.config.rollout,
+            full_params=full_params,
+            device_mesh=rollout_device_mesh,
+            offload_param=self._is_offload_param,
+            load_format=self.config.rollout.load_format,
+            layered_summon=self.config.rollout.get("layered_summon", False),
+        )
+        logger.info("After building sharding manager")
+        return rollout, rollout_sharding_manager
+
+
+class VerlAsyncActorRolloutRefWorker(AsyncActorRolloutRefWorker, VerlActorRolloutRefWorker):
     pass
 
 

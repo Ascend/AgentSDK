@@ -18,6 +18,7 @@ See the Mulan PSL v2 for more details.
 """
 
 import sys
+import types
 import os
 from unittest.mock import patch, MagicMock
 import pytest
@@ -79,15 +80,32 @@ class MockAgentGRPOTrainer:
         pass
 
 
+class MockActorRolloutRefWorker():
+    pass
+
+
+class MockAsyncActorRolloutRefWorker(MockActorRolloutRefWorker):
+    pass
+
+
+class MockCriticWorker():
+    pass
+
+
 class TestTrainAgentGrpo:
     @pytest.fixture(scope="class")
     def patch_modules(self):
+        fsdp_workers_module = types.ModuleType("verl.workers.fsdp_workers")
+        fsdp_workers_module.ActorRolloutRefWorker = MockActorRolloutRefWorker
+        fsdp_workers_module.AsyncActorRolloutRefWorker = MockAsyncActorRolloutRefWorker
+        fsdp_workers_module.CriticWorker = MockCriticWorker
         with patch.dict(
             sys.modules,
             {
                 "verl": MagicMock(),
                 "verl.utils": MagicMock(),
                 "verl.utils.hf_tokenizer": MagicMock(),
+                "verl.utils.device": MagicMock(),
                 "verl.trainer": MagicMock(),
                 "verl.trainer.ppo": MagicMock(),
                 "verl.trainer.ppo.ray_trainer": MagicMock(),
@@ -95,12 +113,15 @@ class TestTrainAgentGrpo:
                 "verl.single_controller": MagicMock(),
                 "verl.single_controller.ray": MagicMock(),
                 "verl.workers": MagicMock(),
-                "verl.workers.fsdp_workers": MagicMock(),
+                "verl.workers.fsdp_workers": fsdp_workers_module,
+                "verl.workers.sharding_manager": MagicMock(),
+                "verl.workers.sharding_manager.fsdp_vllm": MagicMock(),
                 "agentic_rl.trainer.train_adapter.verl.patch": MagicMock(),
                 "agentic_rl.trainer.train_adapter.verl.patch.verl_vllm_model_patch": MagicMock(),
                 "agentic_rl.trainer.train_adapter.verl.configs": MagicMock(),
                 "agentic_rl.trainer.train_adapter.verl.configs.parse_verl_config": MagicMock(),
                 "agentic_rl.trainer.train_adapter.verl.agent_grpo_trainer": MagicMock(),
+                "agentic_rl.trainer.train_adapter.verl.vllm_infer_engine": MagicMock(),
             },
         ):
             yield
@@ -113,10 +134,11 @@ class TestTrainAgentGrpo:
             patch("verl.utils.hf_tokenizer", return_value=MockBaseTokenizer()),
             patch("verl.trainer.ppo.reward.load_reward_manager", return_value=MockRewardManager()),
             patch("verl.single_controller.ray.RayWorkerGroup", MagicMock()),
-            patch("verl.workers.fsdp_workers.ActorRolloutRefWorker", MagicMock()),
-            patch("verl.workers.fsdp_workers.AsyncActorRolloutRefWorker", MagicMock()),
+            patch("verl.workers.fsdp_workers.ActorRolloutRefWorker", MockActorRolloutRefWorker),
+            patch("verl.workers.fsdp_workers.AsyncActorRolloutRefWorker", MockAsyncActorRolloutRefWorker),
             patch("verl.trainer.ppo.ray_trainer.ResourcePoolManager", MagicMock()),
             patch("verl.trainer.ppo.ray_trainer.Role", MagicMock()),
+            patch("verl.workers.sharding_manager.fsdp_vllm.FSDPVLLMShardingManager", MagicMock()),
             patch("agentic_rl.trainer.train_adapter.verl.patch.verl_vllm_model_patch.apply_vllm_model_patch"),
             patch(
                 "agentic_rl.trainer.train_adapter.verl.configs.parse_verl_config.VerlConfigParser", MockVerlConfigParser
@@ -126,6 +148,7 @@ class TestTrainAgentGrpo:
             patch("os.path.isfile", return_value=True),
             patch("os.path.isdir", return_value=False),
             patch("os.stat", return_value=MagicMock(st_mode=0o640, st_uid=os.getuid(), st_gid=os.getgid())),
+            patch("agentic_rl.trainer.train_adapter.verl.vllm_infer_engine.AsyncVLLMInferEngine", MagicMock()),
         ):
 
             def fake_ray_get(*args):
