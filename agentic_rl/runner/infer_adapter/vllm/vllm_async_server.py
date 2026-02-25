@@ -60,6 +60,7 @@ class VLLMConfig:
     load_format: str
     enable_sleep_mode: bool
     enable_prefix_caching: bool
+    train_backend: str
     trust_remote_code: bool
     max_num_seqs: int
     sampling_config: SamplingConfig
@@ -130,24 +131,67 @@ class ExternalRayDistributedExecutor(Executor):
         if tags and not isinstance(tags, list):
             raise ValueError("tags must be a list")
 
-        if self.is_fisrt_wake_up:
+        if self.is_first_wake_up:
             self.is_sleeping = True
-            self.is_fisrt_wake_up = False
+            self.is_first_wake_up = False
         super().wake_up(tags)
 
-    def _init_executor(self) -> None:
-        self.is_fisrt_wake_up = True
+    def _parse_instance_id(self):
         if self.vllm_config.instance_id is None:
             raise RuntimeError("instance_id must be set for external ray actors.")
-
         try:
             fields = self.vllm_config.instance_id.split(":")
             if len(fields) != 4:
-                raise RuntimeError(f"instance_id: {self.vllm_config.instance_id} must be in the format of "
-                                   f"<namespace>:<wg_prefix>:<vllm_dp_size>:<vllm_dp_rank>.")
+                raise RuntimeError(
+                    f"instance_id: {self.vllm_config.instance_id} must be in the format of "
+                    f"<namespace>:<wg_prefix>:<vllm_dp_size>:<vllm_dp_rank>."
+                )
             namespace, vllm_dp_rank = fields[0], int(fields[3])
         except (IndexError, ValueError) as e:
-            raise RuntimeError(f"Failed to parse instance_id '{self.vllm_config.instance_id}': {e}") from e
+            raise RuntimeError(f"Failed to split instance_id: {e}") from e
+        return namespace, vllm_dp_rank
+
+    def _init_ray_actors(self, namespace, vllm_dp_rank, vllm_tp_size):
+        try:
+            actors = [v["Name"] for _, v in ray.state.actors().items()]
+            if self.vllm_config.train_backend == "verl":
+                actor_names = [actor_name for actor_name in actors if "WorkerDict" in actor_name]
+
+                def get_pg_index_and_local_rank(actor_name):
+                    fields = actor_name.split(":")
+                    if len(fields) != 2:
+                        raise ValueError(f"Invalid actor_name format: {actor_name}")
+                    pg_index = int(fields[0].split("_")[-1])
+                    local_rank = int(fields[1])
+                    return pg_index, local_rank
+
+                actor_names = sorted(actor_names, key=get_pg_index_and_local_rank)
+            elif self.vllm_config.train_backend == "mindspeed_rl":
+                actor_names = [
+                    actor_name
+                    for actor_name in actors
+                    if "ActorHybridWorker" in actor_name or "IntegratedWorker" in actor_name
+                ]
+                actor_names = sorted(actor_names, key=lambda x: int(x.split("_")[1]))
+            else:
+                raise ValueError(f"train_backend {self.vllm_config.train_backend} is not supported")
+            self.actor_names = actor_names[vllm_dp_rank * vllm_tp_size: (vllm_dp_rank + 1) * vllm_tp_size]
+            if not self.actor_names:
+                raise RuntimeError(
+                    f"No Ray actors found for vllm_dp_rank={vllm_dp_rank}, vllm_tp_size={vllm_tp_size}. "
+                    f"Available actors: {actor_names}"
+                )
+            workers = [ray.get_actor(actor_name, namespace=namespace) for actor_name in self.actor_names]
+            logger.info(f"Found and retrieved {len(workers)} workers: {self.actor_names}")
+            return workers
+        except (KeyError, IndexError, ValueError) as e:
+            raise RuntimeError(f"Failed to discover Ray actors: {e}") from e
+        except Exception as e:
+            raise RuntimeError(f"Unexpected error during Ray actor discovery: {e}") from e
+
+    def _init_executor(self) -> None:
+        self.is_first_wake_up = True
+        namespace, vllm_dp_rank = self._parse_instance_id()
 
         ray_secure_init(address="auto", extra_init_kwargs={
             "namespace": namespace,
@@ -160,24 +204,7 @@ class ExternalRayDistributedExecutor(Executor):
         except AttributeError as e:
             raise RuntimeError(f"Failed to access tensor_parallel_size from vllm_config: {e}") from e
 
-        try:
-            actors = [v["Name"] for _, v in ray.state.actors().items()]
-            actor_names = [actor_name
-                           for actor_name in actors
-                           if "ActorHybridWorker" in actor_name or "IntegratedWorker" in actor_name]
-            actor_names = sorted(actor_names, key=lambda x: int(x.split("_")[1]))
-            self.actor_names = actor_names[vllm_dp_rank * vllm_tp_size: (vllm_dp_rank + 1) * vllm_tp_size]
-
-            if not self.actor_names:
-                raise RuntimeError(f"No Ray actors found for vllm_dp_rank={vllm_dp_rank}, vllm_tp_size={vllm_tp_size}. "
-                                   f"Available actors: {actor_names}")
-
-            self.workers = [ray.get_actor(actor_name, namespace=namespace) for actor_name in self.actor_names]
-            logger.info(f"Found and retrieved {len(self.workers)} workers: {self.actor_names}")
-        except (KeyError, IndexError, ValueError) as e:
-            raise RuntimeError(f"Failed to discover Ray actors: {e}") from e
-        except Exception as e:
-            raise RuntimeError(f"Unexpected error during Ray actor discovery: {e}") from e
+        self.workers = self._init_ray_actors(namespace, vllm_dp_rank, vllm_tp_size)
         kwargs = dict(vllm_config=self.vllm_config, local_rank=None, rank=None,
                       distributed_init_method="env://", is_driver_worker=True)
 
@@ -296,6 +323,7 @@ class AsyncVLLMServer(AsyncServerBase):
                 f"{self.server_config.namespace}:{self.server_config.wg_prefix}:"
                 f"{self.server_config.vllm_dp_size}:{self.server_config.vllm_dp_rank}"
             )
+            vllm_config.train_backend = self.vllm_config.train_backend
             logger.info(f"Engine instance_id: {vllm_config.instance_id}")
         except (ValueError, AssertionError) as e:
             raise RuntimeError(f"Failed to create engine config: {e}") from e
@@ -409,6 +437,7 @@ class AsyncVLLMServer(AsyncServerBase):
                 gpu_memory_utilization=config.gpu_memory_utilization,
                 load_format=self.agentic_rl_config.load_format,
                 enable_sleep_mode=self.agentic_rl_config.enable_sleep_mode,
+                train_backend=self.agentic_rl_config.train_backend,
                 enable_prefix_caching=config.enable_prefix_caching,
                 trust_remote_code=config.trust_remote_code,
                 max_num_seqs=config.max_num_seqs,

@@ -26,6 +26,7 @@ import ray
 import torch
 from transformers import AutoTokenizer
 
+from agentic_rl.base.log.loggers import Loggers
 from agentic_rl.base.utils.file_utils import FileCheck
 from agentic_rl.configs.agentic_rl_config import AgenticRLConfig
 from agentic_rl.configs.agentic_rl_config import GenConfig
@@ -34,22 +35,25 @@ from agentic_rl.runner.agent_engine_wrapper.base import Trajectory
 from agentic_rl.runner.infer_adapter.async_server import AsyncServerManager
 from agentic_rl.runner.runner_worker import RunnerWorker
 
+logger = Loggers(__name__)
+
 
 @ray.remote
 class RolloutWorker:
     def __init__(
-            self,
-            tokenizer_name_or_path,
-            generate_config: GenConfig,
-            agentic_rl_config: AgenticRLConfig,
-            remove_padding_tensor_dict_to_dict,
-            remove_padding_and_split_to_list,
-            n_parallel_agents=8,
-            max_prompt_length=8192,
-            actor_rollout_dispatch_size=0,
-            simplify_think_content=False,
-            dataset_additional_keys=None,
-            worker_group=None,
+        self,
+        tokenizer_name_or_path,
+        generate_config: GenConfig,
+        agentic_rl_config: AgenticRLConfig,
+        remove_padding_tensor_dict_to_dict,
+        remove_padding_and_split_to_list,
+        n_parallel_agents=8,
+        max_prompt_length=8192,
+        actor_rollout_dispatch_size=0,
+        simplify_think_content=False,
+        dataset_additional_keys=None,
+        worker_group=None,
+        global_batch_size=2,
     ):
         self.actor_rollout_dispatch_size = actor_rollout_dispatch_size
         self.tokenizer_name_or_path = tokenizer_name_or_path
@@ -64,18 +68,19 @@ class RolloutWorker:
         self.max_prompt_length = max_prompt_length
         self.simplify_think_content = simplify_think_content
         self.worker_group = worker_group
+        self.global_batch_size = global_batch_size
         self._param_check()
 
         self.tokenizer = AutoTokenizer.from_pretrained(
             self.tokenizer_name_or_path, local_files_only=True, weights_only=True
         )
+        self.train_backend = self.agentic_rl_config.train_backend
         self.data_manager = DataManager(self.agentic_rl_config.train_backend)
-
         self.rollout_engine = AsyncServerManager(
             config=self.generate_config,
             agentic_rl_config=self.agentic_rl_config,
             tokenizer_name_or_path=self.tokenizer_name_or_path,
-            worker_group=worker_group
+            worker_group=worker_group,
         )
 
         sampling_params = {
@@ -100,7 +105,7 @@ class RolloutWorker:
             agentic_rl_config=self.agentic_rl_config,
             servers=servers,
             addresses=addresses,
-            agent_engine_wrapper_path=self.agentic_rl_config.agent_engine_wrapper_path
+            agent_engine_wrapper_path=self.agentic_rl_config.agent_engine_wrapper_path,
         )
 
     @staticmethod
@@ -127,9 +132,11 @@ class RolloutWorker:
         RolloutWorker._validate_param(self.generate_config, "generate_config", GenConfig)
         RolloutWorker._validate_param(self.agentic_rl_config, "agentic_rl_config", AgenticRLConfig)
         RolloutWorker._validate_param(
-            self.remove_padding_tensor_dict_to_dict, "remove_padding_tensor_dict_to_dict", Callable)
+            self.remove_padding_tensor_dict_to_dict, "remove_padding_tensor_dict_to_dict", Callable
+        )
         RolloutWorker._validate_param(
-            self.remove_padding_and_split_to_list, "remove_padding_and_split_to_list", Callable)
+            self.remove_padding_and_split_to_list, "remove_padding_and_split_to_list", Callable
+        )
         RolloutWorker._validate_param(self.n_parallel_agents, "n_parallel_agents", int, min_val=1)
         RolloutWorker._validate_param(self.max_prompt_length, "max_prompt_length", int, min_val=1)
         RolloutWorker._validate_param(self.actor_rollout_dispatch_size, "actor_rollout_dispatch_size", int, min_val=0)
@@ -144,9 +151,7 @@ class RolloutWorker:
     async def _get_batch_data(self, experience_consumer_stage, experience_columns, experience_count):
         while self.data_manager.all_consumed(experience_consumer_stage) > 0:
             batch_data, index = self.data_manager.get_data(
-                experience_consumer_stage,
-                experience_columns,
-                experience_count
+                experience_consumer_stage, experience_columns, experience_count
             )
             if not index:
                 continue
@@ -170,26 +175,26 @@ class RolloutWorker:
     def _process_trajectories(self, trajectories):
         trajectories.sort(key=lambda x: x.idx)
         final_gen_batch_output, metrics = self._transform_agent_trajectories(trajectories)
-        responses = final_gen_batch_output['responses']
-        input_ids = final_gen_batch_output['input_ids']
+        responses = final_gen_batch_output["responses"]
+        input_ids = final_gen_batch_output["input_ids"]
         pad_token_id = self.tokenizer.pad_token_id if self.tokenizer.pad_token_id else self.tokenizer.eos_token_id
         responses = self.remove_padding_and_split_to_list(responses, pad_token_id, pad_token_id)
         responses_length = [torch.tensor([len(response)]) for response in responses]
 
         outputs = {
-            'responses': responses,
-            'input_ids': input_ids,
-            'response_length': responses_length,
-            'prompt_length': final_gen_batch_output['prompt_length'],
-            'rm_scores': final_gen_batch_output["token_level_scores"],
-            'token_level_rewards': final_gen_batch_output["token_level_scores"],
-            'response_mask': final_gen_batch_output['traj_mask']
+            "responses": responses,
+            "input_ids": input_ids,
+            "response_length": responses_length,
+            "prompt_length": final_gen_batch_output["prompt_length"],
+            "rm_scores": final_gen_batch_output["token_level_scores"],
+            "token_level_rewards": final_gen_batch_output["token_level_scores"],
+            "response_mask": final_gen_batch_output["traj_mask"],
         }
         return outputs, metrics
 
     async def generate_sequences(self):
-        experience_consumer_stage = 'actor_rollout'
-        experience_columns = []
+        experience_consumer_stage = "actor_rollout"
+        experience_columns = ["prompts", "prompt_length"]
         experience_columns.extend(self.dataset_additional_keys)
         experience_count = self.actor_rollout_dispatch_size
 
@@ -198,8 +203,9 @@ class RolloutWorker:
         start_time_defined = False
 
         while True:
-            batch_data, index = await self._get_batch_data(experience_consumer_stage, experience_columns,
-                                                           experience_count)
+            batch_data, index = await self._get_batch_data(
+                experience_consumer_stage, experience_columns, experience_count
+            )
             if not index:
                 break
 
@@ -228,9 +234,29 @@ class RolloutWorker:
             if "res_reward" in k or "toolcall_reward" in k:
                 self.data_manager.update_metrics(k, value=[float(value)], cumulate=True)
 
-        self.data_manager.update_metrics("timing/rollout",
-                                         value=[round(end_time, 4), round(start_time, 4)],
-                                         cumulate=True)
+        self.data_manager.update_metrics(
+            "timing/rollout", value=[round(end_time, 4), round(start_time, 4)], cumulate=True
+        )
+
+    async def generate_sequences_verl(self, batch=None):
+        tasks = []
+        reward_model = batch.non_tensor_batch["reward_model"]
+        problems = batch.non_tensor_batch["extra_info"]
+        idx = len(batch.non_tensor_batch["extra_info"])
+
+        def launch_one_traj_task(idx: int):
+            additional_keys_dict = {"question": problems[idx]["question"]}
+            additional_keys_dict["ground_truth"] = reward_model[idx]["ground_truth"]
+            additional_keys_dict["id"] = problems[idx]["index"]
+            return additional_keys_dict
+
+        tasks = [launch_one_traj_task(i) for i in range(idx)]
+        trajectories = await self._generate_trajectories(tasks)
+        trajectories.sort(key=lambda x: x.idx)
+
+        outputs, metrics = self._transform_agent_trajectories(trajectories)
+        from verl import DataProto
+        return DataProto.from_dict(tensors=outputs), metrics
 
     def _transform_agent_trajectories(self, trajectories):
         """
@@ -242,14 +268,18 @@ class RolloutWorker:
         Returns:
             DataProto: A structured dataset containing input tokens, masks, and rewards.
         """
-        all_initial_tokens, all_response_tokens, all_masks, traj_scores, chat_completions = \
+        all_initial_tokens, all_response_tokens, all_masks, traj_scores, chat_completions = (
             self._extract_trajectory_data(trajectories)
+        )
         metrics = self.run_trajectories_perf_metric(trajectories)
 
         prompts_batch = self._pad_sequences(all_initial_tokens, left_pad=True)
         response_batch = self._pad_sequences(all_response_tokens, left_pad=False)
         input_ids_list, prompt_length_list = self._create_input_ids(all_initial_tokens, all_response_tokens)
-        traj_mask = torch.nn.utils.rnn.pad_sequence(all_masks, batch_first=True, padding_value=0)
+        if not all_masks:
+            traj_mask = torch.where(response_batch != self.tokenizer.pad_token_id, 1, 0)
+        else:
+            traj_mask = torch.nn.utils.rnn.pad_sequence(all_masks, batch_first=True, padding_value=0)
         if len(response_batch.shape) < 2 or len(prompts_batch.shape) < 2:
             raise ValueError("response_batch and prompts_batch must have at least two dimensions")
         trajectory_batch = torch.concat([prompts_batch, response_batch], dim=1)
@@ -264,17 +294,29 @@ class RolloutWorker:
             last_valid_idx = valid_response_length_sequences[i] - 1
             if 0 <= last_valid_idx < score_batch.shape[1]:
                 score_batch[i, last_valid_idx] = traj_score
-
-        tensor_batch = {
-            "input_ids": input_ids_list,
-            "prompt_length": prompt_length_list,
-            "attention_mask": attention_mask,
-            "position_ids": position_ids,
-            "responses": response_batch,
-            "prompts": prompts_batch,
-            "token_level_scores": score_batch,
-            "traj_mask": traj_mask,
-        }
+        if self.train_backend == "verl":
+            tensor_batch = {
+                "input_ids": trajectory_batch,
+                "attention_mask": attention_mask,
+                "position_ids": position_ids,
+                "responses": response_batch,
+                "prompts": prompts_batch,
+                "token_level_scores": score_batch,
+                "response_mask": traj_mask,
+            }
+        elif self.train_backend == "mindspeed_rl":
+            tensor_batch = {
+                "input_ids": input_ids_list,
+                "prompt_length": prompt_length_list,
+                "attention_mask": attention_mask,
+                "position_ids": position_ids,
+                "responses": response_batch,
+                "prompts": prompts_batch,
+                "token_level_scores": score_batch,
+                "traj_mask": traj_mask,
+            }
+        else:
+            raise ValueError(f"Unsupported train backend: {self.train_backend}")
 
         return tensor_batch, metrics
 
@@ -308,12 +350,14 @@ class RolloutWorker:
     def _pad_sequences(self, sequences, left_pad=False):
         if left_pad:
             sequences = [torch.flip(seq, dims=[0]) for seq in sequences]
-            padded = torch.nn.utils.rnn.pad_sequence(sequences, batch_first=True,
-                                                     padding_value=self.tokenizer.pad_token_id)
+            padded = torch.nn.utils.rnn.pad_sequence(
+                sequences, batch_first=True, padding_value=self.tokenizer.pad_token_id
+            )
             return padded.flip(dims=[1])
         else:
-            return torch.nn.utils.rnn.pad_sequence(sequences, batch_first=True,
-                                                   padding_value=self.tokenizer.pad_token_id)
+            return torch.nn.utils.rnn.pad_sequence(
+                sequences, batch_first=True, padding_value=self.tokenizer.pad_token_id
+            )
 
     @staticmethod
     def _create_input_ids(all_initial_tokens, all_response_tokens):
@@ -348,11 +392,13 @@ class RolloutWorker:
             values = np.array(values)
             mean, min_val, max_val = values.mean(), values.min(), values.max()
 
-            metrics.update({
-                f"traj/{key}_mean": mean,
-                f"traj/{key}_min": min_val,
-                f"traj/{key}_max": max_val,
-            })
+            metrics.update(
+                {
+                    f"traj/{key}_mean": mean,
+                    f"traj/{key}_min": min_val,
+                    f"traj/{key}_max": max_val,
+                }
+            )
 
         # Aggregate and log metrics
         for key, values in flattened_metrics.items():

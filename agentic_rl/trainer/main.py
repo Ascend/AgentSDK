@@ -138,8 +138,14 @@ def main():
 
         from agentic_rl.base.utils.ray_secure_init import ray_secure_init
         ray_envs = RayEnvVarsConfig().to_env_dict()
+        ray_envs["env_vars"]["train_backend"] = cfg.get("train_backend", "")
+        if cfg.get("train_backend") == "verl":
+            env_vars = ray_envs["env_vars"]
+            if "RAY_EXPERIMENTAL_NOSET_ASCEND_RT_VISIBLE_DEVICES" in env_vars:
+                # verl does not support RAY_EXPERIMENTAL_NOSET_ASCEND_RT_VISIBLE_DEVICES
+                del env_vars["RAY_EXPERIMENTAL_NOSET_ASCEND_RT_VISIBLE_DEVICES"]
         if ray.is_initialized():
-            logger.error(f"ray should be initialized by agentic_rl, but has already been initialized.")
+            logger.error("ray should be initialized by agentic_rl, but has already been initialized.")
             sys.exit(1)
         else:
             logger.info('start initializing local ray cluster, when the ray cluster is not initialized')
@@ -147,13 +153,15 @@ def main():
             ray_initialized_by_us = True
 
         try:
-            from agentic_rl.trainer.train_adapter.mindspeed_rl.train_agent_grpo import train
-            ray.get(train.remote(cfg))
+            from agentic_rl.trainer.train_adapter.train_registry import get_train_fn
+            train_backend = cfg.get("train_backend", "mindspeed_rl")
+            train_fn = get_train_fn(train_backend)
+            ray.get(train_fn.remote(cfg))
         except RayError as e:
-            logger.error(f"Training using mindspeed-rl failed with ray, error: {e}")
+            logger.error(f"Training using {train_backend} failed with ray, error: {e}")
             sys.exit(1)
         except Exception as e:
-            logger.error(f"Unexpected error occurred when training using mindspeed-rl, error: {e}")
+            logger.error(f"Unexpected error occurred when training using {train_backend}, error: {e}")
             sys.exit(1)
         finally:
             if ray_initialized_by_us and ray.is_initialized():
