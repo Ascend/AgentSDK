@@ -55,6 +55,7 @@
 | dataset_additional_keys   | List[str] | 设置数据集使用的字段 | 当前仅在后端为mindspeed_rl时生效，应传入一个列表，且列表中每一个值都应为字符串。
 | test_only                 | bool | 是否只进行测试而不训练                                                     |
 | test_before_train         | bool | 是否在训练前针对原始模型做测试                                             |
+| use_stepwise_advantage    | bool | 是否启用step-level模式 | 默认值为False。|
 
 
 **mindspeed-rl相关参数**
