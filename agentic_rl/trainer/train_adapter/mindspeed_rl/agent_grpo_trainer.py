@@ -484,7 +484,16 @@ class AgentGRPOTrainer(RayGRPOTrainer):
             raise RuntimeError("Unexpected error occurred when trainer put prompts experience") from e
 
     def _generate_validation(self, batch):
-        batch, index = self._put_data_experience(batch, 1)
+        new_batch_data = dict()
+
+        for key in self.dataset_additional_keys:
+            new_batch_data[key] = batch[key]
+
+        for key in new_batch_data.keys():
+            for i, value in enumerate(new_batch_data[key]):
+                new_batch_data[key][i] = torch.tensor(self.tokenizer.tokenize(value))
+
+        batch, index = self._put_data_experience(new_batch_data, 1)
         return ray.get(self.rollout_worker.generate_validation.remote(batch, index))
     
     def _validate_agent(self, data_iterator):

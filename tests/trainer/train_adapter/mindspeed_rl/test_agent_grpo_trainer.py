@@ -541,50 +541,75 @@ class TestAgentGRPOTrainer:
         import torch
         from unittest.mock import patch
 
+        batch = {
+            "a": torch.tensor([1]),
+            "b": torch.tensor([2]),
+        }
+
         with patch.object(trainer, '_put_data_experience') as mock_put, \
             patch("agentic_rl.trainer.train_adapter.mindspeed_rl.agent_grpo_trainer.ray.get") as mock_ray_get:
 
-            dummy_batch = {"input_ids": torch.tensor([[1, 2, 3]])} 
+            dummy_batch = {"input_ids": torch.tensor([[1, 2, 3]])}
             dummy_index = [0]
             mock_put.return_value = (dummy_batch, dummy_index)
-            mock_ray_get.return_value = torch.tensor([1.0])   
+            mock_ray_get.return_value = torch.tensor([1.0])
 
-            result = trainer._generate_validation({"input": "test prompt"})
+            result = trainer._generate_validation(batch)
 
-            mock_put.assert_called_once_with({"input": "test prompt"}, 1)
+            expected_batch = {"a": batch["a"], "b": batch["b"]}
+            mock_put.assert_called_once_with(expected_batch, 1)
             assert torch.equal(result, torch.tensor([1.0]))
 
     def test_generate_validation_failed_with_put_data_experience(self, agent_grpo_trainer):
         trainer, _, _ = agent_grpo_trainer
         from ray.exceptions import RayError
         from unittest.mock import patch
+        import torch
+
+        batch = {
+            "a": torch.tensor([1]),
+            "b": torch.tensor([2]),
+            "input": 1
+        }
 
         with patch.object(trainer, '_put_data_experience') as mock_put:
             mock_put.side_effect = RayError("error in data preparation")
 
             with pytest.raises(RayError):
-                trainer._generate_validation({"input": 1})
+                trainer._generate_validation(batch)
 
     def test_generate_validation_failed_with_generate_validation(self, agent_grpo_trainer):
         trainer, _, _ = agent_grpo_trainer
+        from ray.exceptions import RayError
+        import torch
+
+        batch = {
+            "a": torch.tensor([1]),
+            "b": torch.tensor([2]),
+            "input": [torch.tensor([1])]
+        }
 
         with patch("agentic_rl.trainer.train_adapter.mindspeed_rl.agent_grpo_trainer.ray.get") as mock_ray_get:
             mock_ray_get.side_effect = RayError("error")
 
             with pytest.raises(RayError):
-                trainer._generate_validation({"input": [torch.Tensor([1])]})
+                trainer._generate_validation(batch)
 
     def test_validate_agent_success(self, agent_grpo_trainer):
         trainer, _, _ = agent_grpo_trainer
         import torch
+
+        data_iter = iter([
+            {"a": 1, "b": 2},
+            {"a": 3, "b": 4}
+        ])
 
         with patch.object(trainer, "_generate_validation") as mock_generate:
             mock_generate.side_effect = [
                 torch.tensor([1.0]),
                 torch.tensor([3.0])
             ]
-
-            result = trainer._validate_agent(iter([{"a": 1}, {"a": 2}]))
+            result = trainer._validate_agent(data_iter)
 
             assert "test score" in result
             assert result["test score"] == 2.0  # mean([1,3])
