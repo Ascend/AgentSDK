@@ -2,7 +2,7 @@
 
 ## 获取安装包<a name="ZH-CN_TOPIC_0000002459514672"></a>
 
-请参考本章获取所需软件包和对应的数字签名文件，下载本软件即表示同意[华为企业业务最终用户许可协议（EULA）](https://e.huawei.com/cn/about/eula)的条款和条件。
+请参考本章获取所需软件包和对应的数字签名文件。
 
 **表 1**  软件包
 
@@ -69,8 +69,6 @@ Python 3.11.13
 ### 安装NPU驱动固件和CANN<a name="ZH-CN_TOPIC_0000002459514664"></a>
 
 **下载依赖软件包<a name="section119752030133014"></a>**
-
-下载本软件即表示同意[华为企业业务最终用户许可协议（EULA）](https://e.huawei.com/cn/about/eula)的条款和条件。
 
 **表 1**  软件包清单
 
@@ -210,7 +208,7 @@ export PYTHONPATH=$PYTHONPATH:/home/third-party/Megatron-LM/:/home/third-party/M
 -   安装和运行Agent SDK的用户建议为普通用户。
 -   安装和运行Agent SDK的用户需为同一用户。
 -   安装CANN（toolkit, nnal）、NPU驱动固件和安装Agent SDK的用户需为同一用户，建议为普通用户。
--   软件包的安装、升级、卸载及版本查询相关的日志会保存至“\~/log/AgentSDK/deployment.log“文件；完整性校验、提取文件、tar命令访问相关的日志会保存至“\~/log/makeself/makeself.log“文件。用户可查看相应文件，完成后续的日志跟踪及审计。
+-   软件包的安装、升级、卸载及版本查询相关的日志会保存至“\~/log/AgentSDK/deployment.log”文件；完整性校验、提取文件、tar命令访问相关的日志会保存至“\~/log/makeself/makeself.log”文件。用户可查看相应文件，完成后续的日志跟踪及审计。
 
 **安装步骤<a name="section12327567584"></a>**
 
@@ -272,10 +270,8 @@ export PYTHONPATH=$PYTHONPATH:/home/third-party/Megatron-LM/:/home/third-party/M
     ```
     ./Ascend-mindsdk-agentsdk_7.3.0_linux-aarch64.run --upgrade
     ```
-
-4.  升级过程中提示Do you accept the EULA to upgrade Agent SDK?时，输入Y或y，表示同意EULA协议，继续进行升级；输入其他字符时停止升级，退出程序。
-5.  升级过程中提示Do you want to upgrade by removing the old installation?时，输入Y或者y，表示同意删除旧的安装，继续进行升级；输入其他字符时停止升级，退出程序。
-6.  执行如下命令可查询版本升级记录。
+4.  升级过程中提示Do you want to upgrade by removing the old installation?时，输入Y或者y，表示同意删除旧的安装，继续进行升级；输入其他字符时停止升级，退出程序。
+5.  执行如下命令可查询版本升级记录。
 
     ```
     cd ~/log/AgentSDK/
