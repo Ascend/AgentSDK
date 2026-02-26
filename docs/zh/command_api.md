@@ -199,6 +199,4 @@ verl:
   experiment_name: default-experiment
   train_files: /data/gsm8k/train.parquet
   val_files: /data/gsm8k/test.parquet
-  critic_model_path: /data/models/qwen/Qwen2.5-7B-Instruct
-  reward_model_path: /data/models/qwen/Qwen2.5-7B-Instruct
 ```
