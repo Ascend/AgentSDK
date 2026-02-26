@@ -94,6 +94,127 @@ class StepTrajectory(Trajectory):
 
 ## 功能函数参考<a name="ZH-CN_TOPIC_0000002492554185"></a>
 
+### MemoryConfig<a name="ZH-CN_TOPIC_0000002468333046"></a>
+
+#### 类描述<a name="ZH-CN_TOPIC_0000002516415135"></a>
+
+**功能描述<a name="section8910541196"></a>**
+
+MemoryConfig类管理内存配置。包括： 去think压缩（思维简化），摘要生成和上下文窗口管理以及聊天和嵌入的模型端点。
+
+**参数说明<a name="section2028115207207"></a>**
+
+| 参数名                        | 类型     | 说明                                                                                                                                 | 取值                                                                 |
+|----------------------------|--------|------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------|
+| simplify_thinking          | bool   | 是否从消息中简化思考内容。                                                                                                                      | 默认为False。                                                          |
+| use_summary                | bool   | 启用对话历史的自动摘要功能。                                                                                                                     | 默认为False。                                                          |
+| max_summary_length         | int    | 生成摘要的最大长度（以token为单位）。                                                                                                              | 默认为1024，取值范围：[1, max_prompt_length]。                               |
+| max_prompt_length          | int    | 包括上下文在内的提示词的最大总长度（以token为单位）。                                                                                                      | 默认为8192，取值范围：[1, 128K]。                                            |
+| before_raw_message         | int    | 保留头部不受影响的初始消息数量，范围内的消息不受摘要/思考内容简化的影响。                                                                                              | 取值必须大于等于0，默认为0。                                                    |
+| end_raw_message            | int    | 保留尾部不受影响的初始消息数量，范围内的消息不受摘要/思考内容简化的影响。                                                                                              | 取值必须小于等于0，默认为0。                                                    |
+| summary_system_prompt      | str    | 用于生成摘要的系统提示模板。                                                                                                                     | 固定字符串，具体值如下实例所示。                                                   |
+| oai_client                 | OpenAI | 用于摘要生成的OpenAI客户端。                                                                                                                  | 默认为空。                                                              |
+| oai_model_name             | str    | 用于摘要生成的OpenAI模型名称。                                                                                                                 | 默认为qwen2.5-7b-instruct。                                            |
+| train_model_tokenizer_path | str    | 用于计算上下文大小的tokenizer路径。                                                                                                             | 默认为空字符串。                                                           |
+| model_config               | dict   | 利用Pydantic的能力在赋值时提供校验。validate_assignment为True确保对象创建后的完整性，在赋值后会检查该值是否符合字段的类型和约束条件；arbitrary_types_allowed为True表示允许任意类型的数据作为模型的字段值。 | 默认为{"validate_assignment": True, "arbitrary_types_allowed": True}。 |
+
+summary_system_prompt具体模板如下：
+```
+Please act as a summarization assistant to provide a precise and comprehensive summary of the specified content. The summary should meet the following requirements:
+1. **Core Objective**: Extract the core information of the content, retain all key details (such as important data, viewpoints, time, characters, conclusions, etc.), and remove redundant information to ensure the summary is both concise and complete.
+2. **Structural Requirements**:
+- Begin with 1-2 sentences summarizing the content theme or core conclusion;
+- List key information (such as main viewpoints, important events, data indicators, etc.) in bullet points, each containing specific details (avoid general statements);
+- Conclude with the impact of the content, follow-up recommendations, or unresolved issues (if applicable).
+3. **Detail Specifications**:
+- Retain key terms, numerical values, and proper nouns (such as names of people, places, institutions) from the original text without alteration or abbreviation;
+- If the content involves a timeline, organize key events in chronological order;
+- If the content includes multiple viewpoints, clearly distinguish the positions of different entities;
+- Avoid adding personal interpretations to maintain the objectivity of the summary.
+4. **Length Recommendation**: The summary should not exceed {max_summary_length} tokens.
+Please summarize the following dialogue content based on the above requirements.
+```
+
+### MemorySummary<a name="ZH-CN_TOPIC_0000002468333046"></a>
+
+#### 类描述<a name="ZH-CN_TOPIC_0000002516415135"></a>
+
+**功能描述<a name="section8910541196"></a>**
+
+MemorySummary类提供自动对话摘要的内存管理，继承于MemorySimple，当上下文超出配置限制时，提供自动摘要功能。
+
+**参数说明<a name="section2028115207207"></a>**
+
+| 参数名         | 类型            | 说明                 | 取值     |
+|-------------|---------------|--------------------|--------|
+| chat_client | SummaryClient | 用于摘要生成的OpenAI客户端。  | 默认为空。  |
+
+#### get\_prompt\_messages<a name="ZH-CN_TOPIC_0000002501573019"></a>
+
+**功能描述<a name="section142771553125211"></a>**
+
+获取格式化消息以便生成提示并自动进行摘要。
+
+**函数原型<a name="section179371655641"></a>**
+
+```
+get_prompt_messages(config: dict | None = None) -> List[dict]
+```
+
+**参数说明<a name="section868816556614"></a>**
+
+| 参数名    | 数据类型 | 可选/必选 | 描述   |
+|--------|------|-------|------|
+| config | dict | 可选    | 配置参数 |
+
+类MemorySummary定义的方法get\_prompt\_messages其输入参数config待更新的配置字典或对象属性。
+
+**返回值说明<a name="section246545519364"></a>**
+
+List\[dict\]是一个非空列表，列表中的每个元素均为字典，形如：{"role": "user", "content": "hello"}，其中role的取值范围是["system", "user", "assistant", "tool", "summary"], content为非空字符串。
+具体示例如下：
+
+| 键        | 描述       |
+|----------|----------|
+| role     | 产生上下文的角色 |
+| content  | 具体上下文信息  |
+
+
+**示例<a name="section1556916138163"></a>**
+
+```
+class MemorySummary(MemorySimple):
+
+    @validate_params(
+        config=dict(
+            validator=lambda x: isinstance(x, dict) or x is None, message="config must be a dictionary or None"
+        )
+    )
+    def get_prompt_messages(self, config: dict | None = None) -> list[dict]:
+       
+        if config is not None:
+            self.update_config(config)
+
+        messages = self._get_effective_messages()
+
+        if self.config.use_summary and self._is_overlength(messages):
+            logger.info("Prompt length exceeds max_prompt_length, triggering summarization.")
+            messages = self._handle_overlength()
+
+        final_messages = self._format_summary_message(messages)
+
+        final_messages = self._apply_thinking_filter(final_messages)
+
+        if self._is_overlength(final_messages):
+            logger.warning(
+                f"PROMPT_TRUNCATION: Prompt length ({self._get_total_length(final_messages)}) "
+                f"exceeds max_prompt_length ({self.config.max_prompt_length})"
+            )
+
+        return MemorySimple._remove_message_other_key(final_messages)
+```
+
+
 ### BaseEngineWrapper<a name="ZH-CN_TOPIC_0000002468333046"></a>
 
 #### 类描述<a name="ZH-CN_TOPIC_0000002516415135"></a>
