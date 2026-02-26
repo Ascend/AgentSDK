@@ -20,5 +20,7 @@ See the Mulan PSL v2 for more details.
 __version__ = "0.0.0"
 
 from agentic_rl.runner import Trajectory, BaseEngineWrapper, StepTrajectory, Step
+from agentic_rl.memory.memory_config import MemoryConfig
+from agentic_rl.memory.memory_summary import MemorySummary
 
-__all__ = ['Trajectory', 'BaseEngineWrapper', 'StepTrajectory', 'Step']
+__all__ = ['Trajectory', 'BaseEngineWrapper', 'StepTrajectory', 'Step', "MemoryConfig", "MemorySummary"]
