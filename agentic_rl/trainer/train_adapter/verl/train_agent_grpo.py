@@ -42,7 +42,9 @@ class VerlActorRolloutRefWorker(ActorRolloutRefWorker):
         self.train_pipeline_parallel_size = kwargs.get('train_pipeline_parallel_size', 1) 
         self.train_expert_parallel_size = kwargs.get('train_expert_parallel_size', 1)
         self.train_context_parallel_size = kwargs.get('train_context_parallel_size', 1)
-
+        # verl 0.6.0 support infer_pipeline_parallel_size, infer_expert_parallel_size
+        self.infer_pipeline_parallel_size = 1 # Default value set to 1
+        self.infer_expert_parallel_size = 1 # Default value set to 1
         super().__init__(config, role, **kwargs)
 
     def _build_rollout(self, trust_remote_code=False):
