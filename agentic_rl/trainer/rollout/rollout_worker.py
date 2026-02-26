@@ -214,7 +214,7 @@ class RolloutWorker:
 
     async def generate_sequences(self):
         experience_consumer_stage = "actor_rollout"
-        experience_columns = ["prompts", "prompt_length"]
+        experience_columns = []
         experience_columns.extend(self.dataset_additional_keys)
         experience_count = self.actor_rollout_dispatch_size
 
