@@ -531,7 +531,7 @@ class TrajectoryChecker:
         if metrics['steps'] < 0:
             raise ValueError("metric steps must be non-negative")
 
-        for key in current_keys - {'steps', 'toolcall_reward', 'res_reward'}:
+        for key in current_keys - {'steps', 'env_time', 'llm_time', 'toolcall_reward', 'res_reward'}:
             if metrics[key] is not None and not isinstance(metrics[key], (int, float)):
                 raise TypeError(f"metric {key} must be a number or None, got {type(metrics[key]).__name__}")
 

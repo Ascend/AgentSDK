@@ -44,7 +44,7 @@ def apply_patch():
     RayActorGroup.update_actor_update_dispatch_size = update_actor_update_dispatch_size
     RayActorGroup.update_mini_batch_size = group_update_mini_batch_size
 
-    StandardLogProbComputer.computer = compute
+    StandardLogProbComputer.compute = compute
     GRPOActorLossFunc._get_policy_loss_input = get_policy_loss_input_patch
     ms_compute_utils.compute_group_norm_advantage_return = compute_group_norm_advantage_return_patch
     base_worker.get_current_node_ip = get_current_node_ip_patch
