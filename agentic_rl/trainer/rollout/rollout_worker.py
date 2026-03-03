@@ -364,7 +364,7 @@ class RolloutWorker:
         position_ids = (torch.cumsum(attention_mask, dim=1) - 1) * attention_mask
 
         score_batch = torch.zeros_like(response_batch, dtype=torch.float32)
-        prompt_length = response_batch.shape[1]
+        prompt_length = prompts_batch.shape[1]
         valid_response_length_sequences = attention_mask[:, prompt_length:].sum(dim=-1)
 
         if self.use_stepwise_advantage:

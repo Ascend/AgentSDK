@@ -20,15 +20,14 @@ See the Mulan PSL v2 for more details.
 
 from typing import Dict, Any
 from omegaconf import OmegaConf
- 
+
 from mindspeed_rl import MegatronConfig, GenerateConfig, RLConfig
 from mindspeed_rl.config_cls.validate_config import validate_rl_args
- 
+
 from agentic_rl.configs.agentic_rl_config import AgenticRLConfig
 from agentic_rl.trainer.train_adapter.parse_config import ConfigParser
 from agentic_rl.base.utils.checker import validate_params
- 
- 
+
 MODEL_CONFIGS: Dict[str, Dict[str, Any]] = {
     "qwen2.5-7b": {
         "use_mcore_models": True,
@@ -71,16 +70,38 @@ MODEL_CONFIGS: Dict[str, Dict[str, Any]] = {
         "swiglu": True,
         "attention_softmax_in_fp32": True,
     },
+    "qwen3-4b": {
+        "use_mcore_models": True,
+        "num_layers": 36,
+        "hidden_size": 2560,
+        "ffn_hidden_size": 9728,
+        "num_attention_heads": 32,
+        "rotary_base": 1000000,
+        "max_position_embeddings": 40960,
+        "make_vocab_size_divisible_by": 1,
+        "padded_vocab_size": 151936,
+        "untie_embeddings_and_output_weights": False,
+        "add_qkv_bias": False,
+        "qk_layernorm": True,
+        "disable_bias_linear": True,
+        "group_query_attention": True,
+        "num_query_groups": 8,
+        "position_embedding_type": "rope",
+        "normalization": "RMSNorm",
+        "swiglu": True,
+        "attention_softmax_in_fp32": True,
+        "kv_channels": 128,
+    }
 }
- 
- 
+
+
 def _gen_megatron_config(config: Dict[str, Any]) -> MegatronConfig:
     model_name = config.get("model_name")
     if model_name not in MODEL_CONFIGS:
         raise ValueError(f"Model {model_name} is not supported. Expected models: {list(MODEL_CONFIGS.keys())}")
- 
+
     ms_config = config.get("mindspeed_rl", {})
- 
+
     training_params = {
         "model": model_name,
         "use_fused_rmsnorm": True, "use_mcore_models": True, "sequence_parallel": True, "use_flash_attn": True,
@@ -102,17 +123,17 @@ def _gen_megatron_config(config: Dict[str, Any]) -> MegatronConfig:
         "finetune": True, "load": ms_config.get("load_params_path"), "save": ms_config.get("save_params_path"),
         "no_load_optim": True, "no_load_rng": True,
     }
- 
+
     megatron_config = MegatronConfig(
         training_config=OmegaConf.create(training_params),
         model_config=OmegaConf.create({model_name: MODEL_CONFIGS[model_name]}),
     )
     return megatron_config
- 
- 
+
+
 def _gen_rl_config(config: Dict[str, Any]) -> RLConfig:
     ms_config = config.get("mindspeed_rl", {})
- 
+
     rl_config = RLConfig(
         OmegaConf.create(
             {
@@ -147,8 +168,8 @@ def _gen_rl_config(config: Dict[str, Any]) -> RLConfig:
         )
     )
     return rl_config
- 
- 
+
+
 def _gen_generate_config(config: Dict[str, Any]) -> GenerateConfig:
     generate_config = GenerateConfig(
         OmegaConf.create(
@@ -180,8 +201,8 @@ def _gen_generate_config(config: Dict[str, Any]) -> GenerateConfig:
         )
     )
     return generate_config
- 
- 
+
+
 class MSRLConfigParser(ConfigParser):
     """Parses and transforms configuration for the MindSpeed-RL training backend."""
 
@@ -193,12 +214,12 @@ class MSRLConfigParser(ConfigParser):
     )
     def __init__(self, config: Dict[str, Any]):
         super().__init__(config)
- 
+
     def process_config(self) -> Dict[str, Any]:
         """Process and validate the configuration."""
         global_config = self._validate_config()
         config_dict = global_config.model_dump()
- 
+
         agentic_rl_config = AgenticRLConfig()
         agentic_rl_config.agent_name = global_config.agent_name
         agentic_rl_config.agent_engine_wrapper_path = global_config.agent_engine_wrapper_path
@@ -206,18 +227,19 @@ class MSRLConfigParser(ConfigParser):
         agentic_rl_config.test_only = global_config.test_only
         agentic_rl_config.test_before_train = global_config.test_before_train
         agentic_rl_config.test_data_path = global_config.mindspeed_rl.test_data_path
+        agentic_rl_config.max_steps = global_config.max_steps
 
         actor_config = _gen_megatron_config(config_dict)
         ref_config = actor_config
         reward_config = actor_config
         rl_config = _gen_rl_config(config_dict)
         generate_config = _gen_generate_config(config_dict)
- 
-        try: 
+
+        try:
             validate_rl_args(actor_config, ref_config, reward_config, rl_config, generate_config)
         except ValueError as e:
             raise ValueError(f"Config validation error: {e}") from e
- 
+
         return {
             "agentic_rl_config": agentic_rl_config,
             "actor_config": actor_config,
