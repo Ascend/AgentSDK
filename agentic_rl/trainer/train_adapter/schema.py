@@ -58,7 +58,7 @@ class MindspeedRLConfig(BaseConfig):
         "tensor_model_parallel_size",
         "pipeline_model_parallel_size",
         "global_batch_size",
-        "actor_rollout_dispatch_size"
+        "actor_rollout_dispatch_size",
     )
     @classmethod
     def validate_positive(cls, v):
@@ -215,6 +215,7 @@ class GlobalConfig(BaseConfig):
     agent_engine_wrapper_path: str
     train_backend: Literal["mindspeed_rl", "verl"]
     use_stepwise_advantage: bool = False
+    max_steps: int = 5
     use_tensorboard: bool = False
     test_before_train: bool = False
     test_only: bool = False
@@ -304,6 +305,7 @@ class GlobalConfig(BaseConfig):
         "max_num_batched_tokens",
         "max_tokens",
         "max_prompt_length",
+        "max_steps",
     )
     @classmethod
     def validate_positive(cls, v):

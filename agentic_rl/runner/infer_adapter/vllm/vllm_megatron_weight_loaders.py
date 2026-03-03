@@ -38,6 +38,8 @@ class VllmMegatronWeightLoaders(BaseMegatronWeightLoader):
                                        BaseMegatronWeightLoader.qwen_megatron_weight_loader)
             self.register_model_loader("Qwen3ForCausalLM",
                                        BaseMegatronWeightLoader.qwen_megatron_weight_loader)
+            self.register_model_loader("CustomQwen3ForCausalLM",
+                                       BaseMegatronWeightLoader.qwen_megatron_weight_loader)
         except (AttributeError, TypeError) as e:
             raise RuntimeError(f"Failed to register model loaders: {e}") from e
 

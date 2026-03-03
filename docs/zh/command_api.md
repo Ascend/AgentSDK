@@ -52,10 +52,11 @@
 | max_prompt_length         | int | 最大提示词长度 | 默认值为2048，应为大于0的正整数，当前最大支持至128K。|
 | rollout_n                 | int | 每一轮rollout阶段生成回复的数量 | 默认值为2，应为大于0且不超过64的正整数。|
 | use_tensorboard           | bool | 是否启用tensorboard | 默认值为False。|
-| dataset_additional_keys   | List[str] | 设置数据集使用的字段 | 当前仅在后端为mindspeed_rl时生效，应传入一个列表，且列表中每一个值都应为字符串。
-| test_only                 | bool | 是否只进行测试而不训练                                                     |
-| test_before_train         | bool | 是否在训练前针对原始模型做测试                                             |
-| use_stepwise_advantage    | bool | 是否启用step-level模式 | 默认值为False。|
+| dataset_additional_keys   | List[str] | 设置数据集使用的字段 | 当前仅在后端为mindspeed_rl时生效，应传入一个列表，且列表中每一个值都应为字符串。 |
+| max_steps                 | int | 轨迹的最大回答次数 | 默认值为5，应为大于0的正整数。 |
+| test_only                 | bool | 是否只进行测试而不训练 | 默认值为False。 |
+| test_before_train         | bool | 是否在训练前针对原始模型做测试 | 默认值为False。 |
+| use_stepwise_advantage    | bool | 是否启用step-level模式 | 默认值为False。 |
 
 
 **mindspeed-rl相关参数**

@@ -458,6 +458,7 @@ class AgentActorHybridWorkerBase(ActorHybridWorkerBase):
         except Exception as e:
             raise Exception("Unexpected error occurred when actor worker get data parallel range indexes") from e
 
+        self.start_time_defined = False
         while self.all_consumed(experience_consumer_stage, sorted_indexes) > 0:
             self._do_update(kl_ctrl, experience_consumer_stage, experience_columns, experience_count, sorted_indexes)
 

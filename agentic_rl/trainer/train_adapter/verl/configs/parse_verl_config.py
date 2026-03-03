@@ -251,6 +251,7 @@ class VerlConfigParser(ConfigParser):
         agentic_rl_config.agent_engine_wrapper_path = global_config.agent_engine_wrapper_path
         agentic_rl_config.train_backend = global_config.train_backend
         agentic_rl_config.load_format = 'auto'
+        agentic_rl_config.max_steps = global_config.max_steps
  
         input_config: Dict[str, Any] = global_config.model_dump()
  

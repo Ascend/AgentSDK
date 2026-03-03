@@ -95,3 +95,4 @@ agentic_rl --config-path /your_config_directory_path/your_config_file_name.yaml
 ## 更多Agent场景实践<a name="ZH-CN_TOPIC_0000002492554189"></a>
 - 数学 Math Agent 请参考：[数学](math_agent.md)
 - 网络搜索 Web Search Agent 请参考：[Web 搜索](websearch_agent.md)
+- Meta ARE Gaia2 请参考：[Meta-ARE](meta_are.md)
