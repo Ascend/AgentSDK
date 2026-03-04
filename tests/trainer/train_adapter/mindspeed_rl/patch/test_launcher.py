@@ -159,3 +159,117 @@ class TestLauncher:
             test_actor.worker.options.side_effect = ValueError("test")
             with pytest.raises(RuntimeError, match="Unexpected error occurred when create actor"):
                 create_actor_handlers_patch(test_actor, param)
+
+    def test_update_ref_dispatch_size_success(self, test_actor, patch_modules):
+        from agentic_rl.trainer.train_adapter.mindspeed_rl.patch.launcher import update_ref_dispatch_size
+        test_actor.actor_handlers = [MagicMock(), MagicMock()]
+        batch_len = 32
+        expected_result = ["result1", "result2"]
+        for i, actor in enumerate(test_actor.actor_handlers):
+            actor.update_ref_dispatch_size.remote.return_value = expected_result[i]
+        with patch("agentic_rl.trainer.train_adapter.mindspeed_rl.patch.launcher.ray.get") as mock_ray_get:
+            mock_ray_get.return_value = expected_result
+            result = update_ref_dispatch_size(test_actor, batch_len)
+            assert result == expected_result
+            for actor in test_actor.actor_handlers:
+                actor.update_ref_dispatch_size.remote.assert_called_once_with(batch_len)
+
+    def test_update_ref_dispatch_size_invalid_batch_len(self, test_actor, patch_modules):
+        from agentic_rl.trainer.train_adapter.mindspeed_rl.patch.launcher import update_ref_dispatch_size
+        test_actor.actor_handlers = []
+        with pytest.raises(ValueError, match="batch_len should be int type"):
+            update_ref_dispatch_size(test_actor, "invalid")
+
+    def test_update_actor_logprob_dispatch_size_success(self, test_actor, patch_modules):
+        from agentic_rl.trainer.train_adapter.mindspeed_rl.patch.launcher import update_actor_logprob_dispatch_size
+        test_actor.actor_handlers = [MagicMock(), MagicMock()]
+        batch_len = 64
+        expected_result = ["result1", "result2"]
+        for i, actor in enumerate(test_actor.actor_handlers):
+            actor.update_actor_logprob_dispatch_size.remote.return_value = expected_result[i]
+        with patch("agentic_rl.trainer.train_adapter.mindspeed_rl.patch.launcher.ray.get") as mock_ray_get:
+            mock_ray_get.return_value = expected_result
+            result = update_actor_logprob_dispatch_size(test_actor, batch_len)
+            assert result == expected_result
+            for actor in test_actor.actor_handlers:
+                actor.update_actor_logprob_dispatch_size.remote.assert_called_once_with(batch_len)
+
+    def test_update_actor_logprob_dispatch_size_invalid_batch_len(self, test_actor, patch_modules):
+        from agentic_rl.trainer.train_adapter.mindspeed_rl.patch.launcher import update_actor_logprob_dispatch_size
+        test_actor.actor_handlers = []
+        with pytest.raises(ValueError, match="batch_len should be int type"):
+            update_actor_logprob_dispatch_size(test_actor, 3.14)
+
+    def test_update_actor_update_dispatch_size_success(self, test_actor, patch_modules):
+        from agentic_rl.trainer.train_adapter.mindspeed_rl.patch.launcher import update_actor_update_dispatch_size
+        test_actor.actor_handlers = [MagicMock(), MagicMock()]
+        batch_len = 128
+        expected_result = ["result1", "result2"]
+        for i, actor in enumerate(test_actor.actor_handlers):
+            actor.update_actor_update_dispatch_size.remote.return_value = expected_result[i]
+        with patch("agentic_rl.trainer.train_adapter.mindspeed_rl.patch.launcher.ray.get") as mock_ray_get:
+            mock_ray_get.return_value = expected_result
+            result = update_actor_update_dispatch_size(test_actor, batch_len)
+            assert result == expected_result
+            for actor in test_actor.actor_handlers:
+                actor.update_actor_update_dispatch_size.remote.assert_called_once_with(batch_len)
+
+    def test_update_actor_update_dispatch_size_invalid_batch_len(self, test_actor, patch_modules):
+        from agentic_rl.trainer.train_adapter.mindspeed_rl.patch.launcher import update_actor_update_dispatch_size
+        test_actor.actor_handlers = []
+        with pytest.raises(ValueError, match="batch_len should be int type"):
+            update_actor_update_dispatch_size(test_actor, None)
+
+    def test_update_mini_batch_size_success(self, test_actor, patch_modules):
+        from agentic_rl.trainer.train_adapter.mindspeed_rl.patch.launcher import update_mini_batch_size
+        test_actor.actor_handlers = [MagicMock(), MagicMock()]
+        original_n_samples = 10
+        new_samples = 20
+        use_stepwise = True
+        expected_result = ["result1", "result2"]
+        for i, actor in enumerate(test_actor.actor_handlers):
+            actor.update_mini_batch_size.remote.return_value = expected_result[i]
+        with patch("agentic_rl.trainer.train_adapter.mindspeed_rl.patch.launcher.ray.get") as mock_ray_get:
+            mock_ray_get.return_value = expected_result
+            result = update_mini_batch_size(test_actor, original_n_samples, new_samples, use_stepwise)
+            assert result == expected_result
+            for actor in test_actor.actor_handlers:
+                actor.update_mini_batch_size.remote.assert_called_once_with(
+                    original_n_samples, new_samples, use_stepwise
+                )
+
+    def test_update_mini_batch_size_without_stepwise_advantage(self, test_actor, patch_modules):
+        from agentic_rl.trainer.train_adapter.mindspeed_rl.patch.launcher import update_mini_batch_size
+        test_actor.actor_handlers = [MagicMock()]
+        original_n_samples = 10
+        new_samples = 15
+        use_stepwise = False
+        expected_result = ["result"]
+        test_actor.actor_handlers[0].update_mini_batch_size.remote.return_value = expected_result[0]
+        with patch("agentic_rl.trainer.train_adapter.mindspeed_rl.patch.launcher.ray.get") as mock_ray_get:
+            mock_ray_get.return_value = expected_result
+            result = update_mini_batch_size(test_actor, original_n_samples, new_samples, use_stepwise)
+            assert result == expected_result
+            test_actor.actor_handlers[0].update_mini_batch_size.remote.assert_called_once_with(
+                original_n_samples, new_samples, use_stepwise
+            )
+
+    def test_update_mini_batch_size_invalid_original_samples(self, test_actor, patch_modules):
+        from agentic_rl.trainer.train_adapter.mindspeed_rl.patch.launcher import update_mini_batch_size
+        test_actor.actor_handlers = []
+        with pytest.raises(ValueError,
+                           match="original_n_samples_per_prompt and new_samples_per_prompt should be int type"):
+            update_mini_batch_size(test_actor, "invalid", 20, True)
+
+    def test_update_mini_batch_size_invalid_new_samples(self, test_actor, patch_modules):
+        from agentic_rl.trainer.train_adapter.mindspeed_rl.patch.launcher import update_mini_batch_size
+        test_actor.actor_handlers = []
+        with pytest.raises(ValueError,
+                           match="original_n_samples_per_prompt and new_samples_per_prompt should be int type"):
+            update_mini_batch_size(test_actor, 10, 3.14, True)
+
+    def test_update_mini_batch_size_invalid_stepwise_flag(self, test_actor, patch_modules):
+        from agentic_rl.trainer.train_adapter.mindspeed_rl.patch.launcher import update_mini_batch_size
+        test_actor.actor_handlers = []
+        with pytest.raises(ValueError, match="use_stepwise_advantage should be bool type"):
+            update_mini_batch_size(test_actor, 10, 20, "True")
