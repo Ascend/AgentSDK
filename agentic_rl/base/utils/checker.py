@@ -143,7 +143,7 @@ class CompletionRequestChecker:
     CHAT_ALLOWED_FIELDS = {
         "messages", "n", "temperature", "top_k", "top_p", "min_p",
         "max_tokens", "min_tokens", "logprobs", "detokenize",
-        "seed", "presence_penalty", "frequency_penalty",
+        "seed", "presence_penalty", "frequency_penalty", "model", "stream",
     }
 
     @staticmethod
