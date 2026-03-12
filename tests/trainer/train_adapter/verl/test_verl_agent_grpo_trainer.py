@@ -716,6 +716,9 @@ class TestAgentGRPOTrainer:
         trainer.use_reference_policy = False
         trainer.config.trainer.critic_warmup = 0
         trainer.global_steps = 1
+        # Ensure worker health check passes by providing a mock rollout worker
+        trainer.rollout_worker = MagicMock()
+        trainer.rollout_worker.wait_init_finished.remote.return_value = None
         trainer.actor_rollout_wg = MagicMock()
         batch = MockDataProto()
         metrics = {}
@@ -728,6 +731,7 @@ class TestAgentGRPOTrainer:
         with (
             patch("agentic_rl.trainer.train_adapter.verl.agent_grpo_trainer.reduce_metrics") as mock_reduce,
             patch("agentic_rl.trainer.train_adapter.verl.agent_grpo_trainer.marked_timer") as mock_timer,
+            patch("ray.get") as mock_ray_get,
         ):
 
             def side_effect_function(x):
@@ -736,6 +740,10 @@ class TestAgentGRPOTrainer:
             mock_reduce.side_effect = side_effect_function
             mock_timer.return_value.__enter__ = MagicMock()
             mock_timer.return_value.__exit__ = MagicMock()
+            # Simulate successful worker health check; accept timeout kwarg
+            def fake_ray_get(obj, timeout=None):
+                return obj
+            mock_ray_get.side_effect = fake_ray_get
 
             trainer._update_actor_and_critic(batch, metrics, timing_raw)
             trainer.actor_rollout_wg.update_actor.assert_called_once_with(batch)

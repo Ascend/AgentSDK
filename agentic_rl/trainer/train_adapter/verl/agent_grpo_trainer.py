@@ -6,6 +6,7 @@ from functools import reduce
 import os
 import math
 import uuid
+import asyncio
 import torch
 import ray
 import numpy as np
@@ -192,6 +193,35 @@ class AgentGRPOTrainer(RayPPOTrainer):
             logger.error(f"Unexpected error occurred when init rollout worker: {e}")
             raise e
 
+    def _check_worker_health(self):
+        """Check health of all workers"""
+        try:
+            # Check rollout worker health
+            ray.get(self.rollout_worker.wait_init_finished.remote(), timeout=10)
+            logger.info("Rollout worker health check passed")
+            return True
+        except Exception as e:
+            logger.error(f"Worker health check failed: {e}")
+            return False
+    
+    def _check_numerical_stability(self, batch):
+        """Check for numerical stability issues in batch data"""
+        try:
+            for key, value in batch.batch.items():
+                if isinstance(value, torch.Tensor):
+                    if torch.isnan(value).any():
+                        logger.error(f"NaN values found in {key}")
+                        return False
+                    if torch.isinf(value).any():
+                        logger.error(f"Infinite values found in {key}")
+                        return False
+                    if key == "token_level_scores" and value.std().item() < 1e-6:
+                        logger.warning("Very low reward variance detected")
+            return True
+        except Exception as e:
+            logger.error(f"Numerical stability check failed: {e}")
+            return False
+
     @staticmethod
     def _check_args(
         tokenizer, role_worker_mapping, resource_pool_manager, ray_worker_group_cls, agentic_configs
@@ -363,6 +393,18 @@ class AgentGRPOTrainer(RayPPOTrainer):
 
         # Compute rewards with KL penalty if needed
         batch.batch["token_level_rewards"] = batch.batch["token_level_scores"]
+        # Safeguard: when all rewards are zero, record this in meta_info so
+        # that the actor update can be skipped for this step to avoid
+        # reinforcing a collapsed policy or triggering unstable updates on
+        # degenerate batches.
+        reward_tensor = batch.batch["token_level_scores"]
+        if isinstance(reward_tensor, torch.Tensor):
+            all_rewards_zero = reward_tensor.numel() > 0 and reward_tensor.max().item() == 0
+        else:
+            all_rewards_zero = False
+        if batch.meta_info is None:
+            batch.meta_info = {}
+        batch.meta_info["all_rewards_zero"] = all_rewards_zero
         # Compute advantages
         batch = compute_advantage(
             batch,
@@ -382,16 +424,69 @@ class AgentGRPOTrainer(RayPPOTrainer):
             critic_output_metrics = reduce_metrics(critic_output.meta_info["metrics"])
             metrics.update(critic_output_metrics)
 
-        # Update actor
+        # Only update actor if enough steps have elapsed since critic warmup
         if self.config.trainer.critic_warmup <= self.global_steps:
-            with marked_timer("update_actor", timing_raw):
-                actor_output = self.actor_rollout_wg.update_actor(batch)
-            actor_output_metrics = reduce_metrics(actor_output.meta_info["metrics"])
-            metrics.update(actor_output_metrics)
+            skip_actor = batch.meta_info.get("all_rewards_zero", False)
+            if skip_actor:
+                logger.warning(
+                    f"Train step {self.global_steps}: skipping actor update because all rewards in batch are zero."
+                )
+                return
 
-        if self._should_save_checkpoint():
-            with marked_timer("save_checkpoint", timing_raw):
-                self._save_checkpoint()
+            # Check worker health
+            if not self._check_worker_health():
+                logger.error(f"Train step {self.global_steps}: Worker health check failed, skipping actor update")
+                return
+
+            # Check numerical stability
+            if not self._check_numerical_stability(batch):
+                logger.error(f"Train step {self.global_steps}: Numerical stability check failed, skipping actor update")
+                return
+
+            # Wrapper function to run actor update with timeout
+            async def update_actor_with_timeout():
+                timeout_seconds = 120  # 2 minutes
+
+                def update_actor_sync():
+                    return self.actor_rollout_wg.update_actor(batch)
+
+                try:
+                    result = await asyncio.wait_for(asyncio.to_thread(update_actor_sync), timeout=timeout_seconds)
+                    return result
+                except asyncio.TimeoutError:
+                    logger.error(
+                        f"Train step {self.global_steps}: actor update timed out after {timeout_seconds} seconds"
+                    )
+                    return None
+                except Exception as e:
+                    logger.error(f"Train step {self.global_steps}: Error during actor update: {e}")
+                    raise
+
+            # Log batch size and sequence length
+            batch_size = batch.batch["input_ids"].shape[0]
+            seq_length = batch.batch["input_ids"].shape[1]
+            logger.info(f"Actor update batch size: {batch_size}, sequence length: {seq_length}")
+
+            # Log reward stats
+            rewards = batch.batch["token_level_scores"]
+            min_reward = rewards.min().item()
+            max_reward = rewards.max().item()
+            mean_reward = rewards.mean().item()
+            logger.info(f"Reward stats - min: {min_reward:.4f}, max: {max_reward:.4f}, mean: {mean_reward:.4f}")
+
+            # Actually run the update
+            with marked_timer("update_actor", timing_raw):
+                logger.info(f"Starting actor update for step {self.global_steps}")
+                actor_output = asyncio.run(update_actor_with_timeout())
+                if actor_output is None:
+                    logger.warning(f"Train step {self.global_steps}: actor update skipped due to timeout")
+                    return
+                logger.info(f"Actor update completed for step {self.global_steps}")
+
+            # Log actor output metrics and update overall metrics
+            actor_output_metrics = reduce_metrics(actor_output.meta_info["metrics"])
+            logger.info(f"Actor output metrics: {actor_output_metrics}")
+            metrics.update(actor_output_metrics)
 
     def shutdown(self):
         """Shutdown the trainer."""
@@ -406,6 +501,16 @@ class AgentGRPOTrainer(RayPPOTrainer):
         return (
             self.global_steps % save_freq == 0 or self.is_last_step
         )
+
+    def _save_checkpoint(self):
+        step = self.global_steps
+        ckpt_dir = os.path.join(self.config.trainer.default_local_dir, f"global_step_{step}")
+        try:
+            super()._save_checkpoint()
+            logger.info(f"Checkpoint saved successfully | global_steps={step} | path={ckpt_dir}")
+        except (OSError, RayError, RuntimeError) as e:
+            logger.error(f"Checkpoint save failed: {e} | global_steps={step} | path={ckpt_dir}")
+            raise RuntimeError(f"Failed to save checkpoint at step {step}: {e}") from e
 
     def _train_step(self, batch):
         metrics = {}
@@ -496,6 +601,7 @@ class AgentGRPOTrainer(RayPPOTrainer):
                     self.is_last_step = self.global_steps >= self.total_training_steps
                     if self._should_save_checkpoint():
                         logger.info(f"Step {self.global_steps}, metrics: {metrics}")
+                        self._save_checkpoint()
                     if self.is_last_step:
                         break
                 epoch += 1
