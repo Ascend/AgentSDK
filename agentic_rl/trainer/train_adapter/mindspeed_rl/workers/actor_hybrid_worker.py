@@ -171,7 +171,7 @@ class AgentActorHybridWorkerBase(ActorHybridWorkerBase):
         FileCheck.check_data_path_is_valid(self.megatron_config.tokenizer_name_or_path)
         self.actor_model_config = AutoConfig.from_pretrained(
             self.megatron_config.tokenizer_name_or_path,
-            trust_remote_code=False,
+            trust_remote_code=self.generate_config.trust_remote_code,
             local_files_only=True,
             weights_only=True,
         )
@@ -204,6 +204,7 @@ class AgentActorHybridWorkerBase(ActorHybridWorkerBase):
 
         try:
             self.sharding_manager = self._build_sharding_manager()
+            self.sharding_manager.enable_sleep_mode = self.agentic_rl_config.enable_sleep_mode
         except AttributeError as e:
             raise AttributeError("actor worker build sharding manager failed with missing attributes") from e
         except RuntimeError as e:
@@ -282,18 +283,18 @@ class AgentActorHybridWorkerBase(ActorHybridWorkerBase):
         Returns:
             tuple: the RANK of current worker and node id.
         """
-        local_rank_env = os.environ.get("LOCAL_RANK")
-        if local_rank_env is None:
+        rank_env = os.environ.get("RANK")
+        if rank_env is None:
             return None, None
 
         try:
-            local_rank = int(local_rank_env)
-            if local_rank < 0 or local_rank >= 8:
-                raise ValueError("LOCAL_RANK must be in [0, 8)")
+            rank_env = int(rank_env)
+            if rank_env < 0:
+                raise ValueError("RANK environment variable must be non-negative integer.")
         except ValueError as e:
             raise ValueError(f"Invalid LOCAL_RANK value: {e}") from e
 
-        return local_rank, ray.get_runtime_context().get_node_id()
+        return rank_env, ray.get_runtime_context().get_node_id()
 
     def enter_infer_mode(self):
         if self.state == ActorState.INFER:

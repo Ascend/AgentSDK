@@ -20,6 +20,7 @@ See the Mulan PSL v2 for more details.
 
 from unittest.mock import MagicMock, patch
 import pytest
+import torch
 import torch.nn as nn
 from transformers.configuration_utils import PretrainedConfig
 
@@ -45,7 +46,15 @@ class TestWeightManager:
         model.model.start_layer = 0
         model.model.end_layer = 2
         model.model.layers = []
+        model.named_parameters = MagicMock()
+        model.named_parameters.return_value = [("name", torch.empty_like(torch.rand(1, 2)))]
         return model
+
+    @pytest.fixture
+    def mock_cpu_model(self):
+        """Fixture providing a mock cpu model dic."""
+        cpu_model = {"name": torch.empty_like(torch.rand(3, 4), device="cpu")}
+        return cpu_model
 
     @pytest.fixture
     def mock_hf_config(self):
@@ -66,6 +75,7 @@ class TestWeightManager:
                 infer_pipeline_parallel_size=2,
                 infer_expert_parallel_size=1,
                 load_format="megatron",
+                enable_sleep_mode=True,
             )
 
     # Tests for __init__
@@ -242,18 +252,18 @@ class TestWeightManager:
         with pytest.raises(RuntimeError, match="Unexpected error during weight loader initialization"):
             weight_manager.initialize_weight_loader()
 
-    def test_load_megatron_weights_invalid_params(self, weight_manager, mock_model, mock_hf_config):
+    def test_load_megatron_weights_invalid_params(self, weight_manager, mock_model, mock_hf_config, mock_cpu_model):
         """Test load_megatron_weights raises ValueError for non-dict params."""
         with pytest.raises(ValueError, match="params must be a dict"):
-            weight_manager.load_megatron_weights("not_a_dict", mock_model, mock_hf_config)
+            weight_manager.load_megatron_weights("not_a_dict", mock_model, mock_hf_config, mock_cpu_model, MagicMock())
 
-    def test_load_megatron_weights_invalid_model(self, weight_manager, mock_hf_config):
+    def test_load_megatron_weights_invalid_model(self, weight_manager, mock_hf_config, mock_cpu_model):
         """Test load_megatron_weights raises ValueError for non-Module model."""
         params = {"param1": "value1"}
         with pytest.raises(ValueError, match="model must be a nn.Module instance"):
-            weight_manager.load_megatron_weights(params, "not_a_model", mock_hf_config)
+            weight_manager.load_megatron_weights(params, "not_a_model", mock_hf_config, mock_cpu_model, MagicMock())
 
-    def test_load_megatron_weights_general_exception(self, weight_manager, mock_model, mock_hf_config):
+    def test_load_megatron_weights_general_exception(self, weight_manager, mock_model, mock_hf_config, mock_cpu_model):
         """Test load_megatron_weights raises RuntimeError on unexpected error."""
         params = {"param1": "value1"}
         with patch(
@@ -266,9 +276,9 @@ class TestWeightManager:
             )
             
             with pytest.raises(RuntimeError, match="Weight loading failed"):
-                weight_manager.load_megatron_weights(params, mock_model, mock_hf_config)
+                weight_manager.load_megatron_weights(params, mock_model, mock_hf_config, mock_cpu_model, MagicMock())
 
-    def test_load_megatron_weights_with_mla_processing(self, weight_manager, mock_hf_config):
+    def test_load_megatron_weights_with_mla_processing(self, weight_manager, mock_hf_config, mock_cpu_model):
         """Test load_megatron_weights processes MLA weights when present."""
         params = {"param1": "value1"}
         
@@ -303,7 +313,7 @@ class TestWeightManager:
             mock_config = MagicMock()
             mock_config_class.return_value = mock_config
             
-            weight_manager.load_megatron_weights(params, mock_model, mock_hf_config)
+            weight_manager.load_megatron_weights(params, mock_model, mock_hf_config, mock_cpu_model, MagicMock())
             
             # Verify MLA processing was called
             assert layer0.self_attn.mla_attn.impl.w_kc is None
@@ -313,7 +323,7 @@ class TestWeightManager:
             layer0.self_attn.mla_attn.impl.process_weights_after_loading.assert_called_once_with(None)
             layer1.self_attn.mla_attn.impl.process_weights_after_loading.assert_called_once_with(None)
 
-    def test_load_megatron_weights_without_mla(self, weight_manager, mock_hf_config):
+    def test_load_megatron_weights_without_mla(self, weight_manager, mock_hf_config, mock_cpu_model):
         """Test load_megatron_weights skips MLA processing when not present."""
         params = {"param1": "value1"}
         
@@ -338,7 +348,7 @@ class TestWeightManager:
             mock_config_class.return_value = mock_config
             
             # Should not raise an exception, just skip MLA processing
-            weight_manager.load_megatron_weights(params, mock_model, mock_hf_config)
+            weight_manager.load_megatron_weights(params, mock_model, mock_hf_config, mock_cpu_model, MagicMock())
             
             weight_manager.vllm_megatron_weight_loaders.load_megatron_weights.assert_called_once()
 

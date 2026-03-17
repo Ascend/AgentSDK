@@ -54,7 +54,7 @@ class GRPODataLoader(torch.utils.data.DataLoader):
                 dataset = dataset.remove_columns(key)
 
         sampler = RepeatSampler(len(dataset), num_samples, seed, no_shuffle)
-        
+
         def collate_take_first(batch):
             collated = {}
 
@@ -74,7 +74,7 @@ class GRPODataLoader(torch.utils.data.DataLoader):
                     collated[key] = values
 
             return collated
-        
+
         super().__init__(dataset,
                          num_workers=num_workers,
                          generator=torch.Generator().manual_seed(seed),

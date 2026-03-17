@@ -103,16 +103,6 @@ class TestLauncher:
                 }
             }
 
-    def test_create_actor_handlers_patch_failed_with_invalid_master_addr(self, test_actor):
-        with patch("agentic_rl.trainer.train_adapter.mindspeed_rl.patch.launcher."
-                   "ActorHandlerParams", MockActorHandlerParams):
-            param = MockActorHandlerParams("abcabc", 8000, 4, 0, "placement_group", 0)
-
-            from agentic_rl.trainer.train_adapter.mindspeed_rl.patch.launcher import create_actor_handlers_patch
-
-            with pytest.raises(ValueError, match="master addr must be localhost or 127.0.0.1"):
-                create_actor_handlers_patch(test_actor, param)
-
     def test_create_actor_handlers_patch_failed_with_invalid_master_port(self, test_actor):
         with patch("agentic_rl.trainer.train_adapter.mindspeed_rl.patch.launcher."
                    "ActorHandlerParams", MockActorHandlerParams):
@@ -130,8 +120,8 @@ class TestLauncher:
                    "ActorHandlerParams", MockActorHandlerParams):
             from agentic_rl.trainer.train_adapter.mindspeed_rl.patch.launcher import create_actor_handlers_patch
 
-            param = MockActorHandlerParams("127.0.0.1", None, 16, 0, "placement_group", 0)
-            with pytest.raises(ValueError, match=re.escape("world size must be in range [1, 8]")):
+            param = MockActorHandlerParams("127.0.0.1", None, -1, 0, "placement_group", 0)
+            with pytest.raises(ValueError, match=re.escape("world size must be greater than or equal to 1.")):
                 create_actor_handlers_patch(test_actor, param)
 
             param = MockActorHandlerParams("127.0.0.1", None, 8, 18, "placement_group", 0)

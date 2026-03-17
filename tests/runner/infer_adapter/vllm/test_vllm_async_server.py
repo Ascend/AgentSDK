@@ -30,6 +30,8 @@ import pytest
 
 from agentic_rl.configs.agentic_rl_config import AgenticRLConfig, GenConfig, SamplingConfig
 
+FAKE_IP = "192.168.1.1"
+
 
 class AsyncEngineArgs:
     """Stub AsyncEngineArgs capturing initialization kwargs."""
@@ -196,6 +198,9 @@ def vllm_async_server_mod(monkeypatch):
     ray_mod.remote = _remote
     ray_mod.get_runtime_context = get_runtime_context
     ray_ex_mod = ModuleType("ray.exceptions")
+    ray_mod._private = MagicMock()
+    ray_mod._private.services = MagicMock()
+    # ray_mod._private.services.get_node_ip_address.return_value = "127.0.0.1"
 
     ray_ex_mod.RayError = RayError
 
@@ -314,9 +319,11 @@ def valid_configs(monkeypatch):
 
 
 @pytest.fixture
-def server_instance(vllm_async_server_mod, valid_configs):
+@patch('agentic_rl.runner.infer_adapter.async_server_base.ray._private.services.get_node_ip_address')
+def server_instance(mock_get_node_ip_address, vllm_async_server_mod, valid_configs):
     """Construct a real AsyncVLLMServer instance with mocked deps."""
     gen_cfg, agent_cfg = valid_configs
+    mock_get_node_ip_address.return_value = FAKE_IP
     AsyncVLLMServer = vllm_async_server_mod.AsyncVLLMServer
 
     server = AsyncVLLMServer(
@@ -635,11 +642,11 @@ class TestStartFastapiServer:
         mock_sock = MagicMock()
         mock_socket.return_value.__enter__.return_value = mock_sock
 
-        mock_sock.getsockname.return_value = ("127.0.0.1", 12345)
+        mock_sock.getsockname.return_value = (FAKE_IP, 12345)
         port = server_instance._get_free_port()
 
         mock_socket.assert_called_once_with(socket.AF_INET, socket.SOCK_STREAM)
-        mock_sock.bind.assert_called_once_with(("127.0.0.1", 0))
+        mock_sock.bind.assert_called_once_with((FAKE_IP, 0))
         assert port == 12345
 
 
@@ -676,31 +683,58 @@ class TestWakeUpAndSleep:
         class StubEngine:
             def __init__(self):
                 self.slept = False
+                self.reset = False
 
             async def sleep(self):
                 self.slept = True
+
+            async def reset_prefix_cache(self):
+                self.reset = True
 
         engine = StubEngine()
         server_instance.engine = engine
 
         asyncio.run(server_instance.sleep())
         assert engine.slept is True
+        assert engine.reset is True
 
-        class ValueErrorEngine:
+        class ValueErrorSleepEngine:
+            def __init__(self):
+                self.reset = False
+
+            async def reset_prefix_cache(self):
+                self.reset = True
+
             async def sleep(self):
                 raise ValueError("sleep error")
 
-        server_instance.engine = ValueErrorEngine()
+        server_instance.engine = ValueErrorSleepEngine()
+        with pytest.raises(RuntimeError, match="Failed to put engine to sleep"):
+            asyncio.run(server_instance.sleep())
+        assert server_instance.engine.reset is True
+
+        class ValueErrorResetEngine:
+            async def reset_prefix_cache(self):
+                raise ValueError("reset error")
+
+        server_instance.engine = ValueErrorResetEngine()
         with pytest.raises(RuntimeError, match="Failed to put engine to sleep"):
             asyncio.run(server_instance.sleep())
 
         class GenericErrorEngine:
+            def __init__(self):
+                self.reset = False
+
+            async def reset_prefix_cache(self):
+                self.reset = True
+
             async def sleep(self):
                 raise RuntimeError("boom")
 
         server_instance.engine = GenericErrorEngine()
         with pytest.raises(RuntimeError, match="Unexpected error occurred when putting engine to sleep"):
             asyncio.run(server_instance.sleep())
+        assert server_instance.engine.reset is True
 
     def test_sleep_missing_engine(self, server_instance):
         server_instance.engine = None

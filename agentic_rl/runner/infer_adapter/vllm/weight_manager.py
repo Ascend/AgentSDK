@@ -17,7 +17,7 @@ MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 See the Mulan PSL v2 for more details.
 -------------------------------------------------------------------------
 """
-
+import torch
 import torch.nn as nn
 from transformers.configuration_utils import PretrainedConfig
 
@@ -56,11 +56,13 @@ class WeightManager:
         infer_pipeline_parallel_size: int,
         infer_expert_parallel_size: int,
         load_format: str = "megatron",
+        enable_sleep_mode: bool = False,
     ):
         self.infer_tensor_parallel_size = infer_tensor_parallel_size
         self.infer_pipeline_parallel_size = infer_pipeline_parallel_size
         self.infer_expert_parallel_size = infer_expert_parallel_size
         self.load_format = load_format
+        self.enable_sleep_mode = enable_sleep_mode
         try:
             self.vllm_megatron_weight_loaders = VllmMegatronWeightLoaders()
         except RuntimeError as e:
@@ -116,7 +118,7 @@ class WeightManager:
             message="hf_config must be a PretrainedConfig instance"
         ),
     )
-    def load_megatron_weights(self, params, model, hf_config):
+    def load_megatron_weights(self, params, model, hf_config, cpu_model, inference_engine):
         """
         Load weights using Megatron format.
 
@@ -124,6 +126,8 @@ class WeightManager:
             params: Model parameters
             model: The model instance
             hf_config: HuggingFace model configuration
+            cpu_model: The tensor to storage model in cpu
+            inference_engine: The inference engine instance
         """
         try:
             infer_parallel_config = InferParallelConfig(
@@ -134,6 +138,12 @@ class WeightManager:
         except (TypeError, ValueError) as e:
             logger.error(f"Failed to create InferParallelConfig: {e}")
             raise ValueError(f"Invalid parallel configuration parameters: {e}") from e
+
+        backup_tensors = {}
+        if self.enable_sleep_mode:
+            for name, pms in model.named_parameters():
+                backup_tensors[name] = pms.data
+                pms.data = cpu_model[name]
 
         try:
             self.vllm_megatron_weight_loaders.load_megatron_weights(params, model, infer_parallel_config, hf_config)
@@ -147,6 +157,19 @@ class WeightManager:
         except Exception as e:
             logger.error(f"Unexpected error loading Megatron weights: {e}")
             raise RuntimeError(f"Unexpected error: Weight loading failed: {e}") from e
+
+        if self.enable_sleep_mode:
+            torch.cuda.empty_cache()
+
+            # wakeup to keep the address of weight tensors (support aclgraph)
+            # this will double the weights buffer usage
+            inference_engine.wake_up(tags=["weights"])
+
+            for name, pms in model.named_parameters():
+                if name in backup_tensors:
+                    backup_tensors[name].copy_(pms.data)
+                    pms.data = backup_tensors[name]
+                    torch.cuda.empty_cache()
 
         # Process MLA weights if present
         try:

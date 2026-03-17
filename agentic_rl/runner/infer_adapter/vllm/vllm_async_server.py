@@ -19,6 +19,7 @@ See the Mulan PSL v2 for more details.
 """
 
 import asyncio
+import os
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 import socket
@@ -64,6 +65,7 @@ class VLLMConfig:
     trust_remote_code: bool
     max_num_seqs: int
     sampling_config: SamplingConfig
+    enable_expert_parallel: bool
 
 
 @dataclass
@@ -201,6 +203,12 @@ class ExternalRayDistributedExecutor(Executor):
 
         try:
             vllm_tp_size = self.vllm_config.parallel_config.tensor_parallel_size
+            dp_rank = self.vllm_config.parallel_config.data_parallel_rank
+            try:
+                dp_size = int(os.getenv("VLLM_DP_SIZE", "1"))
+            except ValueError as e:
+                raise ValueError(f"VLLM_DP_SIZE env var must be an integer: {e}") from e
+            vllm_dp_rank = vllm_dp_rank * dp_size + dp_rank
         except AttributeError as e:
             raise RuntimeError(f"Failed to access tensor_parallel_size from vllm_config: {e}") from e
 
@@ -339,7 +347,7 @@ class AsyncVLLMServer(AsyncServerBase):
         except Exception as e:
             raise RuntimeError(f"Unexpected error occurred when initializing AsyncLLM engine: {e}") from e
 
-        model_name = "/".join(self.vllm_config.model_path.split("/")[-1:])
+        model_name = "/".join(self.vllm_config.model_path.split("/")[-2:])
         self._setup_openai_serving(model_config, model_name, self.vllm_config.model_path)
         logger.info("VLLM AsyncLLM engine initialization completed successfully")
 
@@ -416,6 +424,7 @@ class AsyncVLLMServer(AsyncServerBase):
             raise RuntimeError("Engine not initialized. Call init_engine first.")
 
         try:
+            await self.engine.reset_prefix_cache()
             await self.engine.sleep()
             logger.info("Engine sleep completed successfully")
         except ValueError as e:
@@ -441,7 +450,8 @@ class AsyncVLLMServer(AsyncServerBase):
                 enable_prefix_caching=config.enable_prefix_caching,
                 trust_remote_code=config.trust_remote_code,
                 max_num_seqs=config.max_num_seqs,
-                sampling_config=config.sampling_config
+                sampling_config=config.sampling_config,
+                enable_expert_parallel=config.enable_expert_parallel,
             )
         except AttributeError as e:
             raise AttributeError(f"Missing required config field while building VLLM config: {e}") from e
@@ -458,6 +468,10 @@ class AsyncVLLMServer(AsyncServerBase):
                 f"max_num_batched_tokens={vllm_config.max_num_batched_tokens} exceeds "
                 f"{MAX_BATCHED_TOKENS_WARNING_THRESHOLD}, which may cause errors for 'chunked prefill'!"
             )
+        try:
+            dp_size = int(os.getenv("VLLM_DP_SIZE", "1"))
+        except ValueError as e:
+            raise ValueError(f"VLLM_DP_SIZE env var must be an integer: {e}") from e
 
         return AsyncEngineArgs(
             model=vllm_config.model_path,
@@ -466,6 +480,7 @@ class AsyncVLLMServer(AsyncServerBase):
             tensor_parallel_size=vllm_config.tensor_parallel_size,
             pipeline_parallel_size=vllm_config.pipeline_parallel_size,
             distributed_executor_backend=ExternalRayDistributedExecutor,
+            data_parallel_size=dp_size,
             dtype=vllm_config.dtype,
             enforce_eager=vllm_config.enforce_eager,
             gpu_memory_utilization=vllm_config.gpu_memory_utilization,
@@ -475,6 +490,7 @@ class AsyncVLLMServer(AsyncServerBase):
             load_format=load_format,
             max_num_batched_tokens=vllm_config.max_num_batched_tokens,
             enable_prefix_caching=vllm_config.enable_prefix_caching,
+            enable_expert_parallel=vllm_config.enable_expert_parallel,
             trust_remote_code=vllm_config.trust_remote_code,
             seed=self.server_config.vllm_dp_rank,
             max_num_seqs=vllm_config.max_num_seqs,

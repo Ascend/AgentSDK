@@ -602,8 +602,12 @@ class TestAgentActorHybridWorkerBase:
 
     def test_init_sharding_manager_failed_with_on_load_param(self, actor_hybrid_worker_initialized):
         worker, targets, patches = actor_hybrid_worker_initialized
-        with patch("mindspeed_rl.workers.resharding.megatron_off_loader."
-                   "MegatronOffLoader.onload_param") as mock_onload_param:
+        with (
+            patch("agentic_rl.trainer.train_adapter.mindspeed_rl.workers.actor_hybrid_worker."
+                      "AgentActorHybridWorkerBase._build_sharding_manager"),
+            patch("mindspeed_rl.workers.resharding.megatron_off_loader."
+                  "MegatronOffLoader.onload_param") as mock_onload_param
+        ):
             mock_onload_param.side_effect = RuntimeError("error")
             with pytest.raises(RuntimeError, match="actor worker onload parameters failed"):
                 worker.init_sharding_manager()
@@ -620,7 +624,11 @@ class TestAgentActorHybridWorkerBase:
 
         worker.parallel_state.get_data_parallel_world_size = fake_get_data_parallel_world_size
 
-        with pytest.raises(Exception, match="actor worker init actor hybrid failed") as outer_error:
+        with (
+            patch("agentic_rl.trainer.train_adapter.mindspeed_rl.workers.actor_hybrid_worker."
+                  "AgentActorHybridWorkerBase._build_sharding_manager"),
+            pytest.raises(Exception, match="actor worker init actor hybrid failed") as outer_error
+        ):
             worker.init_sharding_manager()
 
         assert "actor worker get data parallel world size equal 0" in str(outer_error.value.__cause__)
@@ -628,8 +636,12 @@ class TestAgentActorHybridWorkerBase:
     def test_init_sharding_manager_failed_by_empty_cache(self, actor_hybrid_worker_initialized):
         worker, targets, patches = actor_hybrid_worker_initialized
 
-        with patch("agentic_rl.trainer.train_adapter.mindspeed_rl.workers.actor_hybrid_worker."
-                   "AgentActorHybridWorkerBase.empty_cache") as mock_empty_cache:
+        with (
+            patch("agentic_rl.trainer.train_adapter.mindspeed_rl.workers.actor_hybrid_worker."
+                  "AgentActorHybridWorkerBase._build_sharding_manager"),
+            patch("agentic_rl.trainer.train_adapter.mindspeed_rl.workers.actor_hybrid_worker."
+                  "AgentActorHybridWorkerBase.empty_cache") as mock_empty_cache
+        ):
             mock_empty_cache.side_effect = RuntimeError("error")
             with pytest.raises(RuntimeError, match="actor worker failed to empty the cache"):
                 worker.init_sharding_manager()

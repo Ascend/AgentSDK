@@ -17,7 +17,7 @@ MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 See the Mulan PSL v2 for more details.
 -------------------------------------------------------------------------
 """
-
+import os
 import time
 
 import ray
@@ -59,10 +59,13 @@ class AsyncServerManager:
         self.rollout_infer_backend = self.agentic_rl_config.infer_backend
         self.rollout_tp_size = self.config.infer_tensor_parallel_size
         train_backend = self.agentic_rl_config.train_backend
-        dp_size = 1  # reference RayEnvVarsConfig().VLLM_DP_SIZE
+        try:
+            dp_size = int(os.getenv("VLLM_DP_SIZE", "1"))
+        except ValueError as e:
+            raise ValueError(f"VLLM_DP_SIZE env var must be an integer: {e}") from e
         num_npus = self.worker_group.world_size if train_backend == "verl" else self.worker_group.num_npus
         try:
-            self.rollout_dp_size = num_npus // self.rollout_tp_size
+            self.rollout_dp_size = num_npus // self.rollout_tp_size // dp_size
         except ZeroDivisionError as e:
             raise RuntimeError("rollout_tp_size is zero") from e
         except Exception as e:

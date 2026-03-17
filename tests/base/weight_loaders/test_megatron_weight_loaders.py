@@ -417,6 +417,70 @@ class TestQwenMegatronWeightLoader:
                 assert result == mock_model
                 mock_split.assert_called_once()
 
+    def test_qwen_loader_mlp_experts_w13_weight_processing(self, mock_model, mock_infer_parallel_config,
+                                                           mock_hf_config):
+        """Test processing of mlp.experts.w13_weight in Qwen loader."""
+        mock_hf_config.num_experts = 8
+        mock_hf_config.hidden_size = 512
+        intermediate_size = 1024
+
+        param_size = (mock_hf_config.num_experts // mock_infer_parallel_config.infer_expert_parallel_size,
+                      mock_hf_config.hidden_size,
+                      intermediate_size)
+        param1 = nn.Parameter(torch.randn(param_size))
+
+        mock_model.named_parameters.return_value = [
+            ("mlp.experts.w13_weight", param1),
+        ]
+
+        # Create loaded weight with same size
+        loaded_weight = torch.randn(param_size)
+
+        actor_weights = {
+            "mlp.experts.w13_weight": loaded_weight.clone(),
+        }
+
+        with patch.object(BaseMegatronWeightLoader, 'process_qkv_weight'):
+            with patch.object(BaseMegatronWeightLoader, 'load_single_weight') as mock_load_single:
+                result = BaseMegatronWeightLoader.qwen_megatron_weight_loader(
+                    actor_weights, mock_model, mock_infer_parallel_config, mock_hf_config
+                )
+                assert result == mock_model
+                mock_load_single.assert_called_once()
+                assert torch.equal(loaded_weight, actor_weights["mlp.experts.w13_weight"])
+
+    def test_qwen_loader_mlp_experts_w2_weight_processing(self, mock_model, mock_infer_parallel_config,
+                                                           mock_hf_config):
+        """Test processing of mlp.experts.w13_weight in Qwen loader."""
+        mock_hf_config.num_experts = 8
+        mock_hf_config.hidden_size = 512
+        intermediate_size = 1024
+
+        param_size = (mock_hf_config.num_experts // mock_infer_parallel_config.infer_expert_parallel_size,
+                      intermediate_size,
+                      mock_hf_config.hidden_size)
+        param1 = nn.Parameter(torch.randn(param_size))
+
+        mock_model.named_parameters.return_value = [
+            ("mlp.experts.w2_weight", param1),
+        ]
+
+        # Create loaded weight with same size
+        loaded_weight = torch.randn(param_size)
+
+        actor_weights = {
+            "mlp.experts.w2_weight": loaded_weight.clone(),
+        }
+
+        with patch.object(BaseMegatronWeightLoader, 'process_qkv_weight'):
+            with patch.object(BaseMegatronWeightLoader, 'load_single_weight') as mock_load_single:
+                result = BaseMegatronWeightLoader.qwen_megatron_weight_loader(
+                    actor_weights, mock_model, mock_infer_parallel_config, mock_hf_config
+                )
+                assert result == mock_model
+                mock_load_single.assert_called_once()
+                assert torch.equal(loaded_weight, actor_weights["mlp.experts.w2_weight"])
+
 
 class TestQkvSplitWeight:
     """Test cases for qkv_split_weight static method."""
