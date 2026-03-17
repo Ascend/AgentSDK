@@ -81,7 +81,8 @@ class MockAgentGRPOTrainer:
 
 
 class MockActorRolloutRefWorker():
-    pass
+    def __init__(self, config, role, **kwargs):
+        pass
 
 
 class MockAsyncActorRolloutRefWorker(MockActorRolloutRefWorker):
@@ -138,6 +139,7 @@ class TestTrainAgentGrpo:
             patch("verl.workers.fsdp_workers.AsyncActorRolloutRefWorker", MockAsyncActorRolloutRefWorker),
             patch("verl.trainer.ppo.ray_trainer.ResourcePoolManager", MagicMock()),
             patch("verl.trainer.ppo.ray_trainer.Role", MagicMock()),
+            patch("torch.distributed.device_mesh.init_device_mesh", MagicMock()),
             patch("verl.workers.sharding_manager.fsdp_vllm.FSDPVLLMShardingManager", MagicMock()),
             patch("agentic_rl.trainer.train_adapter.verl.patch.verl_vllm_model_patch.apply_vllm_model_patch"),
             patch(
@@ -317,3 +319,155 @@ class TestTrainAgentGrpo:
         ):
             with pytest.raises(RuntimeError, match="Unexpected error during trainer fit: Fit error"):
                 train({})
+
+    def test_verl_actor_rollout_ref_worker_init(self, patch_target):
+        """Test VerlActorRolloutRefWorker initialization"""
+        from agentic_rl.trainer.train_adapter.verl.train_agent_grpo import VerlActorRolloutRefWorker
+
+        # Create mock config and kwargs
+        mock_config = MagicMock()
+        kwargs = {
+            "train_tensor_parallel_size": 2,
+            "train_pipeline_parallel_size": 2,
+            "train_expert_parallel_size": 2,
+            "train_context_parallel_size": 2
+        }
+
+        # Create worker instance
+        role = "vllm"
+        worker = VerlActorRolloutRefWorker(mock_config, role, **kwargs)
+
+        # Verify initialization
+        assert worker.config == mock_config
+        assert worker.continue_infer_running is False
+        assert worker.train_tensor_parallel_size == 2
+        assert worker.train_pipeline_parallel_size == 2
+        assert worker.train_expert_parallel_size == 2
+        assert worker.train_context_parallel_size == 2
+        assert worker.infer_pipeline_parallel_size == 1  # Default value
+        assert worker.infer_expert_parallel_size == 1  # Default value
+
+    def test_verl_actor_rollout_ref_worker_init_defaults(self, patch_target):
+        """Test VerlActorRolloutRefWorker initialization with default parameters"""
+        from agentic_rl.trainer.train_adapter.verl.train_agent_grpo import VerlActorRolloutRefWorker
+
+        # Create mock config
+        mock_config = MagicMock()
+        role = "actor"
+
+        # Create worker instance with minimal parameters
+        worker = VerlActorRolloutRefWorker(mock_config, role)
+
+        # Verify default values
+        assert worker.train_tensor_parallel_size == 4  # Default value
+        assert worker.train_pipeline_parallel_size == 1  # Default value
+        assert worker.train_expert_parallel_size == 1  # Default value
+        assert worker.train_context_parallel_size == 1  # Default value
+
+    @patch("agentic_rl.trainer.train_adapter.verl.train_agent_grpo.init_device_mesh")
+    @patch("agentic_rl.trainer.train_adapter.verl.train_agent_grpo.get_device_name")
+    @patch("agentic_rl.trainer.train_adapter.verl.train_agent_grpo.AsyncVLLMInferEngine")
+    @patch("agentic_rl.trainer.train_adapter.verl.train_agent_grpo.FSDPVLLMShardingManager")
+    @patch("agentic_rl.trainer.train_adapter.verl.train_agent_grpo.logger")
+    def test_verl_actor_rollout_ref_worker_build_rollout_success(self, mock_logger, mock_sharding_manager, 
+                                                             mock_infer_engine, mock_get_device_name, 
+                                                             mock_init_device_mesh, patch_target):
+        """Test VerlActorRolloutRefWorker._build_rollout method success"""
+        from agentic_rl.trainer.train_adapter.verl.train_agent_grpo import VerlActorRolloutRefWorker
+
+        # Create mock config and worker
+        mock_config = MagicMock()
+        mock_config.rollout.tensor_model_parallel_size = 2
+        mock_config.rollout.name = "vllm"
+        mock_config.rollout.max_num_seqs = 128
+        mock_config.rollout.max_model_len = 2048
+        mock_config.rollout.dtype = "float16"
+        mock_config.rollout.gpu_memory_utilization = 0.9
+        mock_config.rollout.load_format = "megatron"
+        mock_config.model.path = "/path/to/model"
+        mock_config.model.trust_remote_code = False
+
+        worker = VerlActorRolloutRefWorker(mock_config, "actor")
+        worker.world_size = 4  # dp=2, infer_tp=2
+        worker.actor_module_fsdp = MagicMock()
+        worker.actor_model_config = MagicMock()
+        worker._is_offload_param = False
+
+        # Mock external dependencies
+        mock_get_device_name.return_value = "npu"
+        mock_device_mesh = MagicMock()
+        mock_init_device_mesh.return_value = mock_device_mesh
+        
+        mock_infer_engine_instance = MagicMock()
+        mock_infer_engine.return_value = mock_infer_engine_instance
+        
+        mock_sharding_manager_instance = MagicMock()
+        mock_sharding_manager.return_value = mock_sharding_manager_instance
+
+        # Mock torch.distributed
+        with patch("agentic_rl.trainer.train_adapter.verl.train_agent_grpo.torch.distributed.get_world_size", return_value=1):
+            # Call the method
+            rollout, rollout_sharding_manager = worker._build_rollout()
+
+            # Verify calls
+            mock_get_device_name.assert_called_once()
+            mock_init_device_mesh.assert_called_once_with("npu", mesh_shape=(2, 2), mesh_dim_names=["dp", "infer_tp"])
+            
+            mock_infer_engine.assert_called_once_with(
+                tokenizer_name_or_path="/path/to/model",
+                train_tensor_parallel_size=4,
+                train_pipeline_parallel_size=1,
+                train_expert_parallel_size=1,
+                train_context_parallel_size=1,
+                infer_tensor_parallel_size=2,
+                infer_pipeline_parallel_size=1,
+                infer_expert_parallel_size=1,
+                max_num_seqs=128,
+                max_model_len=2048,
+                dtype="float16",
+                gpu_memory_utilization=0.9,
+                trust_remote_code=False,
+                enable_sleep_mode=True
+            )
+            
+            mock_sharding_manager.assert_called_once()
+            assert rollout == mock_infer_engine_instance
+            assert rollout_sharding_manager == mock_sharding_manager_instance
+
+    def test_verl_actor_rollout_ref_worker_build_rollout_invalid_rollout_name(self, patch_target):
+        """Test VerlActorRolloutRefWorker._build_rollout with invalid rollout name"""
+        from agentic_rl.trainer.train_adapter.verl.train_agent_grpo import VerlActorRolloutRefWorker
+
+        # Create mock config and worker
+        mock_config = MagicMock()
+        mock_config.rollout.tensor_model_parallel_size = 2
+        mock_config.rollout.name = "invalid_rollout"
+        
+        worker = VerlActorRolloutRefWorker(mock_config, "actor")
+        worker.world_size = 4
+        worker.actor_module_fsdp = MagicMock()
+        worker.actor_model_config = MagicMock()
+        worker._is_offload_param = False
+
+        # Call the method and assert exception
+        with pytest.raises(NotImplementedError, match="Rollout name: invalid_rollout is not supported"):
+            worker._build_rollout()
+
+    def test_verl_actor_rollout_ref_worker_build_rollout_invalid_world_size(self, patch_target):
+        """Test VerlActorRolloutRefWorker._build_rollout with invalid world size"""
+        from agentic_rl.trainer.train_adapter.verl.train_agent_grpo import VerlActorRolloutRefWorker
+
+        # Create mock config and worker
+        mock_config = MagicMock()
+        mock_config.rollout.tensor_model_parallel_size = 3  # Not divisible by world_size=4
+        mock_config.rollout.name = "vllm"
+        
+        worker = VerlActorRolloutRefWorker(mock_config, "actor")
+        worker.world_size = 4
+        worker.actor_module_fsdp = MagicMock()
+        worker.actor_model_config = MagicMock()
+        worker._is_offload_param = False
+
+        # Call the method and assert exception
+        with pytest.raises(ValueError, match="rollout world_size: 4 is not divisible by infer_tp: 3"):
+            worker._build_rollout()
