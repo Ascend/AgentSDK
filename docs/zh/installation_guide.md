@@ -83,21 +83,22 @@ Python 3.11.13
 <td>Ascend-hdk-{npu_type}-npu-driver_{version}_linux-{arch}.run</td>
 <td rowspan="5">单击<a href="https://www.hiascend.com/developer/download/commercial/result?module=cann">获取链接</a>，在左侧配套资源的“编辑资源选择”中进行配置，筛选配套的软件包，确认版本信息后获取所需软件包。</td>
 </tr>
-<td>昇腾NPU固件</td>
-<td>Ascend-hdk-{npu_type}*npu-firmware_{version}.run</td>
 <tr>
+<td>昇腾NPU固件</td>
+<td>Ascend-hdk-{npu_type}-npu-firmware_{version}.run</td>
 </tr>
+<tr>
 <td>CANN软件包</td>
 <td>Ascend-cann-toolkit_{version}_linux-{arch}.run</td>
-<tr>
 </tr>
+<tr>
 <td>CANN算子包</td>
 <td>Ascend-cann-{npu_type}-ops_{version}_linux-{arch}.run</td>
-<tr>
 </tr>
+<tr>
 <td>CANN nnal包</td>
 <td>Ascend-cann-nnal_{version}_linux-{arch}.run</td>
-<tr>
+</tr>
 </table>
 
 

@@ -13,10 +13,10 @@
 
 | 参数名                       | 类型   | 说明  | 约束  |
 |---------------------------|------|-------------------------------------|--------------------------------|
-| tokenizer_name_or_path    | str  | mindspeed_rl侧表示分词器路径，verl侧表示模型路径（分词器由verl根据模型自动推测）|路径存在且路径中所有文件夹的权限为750，文件权限位640，且所有文件/文件夹属主均为当前属主。|
+| tokenizer_name_or_path    | str  | mindspeed_rl侧表示分词器路径，verl侧表示模型路径（分词器由verl根据模型自动推测）|路径存在且路径中所有文件夹的权限为750，文件权限为640，且所有文件/文件夹属主均为当前属主。|
 | model_name                | str  | 当前支持的模型，当前仅在后端为mindspeed_rl时生效|支持字符串为“qwen3-8b”或“qwen2.5-7b”。|
 | agent_name                | str  | Agent的名称 | 必须以字母开头，由大小写字母，数字和下划线组成。|
-| agent_engine_wrapper_path | str  | 继承BaseEngineWrapper类的文件路径。|路径存在且路径中所有文件夹的权限为750，文件权限位640，且所有文件/文件夹属主均为当前属主。|
+| agent_engine_wrapper_path | str  | 继承BaseEngineWrapper类的文件路径。|路径存在且路径中所有文件夹的权限为750，文件权限为640，且所有文件/文件夹属主均为当前属主。|
 | train_backend             | str  | 训练后端 | 应为verl或mindspeed_rl。|
 | use_stepwise_advantage    | bool | 是否启用stepwise_advantage | True或False，默认值为False。|
 | infer_tensor_parallel_size | int | 推理张量并行数量 | 默认值为4，张量并行数量应为大于0的整数，根据不同模型以及模型参数量配置，应被推理使用卡数整除，且通常取值为1，2，4，8。详细信息请参考[优化与调优-vLLM-vLLM文档](http://docs.vllm.com.cn/en/latest/configuration/optimization/#chunked-prefill)。 |
@@ -63,9 +63,9 @@
 
 | 参数名 | 类型 | 含义 | 约束 |
 |-------------------|------------|----------------------------------|----------------------------------|
-| data_path         | str | 数据路径 | 路径存在且路径中所有文件夹的权限为750，文件权限位640，且所有文件/文件夹属主均为当前属主，必须通过dataset_additional_keys指定使用字段。|
-| load_params_path  | str | 训练模型的文件路径，需要包含完整的Megatron格式模型 | 路径存在且路径中所有文件夹的权限为750，文件权限位640，且所有文件/文件夹属主均为当前属主。|
-| save_params_path  | str | 训练模型的文件保存路径 | 路径存在且路径中所有文件夹的权限为750，文件权限位640，且所有文件/文件夹属主均为当前属主。|
+| data_path         | str | 数据路径 | 路径存在且路径中所有文件夹的权限为750，文件权限为640，且所有文件/文件夹属主均为当前属主，必须通过dataset_additional_keys指定使用字段。|
+| load_params_path  | str | 训练模型的文件路径，需要包含完整的Megatron格式模型 | 路径存在且路径中所有文件夹的权限为750，文件权限为640，且所有文件/文件夹属主均为当前属主。|
+| save_params_path  | str | 训练模型的文件保存路径 | 路径存在且路径中所有文件夹的权限为750，文件权限为640，且所有文件/文件夹属主均为当前属主。|
 | train_iters      | int | 训练迭代次数 | 默认值为1，应为大于0的正整数。|
 | epochs            | int | 训练任务每次更新需要迭代的次数 | 默认值为1，应为大于0的正整数。|
 | seq_len           | int | 序列长度 | 默认值为8192，应为大于0的正整数。|
@@ -81,13 +81,13 @@
 
 | 参数名 | 类型 | 含义 | 约束 |
 |-------------------|------|--------------------------------|--------------------------------|
-| train_files       | str | 训练数据路径 | 路径存在且路径中所有文件夹的权限为750，文件权限位640，且所有文件/文件夹属主均为当前属主。同时需要满足verl要求的parquet数据集格式。|
-| val_files         | str | 训练验证数据集 | 路径存在且路径中所有文件夹的权限为750，文件权限位640，且所有文件/文件夹属主均为当前属主。同时需要满足verl要求的parquet数据集格式。|
+| train_files       | str | 训练数据路径 | 路径存在且路径中所有文件夹的权限为750，文件权限为640，且所有文件/文件夹属主均为当前属主。同时需要满足verl要求的parquet数据集格式。|
+| val_files         | str | 训练验证数据集 | 路径存在且路径中所有文件夹的权限为750，文件权限为640，且所有文件/文件夹属主均为当前属主。同时需要满足verl要求的parquet数据集格式。|
 | total_epochs      | int | 训练任务每次更新需要迭代的次数 | 默认值为2，应为大于0的正整数。|
-| total_training    | optional[int] | 训练迭代次数 | 默认不提供，verl后端会通过输入数据的长度自动计算；若提供，应为大于0的整数，则会覆写verl默认值。|
+| total_training_steps    | optional[int] | 训练迭代次数 | 默认不提供，verl后端会通过输入数据的长度自动计算；若提供，应为大于0的整数，则会覆写verl默认值。|
 | save_freq         | int | 训练保存频率 | 默认值为1000，应为大于0的整数。|
 | ppo_mini_batch_size | int | PPO更新全局迷你批次大小 | 默认值为16，应为大于0的整数。|
-| ppo_max_token_len_per_gpu | int | 一个NPU PPO轮次中处理的最大token数量 | 默认值为24000，应为大于0的整数，verl建议设置至少n*(prompt + respons)。|
+| ppo_max_token_len_per_gpu | int | 一个NPU PPO轮次中处理的最大token数量 | 默认值为24000，应为大于0的整数，verl建议设置至少n*(prompt + response)。|
 | ppo_epochs        | int | 重复同一批轨迹的PPO更新所需要的轮次 | 默认值为1，应为大于0的整数。|
 | project_name      | str | 项目名称 | 默认值为default-agent。|
 | experiment_name   | str | 实验名称 | 默认值为default-experiment。|
@@ -131,6 +131,7 @@
 >-   该路径的属主为当前用户。
 
 **mindspeed_rl参考配置文件**
+
 处于配置文件参数类别下的需要放置在配置文件第一级
 
 处于mindspeed_rl相关参数类别下的配置参数需放置在第二级中
