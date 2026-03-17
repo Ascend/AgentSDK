@@ -83,7 +83,8 @@ class AsyncVLLMInferEngine(AsyncBaseVLLMInferEngine):
                 infer_tensor_parallel_size=self.infer_tensor_parallel_size,
                 infer_pipeline_parallel_size=self.infer_pipeline_parallel_size,
                 infer_expert_parallel_size=self.infer_expert_parallel_size,
-                load_format=load_format or DEFAULT_LOAD_FORMAT
+                load_format=load_format or DEFAULT_LOAD_FORMAT,
+                enable_sleep_mode=enable_sleep_mode
             )
         except RuntimeError as e:
             logger.error(f"Failed to initialize WeightManager with load_format={load_format}: {e}")
@@ -158,6 +159,9 @@ class AsyncVLLMInferEngine(AsyncBaseVLLMInferEngine):
             if self.memory_manager.cpu_model is None:
                 raise RuntimeError("CPU model is not initialized")
             logger.info("Starting model weight offload to CPU")
+            if self.enable_sleep_mode:
+                self.inference_engine.sleep(level=1)
+                return
             self.memory_manager.offload_model_weights(self.model, self.memory_manager.cpu_model)
             logger.info("Model weight offload completed successfully")
         except RuntimeError as e:
@@ -179,7 +183,11 @@ class AsyncVLLMInferEngine(AsyncBaseVLLMInferEngine):
             if not params:
                 raise ValueError("params dictionary is empty")
             logger.info(f"Starting model weight synchronization with format={load_format}")
-            self.weight_manager.load_megatron_weights(params, self.model, self.hf_config)
+            self.weight_manager.load_megatron_weights(params,
+                                                      self.model,
+                                                      self.hf_config,
+                                                      self.memory_manager.cpu_model,
+                                                      self.inference_engine)
             logger.info("Model weight synchronization completed successfully")
         except (KeyError, ValueError) as e:
             raise RuntimeError(f"Weight synchronization failed due to invalid parameters: {e}") from e

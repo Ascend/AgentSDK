@@ -84,6 +84,24 @@ class BaseMegatronWeightLoader(ABC):
                 continue
             try:
                 BaseMegatronWeightLoader.process_qkv_weight(name, loaded_weight, infer_parallel_config, hf_config)
+                if "mlp.experts.w13_weight" in name:
+                    tmp = loaded_weight.view(
+                        hf_config.num_experts // infer_parallel_config.infer_expert_parallel_size,
+                        hf_config.hidden_size,
+                        -1
+                    ).transpose(2, 1).contiguous()
+                    if loaded_weight.shape != tmp.shape:
+                        tmp = tmp.transpose(2, 1).contiguous()
+                    loaded_weight.copy_(tmp)
+                if "mlp.experts.w2_weight" in name:
+                    tmp = loaded_weight.view(
+                        hf_config.num_experts // infer_parallel_config.infer_expert_parallel_size,
+                        -1,
+                        hf_config.hidden_size
+                    ).transpose(2, 1).contiguous()
+                    if loaded_weight.shape != tmp.shape:
+                        tmp = tmp.transpose(2, 1).contiguous()
+                    loaded_weight.copy_(tmp)
                 BaseMegatronWeightLoader.load_single_weight(params_dict, name, loaded_weight)
             except (RuntimeError, ValueError) as e:
                 raise RuntimeError(f"Failed to load weight {name}: {str(e)}") from e
@@ -131,7 +149,7 @@ class BaseMegatronWeightLoader(ABC):
                 raise ValueError("Incompatible key-value heads and tensor parallel size")
 
             nh = hf_config.num_attention_heads // infer_tensor_parallel_size
-            ng = hf_config.num_key_value_heads // infer_tensor_parallel_size
+            ng = max(hf_config.num_key_value_heads // infer_tensor_parallel_size, 1)
 
             if ng == 0:
                 raise ValueError("Invalid parallel configuration resulting in zero heads per GPU")
@@ -191,7 +209,7 @@ class BaseMegatronWeightLoader(ABC):
                 raise ValueError("Incompatible key-value heads and tensor parallel size")
 
             nh = hf_config.num_attention_heads // infer_tensor_parallel_size
-            ng = hf_config.num_key_value_heads // infer_tensor_parallel_size
+            ng = max(hf_config.num_key_value_heads // infer_tensor_parallel_size, 1)
 
             if ng == 0:
                 logger.error("Number of key-value heads per GPU is zero")

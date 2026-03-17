@@ -17,15 +17,18 @@ MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 See the Mulan PSL v2 for more details.
 -------------------------------------------------------------------------
 """
+import time
 from typing import Callable
 
 import ray
+import torch
+
 from mindspeed_rl.config_cls.generate_config import GenerateConfig
 from mindspeed_rl.config_cls.megatron_config import MegatronConfig
 from mindspeed_rl.config_cls.rl_config import RLConfig
 from mindspeed_rl.models.reference import Reference
 from mindspeed_rl.utils.tokenizer import BaseTokenizer
-from mindspeed_rl.workers.integrated_worker import IntegratedWorker as _IntegratedWorker
+from mindspeed_rl.utils.utils import mstx_timer_decorator, profiler_start, MsProbe, profiler_step
 from mindspeed_rl.workers.integrated_worker import temporary_micro_batch_size
 from mindspeed_rl.workers.reference_worker import ReferenceWorkerBase
 from mindspeed_rl.workers.resharding.megatron_off_loader import MegatronOffLoader
@@ -38,16 +41,9 @@ from agentic_rl.trainer.train_adapter.mindspeed_rl.workers.actor_hybrid_worker i
 
 logger = Loggers(__name__)
 
-# IntegratedWorker is wrapped by ray.remote, so we need to get the real class
-try:
-    raw_integrated_worker_cls = _IntegratedWorker.__ray_metadata__.modified_class
-except AttributeError as attribute_error:
-    logger.error(f"Unable to get IntegratedWorker from msrl: {attribute_error}")
-    raise AttributeError("Unable to get IntegratedWorker from msrl.") from attribute_error
-
 
 @ray.remote(resources={"NPU": 0.7})
-class IntegratedWorker(raw_integrated_worker_cls, AgentActorHybridWorkerBase, ReferenceWorkerBase, RewardWorkerBase):
+class IntegratedWorker(AgentActorHybridWorkerBase, ReferenceWorkerBase, RewardWorkerBase):
     """
     IntegratedWorker class. This class implements the integrated worker for the Actor, Reference and Reward Worker.
     """
@@ -106,7 +102,7 @@ class IntegratedWorker(raw_integrated_worker_cls, AgentActorHybridWorkerBase, Re
             logger.error("IntegratedWorker is not correct initialized, unable to get master port")
             raise ValueError("IntegratedWorker is not correct initialized, unable to get master port")
 
-        return "127.0.0.1", self._master_port
+        return self._master_addr, self._master_port
 
     def initialize(self):
         """
@@ -185,6 +181,44 @@ class IntegratedWorker(raw_integrated_worker_cls, AgentActorHybridWorkerBase, Re
             temperature=self.generate_config.sampling_config["temperature"]
         )
 
+    @mstx_timer_decorator
+    def compute_ref_log_prob(self):
+        start_onload_time = time.time()
+        self.ref_manager.onload_param()
+        end_onload_time = time.time()
+        ray.get(
+            self.td.update_metrics.remote(
+                "timing/ref_onload",
+                value=[round(end_onload_time, 4), round(start_onload_time, 4)],
+                cumulate=True
+            )
+        )
+        compute_log_prob_profiler = profiler_start(self.profiler_config, role="reference_compute_log_prob",
+                                                   profiler_iteration=self.prof_iteration)
+        MsProbe.debugger_start(model=self.ref_model, tag="reference_compute_log_prob")
+        if self.ref_forward_micro_batch_size is not None:
+            with temporary_micro_batch_size(
+                    worker=self.reference,
+                    args=self.get_args(),
+                    new_mbs=self.ref_forward_micro_batch_size
+            ):
+                ReferenceWorkerBase.compute_ref_log_prob(self)
+        else:
+            ReferenceWorkerBase.compute_ref_log_prob(self)
+        profiler_step(compute_log_prob_profiler)
+        MsProbe.debugger_stop("reference_compute_log_prob")
+        start_offload_time = time.time()
+        self.ref_manager.offload_param()
+        torch.cuda.empty_cache()
+        end_offload_time = time.time()
+        ray.get(
+            self.td.update_metrics.remote(
+                "timing/ref_offload",
+                value=[round(end_offload_time, 4), round(start_offload_time, 4)],
+                cumulate=True
+            )
+        )
+
     def compute_log_prob(self):
         if self.actor_forward_micro_batch_size is not None:
             with temporary_micro_batch_size(
@@ -196,17 +230,47 @@ class IntegratedWorker(raw_integrated_worker_cls, AgentActorHybridWorkerBase, Re
         else:
             AgentActorHybridWorkerBase.compute_log_prob(self)
 
-    def _build_rollout(self):
-        return AgentActorHybridWorkerBase._build_rollout(self)
+    def load_checkpoint_with_path(self, model, path, ckpt_only=False):
+        """Load model checkpoint from a specified path with flexible control.
 
-    def enter_infer_mode(self):
-        AgentActorHybridWorkerBase.enter_infer_mode(self)
+        Args:
+            model: The model to load checkpoint into.
+            path: Path to the checkpoint file/directory. If None, use the path in megatron args.
+            ckpt_only: If True, only loads model weights (skips optimizer/RNG states).
+        """
 
-    def exit_infer_mode(self):
-        AgentActorHybridWorkerBase.exit_infer_mode(self)
+        # Backup original arguments if needed
+        original_args = {
+            'no_load_optim': getattr(self.get_args(), "no_load_optim", None),
+            'no_load_rng': getattr(self.get_args(), "no_load_rng", None),
+            'load': getattr(self.get_args(), "load", None),
+            'iteration': getattr(self.get_args(), "iteration", None),
+            'finetune': getattr(self.get_args(), "finetune", None),
+            'consumed_train_samples': getattr(self.get_args(), "consumed_train_samples", None),
+            'consumed_valid_samples': getattr(self.get_args(), "consumed_valid_samples", None),
+        } if ckpt_only or path else {}
 
-    def update(self, kl_ctrl=None, skip_actor_log_prob: bool = False):
-        AgentActorHybridWorkerBase.update(self, kl_ctrl, skip_actor_log_prob)
+        if ckpt_only:
+            self._set_args({
+                "no_load_optim": True,
+                "no_load_rng": True,
+                "finetune": True,
+                'consumed_train_samples': 0,
+                'consumed_valid_samples': 0
+            })
+
+        if path is not None:
+            self._set_args({"load": path})
+
+        self.load_checkpoint(model, None, None)
+
+        if original_args:
+            self._set_args(original_args)
+
+    def _set_args(self, arg_dict):
+        for key, value in arg_dict.items():
+            if hasattr(self.get_args(), key):
+                setattr(self.get_args(), key, value)
 
     def update_ref_dispatch_size(self, new_ref_dispatch_size: int):
         self.rl_config.ref_dispatch_size = new_ref_dispatch_size // self.parallel_state.get_data_parallel_world_size()

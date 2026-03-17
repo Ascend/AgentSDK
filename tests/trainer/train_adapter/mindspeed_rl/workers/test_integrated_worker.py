@@ -150,6 +150,7 @@ class TestIntegratedWorker:
             "mindspeed_rl.models": MagicMock(),
             "mindspeed_rl.models.reference": MagicMock(),
             "mindspeed_rl.utils": MagicMock(),
+            "mindspeed_rl.utils.utils": MagicMock(),
             "mindspeed_rl.utils.tokenizer": MagicMock(),
             "mindspeed_rl.workers": MagicMock(),
             "mindspeed_rl.workers.integrated_worker": MagicMock(),
@@ -280,8 +281,12 @@ class TestIntegratedWorker:
     def test_initialize_failed_with_create_offloader(self, integrated_worker):
         worker, _, _ = integrated_worker
 
-        with patch("agentic_rl.trainer.train_adapter.mindspeed_rl.workers.integrated_worker."
-                   "MegatronOffLoader") as mock_megatron_offloader:
+        with (
+            patch("agentic_rl.trainer.train_adapter.mindspeed_rl.workers.integrated_worker."
+                  "IntegratedWorker.load_checkpoint_with_path"),
+            patch("agentic_rl.trainer.train_adapter.mindspeed_rl.workers.integrated_worker."
+                   "MegatronOffLoader") as mock_megatron_offloader
+            ):
             mock_megatron_offloader.side_effect = AttributeError("error")
             with pytest.raises(AttributeError,
                                match="actor worker create offloader for ref model failed with missing attributes"):
@@ -300,8 +305,12 @@ class TestIntegratedWorker:
     def test_initialize_failed_with_offload_param(self, integrated_worker):
         worker, _, _ = integrated_worker
 
-        with patch("agentic_rl.trainer.train_adapter.mindspeed_rl.workers.integrated_worker."
-                   "MegatronOffLoader.offload_param") as mock_offload_param:
+        with (
+            patch("agentic_rl.trainer.train_adapter.mindspeed_rl.workers.integrated_worker."
+                      "IntegratedWorker.load_checkpoint_with_path"),
+            patch("agentic_rl.trainer.train_adapter.mindspeed_rl.workers.integrated_worker."
+                   "MegatronOffLoader.offload_param") as mock_offload_param
+            ):
             mock_offload_param.side_effect = RuntimeError("error")
             with pytest.raises(RuntimeError,
                                match="actor worker offload param for ref model failed"):
@@ -316,18 +325,28 @@ class TestIntegratedWorker:
         worker, _, _ = integrated_worker
 
         del worker.generate_config.sampling_config
-        with pytest.raises(AttributeError, match="actor worker init reference failed with missing attributes"):
+        with (
+            patch("agentic_rl.trainer.train_adapter.mindspeed_rl.workers.integrated_worker."
+                  "IntegratedWorker.load_checkpoint_with_path"),
+            pytest.raises(AttributeError, match="actor worker init reference failed with missing attributes")
+        ):
             worker.initialize()
 
         worker.generate_config = MockGenerateConfig()
         del worker.generate_config.sampling_config["temperature"]
-        with pytest.raises(KeyError, match="actor worker init reference failed with missing keys"):
+        with (
+            patch("agentic_rl.trainer.train_adapter.mindspeed_rl.workers.integrated_worker."
+                      "IntegratedWorker.load_checkpoint_with_path"),
+            pytest.raises(KeyError, match="actor worker init reference failed with missing keys")
+        ):
             worker.initialize()
 
     def test_initialize_success_with_no_error(self, integrated_worker):
         worker, _, _ = integrated_worker
 
-        worker.initialize()
+        with patch("agentic_rl.trainer.train_adapter.mindspeed_rl.workers.integrated_worker."
+                   "IntegratedWorker.load_checkpoint_with_path"):
+            worker.initialize()
 
     def test_build_rollout_success_with_no_error(self, integrated_worker):
         worker, _, _ = integrated_worker

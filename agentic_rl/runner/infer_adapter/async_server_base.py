@@ -20,7 +20,10 @@ See the Mulan PSL v2 for more details.
 
 import asyncio
 from abc import ABC, abstractmethod
+
+import ray
 from starlette.requests import Request
+
 from agentic_rl.base.log.loggers import Loggers
 
 logger = Loggers(__name__)
@@ -31,7 +34,7 @@ class AsyncServerBase(ABC):
 
     def __init__(self):
         self.server_ready = asyncio.Event()
-        self.address = "127.0.0.1"
+        self.address = ray._private.services.get_node_ip_address()
         self.port = None
         self._server_task = None
 

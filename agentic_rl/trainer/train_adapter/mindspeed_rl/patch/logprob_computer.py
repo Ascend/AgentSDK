@@ -51,6 +51,7 @@ def compute(self, output, batch, skip_entropy, **kwargs):
             prompt_length=batch["prompt_length"],
         )
         entropy = vocab_parallel_entropy(output)
+        entropy = get_tensor_allgather_cp_with_pack(entropy, cp_size, index)
         entropy = postprocess_packed_seqs(
             entropy,
             seqlens_in_batch,

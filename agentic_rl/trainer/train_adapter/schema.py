@@ -45,8 +45,20 @@ class MindspeedRLConfig(BaseConfig):
     micro_batch_size: int = 1
     tensor_model_parallel_size: int = 4
     pipeline_model_parallel_size: int = 1
-    actor_rollout_dispatch_size: int = 2
+    expert_model_parallel_size: int = 1
     adv_estimator: Literal['group_norm', 'gae'] = 'group_norm'
+    recompute_num_layers: int = 1
+    recompute_granularity: Optional[str] = None
+    recompute_method: Optional[str] = None
+    shape_order: Optional[str] = None
+    moe_alltoall_overlap_comm: bool = False
+    swap_optimizer: bool = False
+    moe_tp_extend_ep: bool = False
+    gemm_gradient_accumulation_fusion: bool = False
+    variable_seq_lengths: bool = False
+    reset_position_ids: bool = False
+    use_remove_padding: bool = False
+    blocking: bool = False
 
     @field_validator(
         "epochs",
@@ -57,8 +69,8 @@ class MindspeedRLConfig(BaseConfig):
         "micro_batch_size",
         "tensor_model_parallel_size",
         "pipeline_model_parallel_size",
+        "expert_model_parallel_size",
         "global_batch_size",
-        "actor_rollout_dispatch_size",
     )
     @classmethod
     def validate_positive(cls, v):
@@ -229,6 +241,13 @@ class GlobalConfig(BaseConfig):
     max_model_len: int = 16384
     gpu_memory_utilization: float = 0.85
     max_tokens: int = 8192
+    enable_prefix_caching: bool = False
+    num_scheduler_steps: int = 1
+    offload_train_optimizer: bool = False
+    offload_train_grad: bool = False
+    offload_train_param: bool = False
+    enable_expert_parallel: bool = False
+    trust_remote_code: bool = False
 
     # Sampling / Generation
     dtype: Literal["bfloat16", "float16"] = "bfloat16"
@@ -261,6 +280,7 @@ class GlobalConfig(BaseConfig):
     num_gpus_per_node: int = 8
     max_prompt_length: int = 2048
     rollout_n: int = 2
+    actor_rollout_dispatch_size: int = 2
 
     # Sub-configs
     mindspeed_rl: Optional[MindspeedRLConfig] = None
@@ -306,6 +326,7 @@ class GlobalConfig(BaseConfig):
         "max_tokens",
         "max_prompt_length",
         "max_steps",
+        "actor_rollout_dispatch_size",
     )
     @classmethod
     def validate_positive(cls, v):

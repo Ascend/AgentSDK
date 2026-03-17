@@ -42,7 +42,7 @@ def create_actor_handlers_patch(self, param: ActorHandlerParams) -> ray.actor.Ac
     world_size = param.world_size if param.world_size else 1
     rank = param.rank_index if param.rank_index else 0
 
-    _check(master_addr, master_port, world_size, rank)
+    _check(master_port, world_size, rank)
 
     runtime_env = {
         "env_vars": {
@@ -89,11 +89,7 @@ def create_actor_handlers_patch(self, param: ActorHandlerParams) -> ray.actor.Ac
     return worker
 
 
-def _check(master_addr: str, master_port: int, world_size: int, rank: int):
-    if master_addr != "localhost" and master_addr != "127.0.0.1":
-        logger.error("master addr must be localhost or 127.0.0.1")
-        raise ValueError("master addr must be localhost or 127.0.0.1")
-
+def _check(master_port: int, world_size: int, rank: int):
     if master_port is not None:
         if not isinstance(master_port, int):
             logger.error("master port for create worker must be an integer")
@@ -102,9 +98,9 @@ def _check(master_addr: str, master_port: int, world_size: int, rank: int):
             logger.error("master port must be in range [1, 65535]")
             raise ValueError("master port must be in range [1, 65535]")
 
-    if not (1 <= world_size <= 8):
-        logger.error("world size must be in range [1, 8]")
-        raise ValueError("world size must be in range [1, 8]")
+    if world_size < 1:
+        logger.error("world size must be greater than or equal to 1.")
+        raise ValueError("world size must be greater than or equal to 1.")
 
     if not (0 <= rank < world_size):
         logger.error("rank index must within range [0, world_size)")

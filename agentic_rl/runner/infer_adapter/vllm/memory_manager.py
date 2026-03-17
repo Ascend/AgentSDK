@@ -117,8 +117,8 @@ class MemoryManager:
 
         try:
             rank_value = int(rank_str)
-            if rank_value < 0 or rank_value >= 8:
-                raise ValueError("RANK environment variable must be an integer in [0, 8)")
+            if rank_value < 0:
+                raise ValueError("RANK environment variable must be a non-negative integer.")
 
             return rank_value
         except ValueError as e:

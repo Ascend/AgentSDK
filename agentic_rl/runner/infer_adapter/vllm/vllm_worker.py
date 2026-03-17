@@ -156,8 +156,8 @@ class AsyncBaseVLLMInferEngine(BaseInferEngine):
             except (ValueError, IndexError, TypeError) as e:
                 raise ValueError(f"RANK environment variable must be an integer: {e}") from e
 
-            if all_kwargs[0]["rank"] < 0 or all_kwargs[0]["rank"] >= 8:
-                raise ValueError("RANK environment variable must be in [0, 8)")
+            if all_kwargs[0]["rank"] < 0:
+                raise ValueError("RANK environment variable must be a non-negative integer")
 
         if "LOCAL_RANK" in os.environ:
             try:

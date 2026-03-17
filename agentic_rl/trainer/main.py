@@ -149,7 +149,8 @@ def main():
             sys.exit(1)
         else:
             logger.info('start initializing local ray cluster, when the ray cluster is not initialized')
-            ray_secure_init(extra_init_kwargs={'runtime_env': ray_envs, 'namespace': RAY_GROUP_NAMESPACE})
+            ray_secure_init(address='auto',
+                            extra_init_kwargs={'runtime_env': ray_envs, 'namespace': RAY_GROUP_NAMESPACE})
             ray_initialized_by_us = True
 
         try:

@@ -50,7 +50,7 @@ class RayEnvVarsConfig:
     # vLLM related configuration
     vllm_dp_size: str = '1'
     vllm_use_v1: str = '1'
-    vllm_version: str = '0.9.0'
+    vllm_version: str = '0.9.1'
     vllm_enable_graph_mode: str = '0'
     vllm_enable_mc2: str = '0'
     vllm_ascend_enable_topk_optimize: str = '1'
@@ -73,16 +73,19 @@ class RayEnvVarsConfig:
         return {
             'env_vars':
                 {
-                    'GLOO_SOCKET_IFNAME': "lo",
-                    'NCCL_SOCKET_IFNAME': "lo",
-                    'HCCL_SOCKET_IFNAME': "lo",
+                    # In the multi-node scenario, if an IP address is specified when ray is started,
+                    # do not need to specify the NIC.
+                    # 'GLOO_SOCKET_IFNAME': "lo",
+                    # 'NCCL_SOCKET_IFNAME': "lo",
+                    # 'HCCL_SOCKET_IFNAME': "lo",
                     'RAY_EXPERIMENTAL_NOSET_ASCEND_RT_VISIBLE_DEVICES':
                         self.ray_experimental_noset_ascend_rt_visible_devices,
                     'TOKENIZERS_PARALLELISM': self.tokenizers_parallelism,
                     'NCCL_DEBUG': self.nccl_debug,
                     'HCCL_CONNECT_TIMEOUT': self.hccl_connect_timeout,
                     'HCCL_EXEC_TIMEOUT': self.hccl_exec_timeout,
-                    'HCCL_IF_IP': "127.0.0.1",
+                    # HCCL_IF_IP does not need to be specified in non-standalone scenarios
+                    # 'HCCL_IF_IP': "127.0.0.1",
                     'HCCL_IF_BASE_PORT': self.hccl_if_base_port,
                     'CUDA_DEVICE_MAX_CONNECTIONS': self.cuda_device_max_connections,
                     'HYDRA_FULL_ERROR': self.hydra_full_error,

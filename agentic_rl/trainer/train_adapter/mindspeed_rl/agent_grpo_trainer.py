@@ -75,7 +75,7 @@ class AgentGRPOTrainer(RayGRPOTrainer):
         self.actor_config = actor_config
         self.agentic_rl_config = agentic_rl_config
         self.use_stepwise_advantage = agentic_rl_config.use_stepwise_advantage
-        
+
         try:
             self.rollout_worker = RolloutWorker.remote(
                 n_parallel_agents=rl_config.n_samples_per_prompt,
@@ -229,7 +229,6 @@ class AgentGRPOTrainer(RayGRPOTrainer):
                 logger.info(f"{key}: {value}")
             if self.agentic_rl_config.test_only:
                 return
-
 
         if self.blocking:
             logger.info(
@@ -458,7 +457,7 @@ class AgentGRPOTrainer(RayGRPOTrainer):
         indexes = [i for i in range(new_size)]
 
         return padding_dict_to_tensor_dict(new_data), indexes
-        
+
     def _put_prompts_experience(self, batch):
         new_batch_data = dict()
 
@@ -495,7 +494,7 @@ class AgentGRPOTrainer(RayGRPOTrainer):
 
         batch, index = self._put_data_experience(new_batch_data, 1)
         return ray.get(self.rollout_worker.generate_validation.remote(batch, index))
-    
+
     def _validate_agent(self, data_iterator):
         rewards_list = []
         step = 1
