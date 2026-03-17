@@ -132,7 +132,6 @@ class MemorySimple(MemoryBase):
 
             # Ensure start_id doesn't exceed end_id
             if start_id >= end_id:
-                logger.warning(f"Invalid range: start_id ({start_id}) must be less than end_id ({end_id})")
                 return messages
 
             # Find assistant message indices in the specified range
