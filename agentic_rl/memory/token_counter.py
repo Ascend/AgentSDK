@@ -61,7 +61,6 @@ class HuggingFaceTokenCounter(TokenCounter):
     def __init__(self, model_path: str) -> None:
         FileCheck.check_path_is_exist_and_valid(model_path)
         self.tokenizer = AutoTokenizer.from_pretrained(model_path, local_files_only=True, weights_only=True)
-        logger.info(f"Loaded tokenizer: {model_path}")
 
     @validate_params(text=dict(validator=lambda x: isinstance(x, str), message="text must be a string"))
     def count_tokens(self, text: str) -> int:

@@ -206,7 +206,6 @@ class MemorySummary(MemorySimple):
 
         try:
             self.chat_client = SummaryClient(client=self.config.oai_client, model_name=self.config.oai_model_name)
-            logger.info(f"Initialized chat client: {self.config.oai_model_name}")
         except RuntimeError as e:
             logger.error(f"Failed to initialize chat client: {e}")
             self.chat_client = None
@@ -223,7 +222,6 @@ class MemorySummary(MemorySimple):
     def _is_overlength(self, messages: list[dict]) -> bool:
         """Check if messages exceed max prompt length."""
         total_len = self._get_total_length(messages)
-        logger.info(f"total_len: {total_len}")
         return total_len > self.config.max_prompt_length
 
     def _get_total_length(self, messages: list[dict] | str) -> int:
