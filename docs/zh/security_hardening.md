@@ -81,6 +81,40 @@
 
 
 
+### 模型保存路径安全加固<a name="ZH-CN_TOPIC_0000002459355017"></a>
+
+训练过程中checkpoint默认保存在当前目录下的`checkpoints/${project_name}/${experiment_name}`路径中，该目录包含模型权重、优化器状态等敏感信息。为确保安全，需要对该路径进行以下安全加固：
+
+1.  确保checkpoint目录的权限设置正确：
+    -   目录权限设置为750。
+    -   文件权限设置为640。
+
+2.  目录属主应为当前用户，避免其他用户访问。
+
+3.  避免使用软链接，防止路径遍历攻击。
+
+4.  定期检查和清理不需要的checkpoint文件，避免敏感信息泄露。
+
+5.  如需将checkpoint存储到其他路径，请确保目标路径同样满足上述安全要求。
+
+可以使用以下命令检查和设置checkpoint目录的权限：
+
+```
+# 创建checkpoint目录并设置权限
+mkdir -p checkpoints/${project_name}/${experiment_name}
+chmod 750 checkpoints/${project_name}/${experiment_name}
+chmod 750 checkpoints/${project_name}
+chmod 750 checkpoints
+
+# 对已有的checkpoint文件设置权限
+find checkpoints -type d -exec chmod 750 {} \;
+find checkpoints -type f -exec chmod 640 {} \;
+
+# 验证目录属主
+ls -la checkpoints/
+```
+
+
 ## 查看命令行操作记录<a name="ZH-CN_TOPIC_0000002479124428"></a>
 
 命令行操作日志记录在系统history中。
