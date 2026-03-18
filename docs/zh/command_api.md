@@ -121,6 +121,15 @@
 | test_freq          | int | 验证执行频率 | 默认值为-1，应为-1或大于0的正整数。|
 | truncation         | str | 截断方式 | 默认值为error，应为“error”，“left”，“right”，“middle”中的一个。|
 
+**断点续训说明**
+
+当前命令行接口默认开启断点续训功能。训练过程中的checkpoint默认保存在当前目录下的`checkpoints/${project_name}/${experiment_name}`路径中。当再次启动训练时，系统会自动检测该路径下是否存在checkpoint文件，若存在则自动加载并恢复训练。
+
+如果用户希望从头开始训练而非恢复之前的训练状态，需要修改`project_name`或`experiment_name`参数。修改任意一个参数都会使用新的checkpoint目录，从而避免加载旧的checkpoint文件。
+
+> [!IMPORTANT]
+> checkpoint目录包含模型权重、优化器状态等敏感信息，请参考[安全加固](security_hardening.md#模型保存路径安全加固)对模型保存路径进行安全配置。
+
 
 > [!NOTE] 
 > 本章节中涉及到的所有路径，需满足以下要求：
