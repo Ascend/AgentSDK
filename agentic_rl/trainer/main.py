@@ -149,8 +149,19 @@ def main():
             sys.exit(1)
         else:
             logger.info('start initializing local ray cluster, when the ray cluster is not initialized')
-            ray_secure_init(address='auto',
-                            extra_init_kwargs={'runtime_env': ray_envs, 'namespace': RAY_GROUP_NAMESPACE})
+            num_node = cfg.get("num_node", 1)
+            if isinstance(num_node, int):
+                if num_node == 1:
+                    ray_secure_init(extra_init_kwargs={'runtime_env': ray_envs, 'namespace': RAY_GROUP_NAMESPACE})
+                elif num_node > 1:
+                    ray_secure_init(address='auto',
+                                    extra_init_kwargs={'runtime_env': ray_envs, 'namespace': RAY_GROUP_NAMESPACE})
+                else:
+                    logger.error(f"num_node should be greater or equal 1, but {num_node} was given")
+                    sys.exit(1)
+            else:
+                logger.error(f"num_node should be an integer value, but {type(num_node)} was given")
+                sys.exit(1)
             ray_initialized_by_us = True
 
         try:
