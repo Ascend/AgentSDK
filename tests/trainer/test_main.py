@@ -157,11 +157,41 @@ class TestMain:
 
         mock_train.remote.side_effect = None
 
+    def test_main_invalid_node_num(self, mock_for_main, caplog):
+        main, patches = mock_for_main
+        mock_ray_is_initialized = patches["mock_ray_is_initialized"]
+        mock_yaml_load = patches["mock_yaml_load"]
+
+        mock_ray_is_initialized.return_value = False
+        mock_yaml_load.return_value = {"num_node": -1}
+
+        with pytest.raises(SystemExit):
+            with caplog.at_level('ERROR', ):
+                main()
+
+        assert "num_node should be greater or equal 1, but" in caplog.text
+
+    def test_main_invalid_node_num_type(self, mock_for_main, caplog):
+        main, patches = mock_for_main
+        mock_ray_is_initialized = patches["mock_ray_is_initialized"]
+        mock_yaml_load = patches["mock_yaml_load"]
+
+        mock_ray_is_initialized.return_value = False
+        mock_yaml_load.return_value = {"num_node": "asdfasd"}
+
+        with pytest.raises(SystemExit):
+            with caplog.at_level('ERROR', ):
+                main()
+
+        assert "num_node should be an integer value, but " in caplog.text
+
     def test_main_success(self, mock_for_main, caplog):
         main, patches = mock_for_main
         mock_ray_is_initialized = patches["mock_ray_is_initialized"]
         mock_ray_init = patches["mock_ray_init"]
         mock_ray_get = patches["mock_ray_get"]
+        mock_yaml_load = patches["mock_yaml_load"]
+        mock_yaml_load.return_value = {"num_node": 1}
 
         mock_ray_init.reset_mock()
         mock_ray_get.reset_mock()
