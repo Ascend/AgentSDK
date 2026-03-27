@@ -47,6 +47,9 @@ Agent SDK提供了训练模型示例。
     # 进入自己的工作目录
     cd /home/work-dir
     
+    # 多机训练时，需要先手动启动ray服务，参考命令如下：
+    # 主节点：ray start --head --port {ray_port} --dashboard-host={master_ip} --node-ip-address={current_ip} --dashboard-port={dashboard_port} --resources='{"NPU": {npus_per_node}}'
+    # 从节点：ray start --address={master_ip}:{ray_port} --node-ip-address={current_ip} --resources='{"NPU": {npus_per_node}}'
     # 执行命令，按照安装情况修改配置文件路径，如果前面的步骤中修改了权重或者数据集的目录，请酌情修改配置文件
     agentic_rl --config-path /home/agent-7.3.0/configs/agent-parameters.yaml
     ```

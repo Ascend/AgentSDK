@@ -278,6 +278,7 @@ class GlobalConfig(BaseConfig):
 
     # Resources / Training
     num_gpus_per_node: int = 8
+    num_node: int = 1
     max_prompt_length: int = 2048
     rollout_n: int = 2
     actor_rollout_dispatch_size: int = 2
@@ -311,6 +312,7 @@ class GlobalConfig(BaseConfig):
 
     @field_validator(
         "num_gpus_per_node",
+        "num_node",
         "max_num_seqs",
         "rollout_n",
         "max_model_len",

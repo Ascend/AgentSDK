@@ -286,7 +286,7 @@ def _gen_rl_config(config: Dict[str, Any]) -> RLConfig:
     rl_config = RLConfig(
         OmegaConf.create(
             {
-                "actor_resource": {"num_npus": config.get("num_gpus_per_node")},
+                "actor_resource": {"num_npus": config.get("num_gpus_per_node") * config.get("num_node")},
                 "use_remove_padding": ms_config.get("use_remove_padding", False),
                 "use_integrated_worker": True,
                 "guarantee_order": False,
