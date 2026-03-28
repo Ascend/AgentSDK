@@ -6,7 +6,7 @@ echo "[INFO] Pre-smoke test start"
 echo "======================================"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PRESMOKE_DIR="${SCRIPT_DIR}/tests/presmoke"
+PRESMOKE_DIR="${SCRIPT_DIR}/presmoke"
 
 if [ ! -d "$PRESMOKE_DIR" ]; then
     echo "[ERROR] presmoke directory not found: $PRESMOKE_DIR"
@@ -16,9 +16,22 @@ fi
 # ------------------------------------------------------------------------------
 # collecting cases
 # ------------------------------------------------------------------------------
-mapfile -t CASES < <(
-    find "$PRESMOKE_DIR" -maxdepth 1 -type f -name "*.sh" | sort
+mapfile -t OTHER_CASES < <(
+    find "$PRESMOKE_DIR" -maxdepth 1 -type f -name "*.sh" \
+        ! -name "install.sh" ! -name "uninstall.sh" | sort
 )
+
+CASES=()
+
+if [ -f "$PRESMOKE_DIR/install.sh" ]; then
+    CASES+=("$PRESMOKE_DIR/install.sh")
+fi
+
+CASES+=("${OTHER_CASES[@]}")
+
+if [ -f "$PRESMOKE_DIR/uninstall.sh" ]; then
+    CASES+=("$PRESMOKE_DIR/uninstall.sh")
+fi
 
 if [ "${#CASES[@]}" -eq 0 ]; then
     echo "[ERROR] No presmoke cases found in $PRESMOKE_DIR"
@@ -48,6 +61,6 @@ for case in "${CASES[@]}"; do
 done
 
 echo
-echo "======================================"
+echo "======================================="
 echo "[SUCCESS] All presmoke cases PASSED"
-echo "======================================"
+echo "======================================="
