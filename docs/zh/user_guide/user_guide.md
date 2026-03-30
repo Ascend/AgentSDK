@@ -6,15 +6,15 @@
 
 **实现自定义MockEngineWrapper<a name="section142771553125211"></a>**
 
-1.  创建mock\_engine\_wrapper.py文件
+1. 创建mock\_engine\_wrapper.py文件
 
-    ```
-    vi /your_forder/mock_engine_wrapper.py
+    ```shell
+    vi /your_folder/mock_engine_wrapper.py
     ```
 
-2.  自定义MockEngineWrapper类
+2. 自定义MockEngineWrapper类
 
-    ```
+    ```python
     import random
     import torch
     from typing import List, Any, Dict
@@ -74,25 +74,26 @@
 
 **修改配置文件<a name="section17641024165316"></a>**
 
-```
+```shell
 vi /your_config_directory_path/your_config_file_name.yaml
 ```
 
 修改Agent引擎路径字段
 
-```
+```yaml
 # ...
-agent_engine_wrapper_path: "/your_forder/mock_engine_wrapper.py"
+agent_engine_wrapper_path: "/your_folder/mock_engine_wrapper.py"
 # ...
 ```
 
 **启动训练任务<a name="section11265124225512"></a>**
 
-```
+```shell
 agentic_rl --config-path /your_config_directory_path/your_config_file_name.yaml
 ```
 
 ## 更多Agent场景实践<a name="ZH-CN_TOPIC_0000002492554189"></a>
+
 - 数学 Math Agent 请参考：[数学](math_agent.md)
-- 网络搜索 Web Search Agent 请参考：[Web 搜索](websearch_agent.md)
+- 网络搜索 Web Search Agent 请参考：[Web 搜索](websearcher_agent.md)
 - Meta ARE Gaia2 请参考：[Meta-ARE](meta_are.md)

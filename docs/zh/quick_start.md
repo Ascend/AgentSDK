@@ -12,38 +12,38 @@ Agent SDK提供agentic\_rl命令，本章节通过介绍该命令的使用，帮
 
 Agent SDK提供了训练模型示例。
 
--   将训练模型进行转换，具体操作如下：
+- 将训练模型进行转换，具体操作如下：
 
-    ```
+    ```shell
     # 提前准备模型权重，按情况修改模型路径
     cd /home/third-party/MindSpeed-LLM
     python3 convert_ckpt.py   \
-    	--use-mcore-models   \
-    	--model-type GPT  \
-    	--load-model-type hf   \
-    	--save-model-type mg   \
-    	--target-tensor-parallel-size 4   \
-    	--target-pipeline-parallel-size 1   \
-    	--add-qkv-bias   \
-    	--load-dir /home/models/Qwen2.5-7B-Instruct/  \
-    	--save-dir /home/models/Qwen2.5-7B-Instruct-mcore/    \
-    	--tokenizer-model /home/models/Qwen2.5-7B-Instruct/tokenizer.json    \
-    	--model-type-hf llama2   \
-    	--params-dtype bf16
+        --use-mcore-models   \
+        --model-type GPT  \
+        --load-model-type hf   \
+        --save-model-type mg   \
+        --target-tensor-parallel-size 4   \
+        --target-pipeline-parallel-size 1   \
+        --add-qkv-bias   \
+        --load-dir /home/models/Qwen2.5-7B-Instruct/  \
+        --save-dir /home/models/Qwen2.5-7B-Instruct-mcore/    \
+        --tokenizer-model /home/models/Qwen2.5-7B-Instruct/tokenizer.json    \
+        --model-type-hf llama2   \
+        --params-dtype bf16
     ```
 
--   将训练数据集进行处理，具体操作如下：
+- 将训练数据集进行处理，具体操作如下：
 
-    ```
+    ```shell
     mkdir -p /home/datasets/deepscalar/
     cd /home/datasets/deepscalar/
     # 下载数据集
     wget https://huggingface.co/datasets/agentica-org/DeepScaleR-Preview-Dataset/resolve/main/deepscaler.json
     ```
 
--   完成训练模型转换和数据集下载后，开始进行训练。
+- 完成训练模型转换和数据集下载后，开始进行训练。
 
-    ```
+    ```shell
     # 进入自己的工作目录
     cd /home/work-dir
     
@@ -55,11 +55,12 @@ Agent SDK提供了训练模型示例。
     ```
 
 > [!NOTE] 说明
->-   请确保模型权重路径，Agent SDK安装路径及所有文件的属主与运行用户一致。
->-   请确保路径不为软链接。
->-   请确保路径为本地绝对路径。
->-   请确保路径权限为750，文件为640。
->-   请确保模型文件来源可信，文件未被篡改，且已完成了训练模型转换和数据集处理。如果模型来源不可靠，可能会发生torch.load导致的序列化问题。
+>
+>- 请确保模型权重路径，Agent SDK安装路径及所有文件的属主与运行用户一致。
+>- 请确保路径不为软链接。
+>- 请确保路径为本地绝对路径。
+>- 请确保路径权限为750，文件为640。
+>- 请确保模型文件来源可信，文件未被篡改，且已完成了训练模型转换和数据集处理。如果模型来源不可靠，可能会发生torch.load导致的序列化问题。
 
 ## **后续步骤<a name="section167395353541"></a>**
 
