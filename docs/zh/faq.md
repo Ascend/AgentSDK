@@ -6,7 +6,7 @@
 
 启动Agent SDK后，出现如下报错信息。
 
-```
+```text
 ...
 socket.gaierror: [Errno -3] Temporary failure in name resolution
 ...
@@ -20,11 +20,9 @@ socket.gaierror: [Errno -3] Temporary failure in name resolution
 
 查看hostname，并通过设置/etc/hosts解决问题。
 
-```
+```shell
 # 查看hostname
 hostname
 # 修改/etc/hosts
 # 在127.0.0.1 localhost后面增加当前设备的hostname即可
 ```
-
-

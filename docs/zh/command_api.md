@@ -8,7 +8,6 @@
 |--|--|
 |--config-path|配置文件的路径。该配置文件的类型为yaml类型。|
 
-
 **配置文件参数说明<a name="section61851418129"></a>**
 
 | 参数名                       | 类型   | 说明  | 约束  |
@@ -57,7 +56,6 @@
 | test_only                 | bool | 是否只进行测试而不训练 | 默认值为False。 |
 | test_before_train         | bool | 是否在训练前针对原始模型做测试 | 默认值为False。 |
 | use_stepwise_advantage    | bool | 是否启用step-level模式 | 默认值为False。 |
-
 
 **mindspeed-rl相关参数**
 
@@ -130,14 +128,14 @@
 > [!IMPORTANT]
 > checkpoint目录包含模型权重、优化器状态等敏感信息，请参考[安全加固](security_hardening.md#模型保存路径安全加固)对模型保存路径进行安全配置。
 
-
 > [!NOTE] 
 > 本章节中涉及到的所有路径，需满足以下要求：
->-   该路径必须存在。
->-   该路径下的文件夹权限要求750，文件权限要求为640。
->-   该路径不能为软链接。
->-   该路径的字符串长度不能大于1024。
->-   该路径的属主为当前用户。
+>
+>- 该路径必须存在。
+>- 该路径下的文件夹权限要求750，文件权限要求为640。
+>- 该路径不能为软链接。
+>- 该路径的字符串长度不能大于1024。
+>- 该路径的属主为当前用户。
 
 **mindspeed_rl参考配置文件**
 
@@ -147,7 +145,7 @@
 
 配置结构示例如下，注意本配置文件为参考模板，不可直接复制使用，请您根据实际情况自行增删以及修改参数：
 
-```
+```yaml
 tokenizer_name_or_path: /path/to/model
 model_name: qwen2.5-7b
 agent_name: math
@@ -181,7 +179,7 @@ mindspeed_rl:
 
 配置结构示例如下，注意本配置文件为参考模板，不可直接复制使用，请您根据实际情况自行增删以及修改参数：
 
-```
+```yaml
 tokenizer_name_or_path: /path/to/model
 model_name: qwen2.5-7b
 agent_name: math
