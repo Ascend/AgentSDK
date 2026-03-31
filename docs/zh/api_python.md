@@ -1,5 +1,7 @@
 # Python接口说明<a name="ZH-CN_TOPIC_0000002459514668"></a>
 
+> 注意：AgentSDK可通过Python接口进行应用开发，从代码调用角度上来说所有Python侧接口都可以被调用。本章节仅列出业务提供的对外接口，其余未进行说明的接口用户请勿直接调用。
+
 ## 数据类型<a name="ZH-CN_TOPIC_0000002492474277"></a>
 
 ### Trajectory<a name="ZH-CN_TOPIC_0000002492474285"></a>
@@ -32,19 +34,19 @@ class Trajectory:
 
 |参数名|类型|说明|
 |--|--|--|
-|idx|int|轨迹的索引或编号，默认为0。|
 |prompt_tokens|torch.Tensor|输入提示的token序列，不能包含Nan和Inf。|
 |response_tokens|torch.Tensor|模型生成的响应的token序列，不能包含Nan和Inf。|
 |response_masks|torch.Tensor|响应token的掩码，用于标识有效的token。不能包含Nan和Inf。|
+|idx|int|轨迹的索引或编号，默认为0。|
 |trajectory_reward|float \| int|轨迹的奖励值，默认为0.0。|
 |chat_completions|list[dict[str,str]]|大模型对话列表，默认为空列表。|
 |metrics|dict[str, Any]|轨迹的各项性能指标。其中，Any的取值为：<li>steps：表示轨迹的总执行步数。整数类型，默认为0。</li><li>reward_time：表示计算奖励值所花费的时间。数值类型，默认为0.0。</li><li>toolcall_reward：表示轨迹生成过程中工具调用奖励值。数值类型，默认为0.0。</li><li>res_reward：表示最终答案的奖励值。数值类型，默认为0.0。</li><li>env_time：表示与环境交互所花费的时间。数值类型，默认为0.0。</li><li>llm_time：表示LLM推理所花费的时间。数值类型，默认为0.0。</li><li>total_time：表示整个轨迹执行的总时间。数值类型，默认为0.0。</li>|
 
-### StepTrajectory<a name="ZH-CN_TOPIC_0000002492474285"></a>
+### Step<a name="ZH-CN_TOPIC_0000002492474285"></a>
 
 **功能描述<a name="section7608155812579"></a>**
 
-该类用于记录step-level模式下Agent运行的轨迹信息。
+该类用于记录step-level模式下Agent运行的单轨迹信息。
 
 **函数原型<a name="section1483104721911"></a>**
 
@@ -60,11 +62,7 @@ class Step:
     reward: float = 0.0
     done: bool = False
     mc_return: float = 0.0
-    
-@dataclass
-class StepTrajectory(Trajectory):
-    task: Any = None
-    steps: list[Step] = field(default_factory=list)
+
 ```
 
 **参数说明<a name="section5277832016"></a>**
@@ -82,6 +80,24 @@ class StepTrajectory(Trajectory):
 |reward|float| 本步骤获得的即时奖励，默认为 `0.0`，反映当前动作的质量。                |
 |done|bool| 是否在本步骤终止轨迹，默认为 `False`，标识任务是否完成。               |
 |mc_return|float| 从本步骤开始的 Monte Carlo 回报，默认为 `0.0`，用于策略梯度训练。     |
+
+
+### StepTrajectory<a name="ZH-CN_TOPIC_0000002492474285"></a>
+
+**功能描述<a name="section7608155812579"></a>**
+
+该类用于记录step-level模式下Agent运行的完整轨迹信息。
+
+**函数原型<a name="section1483104721911"></a>**
+
+```python
+@dataclass
+class StepTrajectory(Trajectory):
+    task: Any = None
+    steps: list[Step] = field(default_factory=list)
+```
+
+**参数说明<a name="section5277832016"></a>**
 
 **StepTrajectory类参数说明**
 
