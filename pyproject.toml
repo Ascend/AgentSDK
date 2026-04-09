@@ -1,0 +1,13 @@
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+exclude = [
+    ".git",
+    ".mypy_cache",
+    ".venv",
+    "build",
+    "dist",
+]
+
+[tool.ruff.format]
+quote-style = "double"
