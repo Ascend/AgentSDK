@@ -1,0 +1,61 @@
+minimum_pre_commit_version: 4.0.0
+exclude: ^LICENSES/|\.(html|csv|svg)$
+
+default_stages: [pre-commit]
+ci:
+  autofix_prs: false
+  autoupdate_schedule: monthly
+
+repos:
+  # Basic pre-commit checks
+  - repo: https://gitcode.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+        args: ["--allow-multiple-documents"]  # Compatible with Kubernetes YAML
+      - id: check-added-large-files  # Block files larger than 50MB (default threshold)
+      - id: check-merge-conflict     # Detect unresolved merge conflicts (<<<<<<< HEAD)
+      - id: detect-private-key       # Detect hardcoded private keys/secrets
+      - id: check-json
+      - id: no-commit-to-branch     # Prevent direct commits to main/master branch
+
+# -------------------------- Python Core Checks --------------------------
+  # Ruff: Python code linting + formatting
+  - repo: https://gitcode.com/gh_mirrors/ru/ruff-pre-commit
+    rev: v0.14.14
+    hooks:
+      - id: ruff-check
+        args: [--output-format, github, --fix]
+        types: [python]
+      - id: ruff-format
+        types: [python]
+
+  # codespell: Spell checking for comments/documentation (ignoring project-specific terms)
+  - repo: https://gitcode.com/gh_mirrors/co/codespell
+    rev: v2.4.1
+    hooks:
+      - id: codespell
+        args: [
+            "-L",
+            "CANN,cann,NNAL,nnal,ASCEND,ascend,EnQue,CopyIn,ArchType,AND,ND,tbe,copyin,alog",
+            "--skip",
+            "*.py", # 仅查文档/注释，跳过代码文件
+          ]
+
+  # typos: Spell checking for code identifiers
+  - repo: https://gitcode.com/gh_mirrors/ty/typos
+    rev: v1.32.0
+    hooks:
+      - id: typos
+        args: ["--force-exclude", "--config", "pre-commit/typos.toml"]
+        
+  # markdownlint: Markdown format check (manual execution only in CI)
+  - repo: https://gitcode.com/gh_mirrors/ma/markdownlint-cli
+    rev: v0.46.0
+    hooks:
+      - id: markdownlint
+        exclude: '.*\.inc\.md$|.*report_template\.md$|.*contributors\.md$|.*PULL_REQUEST_TEMPLATE\.md$'
+        stages: [manual]
+        description: "Markdown format check (run in CI: pre-commit run markdownlint --all-files)"
