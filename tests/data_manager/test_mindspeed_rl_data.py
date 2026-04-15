@@ -1,201 +1,181 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
--------------------------------------------------------------------------
-This file is part of the AgentSDK project.
-Copyright (c) 2025 Huawei Technologies Co.,Ltd.
 
-AgentSDK is licensed under Mulan PSL v2.
-You can use this software according to the terms and conditions of the Mulan PSL v2.
-You may obtain a copy of Mulan PSL v2 at:
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+#
+# AgentSDK is licensed under Mulan PSL v2.
+# You can use this software according to the terms and conditions of the Mulan PSL v2.
+# You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
 
-         http://license.coscl.org.cn/MulanPSL2
-
-THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
-EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
-MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
-See the Mulan PSL v2 for more details.
--------------------------------------------------------------------------
-"""
-
-import ray
-import torch
+import sys
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
-from agentic_rl.data_manager.mindspeed_rl_data import MindSpeedRLDataManager
+# ---------------------------------------------------------------------------
+# Module-level mocks  (BEFORE importing the code under test)
+# ---------------------------------------------------------------------------
+mock_ray = MagicMock()
+mock_torch = MagicMock()
+
+mock_loggers_module = MagicMock()
+mock_loggers_module.Loggers.return_value.get_logger.return_value = MagicMock()
+
+mock_data_transform_module = MagicMock()
+mock_data_transform_module.padding_dict_to_tensor_dict = MagicMock(side_effect=lambda x: x)
+
+# utils.py imports ray, requests, torch and Loggers
+mock_requests = MagicMock()
+mock_controller_utils_module = MagicMock()
+mock_controller_utils_module.DEFAULT_SLEEP_TIME = 2
+mock_controller_utils_module.MAX_TIMEOUT = 1800
+
+with patch.dict(sys.modules, {
+    'ray': mock_ray,
+    'torch': mock_torch,
+    'torch.distributed': mock_torch.distributed,
+    'requests': mock_requests,
+    'agentic_rl.base.log.loggers': mock_loggers_module,
+    'agentic_rl.data_manager.data_transform': mock_data_transform_module,
+    'agentic_rl.controllers.utils.utils': mock_controller_utils_module,
+}):
+    from agentic_rl.data_manager.mindspeed_rl_data import MindSpeedRLDataManager
+    import agentic_rl.data_manager.mindspeed_rl_data as _msrl_data_mod
 
 
 class TestMindSpeedRLDataManager(unittest.TestCase):
+    """Tests for MindSpeedRLDataManager covering all public methods."""
 
     def setUp(self):
-        self.mind_speed_rl_data_manager = MindSpeedRLDataManager()
-        self.mind_speed_rl_data_manager.data_manager = MagicMock()
+        self.dm = MindSpeedRLDataManager()
+        self.mock_remote_dm = MagicMock()
+        self.dm.data_manager = self.mock_remote_dm
 
-    def test_sync_init_data_manager_with_none(self):
-        with self.assertRaises(ValueError):
-            self.mind_speed_rl_data_manager.sync_init_data_manager(None)
+    def tearDown(self):
+        mock_ray.reset_mock()
+        mock_torch.reset_mock()
+        mock_loggers_module.reset_mock()
+        mock_data_transform_module.reset_mock()
+        # Restore side_effect after reset
+        mock_data_transform_module.padding_dict_to_tensor_dict = MagicMock(side_effect=lambda x: x)
 
-    def test_sync_init_data_manager_without_required_methods(self):
-        data_manager = MagicMock()
-        delattr(data_manager, 'update_metrics')
-        with self.assertRaises(AttributeError):
-            self.mind_speed_rl_data_manager.sync_init_data_manager(data_manager)
+    # ---- __init__ -----------------------------------------------------------
 
-    def test_sync_init_data_manager_with_required_methods(self):
-        data_manager = MagicMock()
-        data_manager.all_consumed = MagicMock()
-        data_manager.get_experience = MagicMock()
-        data_manager.put_experience = MagicMock()
-        data_manager.update_metrics = MagicMock()
-        self.mind_speed_rl_data_manager.sync_init_data_manager(data_manager)
-        self.assertEqual(self.mind_speed_rl_data_manager.data_manager, data_manager)
+    def test_init_data_manager_is_none(self):
+        """data_manager is None after construction."""
+        fresh = MindSpeedRLDataManager()
+        self.assertIsNone(fresh.data_manager)
 
-    @patch('ray.get')
-    def test_all_consumed_valid_input(self, mock_ray_get):
-        mock_ray_get.return_value = True
-        result = self.mind_speed_rl_data_manager.all_consumed('test_stage')
-        self.assertEqual(result, 0)
-        mock_ray_get.assert_called_once_with(
-            self.mind_speed_rl_data_manager.data_manager.all_consumed.remote('test_stage'))
+    # ---- sync_init_data_manager --------------------------------------------
 
-    @patch('ray.get')
-    def test_all_consumed_empty_string(self, mock_ray_get):
-        with self.assertRaises(RuntimeError):
-            self.mind_speed_rl_data_manager.all_consumed('')
+    def test_sync_init_data_manager(self):
+        """sync_init_data_manager stores the remote data manager."""
+        remote_dm = MagicMock()
+        fresh = MindSpeedRLDataManager()
+        fresh.sync_init_data_manager(remote_dm)
+        self.assertIs(fresh.data_manager, remote_dm)
 
-    @patch('ray.get')
-    def test_all_consumed_non_string(self, mock_ray_get):
-        with self.assertRaises(RuntimeError):
-            self.mind_speed_rl_data_manager.all_consumed(123)
+    # ---- all_consumed -------------------------------------------------------
 
-    @patch('ray.get')
-    def test_all_consumed_ray_error(self, mock_ray_get):
-        mock_ray_get.side_effect = ray.exceptions.RayError('Test Ray error')
-        with self.assertRaises(RuntimeError):
-            self.mind_speed_rl_data_manager.all_consumed('test_stage')
+    def test_all_consumed_returns_zero_when_all_consumed(self):
+        """all_consumed returns 0 when remote returns True (all consumed)."""
+        with patch.object(_msrl_data_mod, 'ray') as patched_ray:
+            patched_ray.get.return_value = True
+            result = self.dm.all_consumed("train")
+            self.assertEqual(result, 0)
+            self.mock_remote_dm.all_consumed.remote.assert_called_once_with("train")
 
-    @patch('ray.get')
-    def test_all_consumed_other_error(self, mock_ray_get):
-        mock_ray_get.side_effect = Exception('Test other error')
-        with self.assertRaises(RuntimeError):
-            self.mind_speed_rl_data_manager.all_consumed('test_stage')
+    def test_all_consumed_returns_one_when_not_consumed(self):
+        """all_consumed returns 1 when remote returns False (not all consumed)."""
+        with patch.object(_msrl_data_mod, 'ray') as patched_ray:
+            patched_ray.get.return_value = False
+            result = self.dm.all_consumed("train")
+            self.assertEqual(result, 1)
 
-    @patch('ray.get')
-    def test_get_data_success(self, mock_ray_get):
-        mock_ray_get.return_value = ({'data': 'value'}, 'index')
-        result = self.mind_speed_rl_data_manager.get_data('stage', ['column'], 1)
-        self.assertEqual(result, ({'data': 'value'}, 'index'))
+    # ---- get_data -----------------------------------------------------------
 
-    @patch('ray.get')
-    def test_get_data_no_data(self, mock_ray_get):
-        mock_ray_get.return_value = ({}, [])
-        result = self.mind_speed_rl_data_manager.get_data('stage', ['column'], 1)
-        self.assertEqual(result, ({}, []))
+    def test_get_data_with_valid_index(self):
+        """get_data returns batch and index when index is truthy."""
+        with patch.object(_msrl_data_mod, 'ray') as patched_ray:
+            batch = MagicMock()
+            batch.keys.return_value = ["input_ids"]
+            patched_ray.get.return_value = (batch, [0, 1])
 
-    def test_get_data_invalid_experience_consumer_stage(self):
-        with self.assertRaises(RuntimeError):
-            self.mind_speed_rl_data_manager.get_data('', ['column'], 1)
+            result_batch, result_idx = self.dm.get_data("train", ["input_ids"], 32)
+            self.assertIs(result_batch, batch)
+            self.assertEqual(result_idx, [0, 1])
+            self.mock_remote_dm.get_experience.remote.assert_called_once_with(
+                "train", ["input_ids"], 32, get_n_samples=True
+            )
 
-    def test_get_data_invalid_experience_columns(self):
-        with self.assertRaises(RuntimeError):
-            self.mind_speed_rl_data_manager.get_data('stage', [], 1)
+    def test_get_data_with_empty_index(self):
+        """get_data returns ({}, []) when index is empty."""
+        with patch.object(_msrl_data_mod, 'ray') as patched_ray:
+            batch = MagicMock()
+            batch.keys.return_value = ["input_ids"]
+            patched_ray.get.return_value = (batch, [])
 
-    def test_get_data_invalid_experience_count(self):
-        with self.assertRaises(RuntimeError):
-            self.mind_speed_rl_data_manager.get_data('stage', ['column'], 0)
+            result_batch, result_idx = self.dm.get_data("train", None, 16)
+            self.assertEqual(result_batch, {})
+            self.assertEqual(result_idx, [])
 
-    def test_get_data_invalid_get_n_samples(self):
-        with self.assertRaises(RuntimeError):
-            self.mind_speed_rl_data_manager.get_data('stage', ['column'], 1, 'invalid')
+    # ---- put_data -----------------------------------------------------------
 
-    @patch('ray.get', side_effect=ray.exceptions.RayError('Ray error'))
-    def test_get_data_ray_error(self, mock_ray_get):
-        with self.assertRaises(RuntimeError):
-            self.mind_speed_rl_data_manager.get_data('stage', ['column'], 1)
+    def test_put_data_calls_cpu_on_tensor_values(self):
+        """put_data calls .cpu() on non-list values and passes through list values."""
+        with patch.object(_msrl_data_mod, 'padding_dict_to_tensor_dict') as patched_padding:
+            patched_padding.side_effect = lambda x: x
 
-    @patch('ray.get', side_effect=Exception('Exception'))
-    def test_get_data_exception(self, mock_ray_get):
-        with self.assertRaises(RuntimeError):
-            self.mind_speed_rl_data_manager.get_data('stage', ['column'], 1)
+            tensor_val = MagicMock()
+            tensor_val.cpu.return_value = "cpu_tensor"
+            list_val = [1, 2, 3]
 
-    def test_put_data_with_non_dict_output(self):
-        with self.assertRaises(TypeError):
-            self.mind_speed_rl_data_manager.put_data("not a dict", [1, 2, 3])
+            self.dm.put_data({"t": tensor_val, "l": list_val}, [0])
 
-    def test_put_data_with_empty_output(self):
-        with patch('logging.Logger.warning') as mock_warning:
-            self.mind_speed_rl_data_manager.put_data({}, [1, 2, 3])
-            assert mock_warning.call_count == 1
-            assert mock_warning.call_args[0] == ("output is empty",)
+            tensor_val.cpu.assert_called_once()
+            patched_padding.assert_called_once()
+            self.mock_remote_dm.put_experience.remote.assert_called_once()
 
-    def test_put_data_with_invalid_index(self):
-        with self.assertRaises(ValueError):
-            self.mind_speed_rl_data_manager.put_data({"key": torch.tensor([1, 2, 3])}, [])
+    def test_put_data_passes_to_padding_and_remote(self):
+        """put_data calls padding_dict_to_tensor_dict then remote put_experience."""
+        with patch.object(_msrl_data_mod, 'padding_dict_to_tensor_dict') as patched_padding:
+            val = MagicMock()
+            val.cpu.return_value = "cpu_val"
+            patched_padding.return_value = {"padded": "data"}
 
-    @patch('agentic_rl.data_manager.mindspeed_rl_data.padding_dict_to_tensor_dict')
-    def test_put_data_with_other_error(self, mock_padding):
-        mock_padding.side_effect = Exception("Other error")
-        with self.assertRaises(RuntimeError):
-            self.mind_speed_rl_data_manager.put_data({"key": torch.tensor([1, 2, 3])}, [1, 2, 3])
+            self.dm.put_data({"key": val}, [5])
 
-    @patch('agentic_rl.data_manager.mindspeed_rl_data.padding_dict_to_tensor_dict')
-    def test_put_data_success(self, mock_padding):
-        mock_padding.return_value = {"key": torch.tensor([1, 2, 3])}
-        sample_data = {"key": torch.tensor([1, 2, 3])}
-        self.mind_speed_rl_data_manager.put_data(sample_data, [1, 2, 3])
-        mock_padding.assert_called_once_with(sample_data)
-        self.mind_speed_rl_data_manager.data_manager.put_experience.remote.assert_called_once()
+            patched_padding.assert_called_once()
+            self.mock_remote_dm.put_experience.remote.assert_called_once_with(
+                data_dict={"padded": "data"}, indexes=[5]
+            )
 
-    @patch('ray.get')
-    @patch('ray.exceptions.RayError')
-    def test_update_metrics_success(self, mock_ray_error, mock_ray_get):
-        mock_ray_get.return_value = None
-        self.mind_speed_rl_data_manager.update_metrics('test_key', [1, 2, 3], True)
-        mock_ray_get.assert_called_once()
+    # ---- put_experience -----------------------------------------------------
 
-    def test_update_metrics_empty_key(self):
-        with self.assertRaises(RuntimeError):
-            self.mind_speed_rl_data_manager.update_metrics('', [1, 2, 3], True)
+    def test_put_experience(self):
+        """put_experience calls remote put_experience directly."""
+        self.dm.put_experience({"x": 1}, [2])
+        self.mock_remote_dm.put_experience.remote.assert_called_once_with(
+            data_dict={"x": 1}, indexes=[2]
+        )
 
-    def test_update_metrics_non_string_key(self):
-        with self.assertRaises(RuntimeError):
-            self.mind_speed_rl_data_manager.update_metrics(123, [1, 2, 3], True)
+    # ---- update_metrics -----------------------------------------------------
 
-    def test_update_metrics_non_number_value(self):
-        with self.assertRaises(RuntimeError):
-            self.mind_speed_rl_data_manager.update_metrics('test_key', ['a', 'b', 'c'], True)
-
-    def test_update_metrics_non_boolean_cumulate(self):
-        with self.assertRaises(RuntimeError):
-            self.mind_speed_rl_data_manager.update_metrics('test_key', [1, 2, 3], 'True')
-
-    @patch('ray.get', side_effect=ray.exceptions.RayError('Ray error'))
-    def test_update_metrics_ray_error(self, mock_ray_error):
-        with self.assertRaises(RuntimeError):
-            self.mind_speed_rl_data_manager.update_metrics('test_key', [1, 2, 3], True)
-
-    @patch('ray.get')
-    def test_update_metrics_other_error(self, mock_ray_get):
-        mock_ray_get.side_effect = RuntimeError('Test Other Error')
-        with self.assertRaises(RuntimeError):
-            self.mind_speed_rl_data_manager.update_metrics('test_key', [1, 2, 3], True)
-
-    def test_reset_experience_len_positive_integer(self):
-        self.mind_speed_rl_data_manager.reset_experience_len(10)
-        self.mind_speed_rl_data_manager.data_manager.reset_experience_len.remote.assert_called_once_with(10)
-
-    def test_reset_experience_len_non_integer(self):
-        with self.assertRaises(ValueError):
-            self.mind_speed_rl_data_manager.reset_experience_len(3.14)
-
-    def test_reset_experience_len_zero(self):
-        with self.assertRaises(ValueError):
-            self.mind_speed_rl_data_manager.reset_experience_len(0)
-
-    def test_reset_experience_len_negative(self):
-        with self.assertRaises(ValueError):
-            self.mind_speed_rl_data_manager.reset_experience_len(-5)
+    def test_update_metrics(self):
+        """update_metrics calls ray.get on remote update_metrics."""
+        with patch.object(_msrl_data_mod, 'ray') as patched_ray:
+            self.dm.update_metrics("loss", 0.5, True)
+            self.mock_remote_dm.update_metrics.remote.assert_called_once_with("loss", 0.5, cumulate=True)
+            patched_ray.get.assert_called()
 
 
 if __name__ == '__main__':

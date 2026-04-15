@@ -454,7 +454,7 @@ function untar_file() {
     cd - > /dev/null
     install_whl
     if test $? -ne 0; then
-      if [[ -d "${install_path}" ]]; then  
+      if [[ -d "${install_path}" ]]; then
         rm -rf "${install_path}"
       fi
 

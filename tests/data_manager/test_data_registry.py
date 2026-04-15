@@ -1,103 +1,144 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
--------------------------------------------------------------------------
-This file is part of the AgentSDK project.
-Copyright (c) 2025 Huawei Technologies Co.,Ltd.
 
-AgentSDK is licensed under Mulan PSL v2.
-You can use this software according to the terms and conditions of the Mulan PSL v2.
-You may obtain a copy of Mulan PSL v2 at:
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+#
+# AgentSDK is licensed under Mulan PSL v2.
+# You can use this software according to the terms and conditions of the Mulan PSL v2.
+# You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
 
-         http://license.coscl.org.cn/MulanPSL2
-
-THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
-EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
-MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
-See the Mulan PSL v2 for more details.
--------------------------------------------------------------------------
-"""
-
+import sys
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
-from agentic_rl.data_manager.data_registry import DataManagerRegistry, data_manager_class
+# ---------------------------------------------------------------------------
+# Module-level mocks  (BEFORE importing the code under test)
+#
+# data_registry.py imports:
+#   - InferDataManager  (from infer_data -> Loggers, RolloutClient + transitive deps)
+#   - MindSpeedRLDataManager (from mindspeed_rl_data -> ray, Loggers, data_transform)
+#   - VerlDataManager (from verl_data -> torch, numpy, verl)
+# ---------------------------------------------------------------------------
+mock_ray = MagicMock()
+mock_torch = MagicMock()
+mock_np = MagicMock()
+mock_verl = MagicMock()
+mock_requests = MagicMock()
 
+mock_loggers_module = MagicMock()
+mock_loggers_module.Loggers.return_value.get_logger.return_value = MagicMock()
 
-class TestClass:
-    pass
+mock_base_utils_module = MagicMock()
+mock_base_utils_module.singleton = lambda cls: cls
+
+mock_rollout_queue_module = MagicMock()
+mock_rollout_client_module = MagicMock()
+mock_controller_config_module = MagicMock()
+mock_http_status_module = MagicMock()
+
+mock_controller_utils_module = MagicMock()
+mock_controller_utils_module.DEFAULT_SLEEP_TIME = 2
+mock_controller_utils_module.READ_TIMEOUT = 600
+mock_controller_utils_module.DEFAULT_URL_METHOD = "http"
+mock_controller_utils_module.MAX_TIMEOUT = 1800
+
+mock_data_transform_module = MagicMock()
+
+with patch.dict(sys.modules, {
+    'ray': mock_ray,
+    'torch': mock_torch,
+    'torch.distributed': mock_torch.distributed,
+    'numpy': mock_np,
+    'verl': mock_verl,
+    'requests': mock_requests,
+    'agentic_rl.base.log.loggers': mock_loggers_module,
+    'agentic_rl.base.utils.utils': mock_base_utils_module,
+    'agentic_rl.controllers.rollout_controller.rollout_queue': mock_rollout_queue_module,
+    'agentic_rl.controllers.rollout_controller.rollout_client': mock_rollout_client_module,
+    'agentic_rl.controllers.utils.controller_config': mock_controller_config_module,
+    'agentic_rl.controllers.utils.http_status': mock_http_status_module,
+    'agentic_rl.controllers.utils.utils': mock_controller_utils_module,
+    'agentic_rl.data_manager.data_transform': mock_data_transform_module,
+}):
+    from agentic_rl.data_manager.data_registry import (
+        DataManagerRegistry,
+        registry,
+        data_manager_class,
+    )
+    from agentic_rl.data_manager.infer_data import InferDataManager
+    from agentic_rl.data_manager.mindspeed_rl_data import MindSpeedRLDataManager
+    from agentic_rl.data_manager.verl_data import VerlDataManager
 
 
 class TestDataManagerRegistry(unittest.TestCase):
-    def setUp(self):
-        self.registry = DataManagerRegistry()
-        self.test_class = TestClass
-        self.registry._registry = {'backend1': 'class1', 'backend2': 'class2'}
+    """Tests for DataManagerRegistry, module-level registry, and data_manager_class."""
 
-    def test_register_with_invalid_train_backend(self):
-        with self.assertRaises(ValueError):
-            self.registry.register(None, MagicMock)
+    # ---- DataManagerRegistry basics ----------------------------------------
 
-    def test_register_with_non_string_train_backend(self):
-        with self.assertRaises(ValueError):
-            self.registry.register(123, MagicMock)
+    def test_registry_init_empty(self):
+        """A fresh registry has an empty internal dict."""
+        r = DataManagerRegistry()
+        self.assertEqual(r._registry, {})
 
-    def test_register_with_non_class_cls(self):
-        with self.assertRaises(TypeError):
-            self.registry.register('valid_train_backend', 'not_a_class')
+    def test_register_creates_backend_entry(self):
+        """register creates a nested dict for a new backend."""
+        r = DataManagerRegistry()
+        r.register("my_backend", "train", MagicMock)
+        self.assertIn("my_backend", r._registry)
+        self.assertIn("train", r._registry["my_backend"])
 
-    def test_register_successfully(self):
-        self.registry.register('valid_backend', self.test_class)
-        self.assertEqual(self.registry._registry.get('valid_backend'), self.test_class)
-        self.assertIn('valid_backend', self.registry._registry)
+    def test_get_class_returns_registered_class(self):
+        """get_class returns the class registered for a backend + mode."""
+        r = DataManagerRegistry()
+        sentinel = MagicMock
+        r.register("b", "m", sentinel)
+        self.assertIs(r.get_class("b", "m"), sentinel)
 
-    def test_get_class_with_valid_backend(self):
-        self.assertEqual(self.registry.get_class('backend1'), 'class1')
-        self.assertEqual(self.registry.get_class('backend2'), 'class2')
+    # ---- module-level registry pre-populated entries -----------------------
 
-    def test_get_class_with_invalid_backend(self):
-        with self.assertRaises(KeyError):
-            self.registry.get_class('backend3')
+    def test_registry_mindspeed_rl_train(self):
+        """Module-level registry maps mindspeed_rl/train to MindSpeedRLDataManager."""
+        cls = registry.get_class("mindspeed_rl", "train")
+        self.assertIs(cls, MindSpeedRLDataManager)
 
-    def test_get_class_with_non_string_backend(self):
-        with self.assertRaises(ValueError):
-            self.registry.get_class(123)
-        with self.assertRaises(ValueError):
-            self.registry.get_class(None)
+    def test_registry_mindspeed_rl_infer(self):
+        """Module-level registry maps mindspeed_rl/infer to InferDataManager."""
+        cls = registry.get_class("mindspeed_rl", "infer")
+        self.assertIs(cls, InferDataManager)
 
-    def test_get_class_with_empty_string_backend(self):
-        with self.assertRaises(ValueError):
-            self.registry.get_class('')
+    def test_registry_verl_train(self):
+        """Module-level registry maps verl/train to VerlDataManager."""
+        cls = registry.get_class("verl", "train")
+        self.assertIs(cls, VerlDataManager)
 
-    @patch('agentic_rl.data_manager.data_registry.DataManagerRegistry.get_class')
-    def test_get_class_with_valid_train_backend(self, mock_get_class):
-        mock_get_class.return_value = 'SomeClass'
-        self.assertEqual(data_manager_class('some_train_backend'), 'SomeClass')
+    def test_registry_verl_infer(self):
+        """Module-level registry maps verl/infer to InferDataManager."""
+        cls = registry.get_class("verl", "infer")
+        self.assertIs(cls, InferDataManager)
 
-    @patch('agentic_rl.data_manager.data_registry.DataManagerRegistry.get_class')
-    def test_get_class_with_none_train_backend(self, mock_get_class):
-        with self.assertRaises(ValueError) as context:
-            data_manager_class(None)
-        self.assertIn('train_backend must be a non-empty string', str(context.exception))
+    # ---- data_manager_class helper -----------------------------------------
 
-    @patch('agentic_rl.data_manager.data_registry.DataManagerRegistry.get_class')
-    def test_get_class_with_empty_train_backend(self, mock_get_class):
-        with self.assertRaises(ValueError) as context:
-            data_manager_class('')
-        self.assertIn('train_backend must be a non-empty string', str(context.exception))
+    def test_data_manager_class_function(self):
+        """data_manager_class returns the correct class via the module-level registry."""
+        cls = data_manager_class("verl", "train")
+        self.assertIs(cls, VerlDataManager)
 
-    @patch('agentic_rl.data_manager.data_registry.DataManagerRegistry.get_class')
-    def test_get_class_with_non_string_train_backend(self, mock_get_class):
-        with self.assertRaises(ValueError) as context:
-            data_manager_class(123)
-        self.assertIn('train_backend must be a non-empty string', str(context.exception))
+    # ---- unknown backend ---------------------------------------------------
 
-    @patch('agentic_rl.data_manager.data_registry.DataManagerRegistry.get_class')
-    def test_get_class_with_no_class_found(self, mock_get_class):
-        mock_get_class.return_value = None
-        with self.assertRaises(ValueError) as context:
-            data_manager_class('some_train_backend')
-        self.assertIn('No data manager class found for train_backend', str(context.exception))
+    def test_get_class_unknown_backend_raises(self):
+        """get_class raises AttributeError for an unregistered backend (returns None)."""
+        with self.assertRaises(AttributeError):
+            registry.get_class("unknown_backend", "train")
 
 
 if __name__ == '__main__':

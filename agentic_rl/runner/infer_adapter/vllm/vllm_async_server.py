@@ -1,529 +1,381 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
--------------------------------------------------------------------------
-This file is part of the AgentSDK project.
-Copyright (c) 2025 Huawei Technologies Co.,Ltd.
+# coding=utf-8
 
-AgentSDK is licensed under Mulan PSL v2.
-You can use this software according to the terms and conditions of the Mulan PSL v2.
-You may obtain a copy of Mulan PSL v2 at:
+# -------------------------------------------------------------------------
+# Copyright 2024 Bytedance Ltd. and/or its affiliates
+# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# -------------------------------------------------------------------------
 
-         http://license.coscl.org.cn/MulanPSL2
 
-THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
-EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
-MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
-See the Mulan PSL v2 for more details.
--------------------------------------------------------------------------
-"""
-
-import asyncio
+# Standard library imports
 import os
-from contextlib import asynccontextmanager
-from dataclasses import dataclass
-import socket
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
-
+import json
+import asyncio
 import cloudpickle
-from fastapi import FastAPI
+from collections.abc import AsyncGenerator
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing_extensions import TypeVar
+
+# Third-party library imports
 import ray
-from ray.exceptions import RayError
-import uvicorn
+from omegaconf import DictConfig
+from starlette.requests import Request
+from starlette.responses import JSONResponse, StreamingResponse
+
+# vLLM imports
+from vllm.config import CompilationConfig
 from vllm.engine.arg_utils import AsyncEngineArgs
-from vllm.entrypoints.openai.protocol import CompletionRequest, ChatCompletionRequest
+from vllm.entrypoints.openai.protocol import (
+    ChatCompletionRequest, ChatCompletionResponse, 
+    CompletionRequest, CompletionResponse, ErrorResponse
+)
 from vllm.entrypoints.openai.serving_chat import OpenAIServingChat
 from vllm.entrypoints.openai.serving_completion import OpenAIServingCompletion
 from vllm.entrypoints.openai.serving_models import BaseModelPath, OpenAIServingModels
 from vllm.v1.engine.async_llm import AsyncLLM
 from vllm.v1.executor.abstract import Executor
 
+# Internal imports
 from agentic_rl.base.log.loggers import Loggers
-from agentic_rl.base.utils.checker import validate_params, CompletionRequestChecker
-from agentic_rl.base.utils.ray_secure_init import ray_secure_init
-from agentic_rl.configs.agentic_rl_config import AgenticRLConfig, GenConfig, SamplingConfig
-from agentic_rl.runner.infer_adapter.async_server_base import AsyncServerBase
+from agentic_rl.runner.infer_adapter.async_server import AsyncServerBase
+from agentic_rl.runner.scheduler.workload import InstanceWorkLoad
+from agentic_rl.runner.scheduler.load_stat import WorkloadStatLogger, vllm_log_stats_periodically
 
-logger = Loggers(__name__)
-
-
-@dataclass
-class VLLMConfig:
-    """Configuration for VLLM server initialization."""
-    model_path: str
-    tensor_parallel_size: int
-    pipeline_parallel_size: int
-    max_model_len: int
-    max_num_batched_tokens: int
-    dtype: str
-    enforce_eager: bool
-    gpu_memory_utilization: float
-    load_format: str
-    enable_sleep_mode: bool
-    enable_prefix_caching: bool
-    train_backend: str
-    trust_remote_code: bool
-    max_num_seqs: int
-    sampling_config: SamplingConfig
-    enable_expert_parallel: bool
+_R = TypeVar("_R", default=Any)
+logger = Loggers("vllm_server").get_logger()
 
 
-@dataclass
-class ServerConfig:
-    """Configuration for server instance."""
-    vllm_dp_size: int
-    vllm_dp_rank: int
-    wg_prefix: str
-    namespace: str
-
-
-# Constants
-MAX_BATCHED_TOKENS_WARNING_THRESHOLD = 8192
-
+def safe_ray_init(namespace: str = "default"):
+    """Safely initialize Ray connection."""
+    try:
+        # First try to connect to an existing cluster
+        ray.init(address="auto", namespace=namespace, ignore_reinit_error=True)
+        logger.info(f"Connected to Ray cluster in namespace '{namespace}'.")
+    except Exception as e:
+        logger.warning(f"Failed to connect to Ray cluster. Trying to start local instance... error: {e}")
+        ray.init(namespace=namespace, ignore_reinit_error=True)
+        logger.info(f"Started local Ray instance in namespace '{namespace}'.")
+        
 
 class ExternalRayDistributedExecutor(Executor):
     """An executor that engines are launched by external ray actors."""
 
     uses_ray: bool = False
 
-    @validate_params(
-        method=dict(
-            validator=lambda x: isinstance(x, str) or isinstance(x, Callable),
-            message="method must be a string or Callable",
-        ),
-        timeout=dict(validator=lambda x: x is None or isinstance(x, float), message="timeout must be a float or None"),
-        args=dict(validator=lambda x: isinstance(x, tuple), message="args must be a tuple"),
-        kwargs=dict(validator=lambda x: x is None or isinstance(x, dict), message="kwargs must be a dict or None"),
-    )
-    def collective_rpc(
-            self,
-            method: Union[str, Callable],
-            timeout: Optional[float] = None,
-            args: Tuple = (),
-            kwargs: Optional[Dict[str, Any]] = None,
-    ) -> List[Any]:
-        """Execute a method on all workers via RPC."""
-        if not hasattr(self, 'workers') or not self.workers:
-            raise RuntimeError("Workers not initialized. Call _init_executor first.")
+    def _init_executor(self) -> None:
+        """Initialize the executor."""
+        self.is_first_wake_up = True
+        if self.vllm_config.instance_id is None:
+            raise ValueError("instance_id must be set for external ray actors.")
 
-        try:
-            sent_method = method if isinstance(method, str) else cloudpickle.dumps(method)
-            del method
-        except RuntimeError as e:
-            raise RuntimeError(f"Failed to serialize method: {e}") from e
-        except Exception as e:
-            raise RuntimeError(f"Unexpected error occurred, failed to serialize method: {e}") from e
-
-        try:
-            outputs = ray.get(
-                [worker.execute_method.remote(sent_method, *args, **(kwargs or {})) for worker in self.workers],
-                timeout=timeout
+        fields = self.vllm_config.instance_id.split(":")
+        if len(fields) != 4:
+            raise ValueError(
+                f"instance_id: {self.vllm_config.instance_id} must be in the format of "
+                f"<namespace>:<wg_prefix>:<vllm_dp_size>:<vllm_dp_rank>."
             )
-            return outputs
-        except RayError as e:
-            raise RuntimeError(f"RayError during collective_rpc for method '{sent_method}': {e}") from e
-        except Exception as e:
-            raise RuntimeError(f"Unexpected error during collective_rpc for method '{sent_method}': {e}") from e
+        namespace, wg_prefix, vllm_dp_size, vllm_dp_rank = fields[0], fields[1], int(fields[2]), int(fields[3])
+        # TODO: Ray occasionally fails here
+        safe_ray_init(namespace)
+        vllm_tp_size = self.vllm_config.parallel_config.tensor_parallel_size
+        dp_rank = self.vllm_config.parallel_config.data_parallel_rank
+        dp_size = int(os.getenv("VLLM_DP_SIZE", "1"))
+        vllm_dp_rank = vllm_dp_rank * dp_size + dp_rank
 
-    def check_health(self):
+        actors = [v["Name"] for k, v in ray.state.actors().items()]
+        actor_names = [
+            actor_name
+            for actor_name in actors
+            if "ActorHybridWorker" in actor_name or "IntegratedWorker" in actor_name
+        ]
+        actor_names = sorted(actor_names, key=lambda x: int(x.split("_")[1]))
+        self.actor_names = actor_names[vllm_dp_rank * vllm_tp_size: (vllm_dp_rank + 1) * vllm_tp_size]
+        self.workers = [ray.get_actor(actor_name, namespace=namespace) for actor_name in self.actor_names]
+        kwargs = dict(
+            vllm_config=self.vllm_config,
+            local_rank=None,
+            rank=None,
+            distributed_init_method="env://",
+            is_driver_worker=True,
+        )
+        self.collective_rpc("init_worker", args=([kwargs],))
+        self.collective_rpc("init_device")
+        self.collective_rpc("load_model")
+        logger.info(f"instance_id: {self.vllm_config.instance_id} initializes finished, workers={self.actor_names}.")
+
+    def collective_rpc(
+        self,
+        method: Union[str, Callable],
+        timeout: Optional[float] = None,
+        args: Tuple = (),
+        kwargs: Optional[Dict[str, Any]] = None,
+    ) -> List[Any]:
+        """Execute collective RPC call."""
+        if isinstance(method, str):
+            sent_method = method
+        else:
+            sent_method = cloudpickle.dumps(method)
+        del method
+
+        # ~3ms overhead per schedule step due to serialization/deserialization.
+        outputs = ray.get(
+            [worker.execute_method.remote(sent_method, *args, **(kwargs or {})) for worker in self.workers])
+        return outputs
+
+    def check_health(self) -> None:
+        """Check executor health status."""
         return
 
     def wake_up(self, tags: Optional[list[str]] = None):
         """Wake up the executor."""
-        if tags and not isinstance(tags, list):
-            raise ValueError("tags must be a list")
-
         if self.is_first_wake_up:
             self.is_sleeping = True
             self.is_first_wake_up = False
         super().wake_up(tags)
 
-    def _parse_instance_id(self):
-        if self.vllm_config.instance_id is None:
-            raise RuntimeError("instance_id must be set for external ray actors.")
-        try:
-            fields = self.vllm_config.instance_id.split(":")
-            if len(fields) != 4:
-                raise RuntimeError(
-                    f"instance_id: {self.vllm_config.instance_id} must be in the format of "
-                    f"<namespace>:<wg_prefix>:<vllm_dp_size>:<vllm_dp_rank>."
-                )
-            namespace, vllm_dp_rank = fields[0], int(fields[3])
-        except (IndexError, ValueError) as e:
-            raise RuntimeError(f"Failed to split instance_id: {e}") from e
-        return namespace, vllm_dp_rank
 
-    def _init_ray_actors(self, namespace, vllm_dp_rank, vllm_tp_size):
-        try:
-            actors = [v["Name"] for _, v in ray.state.actors().items()]
-            if self.vllm_config.train_backend == "verl":
-                actor_names = [actor_name for actor_name in actors if "WorkerDict" in actor_name]
-
-                def get_pg_index_and_local_rank(actor_name):
-                    fields = actor_name.split(":")
-                    if len(fields) != 2:
-                        raise ValueError(f"Invalid actor_name format: {actor_name}")
-                    pg_index = int(fields[0].split("_")[-1])
-                    local_rank = int(fields[1])
-                    return pg_index, local_rank
-
-                actor_names = sorted(actor_names, key=get_pg_index_and_local_rank)
-            elif self.vllm_config.train_backend == "mindspeed_rl":
-                actor_names = [
-                    actor_name
-                    for actor_name in actors
-                    if "ActorHybridWorker" in actor_name or "IntegratedWorker" in actor_name
-                ]
-                actor_names = sorted(actor_names, key=lambda x: int(x.split("_")[1]))
-            else:
-                raise ValueError(f"train_backend {self.vllm_config.train_backend} is not supported")
-            self.actor_names = actor_names[vllm_dp_rank * vllm_tp_size: (vllm_dp_rank + 1) * vllm_tp_size]
-            if not self.actor_names:
-                raise RuntimeError(
-                    f"No Ray actors found for vllm_dp_rank={vllm_dp_rank}, vllm_tp_size={vllm_tp_size}. "
-                    f"Available actors: {actor_names}"
-                )
-            workers = [ray.get_actor(actor_name, namespace=namespace) for actor_name in self.actor_names]
-            logger.info(f"Found and retrieved {len(workers)} workers: {self.actor_names}")
-            return workers
-        except (KeyError, IndexError, ValueError) as e:
-            raise RuntimeError(f"Failed to discover Ray actors: {e}") from e
-        except Exception as e:
-            raise RuntimeError(f"Unexpected error during Ray actor discovery: {e}") from e
-
-    def _init_executor(self) -> None:
-        self.is_first_wake_up = True
-        namespace, vllm_dp_rank = self._parse_instance_id()
-
-        ray_secure_init(address="auto", extra_init_kwargs={
-            "namespace": namespace,
-            'ignore_reinit_error': True,
-            'runtime_env': {"worker_process_setup_hook": 'agentic_rl.base.utils.logger_patch.patch'}
-        })
-
-        try:
-            vllm_tp_size = self.vllm_config.parallel_config.tensor_parallel_size
-            dp_rank = self.vllm_config.parallel_config.data_parallel_rank
-            try:
-                dp_size = int(os.getenv("VLLM_DP_SIZE", "1"))
-            except ValueError as e:
-                raise ValueError(f"VLLM_DP_SIZE env var must be an integer: {e}") from e
-            vllm_dp_rank = vllm_dp_rank * dp_size + dp_rank
-        except AttributeError as e:
-            raise RuntimeError(f"Failed to access tensor_parallel_size from vllm_config: {e}") from e
-
-        self.workers = self._init_ray_actors(namespace, vllm_dp_rank, vllm_tp_size)
-        kwargs = dict(vllm_config=self.vllm_config, local_rank=None, rank=None,
-                      distributed_init_method="env://", is_driver_worker=True)
-
-        _ = self.collective_rpc("init_worker", args=([kwargs],))
-        _ = self.collective_rpc("init_device")
-        _ = self.collective_rpc("load_model")
-        logger.info(f"instance_id: {self.vllm_config.instance_id} init finished, workers={self.actor_names}.")
-
-
-@ray.remote(num_cpus=1)
 class AsyncVLLMServer(AsyncServerBase):
     """
-    AsyncVLLMServer provides asynchronous VLLM inference capabilities with Ray-based distributed execution.
+    AsyncVLLMServer is a wrapper for AsyncLLM, it uses ExternalRayDistributedExecutor to launch engines
+    in hybrid rollout workers, i.e. AsyncActorRolloutRefWorker.
 
-    This server wraps AsyncLLM and uses ExternalRayDistributedExecutor to launch engines
-    in hybrid rollout workers (AsyncActorRolloutRefWorker instances).
+    AsyncVLLMServer works as follows:
+    1. Start FastAPI server first.
+    2. Initialize AsyncLLM with ExternalRayDistributedExecutor.
+    3. AsyncLLM spawn EngineCore in subprocess.
+    4. EngineCore initialize ExternalRayDistributedExecutor.
+    5. ExternalRayDistributedExecutor lookup its corresponding actors by name.
+    6. ExternalRayDistributedExecutor init executor: init_worker, init_device, load_model.
+
+    For vLLM AsyncLLM design, see: https://github.com/vllm-project/vllm/pull/9826
     """
 
-    @validate_params(
-        agentic_rl_config=dict(
-            validator=lambda x: isinstance(x, AgenticRLConfig), message="agentic_rl_config must be a AgenticRLConfig"
-        ),
-        vllm_dp_size=dict(validator=lambda x: isinstance(x, int), message="vllm_dp_size must be an integer"),
-        vllm_dp_rank=dict(validator=lambda x: isinstance(x, int), message="vllm_dp_rank must be an integer"),
-        wg_prefix=dict(validator=lambda x: isinstance(x, str), message="wg_prefix must be a string"),
-    )
-    def __init__(self, config, agentic_rl_config, tokenizer_name_or_path, vllm_dp_size, vllm_dp_rank, wg_prefix):
-        super().__init__()
-        self.config = config
-        self.agentic_rl_config = agentic_rl_config
-
-        namespace = ray.get_runtime_context().namespace
-        self.server_config = ServerConfig(
-            vllm_dp_size=vllm_dp_size,
-            vllm_dp_rank=vllm_dp_rank,
-            wg_prefix=wg_prefix,
-            namespace=namespace
-        )
-
-        self.vllm_config = self._build_vllm_config(config, tokenizer_name_or_path)
-
-        self.engine: Optional[AsyncLLM] = None
-        self.openai_serving_chat: Optional[OpenAIServingChat] = None
-        self.openai_serving_completion: Optional[OpenAIServingCompletion] = None
-        self._server_task = asyncio.create_task(self._start_fastapi_server())
-
-        logger.info(f"AsyncVLLMServer initialized successfully for rank {vllm_dp_rank}/{vllm_dp_size}")
-
-    async def _start_fastapi_server(self) -> None:
-        """Start vllm inference server by fastapi and uvicorn"""
-        @asynccontextmanager
-        async def lifespan(app: FastAPI):
-            logger.info("Vllm inference server lifespan startup begin.")
-            try:
-                self.server_ready.set()
-                yield
-            finally:
-                logger.info("Vllm inference server lifespan end")
-
-        app = FastAPI(lifespan=lifespan)
-        app.router.add_api_route("/v1/completions", self.completions, methods=["POST"])
-        app.router.add_api_route("/v1/chat/completions", self.chat_completions, methods=["POST"])
-
-        self.port = self._get_free_port()
-        config = uvicorn.Config(
-            app,
-            host=self.address,
-            port=self.port,
-            log_level="warning",
-            lifespan="on"
-        )
-        server = uvicorn.Server(config)
-        try:
-            await server.serve()
-        except asyncio.CancelledError as e:
-            logger.info("Vllm inference server canceled")
-            server.should_exit = True
-            raise e
-        except Exception as e:
-            raise RuntimeError(f"Unexpected error during start vllm inference: {e}") from e
-        finally:
-            logger.info("Vllm inference server exited.")
-
-    def _get_free_port(self) -> int:
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-            sock.bind((f"{self.address}", 0))
-            return sock.getsockname()[1]
-
-    @staticmethod
-    def _build_generation_config(sampling_config: SamplingConfig) -> Dict[str, Any]:
-        return {
-            "n": 1,
-            "logprobs": sampling_config.logprobs,
-            "max_new_tokens": sampling_config.max_tokens,
-            "top_p": sampling_config.top_p,
-            "top_k": sampling_config.top_k,
-            "min_p": sampling_config.min_p,
-            "temperature": sampling_config.temperature,
-        }
-
-    async def get_server_address(self) -> str:
-        await self.server_ready.wait()
-        return f"{self.address}:{self.port}"
-
-    async def init_engine(self) -> None:
-        """Initialize vLLM AsyncLLM engine and OpenAI serving components."""
-        logger.info("Initializing VLLM AsyncLLM engine...")
-
-        generation_config = self._build_generation_config(self.vllm_config.sampling_config)
-        engine_args = self._build_engine_args(self.vllm_config, generation_config)
-
-        try:
-            # Create engine config and set instance ID
-            vllm_config = engine_args.create_engine_config()
-            vllm_config.instance_id = (
-                f"{self.server_config.namespace}:{self.server_config.wg_prefix}:"
-                f"{self.server_config.vllm_dp_size}:{self.server_config.vllm_dp_rank}"
-            )
-            vllm_config.train_backend = self.vllm_config.train_backend
-            logger.info(f"Engine instance_id: {vllm_config.instance_id}")
-        except (ValueError, AssertionError) as e:
-            raise RuntimeError(f"Failed to create engine config: {e}") from e
-        except Exception as e:
-            raise RuntimeError(f"Unexpected error occurred when creating engine config: {e}") from e
-
-        try:
-            self.engine = AsyncLLM.from_vllm_config(vllm_config)
-            model_config = self.engine.model_config
-            logger.info("AsyncLLM engine created successfully")
-        except ValueError as e:
-            raise RuntimeError(f"Failed to initialize AsyncLLM engine: {e}") from e
-        except Exception as e:
-            raise RuntimeError(f"Unexpected error occurred when initializing AsyncLLM engine: {e}") from e
-
-        model_name = "/".join(self.vllm_config.model_path.split("/")[-2:])
-        self._setup_openai_serving(model_config, model_name, self.vllm_config.model_path)
-        logger.info("VLLM AsyncLLM engine initialization completed successfully")
-
-    async def chat_completions(self, raw_request: Dict[str, Any]):
-        """OpenAI-compatible HTTP endpoint.
-        API reference: https://docs.vllm.ai/en/latest/serving/openai_compatible_server/
+    def __init__(self, config: DictConfig,
+                 tokenizer_name_or_path: str,
+                 vllm_dp_size: int,
+                 vllm_dp_rank: int,
+                 wg_prefix: str):
         """
-        if "model_name" in raw_request:
-            raw_request.pop("model_name")
-        try:
-            CompletionRequestChecker.validate_chat_input(raw_request)
-        except ValueError as e:
-            raise ValueError(f"Input validation failed: {e}") from e
-        if self.openai_serving_chat is None:
-            raise RuntimeError("OpenAI serving chat is not initialized. Call init_engine first.")
-        try:
-            request = ChatCompletionRequest(**raw_request)
-        except ValueError as e:
-            raise ValueError(f"Failed to parse chat completion request: {e}") from e
-        except Exception as e:
-            raise ValueError(f"Unexpected error occurred when parsing chat completion: {e}") from e
+        Args:
+            config: DictConfig, actor_rollout_ref config.
+            vllm_dp_size: int, vllm data parallel size.
+            vllm_dp_rank: int, vllm data parallel rank.
+            wg_prefix: str, worker group prefix, used to lookup actors.
+        """
+        super().__init__()
 
-        generator = await self.openai_serving_chat.create_chat_completion(request)
-        return generator.model_dump()
+        self.config = config
+        self.tokenizer_name_or_path = tokenizer_name_or_path
+        self.vllm_dp_size = vllm_dp_size
+        self.vllm_dp_rank = vllm_dp_rank
+        self.wg_prefix = wg_prefix
+        self.engine: AsyncLLM = None
+        self.ins_workload: Optional[InstanceWorkLoad] = None
 
-    async def completions(self, raw_request: Dict[str, Any]):
+    async def init_engine(self):
+        """Initialize vLLM AsyncLLM engine."""
+        config = self.config
+        model_path = self.tokenizer_name_or_path
+        model_name = "/".join(model_path.split("/")[-1:])
+        local_path = model_path
+        trust_remote_code = config.trust_remote_code
+
+        tensor_parallel_size = config.infer_tensor_parallel_size
+        pipeline_parallel_size = config.infer_pipeline_parallel_size
+        max_model_len = config.max_model_len
+        # max_model_len = max(max_model_len, 32768)
+        max_num_batched_tokens = config.max_num_batched_tokens
+
+        # Override default generation config from hugging face model config,
+        # user can still override them by passing kwargs in each request.
+        sampling_config = config.sampling_config
+        # fix: start vllm engine needs `max_new_tokens``
+        kwargs = dict(
+            n=1,
+            logprobs=sampling_config.logprobs,
+            max_new_tokens=sampling_config.max_tokens,
+            top_p=sampling_config.top_p,
+            top_k=sampling_config.top_k,
+            min_p=sampling_config.min_p,
+            temperature=sampling_config.temperature,
+        )
+        dp_size = int(os.getenv("VLLM_DP_SIZE", "1"))
+
+        logger.info(f"override_generation_config: {kwargs}")
+        logger.info(f"max_num_batched_tokens={max_num_batched_tokens}, [attention] this num > 8k may cause error for 'chunked prefill'!")
+        cudagraph_capture_sizes = None
+        # Not None and array config not empty
+        if config.cudagraph_capture_sizes is not None and config.cudagraph_capture_sizes:
+            cudagraph_capture_sizes = [int(size) for size in config.cudagraph_capture_sizes.replace(" ", "").split(',')]
+        additional_config = {"ascend_scheduler_config": {"enabled": not config.enforce_eager,
+                             "enable_chunked_prefill": config.enable_chunked_prefill, },
+                             "enable_weight_nz_layout": True}
+        engine_args = AsyncEngineArgs(
+            model=local_path,
+            enable_sleep_mode=config.enable_sleep_mode,
+            override_generation_config=kwargs,
+            tensor_parallel_size=tensor_parallel_size,
+            pipeline_parallel_size=pipeline_parallel_size,
+            data_parallel_size=dp_size,
+            distributed_executor_backend=ExternalRayDistributedExecutor,
+            dtype=config.dtype,
+            enforce_eager=config.enforce_eager,
+            gpu_memory_utilization=config.gpu_memory_utilization,
+            disable_custom_all_reduce=True,
+            # disable_mm_preprocessor_cache=True,
+            skip_tokenizer_init=False,
+            max_model_len=max_model_len,
+            load_format="dummy" if config.load_format == "megatron" else config.load_format,
+            # disable_log_stats=config.disable_log_stats,
+            max_num_batched_tokens=max_num_batched_tokens,
+            enable_chunked_prefill=config.enable_chunked_prefill,
+            enable_prefix_caching=config.enable_prefix_caching,
+            enable_expert_parallel=config.enable_expert_parallel,
+            trust_remote_code=trust_remote_code,
+            seed=self.vllm_dp_rank,
+            max_num_seqs=config.max_num_seqs,
+            hf_overrides={"max_position_embeddings": max_model_len},
+            compilation_config=CompilationConfig(cudagraph_capture_sizes=cudagraph_capture_sizes),
+            additional_config=additional_config,
+            worker_extension_cls="agentic_rl.runner.infer_adapter.vllm.extension.custom_worker_extensions.CustomWorkerExtensions"
+        )
+        # init async llm engine
+        self.ins_workload = InstanceWorkLoad(dp_size=dp_size)
+        vllm_config = engine_args.create_engine_config()
+        namespace = ray.get_runtime_context().namespace
+        vllm_config.instance_id = f"{namespace}:{self.wg_prefix}:{self.vllm_dp_size}:{self.vllm_dp_rank}"
+        vllm_config.workload = self.ins_workload
+        self.engine = AsyncLLM.from_vllm_config(vllm_config, disable_log_stats=config.disable_log_stats,
+            stat_loggers=[WorkloadStatLogger])
+
+        # build serving chat
+        model_config = self.engine.model_config
+        BASE_MODEL_PATHS = [BaseModelPath(name=model_name, model_path=model_path)]
+        models = OpenAIServingModels(self.engine, model_config, BASE_MODEL_PATHS)
+        self.openai_serving_chat = OpenAIServingChat(
+            self.engine,
+            model_config,
+            models,
+            "assistant",
+            request_logger=None,
+            chat_template=None,
+            chat_template_content_format="auto",
+            # return_tokens_as_token_ids=True,
+        )
+
+        self.openai_serving_completion = OpenAIServingCompletion(
+            self.engine,
+            model_config,
+            models,
+            request_logger=None,
+            return_tokens_as_token_ids=True,
+        )
+        if not config.disable_log_stats:
+            asyncio.create_task(vllm_log_stats_periodically(self))
+        logger.info(f"Async vLLM Server running at {await self.get_server_address()}")
+
+
+    async def chat_completion(self, raw_request: Request):
+        """OpenAI-compatible HTTP endpoint.
+
+        API reference: https://docs.vllm.ai/en/latest/serving/openai_compatible_server.html
+        """
+        request_json = await raw_request.json()
+        request = ChatCompletionRequest(**request_json)
+        generator = await self.openai_serving_chat.create_chat_completion(request, raw_request)
+
+        if isinstance(generator, ErrorResponse):
+            return JSONResponse(content=generator.model_dump(), status_code=generator.error.code)
+        if request.stream:
+            return StreamingResponse(content=generator, media_type="text/event-stream")
+        else:
+            if not isinstance(generator, ChatCompletionResponse):
+                raise TypeError("Expected ChatCompletionResponse")
+            return JSONResponse(content=generator.model_dump())
+
+    async def completions(self, raw_request: Request):
         """OpenAI completions API.
 
+        API reference: https://platform.openai.com/docs/api-reference/completions/create
+        """
+        request_json = await raw_request.json()
+        request = CompletionRequest(**request_json)
+        generator = await self.openai_serving_completion.create_completion(request, raw_request)
+
+        if isinstance(generator, ErrorResponse):
+            return JSONResponse(content=generator.model_dump(), status_code=generator.error.code)
+        if request.stream:
+            return StreamingResponse(content=generator, media_type="text/event-stream")
+        else:
+            if not isinstance(generator, CompletionResponse):
+                raise TypeError("Expected CompletionResponse")
+            if generator.choices and generator.choices[0].logprobs:
+                generator.choices[0].logprobs.token_logprobs = []
+                generator.choices[0].logprobs.top_logprobs = []
+                generator.choices[0].logprobs.text_offset = []
+            return JSONResponse(content=generator.model_dump())
+
+    async def chat_completion_generator(self, request: ChatCompletionRequest) -> AsyncGenerator[Tuple[int, str]]:
+        """Direct chat completion without FastAPI.
+
         Args:
-            raw_request: Dictionary containing completion request parameters
+            request: ChatCompletionRequest, request object.
 
         Returns:
-            Dictionary containing completion response
-
-        Raises:
-            ValueError: If input validation fails
-            RuntimeError: If engine is not initialized or generation fails
+            AsyncGenerator[Tuple[int, str]]: async generator of (status_code, data) pairs.
         """
-        if "model_name" in raw_request:
-            raw_request.pop("model_name")
-        try:
-            CompletionRequestChecker.validate_input(raw_request)
-        except ValueError as e:
-            raise ValueError(f"Input validation failed: {e}") from e
+        generator = await self.openai_serving_chat.create_chat_completion(request)
+        if isinstance(generator, ErrorResponse):
+            data = generator.model_dump_json(exclude_unset=True)
+            yield generator.error.code, f"data: {data}\n\n"
 
-        if self.openai_serving_completion is None:
-            raise RuntimeError("OpenAI serving completion not initialized. Call init_engine first.")
+        if request.stream:
+            async for chunk in generator:
+                yield 200, chunk
+        else:
+            if not isinstance(generator, ChatCompletionResponse):
+                raise TypeError("Expected ChatCompletionResponse")
+            data = generator.model_dump_json(exclude_unset=True)
+            yield 200, f"data: {data}\n\n"
 
-        try:
-            request = CompletionRequest(**raw_request)
-        except ValueError as e:
-            raise ValueError(f"Failed to parse completion request: {e}") from e
-        except Exception as e:
-            raise ValueError(f"Unexpected error occurred when parsing completion request: {e}") from e
-
-        generator = await self.openai_serving_completion.create_completion(request)
-        return generator.model_dump()
-
-    async def wake_up(self, tags: Optional[List[str]] = None) -> None:
-        """Wake up the engine to load model weights and build KV cache.
-        """
-        if tags is not None and not isinstance(tags, list):
-            raise ValueError("tags must be a list")
-
-        if self.engine is None:
-            raise RuntimeError("Engine not initialized. Call init_engine first.")
-
+    async def wake_up(self, tags: Optional[list[str]] = None):
         await self.engine.wake_up(tags)
-        logger.info(f"Engine woke up successfully with tags: {tags}")
 
-    async def sleep(self) -> None:
-        """Sleep the engine to offload model weights and discard KV cache."""
-        if self.engine is None:
-            raise RuntimeError("Engine not initialized. Call init_engine first.")
+    async def sleep(self):
+        # TODO: https://github.com/vllm-project/vllm/issues/17103
+        await self.engine.reset_prefix_cache()
+        await self.engine.sleep()
 
-        try:
-            await self.engine.reset_prefix_cache()
-            await self.engine.sleep()
-            logger.info("Engine sleep completed successfully")
-        except ValueError as e:
-            raise RuntimeError(f"Failed to put engine to sleep: {e}") from e
-        except Exception as e:
-            raise RuntimeError(f"Unexpected error occurred when putting engine to sleep: {e}") from e
+    async def collective_rpc(
+        self,
+        method: Union[str, Callable],
+        timeout: Optional[float] = None,
+        args: Tuple = (),
+        kwargs: Optional[Dict[str, Any]] = None,
+    ) -> list[_R]:
+        return await self.engine.collective_rpc(method, timeout, args, kwargs)
 
-    def _build_vllm_config(self, config: GenConfig, tokenizer_name_or_path: str) -> VLLMConfig:
-        """Build VLLM configuration from raw config."""
-        try:
-            return VLLMConfig(
-                model_path=tokenizer_name_or_path,
-                tensor_parallel_size=config.infer_tensor_parallel_size,
-                pipeline_parallel_size=config.infer_pipeline_parallel_size,
-                max_model_len=config.max_model_len,
-                max_num_batched_tokens=config.max_num_batched_tokens,
-                dtype=config.dtype,
-                enforce_eager=config.enforce_eager,
-                gpu_memory_utilization=config.gpu_memory_utilization,
-                load_format=self.agentic_rl_config.load_format,
-                enable_sleep_mode=self.agentic_rl_config.enable_sleep_mode,
-                train_backend=self.agentic_rl_config.train_backend,
-                enable_prefix_caching=config.enable_prefix_caching,
-                trust_remote_code=config.trust_remote_code,
-                max_num_seqs=config.max_num_seqs,
-                sampling_config=config.sampling_config,
-                enable_expert_parallel=config.enable_expert_parallel,
-            )
-        except AttributeError as e:
-            raise AttributeError(f"Missing required config field while building VLLM config: {e}") from e
-        except Exception as e:
-            raise RuntimeError(f"Unexpected error occurred when building VLLM configuration: {e}") from e
+    async def get_workload(self, raw_request: Request):
+        return JSONResponse(content=json.dumps(self.ins_workload.to_dict()), status_code=200)
 
-    def _build_engine_args(self, vllm_config: VLLMConfig, generation_config: Dict[str, Any]) -> AsyncEngineArgs:
-        """Build AsyncEngineArgs from configuration."""
-        load_format = "dummy" if vllm_config.load_format == "megatron" else vllm_config.load_format
+    async def cancel_requests(self, raw_request: Request):
+        """Cancel requests from AsyncVLLMServer."""
+        request_json = await raw_request.json()
+        logger.info(f"vllm async server abort requests: {request_json}")
+        await self.engine.abort(request_json["requests"])
 
-        # Log warning for large batch sizes
-        if vllm_config.max_num_batched_tokens > MAX_BATCHED_TOKENS_WARNING_THRESHOLD:
-            logger.warning(
-                f"max_num_batched_tokens={vllm_config.max_num_batched_tokens} exceeds "
-                f"{MAX_BATCHED_TOKENS_WARNING_THRESHOLD}, which may cause errors for 'chunked prefill'!"
-            )
-        try:
-            dp_size = int(os.getenv("VLLM_DP_SIZE", "1"))
-        except ValueError as e:
-            raise ValueError(f"VLLM_DP_SIZE env var must be an integer: {e}") from e
-
-        return AsyncEngineArgs(
-            model=vllm_config.model_path,
-            enable_sleep_mode=vllm_config.enable_sleep_mode,
-            override_generation_config=generation_config,
-            tensor_parallel_size=vllm_config.tensor_parallel_size,
-            pipeline_parallel_size=vllm_config.pipeline_parallel_size,
-            distributed_executor_backend=ExternalRayDistributedExecutor,
-            data_parallel_size=dp_size,
-            dtype=vllm_config.dtype,
-            enforce_eager=vllm_config.enforce_eager,
-            gpu_memory_utilization=vllm_config.gpu_memory_utilization,
-            disable_custom_all_reduce=True,
-            skip_tokenizer_init=False,
-            max_model_len=vllm_config.max_model_len,
-            load_format=load_format,
-            max_num_batched_tokens=vllm_config.max_num_batched_tokens,
-            enable_prefix_caching=vllm_config.enable_prefix_caching,
-            enable_expert_parallel=vllm_config.enable_expert_parallel,
-            trust_remote_code=vllm_config.trust_remote_code,
-            seed=self.server_config.vllm_dp_rank,
-            max_num_seqs=vllm_config.max_num_seqs,
-            hf_overrides={"max_position_embeddings": vllm_config.max_model_len},
-        )
-
-    def _setup_openai_serving(self, model_config, model_name: str, model_path: str) -> None:
-        """Setup OpenAI serving components."""
-        try:
-            base_model_paths = [BaseModelPath(name=model_name, model_path=model_path)]
-            models = OpenAIServingModels(self.engine, model_config, base_model_paths)
-
-            self.openai_serving_chat = OpenAIServingChat(
-                self.engine,
-                model_config,
-                models,
-                "assistant",
-                request_logger=None,
-                chat_template=None,
-                chat_template_content_format="auto",
-                enable_auto_tools=True,
-                tool_parser="pythonic"
-            )
-
-            self.openai_serving_completion = OpenAIServingCompletion(
-                self.engine,
-                model_config,
-                models,
-                request_logger=None,
-                return_tokens_as_token_ids=True,
-            )
-            logger.info("OpenAI serving components initialized successfully")
-        except TypeError as e:
-            raise RuntimeError(f"Failed to setup OpenAI serving components: {e}") from e
-        except Exception as e:
-            raise RuntimeError(f"Unexpected Error: failed to setup openai serving: {e}") from e
+    async def reset_prefix_cache(self):
+        """Reset the prefix cache."""
+        await self.engine.reset_prefix_cache()

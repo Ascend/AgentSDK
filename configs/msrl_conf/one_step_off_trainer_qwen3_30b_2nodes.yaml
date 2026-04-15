@@ -1,0 +1,161 @@
+defaults:
+  - model:
+      - qwen3_30b
+
+megatron_training:
+  model: qwen3_30b
+  use_fused_rmsnorm: true
+  use_mcore_models: true
+  sequence_parallel: true
+  use_flash_attn: true
+  no_masked_softmax_fusion: true
+  attention_softmax_in_fp32: true
+  no_gradient_accumulation_fusion: true
+  shape_order: BNSD
+  use_fused_swiglu: true
+  use_fused_rotary_pos_emb: true
+  bf16: true
+  use_distributed_optimizer: true
+  tokenizer_type: PretrainedFromHF
+  tokenizer_name_or_path: /models/l00649956/z50048753/models/Qwen3-30B-A3B_new/
+  global_batch_size: 16
+  seq_length: 8192   # build_dataset时，控制输入数据长度
+  save_interval: 1000
+  train_iters: 20
+  stage: ray_grpo
+  attention_dropout: 0.0
+  init_method_std: 0.01
+  hidden_dropout: 0.0
+  distributed_backend: nccl
+  no_shared_storage: true
+  variable_seq_lengths: true
+  norm_epsilon: 1e-6
+  dataset_additional_keys: ['labels']
+  data_path: /models/l00649956/z50048753/dataset/astp/qwen3_30b/final
+  split: 100,0,0
+  no_shuffle: true
+
+actor_config:
+  model: qwen3_30b
+  micro_batch_size: 1
+  tensor_model_parallel_size: 4
+  expert_model_parallel_size: 2
+  pipeline_model_parallel_size: 1
+  lr: 1e-6
+  lr_decay_style: constant
+  min_lr: 0.0
+  weight_decay: 0.0
+  lr_warmup_fraction: 0.0
+  clip_grad: 1.0
+  adam_beta1: 0.9
+  adam_beta2: 0.95
+  initial_loss_scale: 4096
+  finetune: true
+  load: /models/new_tp4pp1ep2
+  save: /models/ckpts/
+  no_load_optim: true
+  no_load_rng: true
+  # 打开重计算
+  recompute_granularity: full
+  recompute_method: block
+  recompute_num_layers: 24
+  # MoE
+  moe_tp_extend_ep: true
+  gemm_gradient_accumulation_fusion: true
+
+# ref_config:
+#   model: qwen3_30b
+#   tensor_model_parallel_size: 8
+#   pipeline_model_parallel_size: 1
+#   micro_batch_size: 1
+#   load: /models/w00623271/original_ckpts/Qwen_QWQ-32B-tp8pp1/
+#   no_load_optim: true
+#   no_load_rng: true
+
+# reward_config:
+#   model: qwen3_30b
+#   micro_batch_size: 1
+
+rl_config:
+  use_integrated_worker: true
+  guarantee_order: false
+  blocking: true
+  gamma: 1.0
+  lam: 0.95
+  adv_estimator: group_norm
+  kl_penalty: low_var_kl  # grpo一般用k3
+  kl_ctrl_type: fixed
+  init_kl_coef: 0.001
+  mini_batch_size: 2  # 与gbs一致是真on-policy，大于的时候也会去计算old_logp
+  max_prompt_length: 8192  # 初始输入的prompt长度，若有数据超出此长度会抛出异常
+  epochs: 1
+  clip_ratio: 0.2
+  entropy_coeff: 0.0  # 大部分时候熵都大于4，不用抑制熵的收敛
+  shuffle_mini_batch: false
+  n_samples_per_prompt: 8
+  actor_rollout_dispatch_size: 8
+  rule_reward: true
+  verifier_function: ["deepscaler_acc", "deepscaler_format", "qwen3_format_reward", "length_penalty"]
+  verifier_weight: [1.0, 0.05, 0.05, 0.05]
+  verifier_parallel: 1
+  verifier_timeout: 600
+  use_tensorboard: true
+  simplify_think_content: true
+  actor_resource:
+    num_npus: 8
+  # reference_resource:
+  #   num_npus: 8
+
+generate_config:
+  enforce_eager: true
+  enable_expert_parallel: true
+  trust_remote_code: true
+
+  # 推理时的并行配置
+  enable_sleep_mode: true
+  load_format: megatron
+  infer_tensor_parallel_size: 8
+  infer_pipeline_parallel_size: 1
+  infer_expert_parallel_size: 1
+
+  # vllm 模型相关设置
+  enable_prefix_caching: false
+  max_num_seqs: 8
+  max_model_len: 16384
+  max_num_batched_tokens: 8192
+  dtype: "bfloat16"
+  gpu_memory_utilization: 0.9
+
+  offload_train_optimizer: false
+  offload_train_grad: true
+  offload_train_param: true
+
+  # agent execution配置
+  base_url: http:xxx
+  api_key: empty
+  train_backend: mindspeed_rl
+
+  # 采样配置
+  sampling_config:
+    logprobs: 1
+    max_tokens: 100
+    top_p: 0.9
+    top_k: 50
+    min_p: 0.01
+    temperature: 1.0
+    detokenize: false
+
+  # one step off配置
+  init_num_group_batches: 15
+  max_queue_size: 16
+  use_async_save: True
+  weight_save_dir: /models/l00649956/z50048753/ASTP/weights/qwen3_30b
+  update_weights_interval: 1
+  ckpt_delta: 4
+  data_optimized: false
+
+agentic_env_config:
+  namespace: agentic_raygroup
+  agent_name: dtn
+  tool_url: http://10.44.101.61:8005/rca/train/
+  max_steps: 10

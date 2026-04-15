@@ -1,0 +1,197 @@
+# =============================================================
+# Agentic RL提供两种运行模式：
+# 1. SERVE MODE     服务化部署，提供 HTTP/HTTPS 访问能力（如：多轮对话、模型推理等）
+# 2. DIRECT MODE    直连模式，提供单次 JOB 执行能力（如：单次训练作业等）
+# =============================================================
+agentic_ai:
+  mode: direct # 模式选择：serve | direct
+  log_level: DEBUG
+  log_dir: /var/log/
+
+serve_conf:
+  host: 0.0.0.0
+  port: 8030
+
+direct_conf:
+  entrypoints:
+    - job_type: train
+      job_name: ${train_instances.0.name} # 即将训练的任务名称（默认为 `train_instances` 的第一个）
+      job_kwargs: { }
+
+# =============================================================
+# Train 预定义任务：
+# 1. 预定义任务包括采用RL框架类型、参数等等，初始化时占用资源，触发后开始训练（支持开始、暂停、取消）
+# 2. SERVE 模式下，预定义任务列表默认为空; DIRECT 模式下，初始化任务等待触发训练（触发：direct_conf.entrypoints）
+# =============================================================
+
+# 根据rl框架和模型选择不同的模板，模板文件在msrl_conf/verl_conf路径下
+hydra:
+  searchpath:
+    - file:///verl/verl/trainer/config
+    - file:///home/ma-user/modelarts/user-job-dir/mindforge-coder-y-verl-0306/agentic_rl/configs/verl_conf # TODO: 需要泛华
+
+defaults:
+  - ppo_megatron_trainer
+  - ppo_megatron_trainer@verl_conf
+  - _self_
+
+verl_conf:
+  extras:
+    agent_service: ${agent_instances.0.name}  # 依赖的 AGENT 服务名称（默认为 `agent_instances` 的第一个）
+    infer_service: ${infer_instances.0.name}  # 依赖的 INFER 服务名称（默认为 `infer_instances` 的第一个）
+    traj_output_path: /Temp/bucket-siye-green-guiyang-code/MindForge-Coder/x00962718/TrainingOutput/qwen3_32b/2026_03_12_5_verl_r2e
+  algorithm:
+    adv_estimator: grpo # grpo. from deepswe 5
+    norm_adv_by_std_in_grpo:  False # from deepswe 3
+#    clip_advantages: False # default is False
+    kl_ctrl:
+      kl_coef: 0.001
+  data:
+    train_files: /Temp/bucket-siye-green-guiyang-code/MindForge-Coder/data/qwen/r2e_gym_subset/R2E-Gym-Subset_with_instance_ids.parquet
+    val_files: /Temp/bucket-siye-green-guiyang-code/MindForge-Coder/data/qwen/r2e_gym_subset/R2E-Gym-Subset_with_instance_ids.parquet
+    train_batch_size: 64 # global batch size
+    max_prompt_length: 4096
+    max_response_length: 32768 # 可能是多轮对话的长度 32768
+    filter_overlong_prompts: True
+    filter_overlong_prompts_workers: 64
+    truncation: 'error' # ??
+  actor_rollout_ref:
+    hybrid_engine: True
+    model:
+      path: /Temp/bucket-siye-green-guiyang-code/MindForge-Coder/models/Qwen3-32B
+      use_remove_padding: True # False from deepswe
+      enable_gradient_checkpointing: True
+    actor:
+      strategy: fsdp
+      optim:
+        lr: 1e-6 # ??
+      entropy_coeff: 0.0 # from deepswe 7
+      ppo_mini_batch_size: 8 # ??
+      use_dynamic_bsz: False
+      ppo_micro_batch_size_per_gpu: 1 # ？
+      ppo_max_token_len_per_gpu: 40000 # 默认值16384，deepswe设为32000，此处设置的较高以防止max_token_len must be greater than the sequence length. Got max_token_len=16384 and max_seq_len=33731
+      use_kl_loss: False # True, from deepswe 2
+      calculate_entropy: False # from deepswe 7
+      kl_loss_coef: 0.001
+      kl_loss_type: low_var_kl
+      clip_ratio_high: 0.28 # from deepswe 1
+      loss_agg_mode: seq-mean-token-sum # from deepswe 4
+      # ulysses_sequence_parallel_size: 8 TypeError("McoreActorConfig.__init__() got an unexpected keyword argument 'ulysses_sequence_parallel_size'")
+      fsdp_config:
+        pipeline_model_parallel_size: 4 # 训练
+        tensor_model_parallel_size: 8 # 训练
+        context_parallel_size: 2
+        use_mbridge: False # 解决容器中一丝依赖版本不兼容的问题
+        param_offload: True # NPU memory 优化
+        optimizer_offload: True # NPU memory 优化
+        override_transformer_config:
+          use_flash_attn: True
+          context_parallel_size: 2
+          recompute_num_layers: 16
+    rollout:
+      #      prompt_length: 16384 # AssertionError: max_token_len must be greater than the sequence length. Got max_token_len=16384 and max_seq_len=33731
+      response_length: 8192 # vllm max token
+      log_prob_use_dynamic_bsz: True
+      log_prob_micro_batch_size_per_gpu: 1
+      log_prob_max_token_len_per_gpu: 40000
+      tensor_model_parallel_size: 8 # 推理用
+      name: vllm
+      gpu_memory_utilization: 0.6
+      n: 8 # sample
+      enforce_eager: False
+      temperature: 1.0
+      agent:
+        agent_loop_manager_class: agentic_rl.trainer.train_adapter.verl.hybrid.agent_loop_manager.HybridAgentLoopManager
+    ref:
+      log_prob_micro_batch_size_per_gpu: 1
+      log_prob_max_token_len_per_gpu: 40000
+      fsdp_config: # 训练
+        pipeline_model_parallel_size: 4
+        tensor_model_parallel_size: 8
+        context_parallel_size: 2
+        param_offload: True # NPU内存优化
+  trainer:
+    val_before_train: False
+    device: npu
+    critic_warmup: 0 # 奖励预热？
+    project_name: 'qwen3_32b_r2e_subset'
+    experiment_name: 'qwen3_32b_r2e_subset'
+    n_gpus_per_node: 8
+    nnodes: 16
+    save_freq: 1 # 保存ckpt的per iter
+    default_local_dir: /home/ma-user/modelarts/outputs/train_url_0/
+    resume_mode: disable # disable / auto (load from default_local_dir) / resume_path  (load from resume_from_path)
+    resume_from_path: /Temp/bucket-siye-green-guiyang-code/MindForge-Coder/x00962718/TrainingOutput/qwen3_32b/2026_03_12_5_verl_r2e/ckpts
+    test_freq: 1000
+    total_epochs: 1000 # RL epoch
+    logger: ['console','mlflow' ]
+    rollout_data_dir: /Temp/bucket-siye-green-guiyang-code/MindForge-Coder/x00962718/TrainingOutput/qwen3_32b/2026_03_12_5_verl_r2e
+
+train_instances:
+  - name: RL-QWEN-32B-R2E-SUBSET
+    executor_num: 1
+    executor_kwargs:
+      # 以下参数为 TrainExecutor 初始化参数
+      cluster_mode: hybrid  # hybrid(共卡) | one_step_off(分离) | dummy_train (训练只启动controller, 适配纯rollout验证)
+      train_engine: verl
+      train_config: ${verl_conf}
+      rollout_config: { }
+      agent_service: ${agent_instances.0.name}  # 依赖的 AGENT 服务名称（默认为 `agent_instances` 的第一个）
+      infer_service: ${infer_instances.0.name}  # 依赖的 INFER 服务名称（默认为 `infer_instances` 的第一个）
+    resource_info: [ ]  # MSRL 训练采用 RAY 实现资源分配，在 Executor 层不做资源限制
+
+
+# =============================================================
+# Agent 预置服务：
+# 1. 提供如：Math / WebSearch 等智能体对话服务
+# =============================================================
+agent_instances:
+  - name: SWE-AGENT
+    executor_num: 1
+    executor_kwargs:
+      # 以下参数为 AgentExecutor 初始化参数
+      agent_engine: rllm
+      agent_engine_kwargs:
+        # 以下参数为 rLLMEngineWrapper 初始化参数
+        agent_name: swe # RLLMEngineWrapper内置Agent，修改参见：agents/agents_mapping.py
+        simplify_think_content: false
+        max_prompt_length: 16384
+        max_model_len: 32768
+        n_parallel_agents: 128 # agent线程并发数
+        env_args:
+          max_steps: 50 # 50
+          trajectory_timeout: 3600
+          scaffold: r2egym
+          dataset: r2e-gym-subset
+          task_metadat_dir: /Temp/bucket-siye-green-guiyang-code/MindForge-Coder/x00962718/TrainingOutput/qwen3_32b/2026_03_12_5_verl_r2e
+        agent_args:
+          scaffold: r2egym
+          overlong_filter: True
+        tokenizer: /Temp/bucket-siye-green-guiyang-code/MindForge-Coder/models/Qwen3-32B
+      infer_service_params: # 每轮对话时的 sampling params
+        top_p: 0.9
+        temperature: 1.0
+        max_tokens: 8192
+        model: ${infer_instances.0.name} # 依赖的 INFER 服务名称（默认为 `infer_instances` 的第一个）
+      trajectory_save_dir: /Temp/bucket-siye-green-guiyang-code/MindForge-Coder/x00962718/TrainingOutput/qwen3_32b/2026_03_12_5_verl_r2e
+    resource_info: [ ]
+
+# =============================================================
+# Infer 预置服务：
+# 1. 提供如：QWen / Deepseek 等大模型推理服务
+# 2. 提供 OpenAI Chat 推理接口
+# =============================================================
+
+infer_instances:
+  - name: Qwen3-32B
+    executor_num: 1
+    executor_kwargs:
+      # 以下参数为 InferExecutor 初始化参数
+      engine: vllm_proxy
+      engine_kwargs:
+        # 以下参数为 vLLMInferServer 初始化参数
+        chat_server: "http://0.0.0.0:8080"
+        prefill_server_list: [ ]
+        decode_server_list: [ ]
+        model_name: Qwen3-32B
+    resource_info: [ ]

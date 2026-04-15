@@ -1,70 +1,52 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
--------------------------------------------------------------------------
-This file is part of the AgentSDK project.
-Copyright (c) 2025 Huawei Technologies Co.,Ltd.
+# coding=utf-8
 
-AgentSDK is licensed under Mulan PSL v2.
-You can use this software according to the terms and conditions of the Mulan PSL v2.
-You may obtain a copy of Mulan PSL v2 at:
+# -------------------------------------------------------------------------
+# Copyright (c) 2025, HUAWEI CORPORATION. All rights reserved.
+# Copyright 2024 Bytedance Ltd. and/or its affiliates
+# Copyright 2023 The vLLM team.
+# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# -------------------------------------------------------------------------
 
-         http://license.coscl.org.cn/MulanPSL2
-
-THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
-EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
-MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
-See the Mulan PSL v2 for more details.
--------------------------------------------------------------------------
-"""
 
 from agentic_rl.base.weight_loaders.megatron_weight_loaders import BaseMegatronWeightLoader
-
-try:
-    from vllm.model_executor.layers.fused_moe.layer import FusedMoE as _VLLM_FusedMoE  # type: ignore
-    FusedMoE = _VLLM_FusedMoE  # expose as module-level name for patching
-except ImportError:  # pragma: no cover - fallback when fused_moe isn't available
-    class FusedMoE:  # type: ignore
-        pass
 
 
 class VllmMegatronWeightLoaders(BaseMegatronWeightLoader):
     def __init__(self):
         super().__init__()
-        try:
-            self.register_model_loader("Qwen2ForCausalLM",
-                                       BaseMegatronWeightLoader.qwen_megatron_weight_loader)
-            self.register_model_loader("CustomQwen2ForCausalLM",
-                                       BaseMegatronWeightLoader.qwen_megatron_weight_loader)
-            self.register_model_loader("Qwen3ForCausalLM",
-                                       BaseMegatronWeightLoader.qwen_megatron_weight_loader)
-            self.register_model_loader("CustomQwen3ForCausalLM",
-                                       BaseMegatronWeightLoader.qwen_megatron_weight_loader)
-            self.register_model_loader("CustomQwen3MoeForCausalLM",
-                                       BaseMegatronWeightLoader.qwen_megatron_weight_loader)
-        except (AttributeError, TypeError) as e:
-            raise RuntimeError(f"Failed to register model loaders: {e}") from e
+        self.register_model_loader("LlamaForCausalLM",
+                                   BaseMegatronWeightLoader.llama_megatron_core_weight_loader)
+        self.register_model_loader("Qwen2ForCausalLM",
+                                   BaseMegatronWeightLoader.qwen_megatron_weight_loader)
+        self.register_model_loader("CustomQwen2ForCausalLM",
+                                   BaseMegatronWeightLoader.qwen_megatron_weight_loader)
+        self.register_model_loader("Qwen3ForCausalLM",
+                                   BaseMegatronWeightLoader.qwen_megatron_weight_loader)
+        self.register_model_loader("DeepseekV3ForCausalLM",
+                                   BaseMegatronWeightLoader.deepseek_megatron_weight_loader)
+        self.register_model_loader("DeepseekV2ForCausalLM",
+                                   BaseMegatronWeightLoader.deepseek_megatron_weight_loader)
+        self.register_model_loader("CustomDeepseekV3ForCausalLM",
+                                   BaseMegatronWeightLoader.deepseek_megatron_weight_loader)
+        self.register_model_loader("Qwen2_5_VLForConditionalGeneration",
+                                   BaseMegatronWeightLoader.qwen_vl_megatron_weight_loader)
+        self.register_model_loader("CustomQwen3MoeForCausalLM",
+                                   BaseMegatronWeightLoader.qwen_megatron_weight_loader)
 
     def get_supported_architectures(self):
-        try:
-            from vllm.model_executor.models import ModelRegistry
-            return ModelRegistry.get_supported_archs()
-        except ImportError as e:
-            raise ImportError(f"Failed to import vllm.model_executor.models.ModelRegistry: {e}") from e
-        except AttributeError as e:
-            raise AttributeError(f"ModelRegistry.get_supported_archs() is not available: {e}") from e
+        from vllm.model_executor.models import ModelRegistry
+        return ModelRegistry.get_supported_archs()
 
     def update_megatron_weight_loader(self):
-        try:
-            from vllm.model_executor.layers.linear import (
-                ColumnParallelLinear, MergedColumnParallelLinear, QKVParallelLinear,
-                RowParallelLinear, ReplicatedLinear
-            )
-            from vllm.model_executor.layers.vocab_parallel_embedding import ParallelLMHead, VocabParallelEmbedding
-        except ImportError as e:
-            raise ImportError(f"Failed to import vllm layer classes: {e}") from e
+        from vllm.model_executor.layers.linear import (
+            ColumnParallelLinear, MergedColumnParallelLinear, QKVParallelLinear,
+            RowParallelLinear, ReplicatedLinear
+        )
+        from vllm.model_executor.layers.fused_moe.layer import FusedMoE
+        from vllm.model_executor.layers.vocab_parallel_embedding import ParallelLMHead, VocabParallelEmbedding
 
-        layer_weight_megatron_loader_registry = {
+        LAYER_WEIGHT_MEGATRON_LOADER_REGISTRY = {
             ColumnParallelLinear: BaseMegatronWeightLoader.parallel_weight_loader,
             MergedColumnParallelLinear: BaseMegatronWeightLoader.parallel_weight_loader,
             QKVParallelLinear: BaseMegatronWeightLoader.parallel_weight_loader,
@@ -75,8 +57,5 @@ class VllmMegatronWeightLoaders(BaseMegatronWeightLoader):
             FusedMoE: BaseMegatronWeightLoader.parallel_weight_loader
         }
 
-        for layer_class, weight_loader in layer_weight_megatron_loader_registry.items():
-            try:
-                layer_class.weight_loader = weight_loader
-            except (AttributeError, TypeError) as e:
-                raise RuntimeError(f"Failed to set weight_loader for {layer_class.__name__}: {e}") from e
+        for layer_class, weight_loader in LAYER_WEIGHT_MEGATRON_LOADER_REGISTRY.items():
+            layer_class.weight_loader = weight_loader

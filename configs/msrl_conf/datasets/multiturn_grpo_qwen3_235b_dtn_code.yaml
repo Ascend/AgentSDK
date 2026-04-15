@@ -1,0 +1,11 @@
+input: /models/d00896564/data/shutong_agentic/v1023/train_64
+tokenizer_name_or_path: /models/d00896564/original_ckpt/Qwen3-235B-thinking-2507-tokenizer/
+output_prefix: /models/d00896564/data/shutong_agentic/v1023/converted_qwen235_64/rl
+handler_name: R1AlpacaStyleInstructionHandler
+tokenizer_type: HuggingFaceTokenizer
+workers: 8
+log_interval: 1000
+prompt_type: qwen
+dataset_additional_keys: [labels, content]
+map_keys: {"prompt":"query", "query":"", "response":"answer", "content": "content"}
+#todo /third_party/rl/mindspeed_rl/mindspeed_rl/datasets/handler_utils.py 124行 加"content"字段
