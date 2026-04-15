@@ -1,0 +1,151 @@
+defaults:
+  - model:
+      - deepseekv3_671b
+
+megatron_training:
+  model: deepseekv3_671b
+  use_fused_rmsnorm: true
+  sequence_parallel: true
+  use_flash_attn: true
+  no_masked_softmax_fusion: true
+  attention_softmax_in_fp32: true
+  no_gradient_accumulation_fusion: true
+  use_fused_swiglu: true
+  use_fused_rotary_pos_emb: true
+  moe_alltoall_overlap_comm: true
+  shape_order: BNSD
+  bf16: true
+  use_distributed_optimizer: true
+  tokenizer_type: PretrainedFromHF
+  tokenizer_name_or_path: /home/ma-user/modelarts/inputs/deepseek_tokenizer_url_1 # ../../model/Deepseek-671B/ #词表 无关权重
+  global_batch_size: 96 #384
+  seq_length: 16384
+  save_interval: 1000
+  train_iters: 1000
+  stage: ray_grpo
+  attention_dropout: 0.0
+  init_method_std: 0.01
+  hidden_dropout: 0.0
+  distributed_backend: nccl
+  no_shared_storage: true
+  variable_seq_lengths: true
+  dataset_additional_keys: ['labels', 'template']
+  no_shuffle: false
+  data_path: /home/ma-user/modelarts/inputs/data_url_0/rl  #/models/d00896564/data/shutong_agentic/0827/converted_qwen3/rl
+  split: 100,0,0
+  swap_optimizer: true
+  reset_position_ids: true
+
+actor_config:
+  model: deepseekv3_671b
+  micro_batch_size: 1
+  moe_tp_extend_ep: true
+  tensor_model_parallel_size: 4
+  pipeline_model_parallel_size: 6 #卡数/tp/ep
+  expert_model_parallel_size: 16
+
+  context_parallel_size: 4 # dp=总卡数/tp/pp cp要被dp整除 目前最大可开16
+  context_parallel_algo: ulysses_cp_algo
+  cp_attention_mask_type: causal
+  # reset_attention_mask: true
+
+  lr: 1e-6
+  lr_decay_style: constant
+  min_lr: 0.0
+  weight_decay: 0.0
+  lr_warmup_fraction: 0.0
+  clip_grad: 1.0
+  adam_beta1: 0.9
+  adam_beta2: 0.95
+  initial_loss_scale: 4096
+  finetune: true
+  load: /models/g00898995/model/Deepseek-671B-bf16-tp4pp6ep16/ #./ckpt/ #需要切分好的权重
+  save: /home/ma-user/modelarts/outputs/train_url_0/ #./saveckpt/
+  no_load_optim: true
+  no_load_rng: true
+  no_save_optim: true 
+  
+  gemm_gradient_accumulation_fusion: true
+  num_layer_list: 10,10,10,10,11,10
+  recompute_granularity: full
+  recompute_method: block
+  recompute_num_layers: 11
+
+rl_config:
+  use_integrated_worker: true
+  #ref_forward_micro_batch_size: 2
+  #actor_forward_micro_batch_size: 2
+  use_remove_padding: true
+  # use_dynamic_bsz: true
+  # max_packing_token_size: 4096
+
+  blocking: true
+  gamma: 1.0
+  lam: 0.95
+  adv_estimator: group_norm
+  kl_penalty: low_var_kl
+  kl_ctrl_type: fixed
+  init_kl_coef: 0.001
+  mini_batch_size: 96 #384
+  max_prompt_length: 16384
+  epochs: 1
+  clip_ratio: 0.2
+  entropy_coeff: 0
+  n_samples_per_prompt: 8
+  #actor_rollout_dispatch_size: 64
+  rule_reward: true
+  verifier_function: ["env_reward"]
+  verifier_weight: [1.0]
+  #verifier_parallel: 1 #235b有
+  #verifier_timeout: 600 #235b有
+  use_tensorboard: true
+  simplify_think_content: false
+  actor_resource:
+    num_npus: 384
+
+generate_config:
+  enforce_eager: true
+  #torchair_graph: true #新增
+  trust_remote_code: true
+  enable_expert_parallel: true
+
+  # 推理时的并行配置
+  enable_sleep_mode: false
+  load_format: megatron
+  infer_tensor_parallel_size: 4
+  infer_pipeline_parallel_size: 1 #永远不变
+  infer_expert_parallel_size: 16 #注意: runtime_env.yaml的VLLM_DP_SIZE需要与其保持一致
+
+  # vllm 模型相关设置
+  enable_prefix_caching: true
+  max_num_seqs: 8
+  max_model_len: 32768
+  max_num_batched_tokens: 1024 #2048 #注意: 关闭chunk_prefill_for_mla时, max_num_batched_tokens不能大于1024
+  dtype: "bfloat16"
+  gpu_memory_utilization: 0.75
+
+  offload_train_optimizer: false
+  offload_train_grad: true
+  offload_train_param: true
+
+  # agent execution配置
+  base_url: http:xxx
+  api_key: empty
+  train_backend: mindspeed_rl
+
+  # 采样配置
+  sampling_config:
+    logprobs: 1
+    max_tokens: 8192
+    top_p: 0.9
+    top_k: 50
+    min_p: 0.01
+    temperature: 0.9
+    detokenize: false
+
+agentic_env_config:
+  namespace: agentic_raygroup
+  agent_name: dtn_l2_deepseek
+  tool_url: /home/ma-user/modelarts/inputs/tool_url_2/ #models/g008998995/shutong/dtn_l2_all_info
+  max_steps: 5
+  rollout_output_path: /models/g00898995/logs/shutong #/home/ma-user/modelarts/outputs/traj_url_1/ #需修改自定义目录

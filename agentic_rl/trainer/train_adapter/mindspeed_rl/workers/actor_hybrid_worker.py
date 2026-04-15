@@ -1,248 +1,172 @@
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
--------------------------------------------------------------------------
-This file is part of the AgentSDK project.
-Copyright (c) 2025 Huawei Technologies Co.,Ltd.
-
-AgentSDK is licensed under Mulan PSL v2.
-You can use this software according to the terms and conditions of the Mulan PSL v2.
-You may obtain a copy of Mulan PSL v2 at:
-
-         http://license.coscl.org.cn/MulanPSL2
-
-THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
-EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
-MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
-See the Mulan PSL v2 for more details.
--------------------------------------------------------------------------
-"""
+#
+# This file is part of the AgentSDK project.
+# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+#
+# AgentSDK is licensed under Mulan PSL v2.
+# You can use this software according to the terms and conditions of the Mulan PSL v2.
+# You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# 
 import os
+import threading
 import time
-from typing import Any, Dict, List, Union, Callable
+from typing import Any, Dict, List, Optional, Tuple, Union
 
-import torch.cuda
-
-from agentic_rl.trainer.train_adapter.mindspeed_rl import patch
-
-patch.apply_patch()
-
+import megatron.core.parallel_state as ps
 import ray
-from mindspeed_rl.config_cls.generate_config import GenerateConfig
-from mindspeed_rl.config_cls.megatron_config import MegatronConfig
-from mindspeed_rl.config_cls.rl_config import RLConfig
-from mindspeed_rl.models.actor_rollout_hybrid import ActorRolloutHybrid
-from mindspeed_rl.utils.tokenizer import BaseTokenizer
-from mindspeed_rl.utils.utils import replace_torch_compile, mstx_timer_decorator
-from mindspeed_rl.workers.actor_hybrid_worker import (ActorHybridWorkerBase,
-                                                      num_floating_point_operations,
-                                                      ActorState)
-from mindspeed_rl.workers.resharding.megatron_off_loader import MegatronOffLoader
+import safetensors.torch as sf
+import torch
 from transformers import AutoConfig
 
-from agentic_rl.base.log.loggers import Loggers
-from agentic_rl.configs.agentic_rl_config import AgenticRLConfig
-from agentic_rl.trainer.train_adapter.mindspeed_rl.vllm_infer_engine import AsyncVLLMInferEngine
-from agentic_rl.base.utils.file_utils import FileCheck
+from mindspeed_rl.models.actor_rollout_hybrid import ActorRolloutHybrid
+from mindspeed_rl.utils.utils import (
+    MsProbe,
+    mstx_timer_decorator,
+    profiler_start,
+    profiler_step,
+    replace_torch_compile,
+)
+from mindspeed_rl.workers.actor_hybrid_worker import (
+    ActorHybridWorkerBase,
+    ActorState,
+    is_multimodal,
+    num_floating_point_operations,
+)
+from mindspeed_rl.workers.resharding.megatron_off_loader import MegatronOffLoader
 
-logger = Loggers(__name__)
+from agentic_rl.base.log.loggers import Loggers
+from agentic_rl.runner.infer_adapter.vllm.extension.custom_worker_extensions import (
+    resolve_device,
+    split_tensors_and_meta,
+)
+
+logger = Loggers(__name__).get_logger()
+
+
+def _do_tensors_save(
+    save_dir: str, file_path: str, params: Dict[str, Any], meta_header: Optional[Dict[str, str]]
+) -> None:
+    """Save tensor parameters to a safetensors file and notify the weight updater actor.
+
+    Args:
+        save_dir: Directory where the tensors are saved.
+        file_path: Full path of the target safetensors file.
+        params: Dictionary mapping parameter names to tensor values.
+        meta_header: Optional metadata header to embed in the safetensors file.
+    """
+    try:
+        
+        logger.info(f"===save tensors to {file_path}")
+        if meta_header:
+            sf.save_file(params, file_path, metadata=meta_header)
+        else:
+            sf.save_file(params, file_path)
+
+        logger.info(f"===save tensors to {file_path} succeed")
+        w_actor = ray.get_actor("weight_updater", namespace="controller_raygroup")
+        w_actor.weight_saved.remote(save_dir)
+        logger.info("===weights save success")
+    except Exception:
+        logger.exception(f"Failed to save tensors to {file_path}")
+        raise
+
+
+def async_tensors_save(
+    save_dir: str, file_path: str, params: Dict[str, Any], meta_header: Optional[Dict[str, str]] = None
+) -> None:
+    """Spawn a daemon thread to save tensor parameters asynchronously.
+
+    Args:
+        save_dir: Directory where the tensors are saved.
+        file_path: Full path of the target safetensors file.
+        params: Dictionary mapping parameter names to tensor values.
+        meta_header: Optional metadata header to embed in the safetensors file.
+    """
+    threading.Thread(
+        target=_do_tensors_save, args=(save_dir, file_path, params, meta_header), daemon=True
+    ).start()
+    logger.info("===async saving tensor with threading")
 
 
 class AgentActorHybridWorkerBase(ActorHybridWorkerBase):
-    """
-    AgentActorHybridWorkerBase class. This class implements the hybrid worker logic for training and inference.
-    """
+    """Actor-inference hybrid worker base that manages training, resharding, and vLLM inference."""
 
-    def __init__(self,
-                 agentic_rl_config: AgenticRLConfig,
-                 megatron_config: MegatronConfig,
-                 rl_config: RLConfig,
-                 generate_config: GenerateConfig,
-                 model_provider: Callable,
-                 initialize_func: Callable,
-                 tokenizer: BaseTokenizer = None,
-                 get_megatron_module: Callable = None,
-                 **kwargs):
-        """
-        Initialization for AgentActorHybridWorkerBase.
-
-        Args:
-            agentic_rl_config: AgenticRLConfig Configuration for agent trajectory.
-            megatron_config: MegatronConfig Configuration for Megatron-LM (e.g., model parallelism settings).
-            rl_config: RLConfig Configuration for reinforcement learning (e.g., PPO settings).
-            generate_config: GenerateConfig Configuration for generation/inference (e.g., vLLM settings).
-            model_provider: Callable Function to provide the model instance.
-            initialize_func: Callable Function to initialize the model and environment.
-            tokenizer: BaseTokenizer = None Object to retrieve the tokenizer.
-            get_megatron_module: Callable = megatron_module from get_megatron_module.
-        """
-        if agentic_rl_config is None or not isinstance(agentic_rl_config, AgenticRLConfig):
-            raise ValueError(f"agentic_rl_config must not be none and is an instance of {AgenticRLConfig.__name__}")
-        if megatron_config is None or not isinstance(megatron_config, MegatronConfig):
-            raise ValueError(f"megatron_config must not be none and is an instance of {MegatronConfig.__name__}")
-        if rl_config is None or not isinstance(rl_config, RLConfig):
-            raise ValueError(f"rl_config must not be none and is an instance of {RLConfig.__name__}")
-        if generate_config is None or not isinstance(generate_config, GenerateConfig):
-            raise ValueError(f"generate_config must not be none and is an instance of {GenerateConfig.__name__}")
-        if model_provider is None or not isinstance(model_provider, Callable):
-            raise ValueError(f"model_provider must not be none and is a Callable func")
-        if initialize_func is None or not isinstance(initialize_func, Callable):
-            raise ValueError(f"initialize_func must not be none and is a Callable func")
-        if tokenizer is not None and not isinstance(tokenizer, BaseTokenizer):
-            raise ValueError(f"tokenizer must not be none and is an instance of {BaseTokenizer.__name__}")
-        if get_megatron_module is not None and not isinstance(get_megatron_module, Callable):
-            raise ValueError(f"get_megatron_module must not be none and is a Callable func")
-
-        try:
-            super().__init__(megatron_config=megatron_config,
-                             rl_config=rl_config,
-                             generate_config=generate_config,
-                             model_provider=model_provider,
-                             initialize_func=initialize_func,
-                             tokenizer=tokenizer,
-                             get_megatron_module=get_megatron_module,
-                             **kwargs)
-        except AttributeError as e:
-            raise AttributeError("AgentActorHybridWorkerBase initialize failed with missing attributes") from e
-        except OSError as e:
-            raise OSError("AgentActorHybridWorkerBase initialize failed with environment error") from e
-        except Exception as e:
-            raise Exception("Unexpected error occurred when AgentActorHybridWorkerBase initialize") from e
-
-        self.agentic_rl_config = agentic_rl_config
+    def __init__(self, *args, **kwargs):
+        # Engine is deferred to be initialized in init_worker
+        super().__init__(*args, **kwargs)
         self.rl_config.zmq_communication = False
         self.continue_infer_running = False
-        self.start_time_defined = False
 
-    def initialize(self):
-        """
-        Initialize actor worker's model for training and inference.
-        """
-        try:
-            self.setup_distributed_rank()
-        except AttributeError as e:
-            raise AttributeError("actor worker setup distributed rank failed with missing attributes") from e
-        except Exception as e:
-            raise Exception("Unexpected error occurred when actor worker setup distributed rank") from e
-        logger.debug("actor worker setup distributed rank success")
+    def initialize(self) -> None:
+        """Set up distributed rank, build model/optimizer, offloader, and inference engine."""
+        self.setup_distributed_rank()
+        self.model, self.optimizer, self.opt_param_scheduler = self._build_model_optimizer()
+        self._set_no_sync_func()
+        self.actor_offloader = MegatronOffLoader(
+            self.model,
+            self.optimizer,
+            megatron_config=self.megatron_config,
+            distributed_optimizer=self.distributed_optimizer,
+            float16_optimizer_with_float16_params=self.float16_optimizer_with_float16_params)
 
-        try:
-            self.model, self.optimizer, self.opt_param_scheduler = self._build_model_optimizer()
-            self._set_no_sync_func()
-        except AttributeError as e:
-            raise AttributeError("actor worker initialize model failed with missing attributes") from e
-        except ValueError as e:
-            raise ValueError("actor worker initialize model failed with parameters conflict") from e
-        except Exception as e:
-            raise Exception("Unexpected error occurred when actor worker initialize model") from e
-        logger.debug("actor worker initialize training model success")
-
-        try:
-            self.actor_offloader = MegatronOffLoader(
-                self.model,
-                self.optimizer,
-                megatron_config=self.megatron_config,
-                distributed_optimizer=self.distributed_optimizer,
-                float16_optimizer_with_float16_params=self.float16_optimizer_with_float16_params)
-        except AttributeError as e:
-            raise AttributeError("actor worker failed to create offloader with missing attributes") from e
-        except OSError as e:
-            raise OSError("actor worker failed to create offloader with system error") from e
-        except Exception as e:
-            raise Exception("Unexpected error occurred when actor worker create offloader") from e
-        logger.debug("actor worker create offloader success")
-
-        try:
-            if self.generate_config.offload_train_optimizer:
-                self.actor_offloader.offload_optimizer()
-            if self.generate_config.offload_train_grad:
-                self.actor_offloader.offload_grad()
-            if self.generate_config.offload_train_param:
-                self.actor_offloader.offload_param()
-        except RuntimeError as e:
-            raise RuntimeError("actor worker offload optimizer/grad/param failed") from e
-        except Exception as e:
-            raise Exception("Unexpected error occurred when actor worker offload optimizer/grad/param") from e
-
+        if self.generate_config.offload_train_optimizer:
+            self.actor_offloader.offload_optimizer()
+        if self.generate_config.offload_train_grad:
+            self.actor_offloader.offload_grad()
+        if self.generate_config.offload_train_param:
+            self.actor_offloader.offload_param()
         with replace_torch_compile():
             self.inference_model = self._build_rollout()
 
-    def _build_rollout(self) -> AsyncVLLMInferEngine:
-        FileCheck.check_data_path_is_valid(self.megatron_config.tokenizer_name_or_path)
-        self.actor_model_config = AutoConfig.from_pretrained(
-            self.megatron_config.tokenizer_name_or_path,
-            trust_remote_code=self.generate_config.trust_remote_code,
-            local_files_only=True,
-            weights_only=True,
+        self.actor_profiler = profiler_start(self.profiler_config, self.profiler_config.role)
+        MsProbe.config_init(self.msprobe_config)
+
+    def get_worker_info(self) -> Tuple[Optional[str], str]:
+        """Return the current RANK environment variable and the Ray node ID."""
+        return os.getenv('RANK'), ray.get_runtime_context().get_node_id()
+
+    def init_worker(self, all_kwargs: List[Dict[str, Any]]) -> None:
+        """Forward worker initialisation kwargs to the inference engine."""
+        self.inference_model.init_worker(all_kwargs)
+
+    def load_model(self, *args, **kwargs) -> None:
+        """Delegate model loading to the inference engine."""
+        self.inference_model.load_model(*args, **kwargs)
+
+    def enter_infer_mode(self) -> None:
+        """Transition the worker into inference mode and record resharding time."""
+        if self.state == ActorState.INFER:
+            return
+
+        start_time = time.time()
+        self.sharding_manager.enter_infer_mode()
+        self.state = ActorState.INFER
+        end_time = time.time()
+        ray.get(
+            self.td.update_metrics.remote(
+                "timing/resharding_to_infer",
+                value=[end_time - start_time],
+                cumulate=True
+            )
         )
 
-        rollout = AsyncVLLMInferEngine(
-            tokenizer_name_or_path=self.megatron_config.tokenizer_name_or_path,
-            train_tensor_parallel_size=self.megatron_config.tensor_model_parallel_size,
-            train_pipeline_parallel_size=self.megatron_config.pipeline_model_parallel_size,
-            train_expert_parallel_size=self.megatron_config.expert_model_parallel_size,
-            train_context_parallel_size=self.megatron_config.context_parallel_size,
-            infer_tensor_parallel_size=self.generate_config.infer_tensor_parallel_size,
-            infer_pipeline_parallel_size=self.generate_config.infer_pipeline_parallel_size,
-            infer_expert_parallel_size=self.generate_config.infer_expert_parallel_size,
-            max_num_seqs=self.generate_config.max_num_seqs,
-            max_model_len=self.generate_config.max_model_len,
-            dtype=self.generate_config.dtype,
-            gpu_memory_utilization=self.generate_config.gpu_memory_utilization,
-            trust_remote_code=self.generate_config.trust_remote_code,
-            enable_sleep_mode=self.agentic_rl_config.enable_sleep_mode,
-        )
-
-        return rollout
-
-    def init_sharding_manager(self):
-        """
-        Initialize actor worker's sharding manager and actor_hybrid. This operation should be called after
-            RolloutWorker init.
-        """
+    def init_sharding_manager(self) -> None:
+        """Build the sharding manager and the actor-rollout hybrid after sleeping the inference engine."""
+        logger.info(f"===init_sharding_manager, inference_model: {self.inference_model}")
         self.inference_model.sleep()
-
-        try:
-            self.sharding_manager = self._build_sharding_manager()
-            self.sharding_manager.enable_sleep_mode = self.agentic_rl_config.enable_sleep_mode
-        except AttributeError as e:
-            raise AttributeError("actor worker build sharding manager failed with missing attributes") from e
-        except RuntimeError as e:
-            raise RuntimeError("actor worker build sharding manager failed with runtime error") from e
-        except Exception as e:
-            raise Exception("Unexpected error occurred when actor worker build sharding manager") from e
+        self.sharding_manager = self._build_sharding_manager()
+        self.sharding_manager.enable_sleep_mode = self.generate_config.enable_sleep_mode
 
         if self.generate_config.offload_train_param:
-            try:
-                self.actor_offloader.onload_param()
-            except RuntimeError as e:
-                raise RuntimeError("actor worker onload parameters failed") from e
-            except Exception as e:
-                raise Exception("Unexpected error occurred when actor worker onload parameters") from e
+            self.actor_offloader.onload_param()
 
-        try:
-            self._init_actor_hybrid()
-        except AttributeError as e:
-            raise AttributeError("actor worker init actor hybrid failed with missing attributes") from e
-        except ValueError as e:
-            raise ValueError("actor worker init actor hybrid failed with parameters conflict") from e
-        except Exception as e:
-            raise Exception("Unexpected error occurred when actor worker init actor hybrid") from e
-        logger.debug("actor worker init actor hybrid success")
-
-        try:
-            self.empty_cache()
-        except RuntimeError as e:
-            raise RuntimeError("actor worker failed to empty the cache") from e
-        except Exception as e:
-            raise Exception("Unexpected error occurred when actor worker empty the cache") from e
-
-    def _init_actor_hybrid(self):
-        dp_size = self.parallel_state.get_data_parallel_world_size()
-        if dp_size == 0:
-            raise ValueError("actor worker get data parallel world size equal 0")
-
-        """Create sharding manager and actor hybrid"""
         self.actor_hybrid = ActorRolloutHybrid(
             self.model,
             megatron_config=self.megatron_config,
@@ -251,7 +175,8 @@ class AgentActorHybridWorkerBase(ActorHybridWorkerBase):
             inference_model=self.inference_model,
             sharding_manager=self.sharding_manager,
             beta=self.rl_config.beta,
-            mini_batch_size_per_dp=self.rl_config.mini_batch_size // dp_size,
+            mini_batch_size_per_dp=self.rl_config.mini_batch_size
+                                   // self.parallel_state.get_data_parallel_world_size(),
             epochs=self.rl_config.epochs,
             shuffle_mini_batch=self.rl_config.shuffle_mini_batch,
             generate_config=self.generate_config,
@@ -275,276 +200,265 @@ class AgentActorHybridWorkerBase(ActorHybridWorkerBase):
             clip_ratio_low=self.rl_config.clip_ratio_low,
             clip_ratio_high=self.rl_config.clip_ratio_high
         )
-
-    def get_worker_info(self):
-        """
-        Get worker's node info.
-
-        Returns:
-            tuple: the RANK of current worker and node id.
-        """
-        rank_env = os.environ.get("RANK")
-        if rank_env is None:
-            return None, None
-
-        try:
-            rank_env = int(rank_env)
-            if rank_env < 0:
-                raise ValueError("RANK environment variable must be non-negative integer.")
-        except ValueError as e:
-            raise ValueError(f"Invalid LOCAL_RANK value: {e}") from e
-
-        return rank_env, ray.get_runtime_context().get_node_id()
-
-    def enter_infer_mode(self):
-        if self.state == ActorState.INFER:
-            return
-
-        start_time = time.time()
-        try:
-            self.sharding_manager.enter_infer_mode()
-        except RuntimeError as e:
-            raise RuntimeError("actor worker enter infer mode failed") from e
-        except Exception as e:
-            raise Exception("Unexpected error occurred when actor worker enter infer mode") from e
-
-        self.state = ActorState.INFER
-        end_time = time.time()
-        ray.get(
-            self.td.update_metrics.remote(
-                "timing/resharding_to_infer",
-                value=[end_time - start_time],
-                cumulate=True
-            )
-        )
-        logger.debug("actor worker enter infer mode")
-
-        torch.cuda.empty_cache()
-
-    def exit_infer_mode(self):
-        if self.state != ActorState.INFER:
-            raise RuntimeError("current state is not INFER, it is no available to exit infer mode")
-
-        start_time = time.time()
-        try:
-            self.sharding_manager.exit_infer_mode()
-        except RuntimeError as e:
-            raise RuntimeError("actor worker exit infer mode failed") from e
-        except Exception as e:
-            raise Exception("Unexpected error occurred when actor worker exit infer mode") from e
-
-        self.state = ActorState.NONE
-        end_time = time.time()
-        ray.get(
-            self.td.update_metrics.remote(
-                "timing/resharding_exit_infer",
-                value=[end_time - start_time],
-                cumulate=True
-            )
-        )
-        torch.cuda.empty_cache()
-        logger.debug("actor worker exit infer mode")
-
-    def init_worker(self, all_kwargs: List[Dict[str, Any]]):
-        """Init inference model."""
-        self.inference_model.init_worker(all_kwargs)
-        logger.debug("actor worker init inference model worker success")
-
-    def load_model(self, *args, **kwargs):
-        """Inference_model load model weights"""
-        self.inference_model.load_model(*args, **kwargs)
-        logger.debug("actor worker load inference model success")
+        self.empty_cache()
 
     def sleep(self, *args, **kwargs):
         """Offload model weights and discard kv cache."""
         if self.inference_model.is_sleep:
             return
-        self.exit_infer_mode()
         self.inference_model.sleep(*args, **kwargs)
         self.inference_model.is_sleep = True
+        self.exit_infer_mode()
         self.continue_infer_running = True
-        torch.cuda.empty_cache()
-        logger.debug("actor inference model sleep success")
 
     def wake_up(self, *args, **kwargs):
         """Load model weights and build kv cache."""
         if not self.inference_model.is_sleep:
             return
-
         if self.continue_infer_running:
-            try:
-                self.sharding_manager.enter_forward_mode()
-            except RuntimeError as e:
-                raise RuntimeError("actor worker enter forward mode failed") from e
-            except Exception as e:
-                raise Exception("Unexpected error occurred when actor worker enter forward mode") from e
-
-        self.enter_infer_mode()
-
+            self.sharding_manager.enter_forward_mode()
+        self.enter_infer_mode()  # pylint: disable=C2801
         self.inference_model.wake_up(*args, **kwargs)
         self.inference_model.is_sleep = False
-        torch.cuda.empty_cache()
-        logger.debug("actor inference model wake up success")
 
-    def execute_method(self, method: Union[str, bytes], *args, **kwargs):
-        """The proxy method for execution with ray"""
-        # torch.compile has been mocked by mindspeed-rl and megatron
+    def execute_method(self, method: Union[str, bytes], *args, **kwargs) -> Any:
+        """Dispatch a named method call, wrapping execution with a torch.compile replacement.
+
+        Args:
+            method: Name of the method to invoke.
+
+        Returns:
+            The return value of the dispatched method.
+        """
         with replace_torch_compile():
-            if method == "init_worker":
-                return self.init_worker(*args, **kwargs)
-            elif method == "load_model":
-                return self.load_model(*args, **kwargs)
-            elif method == "sleep":
-                return self.sleep(*args, **kwargs)
-            elif method == "wake_up":
-                return self.wake_up(*args, **kwargs)
-            else:
-                result = self.inference_model.execute_method(method, *args, **kwargs)
-                return result
+            dispatch = {
+                "init_worker": self.init_worker,
+                "load_model": self.load_model,
+                "sleep": self.sleep,
+                "wake_up": self.wake_up,
+            }
+            handler = dispatch.get(method)
+            if handler is not None:
+                return handler(*args, **kwargs)
+            return self.inference_model.execute_method(method, *args, **kwargs)
+
+    def _build_rollout(self) -> Any:
+        """Construct and return the asynchronous vLLM inference engine."""
+        self.actor_model_config = AutoConfig.from_pretrained(
+            self.megatron_config.tokenizer_name_or_path, trust_remote_code=self.generate_config.trust_remote_code)
+
+        from agentic_rl.runner.infer_adapter.vllm.vllm_worker import AsyncVLLMInferEngine
+
+        rollout = AsyncVLLMInferEngine(
+            tokenizer_name_or_path=self.megatron_config.tokenizer_name_or_path,
+            train_tensor_parallel_size=self.megatron_config.tensor_model_parallel_size,
+            train_pipeline_parallel_size=self.megatron_config.pipeline_model_parallel_size,
+            train_expert_parallel_size=self.megatron_config.expert_model_parallel_size,
+            train_context_parallel_size=self.megatron_config.context_parallel_size,
+            infer_tensor_parallel_size=self.generate_config.infer_tensor_parallel_size,
+            infer_pipeline_parallel_size=self.generate_config.infer_pipeline_parallel_size,
+            infer_expert_parallel_size=self.generate_config.infer_expert_parallel_size,
+            max_num_seqs=self.generate_config.max_num_seqs,
+            max_model_len=self.generate_config.max_model_len,
+            dtype=self.generate_config.dtype,
+            gpu_memory_utilization=self.generate_config.gpu_memory_utilization,
+            trust_remote_code=self.generate_config.trust_remote_code,
+            enable_sleep_mode=self.generate_config.enable_sleep_mode,
+        )
+
+        return rollout
 
     @mstx_timer_decorator
-    def update(self, kl_ctrl=None, skip_actor_log_prob: bool = False):
-        """
-        Use data to update actor model
+    def update(self, kl_ctrl: Any = None, skip_actor_log_prob: bool = False) -> None:
+        """Run one actor-update step: enter train mode, consume experience, and update metrics.
 
-        Vars:
-            kl_ctrl: controller of KL divergence.
-            skip_actor_log_prob (bool): if skip process of old_log_prob.
+        Args:
+            kl_ctrl: Optional KL divergence controller.
+            skip_actor_log_prob: If True, omit old_log_prob from the experience columns.
         """
-        if kl_ctrl is None:
-            raise ValueError("kl_ctrl must not be none for actor worker to perform update")
-
         start_sharding_enter_train = time.time()
-        try:
-            self.sharding_manager.enter_train_mode()
-        except RuntimeError as e:
-            raise RuntimeError("actor worker enter train mode failed") from e
-        except Exception as e:
-            raise Exception("Unexpected error occurred when actor worker enter train mode") from e
+        self.sharding_manager.enter_train_mode()
         sharding_train_interval = time.time() - start_sharding_enter_train
 
         self.args.curr_iteration = self.iteration
 
         experience_consumer_stage = 'actor_train'
-        experience_columns = [
-            'responses', 'advantages', 'old_log_prob', 'input_ids', 'response_length', 'prompt_length', 'response_mask']
-        if self.megatron_config.stage != "ray_dapo":
-            experience_columns.append('ref_log_prob')
 
-        if self.rl_config.actor_update_dispatch_size is None:
-            raise ValueError("actor worker rl_config.actor_update_dispatch_size is none")
+        if self.megatron_config.stage == "ray_dapo":
+            experience_columns = ['responses', 'advantages', 'old_log_prob',
+                                  'input_ids', 'response_length', 'prompt_length']
+        else:
+            experience_columns = ['responses', 'advantages', 'old_log_prob',
+                                  'ref_log_prob', 'input_ids', 'response_length', 'prompt_length']
+
+        experience_columns.append("response_mask")
+
+        if is_multimodal():
+            experience_columns.extend(['attention_mask', 'position_ids'])
+
         experience_count = self.rl_config.actor_update_dispatch_size
 
         if skip_actor_log_prob:
             experience_columns.remove('old_log_prob')
 
         learning_rate = None
-        temp_learning_rates = []
         for param_group in self.optimizer.param_groups:
-            learning_rate = param_group['lr'] if 'lr' in param_group else learning_rate
-            if learning_rate is not None and learning_rate not in temp_learning_rates:
-                temp_learning_rates.append(learning_rate)
-        if len(temp_learning_rates) > 1:
-            logger.warning(f"Multiple learning rates found, using the last one in {temp_learning_rates}.")
+            learning_rate = param_group['lr']
         ray.get(self.td.update_metrics.remote(key='actor/lr', value=learning_rate))
+        sorted_indexes = self.get_dp_range_indexes(
+            experience_count,
+            use_vllm=False
+        ) if self.rl_config.guarantee_order else None
 
-        sorted_indexes = None
-        try:
-            if self.rl_config.guarantee_order:
-                sorted_indexes = self.get_dp_range_indexes(experience_count, use_vllm=False)
-        except AttributeError as e:
-            raise AttributeError("actor worker get data parallel range indexes failed with missing attributes") from e
-        except RuntimeError as e:
-            raise RuntimeError("actor worker get data parallel range indexes failed with runtime error") from e
-        except Exception as e:
-            raise Exception("Unexpected error occurred when actor worker get data parallel range indexes") from e
-
-        self.start_time_defined = False
-        while self.all_consumed(experience_consumer_stage, sorted_indexes) > 0:
-            self._do_update(kl_ctrl, experience_consumer_stage, experience_columns, experience_count, sorted_indexes)
-
-        self.iteration += 1
-        self.prof_iteration += 1
-
-        start_sharding_exit_train = time.time()
-        try:
-            self.sharding_manager.exit_train_mode()
-        except RuntimeError as e:
-            raise RuntimeError("actor worker exit train mode failed") from e
-        except Exception as e:
-            raise Exception("Unexpected error occurred when actor worker exit train mode") from e
-
-        sharding_train_interval += (time.time() - start_sharding_exit_train)
-        ray.get(
-            self.td.update_metrics.remote('timing/resharding_to_train', value=[sharding_train_interval], cumulate=True)
+        actor_update_profiler = profiler_start(
+            self.profiler_config,
+            role="actor_update",
+            profiler_iteration=self.prof_iteration
         )
 
-        self.continue_infer_running = False
-        logger.debug("finish actor update")
+        MsProbe.debugger_start(self.model[0], tag='actor_update')
 
-    def _do_update(self, kl_ctrl, experience_consumer_stage, experience_columns, experience_count, sorted_indexes):
-        try:
-            batch_data, index = self.dispatch_transfer_dock_data(
-                experience_consumer_stage,
-                experience_columns,
-                experience_count,
-                self.megatron_config.tensor_model_parallel_size,
-                self.megatron_config.context_parallel_size,
-                self.megatron_config.context_parallel_algo,
-                indexes=sorted_indexes.pop(0) if self.rl_config.guarantee_order else None,
-                get_n_samples=self.enable_partial_rollout)
-        except KeyError as e:
-            raise KeyError("actor worker dispatch transfer dock data failed with key mismatching") from e
-        except ValueError as e:
-            raise ValueError("actor worker dispatch transfer dock data failed with parameters conflict") from e
-        except RuntimeError as e:
-            raise RuntimeError("actor worker dispatch transfer dock data failed with runtime error") from e
-        except Exception as e:
-            raise Exception("Unexpected error occurred when actor worker dispatch transfer dock data") from e
-
-        if not self.start_time_defined:
-            self.update_start_time = time.time()
-            self.start_time_defined = True
-
-        if batch_data and index:
-            try:
-                metrics = self.actor_hybrid.update_actor(batch_data, kl_ctrl)
-            except ValueError as e:
-                raise ValueError("actor worker update actor failed with parameters conflict") from e
-            except Exception as e:
-                raise Exception("Unexpected error occurred when actor worker update actor") from e
-
-            if self.rl_config.n_samples_per_prompt == 0:
-                raise ValueError("actor worker rl_config.n_samples_per_prompt should not be zero")
-            self.args.consumed_train_samples += (
-                    self.megatron_config.global_batch_size // self.rl_config.n_samples_per_prompt)
-            self.num_floating_point_operations_so_far += (
-                num_floating_point_operations(self.args, self.megatron_config.global_batch_size))
-
-            if (self.parallel_state.is_pipeline_last_stage(ignore_virtual=True) and
-                    self.parallel_state.get_tensor_model_parallel_rank() == 0 and
-                    self.parallel_state.get_context_parallel_rank() == 0):
-                ray.get(self.td.update_metrics.remote(value=metrics, cumulate=True))
-                ray.get(
-                    self.td.update_metrics.remote(
-                        "timing/update",
-                        value=[round(time.time(), 4), round(self.update_start_time, 4)],
+        start_time_defined = False
+        first_dispatch_data_defined = False
+        first_dispatch_start_time = time.time()
+        while self.all_consumed(experience_consumer_stage, sorted_indexes) > 0:
+            if not first_dispatch_data_defined:
+                first_dispatch_start_time = time.time()
+            batch_data, index = self.dispatch_transfer_dock_data(experience_consumer_stage,
+                                                                 experience_columns,
+                                                                 experience_count,
+                                                                 self.megatron_config.tensor_model_parallel_size,
+                                                                 self.megatron_config.context_parallel_size,
+                                                                 self.megatron_config.context_parallel_algo,
+                                                                 indexes=sorted_indexes.pop(
+                                                                     0) if self.rl_config.guarantee_order else None,
+                                                                 get_n_samples=self.enable_partial_rollout)
+            if batch_data and index:
+                if not first_dispatch_data_defined:
+                    ray.get(self.td.update_metrics.remote(
+                        "dispatch_timing(first)/update",
+                        value=[time.time(), first_dispatch_start_time],
                         cumulate=True
+                    ))
+                    first_dispatch_data_defined = True
+
+                if not start_time_defined:
+                    start_time = time.time()
+                    start_time_defined = True
+                metrics = self.actor_hybrid.update_actor(batch_data, kl_ctrl)
+
+                self.args.consumed_train_samples += (
+                        self.megatron_config.global_batch_size // self.rl_config.n_samples_per_prompt)
+                self.num_floating_point_operations_so_far += (
+                    num_floating_point_operations(self.args, self.megatron_config.global_batch_size))
+                if (self.parallel_state.is_pipeline_last_stage(ignore_virtual=True) and
+                        self.parallel_state.get_tensor_model_parallel_rank() == 0 and
+                        self.parallel_state.get_context_parallel_rank() == 0):
+                    ray.get(self.td.update_metrics.remote(value=metrics, cumulate=True))
+                    ray.get(
+                        self.td.update_metrics.remote(
+                            "timing/update",
+                            value=[round(time.time(), 4), round(start_time, 4)],
+                            cumulate=True
+                        )
                     )
-                )
 
-    def update_actor_logprob_dispatch_size(self, new_actor_logprob_dispatch_size: int):
-        """Update actor_logprob_dispatch_size, experience count every forward step for actor_logprob"""
-        self.rl_config.actor_logprob_dispatch_size = (new_actor_logprob_dispatch_size //
-                                                      self.parallel_state.get_data_parallel_world_size())
+        self.iteration += 1
+        profiler_step(actor_update_profiler)
+        MsProbe.debugger_stop(tag='actor_update')
+        MsProbe.step()
+        self.prof_iteration += 1
+        start_sharding_exit_train = time.time()
+        self.sharding_manager.exit_train_mode()
+        sharding_train_interval += (time.time() - start_sharding_exit_train)
+        ray.get(
+            self.td.update_metrics.remote(
+                "timing/resharding_to_train",
+                value=[sharding_train_interval],
+                cumulate=True
+            )
+        )
+        profiler_step(self.actor_profiler)
+        self.continue_infer_running = False
+        logger.info("finish actor update")
 
-    def update_actor_update_dispatch_size(self, new_actor_update_dispatch_size: int):
-        """Update actor_update_dispatch_size, experience count every forward step for actor update"""
-        self.rl_config.actor_update_dispatch_size = (new_actor_update_dispatch_size //
-                                                     self.parallel_state.get_data_parallel_world_size())
+    def get_meta_and_param_from_dev(
+        self, dev: str, to_cpu: bool
+    ) -> Tuple[Dict[str, torch.Tensor], Optional[Dict[str, str]]]:
+        """Materialise inference parameters on the given device and split into tensors and metadata.
 
-    def update_mini_batch_size(self, original_n_samples_per_prompt: int, new_samples_per_prompt: int,
-                               use_stepwise_advantage: bool):
-        """Update mini_batch_size, mini batch size"""
-        self.actor_hybrid.update_mini_batch_size(original_n_samples_per_prompt, new_samples_per_prompt,
-                                                 use_stepwise_advantage)
+        Args:
+            dev: Target device identifier (e.g. ``"cpu"`` or ``"npu"``).
+            to_cpu: Whether to move the resulting tensors to CPU.
+
+        Returns:
+            A tuple of (tensor_params, meta_header).
+        """
+        self.onload_infer_params_with_device(dev)
+        params = self.sharding_manager.vllm_weight_container.get_infer_params()
+        params = {k: (v.to(torch.float16) if isinstance(v, torch.Tensor) else v) for k, v in params.items()}
+        if to_cpu:
+            params = {k: (v.detach().cpu() if isinstance(v, torch.Tensor) else v) for k, v in params.items()}
+
+        tensor_params, meta_header = split_tensors_and_meta(params)
+        return tensor_params, meta_header
+
+    @mstx_timer_decorator
+    def onload_infer_params_with_device(self, device: str = "cpu") -> None:
+        """Rebuild weight buffers on the specified device.
+
+        Args:
+            device: Target device string (default ``"cpu"``).
+        """
+        dev = resolve_device(device)
+        for buffer in self.sharding_manager.vllm_weight_container.weight_buffers:
+            buffer.rebuild_with_device(dev)
+
+    def get_file_name_and_dev(self, save_dir: str) -> Optional[Tuple[str, str]]:
+        """Determine the safetensors file path and target device for the current rank.
+
+        Args:
+            save_dir: Base directory to save model shards.
+
+        Returns:
+            A tuple of (file_path, device) or ``None`` when the current data-parallel
+            rank should not save.
+        """
+        dp_rank = ps.get_data_parallel_rank()
+        pp_rank = ps.get_pipeline_model_parallel_rank()
+        tp_rank = ps.get_tensor_model_parallel_rank()
+        ep_rank = None
+        if self.megatron_config.expert_model_parallel_size != 1:
+            dev = "npu"
+            ep_rank = ps.get_expert_model_parallel_rank()
+        else:
+            dev = "cpu"
+            if dp_rank != 0:
+                return None
+
+        ep_name = f"_ep{ep_rank}" if ep_rank is not None else "_ep0"
+        save_dir = os.path.realpath(save_dir)
+        os.makedirs(save_dir, exist_ok=True)
+        file_name = f"pp{pp_rank}_tp{tp_rank}{ep_name}.safetensors"
+        file_path = os.path.join(save_dir, file_name)
+        return file_path, dev
+
+    @mstx_timer_decorator
+    def prepare_infer_params_to_cpu(self, save_dir: str, to_cpu: bool = True):
+        """Synchronously materialize weights on CPU and free actor buffers."""
+        file_path, dev = self.get_file_name_and_dev(save_dir)
+
+        tensor_params, meta_header = self.get_meta_and_param_from_dev(dev, to_cpu)
+        self.sharding_manager.offload_infer_params()
+
+        logger.info(f"saving {len(tensor_params)} tensors to {file_path}")
+        async_tensors_save(save_dir, file_path, tensor_params, meta_header)
+        return file_path
+
+
+@ray.remote(resources={"NPU": 0.7})
+class ActorHybridWorker(AgentActorHybridWorkerBase):
+    """Ray remote actor-hybrid worker bound to an NPU resource."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)

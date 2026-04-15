@@ -1,0 +1,227 @@
+# =============================================================
+# Agentic RL提供两种运行模式：
+# 1. SERVE MODE     服务化部署，提供 HTTP/HTTPS 访问能力（如：多轮对话、模型推理等）
+# 2. DIRECT MODE    直连模式，提供单次 JOB 执行能力（如：单次训练作业等）
+# =============================================================
+agentic_ai:
+  mode: direct # 模式选择：serve | direct
+  log_level: DEBUG
+  log_dir: /var/log/
+
+serve_conf:
+  host: 0.0.0.0
+  port: 8030
+
+direct_conf:
+  entrypoints:
+    - job_type: train
+      job_name: ${train_instances.0.name} # 即将训练的任务名称（默认为 `train_instances` 的第一个）
+      job_kwargs: { }
+
+# =============================================================
+# Train 预定义任务：
+# 1. 预定义任务包括采用RL框架类型、参数等等，初始化时占用资源，触发后开始训练（支持开始、暂停、取消）
+# 2. SERVE 模式下，预定义任务列表默认为空; DIRECT 模式下，初始化任务等待触发训练（触发：direct_conf.entrypoints）
+# =============================================================
+
+# 根据rl框架和模型选择不同的模板，模板文件在msrl_conf/verl_conf路径下
+hydra:
+  searchpath:
+    - file:///verl/verl/trainer/config
+    - file://AgenticRL/configs/verl_conf
+    - file:////home/ma-user/l00619320/omni_rl/third_party/verl/verl/trainer/config/
+    - file:///cache/zhaozifeng/verl/config
+
+defaults:
+  - ppo_pangu_74b_megatron_trainer_layer_reduction
+  - ppo_pangu_74b_megatron_trainer_layer_reduction@omni_rl_conf
+  - _self_
+
+omni_rl_conf:
+  extras:
+    agent_service: ${agent_instances.0.name}  # 依赖的 AGENT 服务名称（默认为 `agent_instances` 的第一个）
+    infer_service: ${infer_instances.0.name}  # 依赖的 INFER 服务名称（默认为 `infer_instances` 的第一个）
+  algorithm:
+    adv_estimator: grpo
+    kl_ctrl:
+      kl_coef: 0.001
+  data:
+    train_files: /home/ma-user/work/bucket-6617/data/DAPO-Math-17k/dapo-math-17k.parquet
+    val_files: /home/ma-user/work/bucket-6617/data/DAPO-Math-17k/dapo-math-17k.parquet
+    train_batch_size: 2
+    max_prompt_length: 4096
+    max_response_length: 2048
+    filter_overlong_prompts: False
+    truncation: 'left'
+    custom_cls: 
+      path: /home/ma-user/l00619320/omni_rl/omni_rl/dataset/pangu_dataset.py
+      name: PanguDataset
+    pangu:
+      train_path: /home/ma-user/work/bucket-6617/data/RL_Math_7B_v2_with_fanhua_math_pass_123_0825.jsonl
+      val_path: /home/ma-user/work/bucket-6617/data/RL_Math_7B_v2_with_fanhua_math_pass_123_0825.jsonl
+      tokenizer_name_or_path: /home/ma-user/work/bucket-6617/s00944276/pangu_model
+  custom_reward_function:
+      path: /home/ma-user/l00619320/omni_rl/omni_rl/reward/pangu_reward.py
+      name: get_rewards
+  actor_rollout_ref:
+    model:
+      path: /home/ma-user/work/bucket-6617/s00944276/pangu_model
+      use_remove_padding: False
+      enable_gradient_checkpointing: True
+    actor:
+      strategy: megatron
+      optim:
+        lr: 5e-7
+      ppo_max_token_len_per_gpu: 6144
+      ppo_mini_batch_size: 2
+      ppo_micro_batch_size_per_gpu: 1
+      use_kl_loss: False
+      kl_loss_coef: 0.0
+      kl_loss_type: low_var_kl
+      use_torch_compile: False
+      megatron:
+        pipeline_model_parallel_size: 4
+        tensor_model_parallel_size: 2
+        override_transformer_config:
+          recompute_granularity: full
+          recompute_method: uniform
+          recompute_num_layers: 1
+          use_flash_attn: True
+          shape_order: BNSD
+      rollout_n: 1
+      policy_loss:
+        loss_mode: gspo
+      clip_ratio_c: 10.0
+      loss_agg_mode: seq-mean-token-mean
+      entropy_coeff: 0
+    rollout:
+      prompt_length: 4096
+      response_length: 2048
+      agent:
+        agent_loop_manager_class: agentic_rl.trainer.train_adapter.verl.hybrid.agent_loop_manager.HybridAgentLoopManager
+      log_prob_micro_batch_size_per_gpu: 1
+      log_prob_max_token_len_per_gpu: 6144
+      enable_chunked_prefill: True
+      tensor_model_parallel_size: 4
+      name: vllm
+      gpu_memory_utilization: 0.7
+      n: 4
+      data_parallel_size: 4
+      expert_parallel_size: 16
+      max_num_batched_tokens: 512
+      max_num_seqs: 4
+      graph_model_compile_config:
+        level: 1
+        use_ge_graph_cached: False
+        decode_gear_list: [4]
+      enable_hybrid_graph_mode: False
+      expert_tensor_parallel_size: 1
+      long_prefill_token_threshold: 512
+    ref:
+      rollout_n: 1
+      log_prob_max_token_len_per_gpu: 6144
+      use_torch_compile: False
+      log_prob_micro_batch_size_per_gpu: 
+      megatron:
+        pipeline_model_parallel_size: 1
+        tensor_model_parallel_size: 1
+        override_transformer_config:
+          recompute_granularity: full
+          recompute_method: uniform
+          recompute_num_layers: 1
+          use_flash_attn: True
+          shape_order: BNSD
+  reward_model:
+    model:
+      input_tokenizer: /home/ma-user/work/bucket-6617/s00944276/pangu_model
+    megatron:
+      override_transformer_config:
+        recompute_granularity: full
+        recompute_method: uniform
+        recompute_num_layers: 1
+        use_flash_attn: True
+        shape_order: BNSD
+    compute_timeout: 500
+    use_reward_loop: False
+  trainer:
+    total_training_steps: 1
+    resume_mode: disable
+    balance_batch: False
+    val_before_train: False
+    device: npu
+    critic_warmup: 0
+    project_name: 'verl_grpo_example_gsm8k'
+    experiment_name: 'qwen2_7b_function_rm'
+    n_gpus_per_node: 16
+    nnodes: 1
+    save_freq: 0
+    test_freq: 0
+    total_epochs: 1
+    logger: ['console','tensorboard']
+    pangu_adapt: True
+  model_config:
+    use_remove_padding: True
+    fused_kernel_options:
+      impl_backend: torch
+
+train_instances:
+  - name: RL-QWEN-7B-WITH-DTN-8NPU
+    executor_num: 1
+    executor_kwargs:
+      # 以下参数为 TrainExecutor 初始化参数
+      cluster_mode: hybrid  # hybrid(共卡) | one_step_off(分离) | dummy_train (训练只启动controller, 适配纯rollout验证)
+      train_engine: omni_rl
+      train_config: ${omni_rl_conf}
+      rollout_config: { }
+      agent_service: ${agent_instances.0.name}  # 依赖的 AGENT 服务名称（默认为 `agent_instances` 的第一个）
+      infer_service: ${infer_instances.0.name}  # 依赖的 INFER 服务名称（默认为 `infer_instances` 的第一个）
+    resource_info: [ ]  # MSRL 训练采用 RAY 实现资源分配，在 Executor 层不做资源限制
+
+
+# =============================================================
+# Agent 预置服务：
+# 1. 提供如：Math / WebSearch 等智能体对话服务
+# =============================================================
+agent_instances:
+  - name: MATH-AGENT
+    executor_num: 1
+    executor_kwargs:
+      # 以下参数为 AgentExecutor 初始化参数
+      agent_engine: rllm
+      agent_engine_kwargs:
+        # 以下参数为 rLLMEngineWrapper 初始化参数
+        agent_name: math # RLLMEngineWrapper内置Agent，修改参见：agents/agents_mapping.py
+        simplify_think_content: true
+        max_steps: 5
+        max_prompt_length: 4096
+        max_model_len: 8192
+        n_parallel_agents: 1024
+        tokenizer: /home/ma-user/work/bucket-6617/s00944276/pangu_model
+      infer_service_params: # 每轮对话时的 sampling params
+        top_p: 0.9
+        temperature: 0.9
+        max_tokens: 4096
+        model: ${infer_instances.0.name} # 依赖的 INFER 服务名称（默认为 `infer_instances` 的第一个）
+      trajectory_save_dir: ${hydra:runtime.cwd}/outputs/trajectory.jsonl
+    resource_info: [ ]
+
+
+# =============================================================
+# Infer 预置服务：
+# 1. 提供如：QWen / Deepseek 等大模型推理服务
+# 2. 提供 OpenAI Chat 推理接口
+# =============================================================
+
+infer_instances:
+  - name: PANGU-72B
+    executor_num: 1
+    executor_kwargs:
+      # 以下参数为 InferExecutor 初始化参数
+      engine: vllm_proxy
+      engine_kwargs:
+        # 以下参数为 vLLMInferServer 初始化参数
+        chat_server: "http://0.0.0.0:8080"
+        prefill_server_list: []
+        decode_server_list: []
+        model_name: PANGU-72B
+    resource_info: [ ]

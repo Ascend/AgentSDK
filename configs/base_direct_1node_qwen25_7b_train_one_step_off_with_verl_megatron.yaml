@@ -1,0 +1,216 @@
+# =============================================================
+# Agentic RL提供两种运行模式：
+# 1. SERVE MODE     服务化部署，提供 HTTP/HTTPS 访问能力（如：多轮对话、模型推理等）
+# 2. DIRECT MODE    直连模式，提供单次 JOB 执行能力（如：单次训练作业等）
+# =============================================================
+agentic_ai:
+  mode: direct # 模式选择：serve | direct
+  log_level: DEBUG
+  log_dir: /var/log/
+
+serve_conf:
+  host: 0.0.0.0
+  port: 8030
+
+direct_conf:
+  entrypoints:
+    - job_type: train
+      job_name: ${train_instances.0.name} # 即将训练的任务名称（默认为 `train_instances` 的第一个）
+      job_kwargs: { }
+
+# =============================================================
+# Train 预定义任务：
+# 1. 预定义任务包括采用RL框架类型、参数等等，初始化时占用资源，触发后开始训练（支持开始、暂停、取消）
+# 2. SERVE 模式下，预定义任务列表默认为空; DIRECT 模式下，初始化任务等待触发训练（触发：direct_conf.entrypoints）
+# =============================================================
+
+# 根据rl框架和模型选择不同的模板，模板文件在msrl_conf/verl_conf路径下
+hydra:
+  searchpath:
+    - file:///verl/verl/trainer/config
+    - file://AgenticRL/configs/verl_conf
+
+defaults:
+  - fully_async_ppo_megatron_trainer
+  - fully_async_ppo_megatron_trainer@verl_conf
+  - _self_
+
+verl_conf:
+  extras:
+    delta: 2  # 清理 x 个版本前的旧权重
+    update_weights_interval: 1  # 权重更新间隔
+    global_batch_size: 16
+    n_samples_per_prompt: 2
+    validate_num_samples: 5 # 验证数据采样
+    init_num_group_batches: 1 # 从DataLoader首次加载数据批次数量 TODO: 与train_server.py中DEFAULT_BATCH_SIZE参数功能一致，需要清理其中一个
+    max_queue_size: 256
+    train_iters: 100
+    weight_save_dir: ${hydra:runtime.cwd}/outputs/
+    consumed_train_samples: 0 # 已处理的样本数量 断点续传？
+    data_loader:
+      train_data_path: ${hydra:runtime.cwd}/AgenticRL_Binary_Files/dataset/deepscaler_math_01/rl
+      split: 100,0,0
+      seq_length: 8192
+      train_iters: 100
+      global_batch_size: 16
+      num_workers: 1
+      seed: 0
+      dataset_additional_keys: ['labels']
+      no_shuffle: true
+      test_data_path:
+      is_pairwise_dataset: false
+  total_train_steps: 100
+  train_batch_size: 16
+  data:
+    gen_batch_size: 1 # Number of samples generated, currently only support 1, 当前应该不生效
+    return_raw_chat: True
+  actor_rollout_ref:
+    model:
+      path: ${hydra:runtime.cwd}/AgenticRL_Binary_Files/models/Qwen2.5-7B-Instruct
+    hybrid_engine: False
+    rollout:
+      n: 2
+      name: vllm
+      mode: async
+      calculate_log_probs: True
+      log_prob_use_dynamic_bsz: False
+#      log_prob_micro_batch_size: 1
+      tensor_model_parallel_size: 4
+      log_prob_micro_batch_size_per_gpu: 1
+    actor:
+      ppo_micro_batch_size_per_gpu: 1
+      ppo_mini_batch_size: 4
+      strategy: megatron
+      use_dynamic_bsz: False
+      megatron:
+        override_transformer_config:
+          use_flash_attn: True
+        pipeline_model_parallel_size: 1
+        tensor_model_parallel_size: 4
+        virtual_pipeline_model_parallel_size:
+        context_parallel_size: 1
+        expert_model_parallel_size: 1
+        expert_tensor_parallel_size: 1
+      optim:
+        lr_decay_steps: 100
+    ref:
+#      log_prob_micro_batch_size: 4
+      log_prob_micro_batch_size_per_gpu: 1
+      log_prob_use_dynamic_bsz: False
+      megatron:
+        pipeline_model_parallel_size: 1
+        tensor_model_parallel_size: 4
+        virtual_pipeline_model_parallel_size: 1
+        context_parallel_size: 1
+        expert_model_parallel_size: 1
+        expert_tensor_parallel_size: 1
+  critic:
+    strategy: megatron
+  trainer:
+    device: npu
+    nnodes: 1
+    n_gpus_per_node: 4
+    rollout_data_dir: ${hydra:runtime.cwd}/outputs/rollout_data_dir/
+    logger: ['console','tensorboard']
+  rollout:
+    nnodes: 1
+    n_gpus_per_node: 4
+    total_rollout_steps: 100
+    test_freq: 100
+  async_training:
+    use_rollout_log_probs: False
+    staleness_threshold: 0
+    trigger_parameter_sync_step: 1 # 多久 iter 同步一次权重
+    partial_rollout: False
+  algorithm:
+    adv_estimator: grpo
+
+train_instances:
+  - name: RL-QWEN-7B-WITH-DTN-8NPU
+    executor_num: 1
+    executor_kwargs:
+      # 以下参数为 TrainExecutor 初始化参数
+      cluster_mode: one_step_off  # hybrid(共卡) | one_step_off(分离) | dummy_train (训练只启动controller, 适配纯rollout验证)
+      train_engine: verl
+      train_config: ${verl_conf}
+      rollout_config:
+        train_backend: verl
+        trajectory_timeout: 7200
+        n_samples_per_prompt: 2
+        max_prompt_length: 8192
+        actor_rollout_dispatch_size: 128  # Rollout一次处理的数量 = gbs * n ?  最大是总样本数16*8/推理实例数2 且是n_samples_per_prompt的倍数
+        simplify_think_content: false
+        validate_n_samples: 1
+        traj_output_path: ${hydra:runtime.cwd}/outputs/
+        tokenizer_name_or_path: ${hydra:runtime.cwd}/AgenticRL_Binary_Files/models/Qwen2.5-7B-Instruct
+        dataset_additional_keys: ['labels']
+        global_batch_size: 16
+        weight_save_dir: ${hydra:runtime.cwd}/outputs/
+        trust_remote_code: true
+        infer_tensor_parallel_size: 4
+        train_tensor_parallel_size: 4
+        infer_expert_parallel_size: 1
+        enable_version_control: false
+        use_on_policy: true
+        train_iters: 100
+        data_optimized: false
+        hybrid_batch_num: 1
+      agent_service: ${agent_instances.0.name}  # 依赖的 AGENT 服务名称（默认为 `agent_instances` 的第一个）
+      infer_service: ${infer_instances.0.name}  # 依赖的 INFER 服务名称（默认为 `infer_instances` 的第一个）
+    resource_info: [ ]  # MSRL 训练采用 RAY 实现资源分配，在 Executor 层不做资源限制
+
+
+# =============================================================
+# Agent 预置服务：
+# 1. 提供如：Math / WebSearch 等智能体对话服务
+# =============================================================
+agent_instances:
+  - name: MATH-AGENT
+    executor_num: 1
+    executor_kwargs:
+      # 以下参数为 AgentExecutor 初始化参数
+      agent_engine: rllm
+      agent_engine_kwargs:
+        # 以下参数为 rLLMEngineWrapper 初始化参数
+        agent_name: math # RLLMEngineWrapper内置Agent，修改参见：agents/agents_mapping.py
+        simplify_think_content: true
+        max_steps: 5
+        max_prompt_length: 8192
+        max_model_len: 8192
+        n_parallel_agents: 1024
+        tokenizer: ${hydra:runtime.cwd}/AgenticRL_Binary_Files/models/Qwen2.5-7B-Instruct
+      infer_service_params: # 每轮对话时的 sampling params
+        top_p: 1.0
+        temperature: 1
+        max_tokens: 4096
+        model: ${infer_instances.0.name} # 依赖的 INFER 服务名称（默认为 `infer_instances` 的第一个）
+      trajectory_save_dir: ${hydra:runtime.cwd}/outputs/trajectory.jsonl
+    resource_info: [ ]
+
+
+# =============================================================
+# Infer 预置服务：
+# 1. 提供如：QWen / Deepseek 等大模型推理服务
+# 2. 提供 OpenAI Chat 推理接口
+# =============================================================
+
+infer_instances:
+  - name: QWEN2.5-7B
+    executor_num: 1
+    executor_kwargs:
+      # 以下参数为 InferExecutor 初始化参数
+      engine: vllm_mp
+      engine_kwargs:
+        # 以下参数为 vLLMInferServer 初始化参数
+        host: 0.0.0.0
+        port: 8333
+        model_name: ${...name} # 模型名称，最好和外层 name 字段保持一致
+        model: ${hydra:runtime.cwd}/AgenticRL_Binary_Files/models/Qwen2.5-7B-Instruct
+        tensor_parallel_size: 4
+        gpu_memory_utilization: 0.5
+        max_model_len: 8192
+        enable_prefix_caching: True
+        trust_remote_code: True
+        distributed_executor_backend: mp
+    resource_info:
+      - NPU: 4

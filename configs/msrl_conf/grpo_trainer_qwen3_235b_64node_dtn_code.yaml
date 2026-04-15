@@ -1,0 +1,181 @@
+defaults:
+  - model:
+      - qwen3_235b
+
+megatron_training:
+  model: qwen3_235b
+  use_fused_rmsnorm: true
+  use_mcore_models: true
+  sequence_parallel: true
+  use_flash_attn: true
+  no_masked_softmax_fusion: true
+  attention_softmax_in_fp32: true
+  no_gradient_accumulation_fusion: true
+  use_fused_swiglu: true
+  use_fused_rotary_pos_emb: true
+  moe_alltoall_overlap_comm: true
+  shape_order: BNSD
+  bf16: true
+  use_distributed_optimizer: true
+  tokenizer_type: PretrainedFromHF
+  tokenizer_name_or_path: /models/d00896564/original_ckpt/Qwen3-235B-thinking-2507-tokenizer
+  global_batch_size: 128 #32
+  seq_length: 20480
+  save_interval: 15
+  train_iters: 200
+  stage: ray_grpo
+  attention_dropout: 0.0
+  init_method_std: 0.01
+  hidden_dropout: 0.0
+  distributed_backend: nccl
+  no_shared_storage: true
+  variable_seq_lengths: true
+  dataset_additional_keys: ['labels']
+  data_path: /models/d00896564/data/shutong_agentic/v1023/converted_qwen235/rl #修改数据集路径
+  split: 100,0,0
+  swap_optimizer: true #单轮有
+  reset_position_ids: true #单轮有
+  swap_attention: true
+  use_fused_ring_attention_update: true
+  use_cp_send_recv_overlap: true
+
+actor_config:
+  model: qwen3_235b
+  micro_batch_size: 1
+  tensor_model_parallel_size: 4  # 2
+  pipeline_model_parallel_size: 4  # 16
+  noop_layers: "5,95"
+  num_layers: 96
+  expert_model_parallel_size: 8  # 4
+
+  context_parallel_size: 8 #2 dp=总卡数/tp/pp cp要被dp整除 dp/cp要能整除 模为0
+  context_parallel_algo: megatron_cp_algo
+  cp_attention_mask_type: causal
+  reset_attention_mask: true
+
+  lr: 1e-6
+  lr_decay_style: constant
+  min_lr: 0.0
+  weight_decay: 0.0
+  lr_warmup_fraction: 0.0
+  clip_grad: 1.0
+  adam_beta1: 0.9
+  adam_beta2: 0.95
+  initial_loss_scale: 4096
+  finetune: true  # 续训改为false
+  load: /models/d00896564/original_ckpt/Qwen3-235B-thinking-2507-tp4pp4ep8/ #tp4pp4ep8权重路径: /models/d00896564/original_ckpt/Qwen3-235B-thinking-2507-tp4pp4ep8/
+  save: /models/d00896564/save_ckpts/shutong_agentic_rl/v1024_64node_2507_tumoshi/ #需修改自定义目录
+  no_load_optim: true  # 断点续训时为false
+  no_load_rng: true  # 断点续训时为false
+  no_save_optim: true #单轮有
+
+  moe_tp_extend_ep: true #单轮有
+  gemm_gradient_accumulation_fusion: true #单轮有
+  recompute_granularity: full
+  recompute_method: block
+  recompute_num_layers: 24 #总层数/pipeline_model_parallel_size=96/16=6
+
+rl_config:
+  # integrated_mode_config:
+  #   ref_model_load_path: /models/d00896564/original_ckpt/Qwen3-235B-thinking-2507-tp4pp4ep8/  # 续训时参考模型路径
+  use_integrated_worker: true
+  ref_forward_micro_batch_size: 2 #单轮有
+  actor_forward_micro_batch_size: 2 #单轮有
+  # reward_dispatch_size: 1024 #单轮有
+  use_remove_padding: true #单轮有
+
+  blocking: true
+  gamma: 1.0
+  lam: 0.95
+  adv_estimator: group_norm
+  kl_penalty: low_var_kl #kl
+  kl_ctrl_type: fixed
+  init_kl_coef: 0.001
+  mini_batch_size: 128 #128 #32
+  max_prompt_length: 40960  # user_prompt长度
+  epochs: 1
+  clip_ratio: 0.2
+  entropy_coeff: 0
+  # shuffle_mini_batch: false
+  n_samples_per_prompt: 8
+  actor_rollout_dispatch_size: 8 # 最大是总样本数16*8/推理实例数2 且是 n_samples_per_prompt的倍数
+  rule_reward: true
+  verifier_function: ["env_reward"]
+  # # verifier_function: ["acc_shutong_stp"] # 单轮
+  verifier_weight: [1.0]
+  # verifier_function: ["acc", "format"]
+  # verifier_weight: [1.0, 0.5]
+  verifier_parallel: 1 #4
+  verifier_timeout: 600 #单轮无
+  # log_max_throughput: false #单轮有
+  # num_cpus_for_local_task: 1.0 #单轮有
+  use_tensorboard: true
+  simplify_think_content: false  # 省略think内容
+  actor_resource:
+    num_npus: 512
+
+generate_config:
+  enforce_eager: false
+  trust_remote_code: true
+  enable_expert_parallel: true #单轮有
+
+  # 推理时的并行配置
+  enable_sleep_mode: true #单轮无
+  load_format: megatron #单轮无
+  infer_tensor_parallel_size: 4 #4
+  infer_pipeline_parallel_size: 1
+  infer_expert_parallel_size: 8 # 注意：需要配套修改runtime_env.yaml中的VLLM_DP_SIZE: '8'
+
+  # vllm 模型相关设置
+  enable_prefix_caching: true
+  max_num_seqs: 16
+  max_model_len: 65536  # 128k-131072
+  max_num_batched_tokens: 8192  # 2048 #可以配合gpu_memory_utilization改 这样num_seqs可以调大
+  dtype: "bfloat16"
+  gpu_memory_utilization: 0.7  # 0.7
+
+  offload_train_optimizer: false
+  offload_train_grad: true
+  offload_train_param: true
+
+  # agent execution配置 单轮无
+  base_url: http:xxx
+  api_key: empty
+  train_backend: mindspeed_rl
+
+  # 采样配置
+  sampling_config:
+    logprobs: 1
+    max_tokens: 16384  # 16384
+    top_p: 0.9
+    top_k: 50
+    min_p: 0.01
+    temperature: 0.9
+    detokenize: false
+
+agentic_env_config:
+  namespace: agentic_raygroup
+  agent_name: dtn_code
+  tool_url: /models/d00896564/data/shutong_agentic/dtn_code_all_info_0929
+  max_steps: 10
+  rollout_output_path: /models/d00896564/save_ckpts/shutong_agentic_rl/v1024_64node_2507_tumoshi/ #需修改自定义目录
+  tool_timeout: 20  # 工具调用超时设置，默认2000
+  trajectory_timeout: 30000  # 单轮轨迹请求超时，默认7200
+
+# profiler_config:
+#   integrated:                                # 选择性能调优的worker
+#     profile: false                         # 启用/关闭性能分析，所有性能数据采集均依赖该开关开启
+#     mstx: false                              # 启用/关闭轻量级打点采集模式
+#     stage: all                               # 性能数据采集的阶段
+#     profile_save_path: ./profiler_data       # 性能数据输出目录
+#     profile_export_type: text                # 导出格式："text" 或 "db"
+#     profile_step_start: 2                    # 指定开启采集数据的步骤
+#     profile_step_end: 3                      # 指定结束采集数据的步骤
+#     profile_level: level2                    # 性能数据采集级别
+#     profile_with_memory: false               # 启用/关闭内存分析
+#     profile_record_shapes: false             # 是否记录张量形状
+#     profile_with_cpu: true                   # 是否包含"Host侧"性能数据
+#     profile_with_npu: true                   # 是否包含"device侧（NPU)"性能数据
+#     profile_with_module: true               # 是否包含Python侧调用栈信息
+#     profile_analysis: false                  # 是否在采集后自动解析数据
+#     profile_ranks: all                       # 指定采集数据的卡号

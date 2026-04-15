@@ -1,0 +1,165 @@
+# =============================================================
+# Agentic RL提供两种运行模式：
+# 1. SERVE MODE     服务化部署，提供 HTTP/HTTPS 访问能力（如：多轮对话、模型推理等）
+# 2. DIRECT MODE    直连模式，提供单次 JOB 执行能力（如：单次训练作业等）
+# =============================================================
+agentic_ai:
+  mode: direct # 模式选择：serve | direct
+  log_level: DEBUG
+  log_dir: /var/log/
+
+serve_conf:
+  host: 0.0.0.0
+  port: 8030
+
+direct_conf:
+  entrypoints:
+    - job_type: train
+      job_name: ${train_instances.0.name} # 即将训练的任务名称（默认为 `train_instances` 的第一个）
+      job_kwargs: { }
+
+# =============================================================
+# Train 预定义任务：
+# 1. 预定义任务包括采用RL框架类型、参数等等，初始化时占用资源，触发后开始训练（支持开始、暂停、取消）
+# 2. SERVE 模式下，预定义任务列表默认为空; DIRECT 模式下，初始化任务等待触发训练（触发：direct_conf.entrypoints）
+# =============================================================
+
+# 根据rl框架和模型选择不同的模板，模板文件在msrl_conf/verl_conf路径下
+hydra:
+  searchpath:
+    - file:///verl/verl/trainer/config
+    - file://AgenticRL/configs/verl_conf
+
+defaults:
+  - ppo_megatron_trainer
+  - ppo_megatron_trainer@verl_conf
+  - _self_
+
+verl_conf:
+  extras:
+    agent_service: ${agent_instances.0.name}  # 依赖的 AGENT 服务名称（默认为 `agent_instances` 的第一个）
+    infer_service: ${infer_instances.0.name}  # 依赖的 INFER 服务名称（默认为 `infer_instances` 的第一个）
+  algorithm:
+    adv_estimator: grpo
+    kl_ctrl:
+      kl_coef: 0.001
+  data:
+    train_files: /opt/DPC/models/l00619320/code/VERL_NPU_WS/data/gsm8k/train.parquet
+    val_files: /opt/DPC/models/l00619320/code/VERL_NPU_WS/data/gsm8k/test.parquet
+    train_batch_size: 16
+    max_prompt_length: 2048
+    max_response_length: 2048
+    filter_overlong_prompts: True
+    truncation: 'error'
+  actor_rollout_ref:
+    model:
+      path: /opt/DPC/models/l00619320/code/AGENTIC_RL_WS/AgenticRL_Binary_Files/models/Qwen2.5-7B-Instruct
+      use_remove_padding: False
+      enable_gradient_checkpointing: True
+    actor:
+      strategy: megatron
+      optim:
+        lr: 5e-7
+      entropy_coeff: 0.001
+      ppo_mini_batch_size: 2
+      ppo_micro_batch_size_per_gpu: 2
+      use_kl_loss: True
+      kl_loss_coef: 0.001
+      kl_loss_type: low_var_kl
+      megatron:
+        seed: 0
+        pipeline_model_parallel_size: 1
+        tensor_model_parallel_size: 4
+        override_transformer_config:
+          use_flash_attn: True
+    rollout:
+      prompt_length: 2048
+      response_length: 2048
+      agent:
+        agent_loop_manager_class: agentic_rl.trainer.train_adapter.verl.hybrid.agent_loop_manager.HybridAgentLoopManager
+      log_prob_micro_batch_size_per_gpu: 2
+      enable_chunked_prefill: False
+      tensor_model_parallel_size: 4
+      name: vllm
+      gpu_memory_utilization: 0.6
+      n: 2
+      do_sample: False
+    ref:
+      log_prob_micro_batch_size_per_gpu: 2
+      megatron:
+        pipeline_model_parallel_size: 2
+        tensor_model_parallel_size: 2
+  trainer:
+    val_before_train: False
+    device: npu
+    critic_warmup: 0
+    project_name: 'verl_grpo_example_gsm8k'
+    experiment_name: 'qwen2_7b_function_rm'
+    n_gpus_per_node: 8
+    nnodes: 1
+    save_freq: -1
+    test_freq: 1000
+    total_epochs: 1
+    logger: ['console','tensorboard']
+
+train_instances:
+  - name: RL-QWEN-7B-WITH-DTN-8NPU
+    executor_num: 1
+    executor_kwargs:
+      # 以下参数为 TrainExecutor 初始化参数
+      cluster_mode: hybrid  # hybrid(共卡) | one_step_off(分离) | dummy_train (训练只启动controller, 适配纯rollout验证)
+      train_engine: verl
+      train_config: ${verl_conf}
+      rollout_config: { }
+      agent_service: ${agent_instances.0.name}  # 依赖的 AGENT 服务名称（默认为 `agent_instances` 的第一个）
+      infer_service: ${infer_instances.0.name}  # 依赖的 INFER 服务名称（默认为 `infer_instances` 的第一个）
+    resource_info: [ ]  # MSRL 训练采用 RAY 实现资源分配，在 Executor 层不做资源限制
+
+
+# =============================================================
+# Agent 预置服务：
+# 1. 提供如：Math / WebSearch 等智能体对话服务
+# =============================================================
+agent_instances:
+  - name: MATH-AGENT
+    executor_num: 1
+    executor_kwargs:
+      # 以下参数为 AgentExecutor 初始化参数
+      agent_engine: rllm
+      agent_engine_kwargs:
+        # 以下参数为 rLLMEngineWrapper 初始化参数
+        agent_name: math # RLLMEngineWrapper内置Agent，修改参见：agents/agents_mapping.py
+        simplify_think_content: false
+        max_steps: 5
+        max_prompt_length: 2048
+        max_model_len: 4096
+        n_parallel_agents: 1024
+        tokenizer: ${hydra:runtime.cwd}/AgenticRL_Binary_Files/models/Qwen2.5-7B-Instruct
+      infer_service_params: # 每轮对话时的 sampling params
+        top_p: 1
+        temperature: 1
+        max_tokens: 4096
+        model: ${infer_instances.0.name} # 依赖的 INFER 服务名称（默认为 `infer_instances` 的第一个）
+      trajectory_save_dir: ${hydra:runtime.cwd}/outputs/trajectory.jsonl
+    resource_info: [ ]
+
+
+# =============================================================
+# Infer 预置服务：
+# 1. 提供如：QWen / Deepseek 等大模型推理服务
+# 2. 提供 OpenAI Chat 推理接口
+# =============================================================
+
+infer_instances:
+  - name: QWEN2.5-7B
+    executor_num: 1
+    executor_kwargs:
+      # 以下参数为 InferExecutor 初始化参数
+      engine: vllm_proxy
+      engine_kwargs:
+        # 以下参数为 vLLMInferServer 初始化参数
+        chat_server: "http://0.0.0.0:8080"
+        prefill_server_list: []
+        decode_server_list: []
+        model_name: Qwen3-235B-A22B
+    resource_info: [ ]

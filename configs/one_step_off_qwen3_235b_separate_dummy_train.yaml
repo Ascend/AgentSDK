@@ -1,0 +1,60 @@
+# =============================================================
+# Agentic RL提供两种运行模式：
+# 1. SERVE MODE     服务化部署，提供 HTTP/HTTPS 访问能力（如：多轮对话、模型推理等）
+# 2. DIRECT MODE    直连模式，提供单次 JOB 执行能力（如：单次训练作业等）
+# =============================================================
+agentic_ai:
+  mode: direct # 模式选择：serve | direct
+  log_level: DEBUG
+  log_dir: /var/log/
+
+serve_conf:
+  host: 0.0.0.0
+  port: 8030
+
+direct_conf:
+  entrypoints:
+    - job_type: train
+      job_name: RL-QWEN3-235B-WITH-DTN
+      job_kwargs: { }
+
+# =============================================================
+# Train 预定义任务：
+# 1. 预定义任务包括采用RL框架类型、参数等等，初始化时占用资源，触发后开始训练（支持开始、暂停、取消）
+# 2. SERVE 模式下，预定义任务列表默认为空; DIRECT 模式下，初始化任务等待触发训练（触发：direct_conf.entrypoints）
+# =============================================================
+defaults:
+  # MindSpeed RL原始配置模板，参数值在rl_framework_kwargs中被覆盖
+  - msrl_conf: one_step_off_trainer_qwen3_235b_48nodes_pd
+  - verl_conf: null
+  - _self_
+
+# 覆盖MSRL模板中的参数
+msrl_conf:
+  # megatron_training:
+  #   data_path: /opt/DPC/models/w00623271/TrainingOutput/v0728_rca_58case_2tool_6turn_qwq/data/data_bin/rl
+  rl_config:
+    actor_resource:
+      num_npus: 128
+  generate_config:
+    enforce_eager: true
+
+train_instances:
+  - name: RL-QWEN3-235B-WITH-DTN
+    executor_num: 1
+    executor_kwargs:
+      # 以下参数为 TrainExecutor 初始化参数
+      work_mode: one_step_off  # hybrid(共卡) | one_step_off(分离) | dummy_train(训练只启动controller, 适配纯rollout验证)
+      cluster_mode: train # train(训练集群) | rollout(rollout集群)
+      rl_framework: mindspeed_rl
+      rl_framework_kwargs:
+        # 以下参数为 MindSpeed RL 初始化参数
+        msrl_conf: ${msrl_conf}
+      agent_service: DTN  # 依赖的 AGENT 服务名称
+    resource_info: [ ]  # MSRL 训练采用 RAY 实现资源分配，在 Executor 层不做资源限制
+
+# =============================================================
+# Agent 预置服务：
+# 1. 提供如：Math / WebSearch 等智能体对话服务
+# =============================================================
+agent_instances: { }

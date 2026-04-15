@@ -1,0 +1,156 @@
+# =============================================================
+# Agentic RL提供两种运行模式：
+# 1. SERVE MODE     服务化部署，提供 HTTP/HTTPS 访问能力（如：多轮对话、模型推理等）
+# 2. DIRECT MODE    直连模式，提供单次 JOB 执行能力（如：单次训练作业等）
+# =============================================================
+agentic_ai:
+  mode: serve # 模式选择：serve | direct
+  log_level: DEBUG
+  log_dir: /var/log/
+
+serve_conf:
+  host: 0.0.0.0
+  port: 8030
+
+direct_conf:
+  entrypoints:
+    - job_type: train
+      job_name: RL-QWEN-30B-WITH-MATH-16NPU
+      job_kwargs: { }
+
+# =============================================================
+# Train 预定义任务：
+# 1. 预定义任务包括采用RL框架类型、参数等等，初始化时占用资源，触发后开始训练（支持开始、暂停、取消）
+# 2. SERVE 模式下，预定义任务列表默认为空; DIRECT 模式下，初始化任务等待触发训练（触发：direct_conf.entrypoints）
+# =============================================================
+defaults:
+  - msrl_conf: base_integrated_grpo_trainer_template_qwen3_30b # MindSpeed RL原始配置模板，参数值在rl_framework_kwargs中被覆盖
+  - verl_conf: null
+  - _self_
+
+# 覆盖MSRL模板中的参数
+msrl_conf:
+  megatron_training:
+    global_batch_size: 8
+    train_iters: 10
+    tokenizer_name_or_path: /opt/DPC/models/l00649956/models/Qwen3-30B-A3B
+    data_path: /opt/DPC/models/l00619320/code/AGENTIC_RL_WS/AgenticRL_Binary_Files/dataset/deepscaler_math_01/rl
+  actor_config:
+    load: /opt/DPC/models/l00649956/save_ckpts/qwen3_30b/new_tp4pp1ep2
+    save: /opt/DPC/models/l00619320/save_ckpts/
+  rl_config:
+    n_samples_per_prompt: 4
+    actor_resource:
+      num_npus: 16
+  generate_config:
+    weight_save_dir: /opt/DPC/models/l00619320/save_weights22
+
+train_instances: []
+#  - name: RL-QWEN-30B-WITH-MATH-16NPU
+#    executor_num: 1
+#    executor_kwargs:
+#      # 以下参数为 TrainExecutor 初始化参数
+#      work_mode: one_step_off  # hybrid(共卡) | one_step_off(分离), 当前该字段暂未生效，还依赖于env配置
+#      cluster_mode: train
+#      rl_framework: mindspeed_rl
+#      rl_framework_kwargs:
+#        # 以下参数为 MindSpeed RL 初始化参数
+#        msrl_conf: ${msrl_conf}
+#      agent_service: math_agent  # 依赖的 AGENT 服务名称
+#      infer_service: Qwen3-30B-A3B  # 依赖的 INFER 服务名称
+#    resource_info: [ ]  # MSRL 训练采用 RAY 实现资源分配，在 Executor 层不做资源限制
+
+
+# =============================================================
+# Agent 预置服务：
+# 1. 提供如：Math / WebSearch 等智能体对话服务
+# =============================================================
+agent_instances: []
+#  - name: math_agent
+#    executor_num: 1
+#    executor_kwargs:
+#      # 以下参数为 AgentExecutor 初始化参数
+#      agent_engine: rllm
+#      agent_engine_kwargs:
+#        # 以下参数为 rLLMEngineWrapper 初始化参数
+#        agent_name: math
+#        simplify_think_content: true
+#        max_steps: 5
+#        max_prompt_length: 8192
+#        max_model_len: 8192
+#        n_parallel_agents: 8
+#        agent_class: agents.math_agent.tool_agent.ToolAgent
+#        agent_args:
+#          tools: ["python"]
+#          parser_name: "qwen"
+#          system_prompt: >
+#              You are a math assistant that can write Python code to solve math problems.
+#              When you provide the final answer,
+#              ensure that it is wrapped in the LaTeX syntax: \boxed{final_answer}.
+#              For example, if the answer is 42, you should return: \boxed{42}.
+#        env_class: agents.math_agent.environment.tool_env.ToolEnvironment
+#        env_args:
+#          tools: ["python"]
+##          reward_fn: agents.math_agent.reward.reward_fn.math_reward_fn
+#      infer_service:
+#        name: Qwen3-30B-A3B # 依赖的 INFER 预置服务名称
+#        # 以下参数为 LLM 相关参数（兼容 OpenAI 格式）
+#        sampling_params:
+#          temperature: 0.6
+#          top_p: 0.95
+#          model_name: Qwen3-30B-A3B # 依赖的 INFER 服务名称
+#        base_url: 0.0.0.0:8333
+#        api_key: EMPTY
+#        tokenizer: /opt/DPC/models/l00649956/models/Qwen3-30B-A3B
+#      remote_infer_service: { }
+#      trajectory_save_dir: /opt/DPC/models/l00619320/code/outputs/trajectory.jsonl
+#    resource_info: { }
+
+
+# =============================================================
+# Infer 预置服务：
+# 1. 提供如：QWen / Deepseek 等大模型推理服务
+# 2. 提供 OpenAI Chat 推理接口
+# =============================================================
+pd_mode: false
+
+infer_instances:
+  - name: Qwen3-30B-A3B
+    executor_num: 1
+    executor_kwargs:
+      # 以下参数为 InferExecutor 初始化参数
+      engine: vllm_proxy
+      engine_kwargs:
+        # 以下参数为 vLLMInferServer 初始化参数
+        chat_server: "http://7.246.80.84:8000"
+        prefill_server_list: []
+        decode_server_list: []
+        model_name: qwen
+    resource_info: []
+
+#infer_instances:
+#  - name: Qwen2.5-7B-Instruct
+#    executor_num: 1
+#    executor_kwargs:
+#      # 以下参数为 InferExecutor 初始化参数
+#      engine: vllm_ray # 分离时推理适配引擎
+#      engine_kwargs:
+#        # 以下参数为 vLLMInferServer 初始化参数
+#        model_name: Qwen2.5-7B-Instruct
+#        model: /opt/DPC/models/l00619320/code/AGENTIC_RL_WS/AgenticRL_Binary_Files/models/Qwen2.5-7B-Instruct
+#        tensor_parallel_size: 4
+#        gpu_memory_utilization: 0.98
+#        max_model_len: 4096
+#        enable_prefix_caching: True
+#        trust_remote_code: True
+#        distributed_executor_backend: ray
+#    resource_info:
+#      # 以下是单个Executor（推理实例）所需资源，根据vllm要求，以单卡的形式提供 {"NPU": 1, "CPU": 1} * N
+#      - NPU: 1
+#        CPU: 1
+#      - NPU: 1
+#        CPU: 1
+#      - NPU: 1
+#        CPU: 1
+#      - NPU: 1
+#        CPU: 1
