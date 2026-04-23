@@ -38,6 +38,7 @@ function pre_install() {
  cd $workdir
 
  # 安装python包
+ echo "[INFO] >>>>>>>>>>> start install python packages >>>>>>>>>>>"
  pip3 install transformers==4.52.3 \
  sympy==1.13.1 \
  pylatexenc==2.10 \
@@ -56,7 +57,9 @@ function pre_install() {
  datasets==4.4.1 \
  tensorboard==2.20.0 \
  firecrawl \
- pytest-asyncio==1.3.0
+ pytest-asyncio==1.3.0 \
+ pillow==12.2.0
+ echo "[INFO] >>>>>>>>>>> finish install python packages >>>>>>>>>>>"
  mkdir -p $THIRD_PARTY_DIR
  cd $THIRD_PARTY_DIR
  git clone https://gitee.com/mirrors/rLLM rllm
@@ -73,15 +76,6 @@ function pre_install() {
 
 #  # 设置第三方库
 #  ALL_THIRD_PYTHONPATH=$megatron_path:$mindspeed_path:$mindspeed_llm_path:$mindspeed_rl_path:$vllm_path:$vllm_ascend_path
-}
-
-# 需要提前下载好pytest pytest-html pytest-cov
-function pre_install() {
-  cd $workdir
-
-  echo "[INFO] Installing transformers and openai dependencies..."
-  pip3 install transformers==4.52.3 openai==1.99.6 --force-reinstall
-  echo "[INFO] Dependencies installed successfully."
 }
 
 # 需要提前下载好pytest pytest-html pytest-cov
