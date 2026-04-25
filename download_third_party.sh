@@ -175,9 +175,6 @@ function clean_old_srcs()
 rm -rf ${root_dir}/tmp
 mkdir -p ${root_dir}/tmp
 
-git config --global http.sslVerify false
-git config --global https.sslVerify false
-
 clean_old_srcs
 download_vllm_src_code
 download_vllm_ascend_src_code

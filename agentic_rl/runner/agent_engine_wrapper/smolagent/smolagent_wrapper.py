@@ -75,6 +75,7 @@ class SmolAgentWrapper(BaseEngineWrapper):
 
         self.agents = agents
         self.n_parallel_agents = len(agents)
+        return agents
 
     def generate_agent_trajectories_async(self, tasks, timing_raw=None, meta_info=None, mode="Token"):
         self.init_envs_and_agents(tasks)

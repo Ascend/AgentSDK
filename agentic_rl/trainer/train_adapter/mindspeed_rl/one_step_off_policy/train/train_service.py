@@ -203,8 +203,9 @@ def train(config: Any, agent_service: Any, infer_service: Any) -> None:
         agent_service: Agent service handle.
         infer_service: Inference service handle.
     """
-    (actor_config, rl_config, _, generate_config, agentic_env_config, actor_worker,
-     reference_worker, reward_list, tokenizer, _, _, _) = prepare_train(config, "one_step_off")
+    (actor_config, rl_config, generate_config, agentic_env_config,
+     actor_worker, reference_worker, reward_list, tokenizer,
+     data_iters, val_dataloader, test_dataloader) = prepare_train(config, "one_step_off")
 
     create_rollout_worker(
         config=config,

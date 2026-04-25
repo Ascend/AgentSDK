@@ -293,7 +293,7 @@ def _build_fake_modules():
 
 def _import_target_module():
     """Reload and import the target module under test."""
-    mod_name = "agentic_rl.runner.infer_adapter.vllm.extensions.custom_worker_extensions"
+    mod_name = "agentic_rl.runner.infer_adapter.vllm.extension.custom_worker_extensions"
     if mod_name in sys.modules:
         del sys.modules[mod_name]
     return importlib.import_module(mod_name)
