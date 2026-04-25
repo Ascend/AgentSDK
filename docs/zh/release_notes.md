@@ -5,7 +5,7 @@
 <a name="zh-cn_topic_0000001938532254_zh-cn_topic_0000001935094108__Ref249955742"></a>
 <table><tbody><tr id="zh-cn_topic_0000001938532254_zh-cn_topic_0000001935094108_row244mcpsimp"><th class="firstcol" valign="top" width="25%" id="mcps1.1.3.1.1"><p id="zh-cn_topic_0000001938532254_zh-cn_topic_0000001935094108_p246mcpsimp"><a name="zh-cn_topic_0000001938532254_zh-cn_topic_0000001935094108_p246mcpsimp"></a><a name="zh-cn_topic_0000001938532254_zh-cn_topic_0000001935094108_p246mcpsimp"></a>产品名称</p>
 </th>
-<td class="cellrowborder" valign="top" width="75%" headers="mcps1.1.3.1.1 "><p id="zh-cn_topic_0000001938532254_zh-cn_topic_0000001935094108_p1684675795511"><a name="zh-cn_topic_0000001938532254_zh-cn_topic_0000001935094108_p1684675795511"></a><a name="zh-cn_topic_0000001938532254_zh-cn_topic_0000001935094108_p1684675795511"></a><span id="ph925512229126"><a name="ph925512229126"></a><a name="ph925512229126"></a>MindSDK</span></p>
+<td class="cellrowborder" valign="top" width="75%" headers="mcps1.1.3.1.1 "><p id="zh-cn_topic_0000001938532254_zh-cn_topic_0000001935094108_p1684675795511"><a name="zh-cn_topic_0000001938532254_zh-cn_topic_0000001935094108_p1684675795511"></a><a name="zh-cn_topic_0000001938532254_zh-cn_topic_0000001935094108_p1684675795511"></a><span id="ph925512229126"><a name="ph925512229126"></a><a name="ph925512229126"></a>Agent SDK</span></p>
 </td>
 </tr>
 <tr id="zh-cn_topic_0000001938532254_zh-cn_topic_0000001935094108_row255mcpsimp"><th class="firstcol" valign="top" width="25%" id="mcps1.1.3.2.1"><p id="zh-cn_topic_0000001938532254_zh-cn_topic_0000001935094108_p257mcpsimp"><a name="zh-cn_topic_0000001938532254_zh-cn_topic_0000001935094108_p257mcpsimp"></a><a name="zh-cn_topic_0000001938532254_zh-cn_topic_0000001935094108_p257mcpsimp"></a>产品版本</p>
@@ -15,12 +15,7 @@
 </tr>
 <tr id="zh-cn_topic_0000001938532254_zh-cn_topic_0000001935094108_row7259721105019"><th class="firstcol" valign="top" width="25%" id="mcps1.1.3.3.1"><p id="zh-cn_topic_0000001938532254_zh-cn_topic_0000001935094108_p7260182135013"><a name="zh-cn_topic_0000001938532254_zh-cn_topic_0000001935094108_p7260182135013"></a><a name="zh-cn_topic_0000001938532254_zh-cn_topic_0000001935094108_p7260182135013"></a>版本类型</p>
 </th>
-<td class="cellrowborder" valign="top" width="75%" headers="mcps1.1.3.3.1 "><p id="zh-cn_topic_0000001938532254_zh-cn_topic_0000001935094108_p72606219501"><a name="zh-cn_topic_0000001938532254_zh-cn_topic_0000001935094108_p72606219501"></a><a name="zh-cn_topic_0000001938532254_zh-cn_topic_0000001935094108_p72606219501"></a>正式版本</p>
-</td>
-</tr>
-<tr id="zh-cn_topic_0000001938532254_zh-cn_topic_0000001935094108_row880773455018"><th class="firstcol" valign="top" width="25%" id="mcps1.1.3.4.1"><p id="zh-cn_topic_0000001938532254_zh-cn_topic_0000001935094108_p198071234135017"><a name="zh-cn_topic_0000001938532254_zh-cn_topic_0000001935094108_p198071234135017"></a><a name="zh-cn_topic_0000001938532254_zh-cn_topic_0000001935094108_p198071234135017"></a>维护周期</p>
-</th>
-<td class="cellrowborder" valign="top" width="75%" headers="mcps1.1.3.4.1 "><p id="zh-cn_topic_0000001938532254_zh-cn_topic_0000001935094108_p15807123412509"><a name="zh-cn_topic_0000001938532254_zh-cn_topic_0000001935094108_p15807123412509"></a><a name="zh-cn_topic_0000001938532254_zh-cn_topic_0000001935094108_p15807123412509"></a>1年</p>
+<td class="cellrowborder" valign="top" width="75%" headers="mcps1.1.3.3.1 "><p id="zh-cn_topic_0000001938532254_zh-cn_topic_0000001935094108_p72606219501"><a name="zh-cn_topic_0000001938532254_zh-cn_topic_0000001935094108_p72606219501"></a><a name="zh-cn_topic_0000001938532254_zh-cn_topic_0000001935094108_p72606219501"></a>Release版本</p>
 </td>
 </tr>
 </tbody>
@@ -31,7 +26,7 @@
 | 产品名称       | 版本       |
 |------------|----------|
 | Ascend HDK | 26.0.RC1 |
-| CANN       | 8.5.0    |
+| CANN       | 9.0.0    |
 
 ## 病毒扫描结果<a name="ZH-CN_TOPIC_0000002513684956"></a>
 
@@ -43,9 +38,9 @@
 
 **表 1**  软件版本兼容性说明
 
-| MindSDK软件版本    | MindSDK待升级版本 | CANN版本兼容性                                                                                                           | Ascend HDK版本兼容性                                                                                                                                                                                       |
-|----------------|--------------|---------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| MindSDK 26.0.0 | 不涉及          | <li>CANN 8.1.RC1及8.1.RC1.x</li><li>CANN 8.2.RC1及8.2.RC1.x</li><li>CANN 8.3.RC1及8.3.RC1.x</li><li>CANN 8.5.0及8.5.0.x | </li><li>Ascend HDK 25.0.RC1及Ascend HDK 25.0.RC1.x</li><li>Ascend HDK 25.2.0及Ascend HDK 25.2.0.x</li><li>Ascend HDK 25.3.RC1及Ascend HDK 25.3.RC1.x</li><li>Ascend HDK 25.5.0及Ascend HDK 25.5.0.x</li> |
+| MindSDK软件版本      | MindSDK待升级版本 | CANN版本兼容性                | Ascend HDK版本兼容性                   |
+|------------------|--------------|--------------------------|-----------------------------------|
+| Agent SDK 26.0.0 | 不涉及          | <li>CANN 9.0.0及补丁版本</li> | <li>Ascend HDK 26.0.RC1及补丁版本</li> |
 
 > [!NOTE] 说明
 > 软件版本兼容性是指产品软件版本升级时，其他关联软件不需要联动升级或打补丁，仍然可以支持已有功能。
@@ -98,9 +93,9 @@
 
 # 26.0.0版本配套文档<a name="ZH-CN_TOPIC_0000002545204931"></a>
 
-| 文档名称                    | 内容简介                                         | 更新说明                                               |
-|-------------------------|----------------------------------------------|----------------------------------------------------|
-| 《Agent SDK 26.0.0 用户指南》 | 主要包括Agent SDK的简介、安装部署、快速入门、API接口说明以及其他常用的操作。 | 变更详见《[Agent SDK 26.0.0 用户指南](introduction.md#简介)》。 |
+| 文档名称                                          | 内容简介                                         | 更新说明                                               |
+|-----------------------------------------------|----------------------------------------------|----------------------------------------------------|
+| 《[Agent SDK 26.0.0 用户指南](introduction.md#简介)》 | 主要包括Agent SDK的简介、安装部署、快速入门、API接口说明以及其他常用的操作。 | 变更详见《[Agent SDK 26.0.0 用户指南](introduction.md#简介)》。 |
 
 # 漏洞修补列表<a name="ZH-CN_TOPIC_0000002545204923"></a>
 
