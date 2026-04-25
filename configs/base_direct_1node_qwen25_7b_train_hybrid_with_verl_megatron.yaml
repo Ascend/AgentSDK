@@ -39,6 +39,7 @@ verl_conf:
   extras:
     agent_service: ${agent_instances.0.name}  # 依赖的 AGENT 服务名称（默认为 `agent_instances` 的第一个）
     infer_service: ${infer_instances.0.name}  # 依赖的 INFER 服务名称（默认为 `infer_instances` 的第一个）
+    traj_output_path: ${hydra:runtime.cwd}/outputs
   algorithm:
     adv_estimator: grpo
     kl_ctrl:

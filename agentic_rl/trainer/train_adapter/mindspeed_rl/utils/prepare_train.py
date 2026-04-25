@@ -35,7 +35,7 @@ from agentic_rl.trainer.train_adapter.mindspeed_rl.utils.megatron_utils import (
 )
 from agentic_rl.trainer.train_adapter.mindspeed_rl.workers.actor_hybrid_worker import ActorHybridWorker
 from agentic_rl.trainer.train_adapter.mindspeed_rl.workers.integrated_worker import IntegratedWorker
-from agentic_rl.trainer.train_adapter.mindspeed_rl.workers.reference_woker import ReferenceWorker
+from agentic_rl.trainer.train_adapter.mindspeed_rl.workers.reference_worker import ReferenceWorker
 from agentic_rl.base.log.loggers import Loggers
 
 logger = Loggers(__name__).get_logger()

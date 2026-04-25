@@ -27,7 +27,7 @@ from mindspeed_rl.trainer.utils.parallel_state import (
 from mindspeed_rl.utils.compute import get_parallel_state
 from mindspeed_rl.utils.pad_process import truncate_rows
 from mindspeed_rl.utils.utils import is_multimodal, mstx_timer_decorator
-from mindspeed_rl.workers.reference_worker import ReferenceWorkerBase
+from mindspeed_rl.workers.reference_woker import ReferenceWorkerBase
 
 from agentic_rl.base.log.loggers import Loggers
 

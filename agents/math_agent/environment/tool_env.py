@@ -2,7 +2,7 @@
 #
 # This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
-#
+# Copyright (c) 2026 Wenxuan Huang.
 # AgentSDK is licensed under Mulan PSL v2.
 # You can use this software according to the terms and conditions of the Mulan PSL v2.
 # You may obtain a copy of Mulan PSL v2 at:
@@ -153,31 +153,25 @@ class ToolEnvironment(BaseEnv):
         """
         tool_outputs: dict[str, str] = {}
         output_queue: queue.Queue[tuple[str, str]] = queue.Queue()
-        error_queue: queue.Queue[Exception] = queue.Queue()
-        threads: list[threading.Thread] = []
+        threads = []
 
-        def execute_tool(tool_call: dict) -> None:
-            try:
-                tool_name = tool_call["function"]["name"]
-                raw_args = tool_call["function"]["arguments"]
-                tool_args: dict
+        def execute_tool(tool_call):
+            tool_name = tool_call["function"]["name"]
+            raw_args = tool_call["function"]["arguments"]
+            tool_args = None
+            if isinstance(raw_args, dict):
+                tool_args = raw_args
+            elif isinstance(raw_args, str):
+                try:
+                    tool_args = json.loads(raw_args)
+                except json.JSONDecodeError:
+                    tool_args = {"code": raw_args}
+            else:
+                raise ValueError(f"Unsupported arguments type: {type(raw_args)}")
+            tool_output = self.tools(tool_name=tool_name, **tool_args)
+            tool_output_str = tool_output.to_string()
 
-                if isinstance(raw_args, dict):
-                    tool_args = raw_args
-                elif isinstance(raw_args, str):
-                    try:
-                        tool_args = json.loads(raw_args)
-                    except json.JSONDecodeError:
-                        tool_args = {"code": raw_args}
-                else:
-                    raise TypeError(f"Unsupported arguments type: {type(raw_args)}")
-
-                tool_output = self.tools(tool_name=tool_name, **tool_args)
-                tool_output_str = tool_output.to_string()
-                output_queue.put((tool_call["id"], tool_output_str))
-            except Exception as exc:
-                logger.error("Tool execution failed for call %s: %s", tool_call.get("id"), exc)
-                error_queue.put(exc)
+            output_queue.put((tool_call["id"], tool_output_str))
 
         for tool_call in tool_calls:
             thread = threading.Thread(target=execute_tool, args=(tool_call,))
@@ -187,9 +181,7 @@ class ToolEnvironment(BaseEnv):
         for thread in threads:
             thread.join()
 
-        if not error_queue.empty():
-            raise error_queue.get()
-
+        # Collect results and store in order
         while not output_queue.empty():
             tool_call_id, output_str = output_queue.get()
             tool_outputs[tool_call_id] = output_str
