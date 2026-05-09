@@ -309,7 +309,7 @@ function install_whl()
 {
   cd "${install_path}"
 
-  whl_file_name=$(find ./ -maxdepth 1 -type f -name 'agentic_rl-*.whl')
+  whl_file_name=$(find ./ -maxdepth 1 -type f -name 'aura-*.whl')
   if [[ "${quiet_flag}" == "n" ]]; then
     ms_log "INFO: Begin to install wheel package(${whl_file_name##*/})."
   fi

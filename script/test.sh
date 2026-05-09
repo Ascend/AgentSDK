@@ -29,7 +29,7 @@ workdir=$(
 workdir=$workdir/..
 
 # 设置运行测试所需要的第三方github仓库路径
-THIRD_PARTY_DIR=$workdir/third-party/
+THIRD_PARTY_DIR=$workdir/aura/third-party/
 #mkdir -p $THIRD_PARTY_DIR
 
 # ALL_THIRD_PYTHONPATH=""
@@ -67,12 +67,12 @@ function pre_install() {
  git checkout v0.1
  rllm_path=$THIRD_PARTY_DIR/rllm/
  export PYTHONPATH=$PYTHONPATH:$rllm_path
-#  megatron_path=$workdir/AgenticRL/third-party/Megatron-LM-core_r0.8.0/
-#  mindspeed_path=$workdir/AgenticRL/third-party/MindSpeed-2.1.0_core_r0.8.0/
-#  mindspeed_llm_path=$workdir/AgenticRL/third-party/MindSpeed-LLM-2.1.0/
-#  mindspeed_rl_path=$workdir/AgenticRL/third-party/MindSpeed-RL-v2.2.0/
-#  vllm_path=$workdir/AgenticRL/third-party/vllm-releases-v0.9.1/
-#  vllm_ascend_path=$workdir/AgenticRL/third-party/vllm-ascend-0.9.1-dev/
+#  megatron_path=$workdir/aura/third-party/Megatron-LM-core_r0.8.0/
+#  mindspeed_path=$workdir/aura/third-party/MindSpeed-2.1.0_core_r0.8.0/
+#  mindspeed_llm_path=$workdir/aura/third-party/MindSpeed-LLM-2.1.0/
+#  mindspeed_rl_path=$workdir/aura/third-party/MindSpeed-RL-v2.2.0/
+#  vllm_path=$workdir/aura/third-party/vllm-releases-v0.9.1/
+#  vllm_ascend_path=$workdir/aura/third-party/vllm-ascend-0.9.1-dev/
 
 #  # 设置第三方库
 #  ALL_THIRD_PYTHONPATH=$megatron_path:$mindspeed_path:$mindspeed_llm_path:$mindspeed_rl_path:$vllm_path:$vllm_ascend_path
@@ -89,7 +89,7 @@ function run_test() {
   echo ""
   echo "[INFO] >>>>>>>>>>> start running tests >>>>>>>>>>>"
   python3 -m pytest \
-    --cov=agentic_rl/ \
+    --cov=aura/ \
     --cov-report=term \
     --cov-report=html:script/coverage/html \
     --cov-report=xml:script/coverage/coverage.xml \
@@ -97,7 +97,7 @@ function run_test() {
     --html=script/coverage/final.html \
     --self-contained-html \
     --cov-branch \
-    -vs tests/
+    -vs aura/tests/
   echo "[INFO] >>>>>>>>>>> finish running tests >>>>>>>>>>>"
   echo ""
 
