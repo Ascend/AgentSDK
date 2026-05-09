@@ -93,6 +93,9 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 echo "✅ 脚本当前路径 (aura): ${SCRIPT_DIR}"
 
+# 获取项目根目录（SCRIPT_DIR 的上级目录）
+ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
 # ---------------------------------------------------
 # 依赖检查和安装
 # ---------------------------------------------------
@@ -118,7 +121,7 @@ fi
 
 echo "🔄 设置 PYTHONPATH..."
 # 设置 PYTHONPATH，使用计算出的相对路径
-export PYTHONPATH="${SCRIPT_DIR}:${SCRIPT_DIR}/third_party/agent_engine/rllm/:${SCRIPT_DIR}/third_party/rl/mindspeed_rl/:$PYTHONPATH"
+export PYTHONPATH="${ROOT_DIR}:${SCRIPT_DIR}/third_party/agent_engine/rllm/:${SCRIPT_DIR}/third_party/rl/mindspeed_rl/:$PYTHONPATH"
 echo "✅ PYTHONPATH 设置完成。"
 
 echo "🔄 设置 VLLM_VERSION..."

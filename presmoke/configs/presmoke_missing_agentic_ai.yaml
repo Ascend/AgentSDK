@@ -1,0 +1,11 @@
+# Test 5: 缺少 agentic_ai 配置节
+serve_conf:
+  host: 0.0.0.0
+  port: 8030
+
+direct_conf:
+  entrypoints: []
+
+train_instances: []
+agent_instances: []
+infer_instances: []

@@ -18,7 +18,7 @@ from typing import Any, Optional, Tuple
 
 import ray
 
-import third_party.rl
+import aura.third_party.rl
 from mindspeed_rl.datasets.build_dataset import build_train_valid_test_datasets
 from mindspeed_rl.datasets.prompt_dataset import PromptDataset
 from mindspeed_rl.datasets.dataloader import PromptDataLoader

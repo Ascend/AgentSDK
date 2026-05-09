@@ -328,7 +328,7 @@ verl_conf:
     n_gpus_per_node: 8
     nnodes: 1
     save_freq: -1
-    test_freq: 1000
+    test_freq: -1
     total_epochs: 1
     logger: ['console','tensorboard']
 

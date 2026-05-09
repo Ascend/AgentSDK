@@ -20,7 +20,7 @@
 
 import datasets
 
-import third_party.rl
+import aura.third_party.rl
 from mindspeed_rl.config_cls.base_config import BaseConfig
 
 

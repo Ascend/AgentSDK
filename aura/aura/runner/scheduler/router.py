@@ -147,7 +147,6 @@ async def poll_completions_openai(dp_address: str, stream_queue=None, role="h", 
                 max_tokens=max_tokens
             )
 
-            logger.info(f"response={response}")
             choices = response.choices[0]
             full_response = choices.text
             logprobs = choices.logprobs.token_logprobs

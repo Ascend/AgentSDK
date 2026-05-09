@@ -17,7 +17,7 @@
 # 
 import datasets
 
-import third_party.rl
+import aura.third_party.rl
 from mindspeed_rl.workers.scheduler.launcher import RayActorGroup
 from .launcher import create_actor_handlers_patch
 

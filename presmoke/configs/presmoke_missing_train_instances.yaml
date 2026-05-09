@@ -1,0 +1,18 @@
+# Test 7: direct 模式下缺少 train_instances
+agentic_ai:
+  mode: direct
+  log_level: DEBUG
+
+serve_conf:
+  host: 0.0.0.0
+  port: 8030
+
+direct_conf:
+  entrypoints:
+    - job_type: train
+      job_name: non-existent-train
+      job_kwargs: {}
+
+train_instances: []
+agent_instances: []
+infer_instances: []

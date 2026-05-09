@@ -1,0 +1,29 @@
+# Test 9: 无效的训练引擎
+agentic_ai:
+  mode: direct
+  log_level: DEBUG
+
+serve_conf:
+  host: 0.0.0.0
+  port: 8030
+
+direct_conf:
+  entrypoints:
+    - job_type: train
+      job_name: test-train
+      job_kwargs: {}
+
+train_instances:
+  - name: test-train
+    executor_num: 1
+    executor_kwargs:
+      cluster_mode: hybrid
+      train_engine: invalid_engine
+      train_config: {}
+      rollout_config: {}
+      agent_service: ""
+      infer_service: ""
+    resource_info: []
+
+agent_instances: []
+infer_instances: []
