@@ -23,7 +23,7 @@ import sys
 import torch
 import torch.multiprocessing as mp
 
-import third_party
+import aura.third_party
 
 MODULE_ROOT = "mindspeed_llm.tasks.checkpoint"
 

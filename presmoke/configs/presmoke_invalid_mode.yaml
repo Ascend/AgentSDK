@@ -1,0 +1,15 @@
+# Test 4: 无效的运行模式
+agentic_ai:
+  mode: invalid_mode
+  log_level: DEBUG
+
+serve_conf:
+  host: 0.0.0.0
+  port: 8030
+
+direct_conf:
+  entrypoints: []
+
+train_instances: []
+agent_instances: []
+infer_instances: []

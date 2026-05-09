@@ -1,0 +1,29 @@
+# Test 8: 无效的集群模式
+agentic_ai:
+  mode: direct
+  log_level: DEBUG
+
+serve_conf:
+  host: 0.0.0.0
+  port: 8030
+
+direct_conf:
+  entrypoints:
+    - job_type: train
+      job_name: test-train
+      job_kwargs: {}
+
+train_instances:
+  - name: test-train
+    executor_num: 1
+    executor_kwargs:
+      cluster_mode: invalid_cluster_mode
+      train_backend: mindspeed_rl
+      train_config: {}
+      rollout_config: {}
+      agent_service: ""
+      infer_service: ""
+    resource_info: []
+
+agent_instances: []
+infer_instances: []
