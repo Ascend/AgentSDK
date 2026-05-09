@@ -28,7 +28,7 @@ function file_exists()
 
 function check_tar_file()
 {
-    file_exists "${pack_path}/AgenticRL-linux.tar.gz"
+    file_exists "${pack_path}/aura-linux.tar.gz"
 }
 
 function package()
@@ -37,16 +37,16 @@ function package()
     cd ${shared_path}
     mkdir -p ${pack_path}
 
-    cp -rf ${root_dir}/agentic_rl ${pack_path}
-    cp -rf ${root_dir}/agents ${pack_path}
-    cp -rf ${root_dir}/third_party ${pack_path}
-    cp -rf ${root_dir}/logs ${pack_path}
+    cp -rf ${root_dir}/aura/aura ${pack_path}
+    cp -rf ${root_dir}/aura/aura/agents ${pack_path}
+    cp -rf ${root_dir}/aura/aura/third_party ${pack_path}
+    cp -rf ${root_dir}/aura/aura/logs ${pack_path}
 
     cd ${pack_path}
-    tar -zcf AgenticRL-linux.tar.gz *
+    tar -zcf aura-linux.tar.gz *
     check_tar_file
 
-    echo "build & package AgenticRL succeed!!!"
+    echo "build & package aura succeed!!!"
 }
 
 if [ ! -d "${shared_path}" ]; then

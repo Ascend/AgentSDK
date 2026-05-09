@@ -111,7 +111,7 @@ real_delete() {
     find "$log_file" -type f -exec chmod 640 {} +
     log "$(cat "${version_info}")"
 
-    python3 -m pip uninstall agentic_rl -y
+    python3 -m pip uninstall aura -y
     if test $? -ne 0; then
       log "Error: Uninstall wheel package failed."
       exit 1

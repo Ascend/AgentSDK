@@ -40,8 +40,8 @@ get_version
 
 function modify_init_py() {
   cd $workdir
-  # 替换agentic_rl/__init__.py中记录的版本号，setup.py中进行解析
-  sed -i "s/^__version__ = .*/__version__ = \"${VERSION}\"/" agentic_rl/__init__.py
+  # 替换aura/aura/__init__.py中记录的版本号，setup.py中进行解析
+  sed -i "s/^__version__ = .*/__version__ = \"${VERSION}\"/" aura/aura/__init__.py
 }
 
 function compile() {
@@ -57,10 +57,10 @@ function compile() {
   chmod +x $workdir/script/run/install.sh
   chmod +x $workdir/script/run/uninstall.sh
 
-  python3 setup.py bdist_wheel
+  python3 $workdir/aura/setup.py bdist_wheel
   mv dist/* $OUTPUT_DIR/
 
-  cp -r $workdir/configs/ $OUTPUT_DIR/
+  cp -r $workdir/aura/configs/ $OUTPUT_DIR/
 
   mkdir -p $OUTPUT_DIR/script/
   cp $workdir/script/run/uninstall.sh $OUTPUT_DIR/script/
