@@ -4,7 +4,7 @@
 
 在开始之前，请先阅读以下文档：
 
-* [AgentSDK 项目说明](README.md)
+* [AgentSDK 项目说明](aura/README.md)
 
 ## 贡献方式
 
@@ -79,7 +79,7 @@
 
 在提交代码前，请确保本地测试通过。若您需要在源码仓中启动 AgentSDK 或运行测试，建议先完成以下准备：
 
-- 按照 [docs/zh/installation_guide.md](docs/zh/installation_guide.md) 完成 Python 依赖、CANN 依赖和第三方仓库依赖安装，并设置对应环境变量
+- 按照 [docs/zh/installation_guide.md](aura/docs/zh/installation_guide.md) 完成 Python 依赖、CANN 依赖和第三方仓库依赖安装，并设置对应环境变量
 - 在仓库根目录执行 `pip3 install -e .` 安装本地开发版本。安装完成后会注册命令行入口 `agentic_rl`
 - 额外安装测试工具：`pytest`、`pytest-html`、`pytest-cov`
 - `script/test.sh` 依赖 `bash` 和 `python3`，建议在 Linux 开发环境中执行
@@ -118,10 +118,10 @@ bash script/test.sh
 
 如果您的变更影响用户使用方式、接口行为或部署配置，请同步更新相关文档：
 
-- 项目总览与快速入口：[README.md](README.md)
-- 中文文档：[docs/zh/](docs/zh)
-- Python API 文档：[docs/zh/api_python.md](docs/zh/api_python.md)
-- 命令行/API 说明：[docs/zh/command_api.md](docs/zh/command_api.md)
+- 项目总览与快速入口：[README.md](aura/README.md)
+- 中文文档：[docs/zh/](aura/docs/zh)
+- Python API 文档：[docs/zh/api_python.md](aura/docs/zh/api_python.md)
+- 命令行/API 说明：[docs/zh/command_api.md](aura/docs/zh/command_api.md)
 
 ## 文档规范
 
