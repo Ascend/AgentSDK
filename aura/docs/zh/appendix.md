@@ -6,7 +6,7 @@ Agent SDK的安装包中的网址安装结束后会被清除，并不会访问�
 
 Agent SDK本手册中存在的公开网址和邮箱地址，SDK本身不会访问，不会造成风险。
 
-更多公网地址请参考[AgentSDK 公网地址.xlsx](./resource/AgentSDK_公网地址_0000002516443057.xlsx)。
+更多公网地址请参考[AgentSDK 公网地址.xlsx](resource/AgentSDK_公网地址_0000002516443057.xlsx)。
 
 ## 环境变量使用<a name="ZH-CN_TOPIC_0000002504002753"></a>
 
