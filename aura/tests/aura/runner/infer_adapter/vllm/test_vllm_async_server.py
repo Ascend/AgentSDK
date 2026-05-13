@@ -37,8 +37,8 @@ MOCK_MODULES = [
     "vllm.entrypoints.openai.serving_chat", "vllm.entrypoints.openai.serving_completion",
     "vllm.entrypoints.openai.serving_models", "vllm.v1.engine.async_llm",
     "vllm.v1.executor.abstract", "vllm.config", "vllm.executor",
-    "aura.aura.base.log.loggers", "aura.aura.runner.infer_adapter.async_server",
-    "aura.aura.runner.scheduler.workload", "aura.aura.runner.scheduler.load_stat",
+    "aura.base.log.loggers", "aura.runner.infer_adapter.async_server",
+    "aura.runner.scheduler.workload", "aura.runner.scheduler.load_stat",
     "uvicorn", "fastapi", "omegaconf", "torch", "transformers"
 ]
 
@@ -89,7 +89,7 @@ def _build_fake_modules():
     fake_modules["vllm.v1.executor.abstract"] = abstract_mod
 
     # Fake AsyncServerBase for server address retrieval
-    async_server_mod = types.ModuleType("aura.aura.runner.infer_adapter.async_server")
+    async_server_mod = types.ModuleType("aura.runner.infer_adapter.async_server")
 
     class MockAsyncServerBase:
         def __init__(self, *args, **kwargs):
@@ -99,14 +99,14 @@ def _build_fake_modules():
             return "127.0.0.1:8000"
 
     async_server_mod.AsyncServerBase = MockAsyncServerBase
-    fake_modules["aura.aura.runner.infer_adapter.async_server"] = async_server_mod
+    fake_modules["aura.runner.infer_adapter.async_server"] = async_server_mod
 
     return fake_modules
 
 
 def _reload_async_server_module():
     """Reload the module under test after fakes are installed."""
-    mod_name = "aura.aura.runner.infer_adapter.vllm.vllm_async_server"
+    mod_name = "aura.runner.infer_adapter.vllm.vllm_async_server"
     if mod_name in sys.modules:
         del sys.modules[mod_name]
     return importlib.import_module(mod_name)

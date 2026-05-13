@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch, PropertyMock
 
 import pytest
 
-from aura.aura.runner.agent_engine_wrapper.base_engine_wrapper import AgentTask, Trajectory
+from aura.runner.agent_engine_wrapper.base_engine_wrapper import AgentTask, Trajectory
 
 
 # ---------------------------------------------------------------------------
@@ -39,13 +39,13 @@ def mock_dependencies():
     }
 
     with (
-        patch("aura.aura.runner.agent_engine_wrapper.rllm.rllm_engine_wrapper.AutoTokenizer") as mock_auto_tok,
-        patch("aura.aura.runner.agent_engine_wrapper.rllm.rllm_engine_wrapper.Episode") as mock_episode,
+        patch("aura.runner.agent_engine_wrapper.rllm.rllm_engine_wrapper.AutoTokenizer") as mock_auto_tok,
+        patch("aura.runner.agent_engine_wrapper.rllm.rllm_engine_wrapper.Episode") as mock_episode,
         patch(
-            "aura.aura.runner.agent_engine_wrapper.rllm.rllm_engine_wrapper.load_object_by_path"
+            "aura.runner.agent_engine_wrapper.rllm.rllm_engine_wrapper.load_object_by_path"
         ) as mock_load,
         patch(
-            "aura.aura.runner.agent_engine_wrapper.rllm.rllm_engine_wrapper.RLLMEngineWrapper.__init__",
+            "aura.runner.agent_engine_wrapper.rllm.rllm_engine_wrapper.RLLMEngineWrapper.__init__",
             return_value=None,
         ) as mock_init,
     ):
@@ -65,7 +65,7 @@ def mock_dependencies():
 
 def _make_wrapper(mock_deps):
     """Create a RLLMEngineWrapper with pre-set attributes (bypassing __init__)."""
-    from aura.aura.runner.agent_engine_wrapper.rllm.rllm_engine_wrapper import RLLMEngineWrapper
+    from aura.runner.agent_engine_wrapper.rllm.rllm_engine_wrapper import RLLMEngineWrapper
 
     wrapper = RLLMEngineWrapper.__new__(RLLMEngineWrapper)
     wrapper.server_addresses = ["0.0.0.0:8000"]
@@ -136,7 +136,7 @@ class TestRLLMEngineWrapperDelegation:
 # ---------------------------------------------------------------------------
 
 class TestCreateEngine:
-    @patch("aura.aura.runner.agent_engine_wrapper.rllm.agent_execution_engine.AgentExecutionEngine")
+    @patch("aura.runner.agent_engine_wrapper.rllm.agent_execution_engine.AgentExecutionEngine")
     def test_creates_engine_if_none(self, MockAEE, mock_dependencies):
         wrapper = _make_wrapper(mock_dependencies)
         wrapper.engine = None
@@ -144,7 +144,7 @@ class TestCreateEngine:
         MockAEE.assert_called_once()
         assert wrapper.engine is not None
 
-    @patch("aura.aura.runner.agent_engine_wrapper.rllm.agent_execution_engine.AgentExecutionEngine")
+    @patch("aura.runner.agent_engine_wrapper.rllm.agent_execution_engine.AgentExecutionEngine")
     def test_does_not_recreate_engine(self, MockAEE, mock_dependencies):
         wrapper = _make_wrapper(mock_dependencies)
         existing_engine = MagicMock()

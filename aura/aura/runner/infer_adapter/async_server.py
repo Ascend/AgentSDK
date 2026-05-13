@@ -31,10 +31,10 @@ import ray
 import uvicorn
 from starlette.requests import Request
 
-from aura.aura.base.log.loggers import Loggers
-from aura.aura.base.utils.globals import is_pd_separate
-from aura.aura.base.utils.work_mode import get_work_mode
-from aura.aura.runner.infer_router import InferRouter
+from aura.base.log.loggers import Loggers
+from aura.base.utils.globals import is_pd_separate
+from aura.base.utils.work_mode import get_work_mode
+from aura.runner.infer_router import InferRouter
 
 logger = Loggers(__name__).get_logger()
 
@@ -224,7 +224,7 @@ class AsyncServerManager:
         self.async_servers = [None] * self.rollout_dp_size
         self.server_addresses = [None] * self.rollout_dp_size
 
-        from aura.aura.runner.infer_adapter.infer_registry import async_server_class
+        from aura.runner.infer_adapter.infer_registry import async_server_class
         server_class = async_server_class(
             infer_backend=self.rollout_infer_backend,
         )

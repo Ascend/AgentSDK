@@ -124,15 +124,15 @@ def _build_fake_modules():
     # ---------------- other heavy deps ----------------
     for name in [
         "uvicorn", "fastapi", "omegaconf", "torch", "transformers",
-        "aura.aura.base.log.loggers",
-        "aura.aura.runner.scheduler.workload",
-        "aura.aura.runner.scheduler.load_stat",
+        "aura.base.log.loggers",
+        "aura.runner.scheduler.workload",
+        "aura.runner.scheduler.load_stat",
     ]:
         fake_modules[name] = _mk(name)
 
     # ---------------- async_server base ----------------
     try:
-        async_server_mod = _mk("aura.aura.runner.infer_adapter.async_server")
+        async_server_mod = _mk("aura.runner.infer_adapter.async_server")
     except Exception as e:
         raise RuntimeError(f"Failed to install fake dependency for {name}") from e
 
@@ -144,7 +144,7 @@ def _build_fake_modules():
             return "127.0.0.1:8000"
 
     async_server_mod.AsyncServerBase = MockAsyncServerBase
-    fake_modules["aura.aura.runner.infer_adapter.async_server"] = async_server_mod
+    fake_modules["aura.runner.infer_adapter.async_server"] = async_server_mod
 
     return fake_modules
 
@@ -153,7 +153,7 @@ def _reload_target_module():
     """
     Reload the target module after fakes are installed to ensure all imports use mocks.
     """
-    mod_name = "aura.aura.runner.infer_adapter.vllm.vllm_async_server_pd"
+    mod_name = "aura.runner.infer_adapter.vllm.vllm_async_server_pd"
     if mod_name in sys.modules:
         del sys.modules[mod_name]
     return importlib.import_module(mod_name)
@@ -295,10 +295,10 @@ class TestAsyncVLLMServerPDSep(unittest.IsolatedAsyncioTestCase):
         AsyncVLLMServerPDSep = self.target_mod.AsyncVLLMServerPDSep
 
         with patch(
-            "aura.aura.runner.infer_adapter.vllm.vllm_async_server_pd.AsyncVLLMServer.__init__",
+            "aura.runner.infer_adapter.vllm.vllm_async_server_pd.AsyncVLLMServer.__init__",
             return_value=None,
         ), patch(
-            "aura.aura.runner.infer_adapter.vllm.vllm_async_server_pd.AsyncVLLMServerPDSep.update_config",
+            "aura.runner.infer_adapter.vllm.vllm_async_server_pd.AsyncVLLMServerPDSep.update_config",
             return_value=None,
         ):
             server = AsyncVLLMServerPDSep(
@@ -360,7 +360,7 @@ class TestAsyncVLLMServerPDSep(unittest.IsolatedAsyncioTestCase):
         AsyncVLLMServerPDSep = self.target_mod.AsyncVLLMServerPDSep
 
         with patch("builtins.open", m), patch(
-            "aura.aura.runner.infer_adapter.vllm.vllm_async_server_pd.ray.util.get_node_ip_address",
+            "aura.runner.infer_adapter.vllm.vllm_async_server_pd.ray.util.get_node_ip_address",
             return_value="1.1.1.1",
         ):
             AsyncVLLMServerPDSep.update_config(server, infer_mode=None)
@@ -390,7 +390,7 @@ class TestAsyncVLLMServerPDSep(unittest.IsolatedAsyncioTestCase):
         AsyncVLLMServerPDSep = self.target_mod.AsyncVLLMServerPDSep
 
         with patch("builtins.open", m), patch(
-            "aura.aura.runner.infer_adapter.vllm.vllm_async_server_pd.ray.util.get_node_ip_address",
+            "aura.runner.infer_adapter.vllm.vllm_async_server_pd.ray.util.get_node_ip_address",
             return_value="2.2.2.2",
         ):
             AsyncVLLMServerPDSep.update_config(server, infer_mode=None)
@@ -415,7 +415,7 @@ class TestAsyncVLLMServerPDSep(unittest.IsolatedAsyncioTestCase):
         AsyncVLLMServerPDSep = self.target_mod.AsyncVLLMServerPDSep
 
         with patch("builtins.open", m), patch(
-            "aura.aura.runner.infer_adapter.vllm.vllm_async_server_pd.ray.util.get_node_ip_address",
+            "aura.runner.infer_adapter.vllm.vllm_async_server_pd.ray.util.get_node_ip_address",
             return_value="9.9.9.9",
         ):
             with self.assertRaises(ValueError):
@@ -475,7 +475,7 @@ class TestAsyncVLLMServerPDSep(unittest.IsolatedAsyncioTestCase):
         server.server_ready.wait.assert_awaited_once()
         self.assertEqual(mode, "decode")
 
-    @patch("aura.aura.runner.infer_adapter.vllm.vllm_async_server_pd.ChatCompletionRequest")
+    @patch("aura.runner.infer_adapter.vllm.vllm_async_server_pd.ChatCompletionRequest")
     async def test_chat_completion_prefill_updates_request(self, mock_chat_req_cls):
         """Chat completion in prefill mode should modify the request before forwarding."""
         server = self._create_server_skip_update_config(infer_mode="prefill")
@@ -496,7 +496,7 @@ class TestAsyncVLLMServerPDSep(unittest.IsolatedAsyncioTestCase):
         self.assertIsInstance(resp, JSONResponse)
         server.openai_serving_chat.create_chat_completion.assert_awaited_once()
 
-    @patch("aura.aura.runner.infer_adapter.vllm.vllm_async_server_pd.ChatCompletionRequest")
+    @patch("aura.runner.infer_adapter.vllm.vllm_async_server_pd.ChatCompletionRequest")
     async def test_chat_completion_streaming_response(self, mock_chat_req_cls):
         """Streaming chat completion should return a StreamingResponse."""
         server = self._create_server_skip_update_config(infer_mode="decode")
@@ -517,7 +517,7 @@ class TestAsyncVLLMServerPDSep(unittest.IsolatedAsyncioTestCase):
 
         self.assertIsInstance(resp, StreamingResponse)
 
-    @patch("aura.aura.runner.infer_adapter.vllm.vllm_async_server_pd.ChatCompletionRequest")
+    @patch("aura.runner.infer_adapter.vllm.vllm_async_server_pd.ChatCompletionRequest")
     async def test_chat_completion_error_response(self, mock_chat_req_cls):
         """Error responses from serving layer should be returned with correct status code."""
         server = self._create_server_skip_update_config(infer_mode="decode")
@@ -538,7 +538,7 @@ class TestAsyncVLLMServerPDSep(unittest.IsolatedAsyncioTestCase):
         self.assertIsInstance(resp, JSONResponse)
         self.assertEqual(resp.status_code, 401)
 
-    @patch("aura.aura.runner.infer_adapter.vllm.vllm_async_server_pd.CompletionRequest")
+    @patch("aura.runner.infer_adapter.vllm.vllm_async_server_pd.CompletionRequest")
     async def test_completions_non_stream_response_and_logprobs_cleanup(self, mock_comp_req_cls):
         """Non-stream completion should clear logprobs fields for JSON serialization."""
         server = self._create_server_skip_update_config(infer_mode="decode")
@@ -561,7 +561,7 @@ class TestAsyncVLLMServerPDSep(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(dummy_resp.choices[0].logprobs.top_logprobs, [])
         self.assertEqual(dummy_resp.choices[0].logprobs.text_offset, [])
 
-    @patch("aura.aura.runner.infer_adapter.vllm.vllm_async_server_pd.CompletionRequest")
+    @patch("aura.runner.infer_adapter.vllm.vllm_async_server_pd.CompletionRequest")
     async def test_completions_streaming_response(self, mock_comp_req_cls):
         """Streaming completion returns StreamingResponse."""
         server = self._create_server_skip_update_config(infer_mode="decode")
@@ -582,7 +582,7 @@ class TestAsyncVLLMServerPDSep(unittest.IsolatedAsyncioTestCase):
 
         self.assertIsInstance(resp, StreamingResponse)
 
-    @patch("aura.aura.runner.infer_adapter.vllm.vllm_async_server_pd.CompletionRequest")
+    @patch("aura.runner.infer_adapter.vllm.vllm_async_server_pd.CompletionRequest")
     async def test_completions_error_response(self, mock_comp_req_cls):
         """Error responses from completions endpoint return correct status."""
         server = self._create_server_skip_update_config(infer_mode="decode")
@@ -695,7 +695,7 @@ class TestAsyncVLLMServerPDSep(unittest.IsolatedAsyncioTestCase):
         AsyncVLLMServerPDSep = self.target_mod.AsyncVLLMServerPDSep
 
         with patch("builtins.open", m), patch(
-            "aura.aura.runner.infer_adapter.vllm.vllm_async_server_pd.ray.util.get_node_ip_address",
+            "aura.runner.infer_adapter.vllm.vllm_async_server_pd.ray.util.get_node_ip_address",
             return_value="9.9.9.9",  # IP not in ranktable, but explicit mode overrides
         ):
             AsyncVLLMServerPDSep.update_config(server, infer_mode="prefill")
@@ -704,7 +704,7 @@ class TestAsyncVLLMServerPDSep(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(server.config.kv_transfer_config["kv_role"], "kv_producer")
         self.assertEqual(server.config.max_model_len, 1024)
 
-    @patch("aura.aura.runner.infer_adapter.vllm.vllm_async_server_pd.ChatCompletionRequest")
+    @patch("aura.runner.infer_adapter.vllm.vllm_async_server_pd.ChatCompletionRequest")
     async def test_chat_completion_no_prefill_update(self, mock_req):
         """When not in prefill mode, chat request is passed through unmodified."""
         server = self._create_server_skip_update_config(infer_mode="decode")
@@ -728,7 +728,7 @@ class TestAsyncVLLMServerPDSep(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("kv_transfer_params", call_args)
         self.assertEqual(call_args.get("max_tokens"), 100)
 
-    @patch("aura.aura.runner.infer_adapter.vllm.vllm_async_server_pd.CompletionRequest")
+    @patch("aura.runner.infer_adapter.vllm.vllm_async_server_pd.CompletionRequest")
     async def test_completions_no_logprobs_cleanup(self, mock_req):
         """If response has no logprobs, cleanup step does nothing."""
         server = self._create_server_skip_update_config(infer_mode="decode")
@@ -748,7 +748,7 @@ class TestAsyncVLLMServerPDSep(unittest.IsolatedAsyncioTestCase):
         self.assertIsInstance(resp, JSONResponse)
         self.assertEqual(len(dummy_resp.choices), 0)
 
-    @patch("aura.aura.runner.infer_adapter.vllm.vllm_async_server_pd.CompletionRequest")
+    @patch("aura.runner.infer_adapter.vllm.vllm_async_server_pd.CompletionRequest")
     async def test_completions_with_choices_but_no_logprobs(self, mock_req):
         """If choice exists but logprobs is None, do not attempt to clear fields."""
         server = self._create_server_skip_update_config(infer_mode="decode")
@@ -780,11 +780,11 @@ class TestAsyncVLLMServerPDSep(unittest.IsolatedAsyncioTestCase):
                 server.get_node_ip_from_ranktable()
             self.assertIn("Can't find ranktable file", str(ctx.exception))
 
-    @patch("aura.aura.runner.infer_adapter.vllm.vllm_async_server_pd.CompilationConfig")
-    @patch("aura.aura.runner.infer_adapter.vllm.vllm_async_server_pd.AsyncEngineArgs")
-    @patch("aura.aura.runner.infer_adapter.vllm.vllm_async_server_pd.AsyncLLM")
-    @patch("aura.aura.runner.infer_adapter.vllm.vllm_async_server_pd.ray.get_runtime_context")
-    @patch("aura.aura.runner.infer_adapter.vllm.vllm_async_server_pd.asyncio.create_task")
+    @patch("aura.runner.infer_adapter.vllm.vllm_async_server_pd.CompilationConfig")
+    @patch("aura.runner.infer_adapter.vllm.vllm_async_server_pd.AsyncEngineArgs")
+    @patch("aura.runner.infer_adapter.vllm.vllm_async_server_pd.AsyncLLM")
+    @patch("aura.runner.infer_adapter.vllm.vllm_async_server_pd.ray.get_runtime_context")
+    @patch("aura.runner.infer_adapter.vllm.vllm_async_server_pd.asyncio.create_task")
     async def test_init_engine_disable_log_stats_true_no_task(
         self, mock_create_task, mock_ctx, mock_async_llm, mock_engine_args, mock_comp_config
     ):
@@ -811,10 +811,10 @@ class TestAsyncVLLMServerPDSep(unittest.IsolatedAsyncioTestCase):
 
         mock_create_task.assert_not_called()
 
-    @patch("aura.aura.runner.infer_adapter.vllm.vllm_async_server_pd.CompilationConfig")
-    @patch("aura.aura.runner.infer_adapter.vllm.vllm_async_server_pd.AsyncEngineArgs")
-    @patch("aura.aura.runner.infer_adapter.vllm.vllm_async_server_pd.AsyncLLM")
-    @patch("aura.aura.runner.infer_adapter.vllm.vllm_async_server_pd.ray.get_runtime_context")
+    @patch("aura.runner.infer_adapter.vllm.vllm_async_server_pd.CompilationConfig")
+    @patch("aura.runner.infer_adapter.vllm.vllm_async_server_pd.AsyncEngineArgs")
+    @patch("aura.runner.infer_adapter.vllm.vllm_async_server_pd.AsyncLLM")
+    @patch("aura.runner.infer_adapter.vllm.vllm_async_server_pd.ray.get_runtime_context")
     async def test_init_engine_with_cudagraph_capture_sizes_empty_string(
         self, mock_ctx, mock_async_llm, mock_engine_args, mock_comp_config
     ):
@@ -842,10 +842,10 @@ class TestAsyncVLLMServerPDSep(unittest.IsolatedAsyncioTestCase):
         call_kwargs = mock_comp_config.call_args[1]
         self.assertEqual(call_kwargs.get("cudagraph_capture_sizes"), [])
 
-    @patch("aura.aura.runner.infer_adapter.vllm.vllm_async_server_pd.CompilationConfig")
-    @patch("aura.aura.runner.infer_adapter.vllm.vllm_async_server_pd.AsyncEngineArgs")
-    @patch("aura.aura.runner.infer_adapter.vllm.vllm_async_server_pd.AsyncLLM")
-    @patch("aura.aura.runner.infer_adapter.vllm.vllm_async_server_pd.ray.get_runtime_context")
+    @patch("aura.runner.infer_adapter.vllm.vllm_async_server_pd.CompilationConfig")
+    @patch("aura.runner.infer_adapter.vllm.vllm_async_server_pd.AsyncEngineArgs")
+    @patch("aura.runner.infer_adapter.vllm.vllm_async_server_pd.AsyncLLM")
+    @patch("aura.runner.infer_adapter.vllm.vllm_async_server_pd.ray.get_runtime_context")
     async def test_init_engine_load_format_not_megatron(
         self, mock_ctx, mock_async_llm, mock_engine_args, mock_comp_config
     ):
@@ -894,10 +894,10 @@ class TestAsyncVLLMServerPDSepInitEngine(unittest.IsolatedAsyncioTestCase):
 
         # Create server instance without running __init__ or update_config
         with patch(
-            "aura.aura.runner.infer_adapter.vllm.vllm_async_server_pd.AsyncVLLMServer.__init__",
+            "aura.runner.infer_adapter.vllm.vllm_async_server_pd.AsyncVLLMServer.__init__",
             return_value=None,
         ), patch(
-            "aura.aura.runner.infer_adapter.vllm.vllm_async_server_pd.AsyncVLLMServerPDSep.update_config",
+            "aura.runner.infer_adapter.vllm.vllm_async_server_pd.AsyncVLLMServerPDSep.update_config",
             return_value=None,
         ):
             server = AsyncVLLMServerPDSep(
@@ -963,20 +963,20 @@ class TestAsyncVLLMServerPDSepInitEngine(unittest.IsolatedAsyncioTestCase):
             return MagicMock()
 
         with patch.dict(os.environ, {"VLLM_DP_SIZE": "2"}), \
-             patch("aura.aura.runner.infer_adapter.vllm.vllm_async_server_pd.AsyncEngineArgs",
+             patch("aura.runner.infer_adapter.vllm.vllm_async_server_pd.AsyncEngineArgs",
                    return_value=fake_engine_args) as mock_engine_args_cls, \
-             patch("aura.aura.runner.infer_adapter.vllm.vllm_async_server_pd.AsyncLLM",
+             patch("aura.runner.infer_adapter.vllm.vllm_async_server_pd.AsyncLLM",
                    fake_async_llm_cls), \
-             patch("aura.aura.runner.infer_adapter.vllm.vllm_async_server_pd.OpenAIServingModels",
+             patch("aura.runner.infer_adapter.vllm.vllm_async_server_pd.OpenAIServingModels",
                    return_value=fake_models) as mock_models_cls, \
-             patch("aura.aura.runner.infer_adapter.vllm.vllm_async_server_pd.OpenAIServingChat",
+             patch("aura.runner.infer_adapter.vllm.vllm_async_server_pd.OpenAIServingChat",
                    return_value=fake_chat) as mock_chat_cls, \
-             patch("aura.aura.runner.infer_adapter.vllm.vllm_async_server_pd.OpenAIServingCompletion",
+             patch("aura.runner.infer_adapter.vllm.vllm_async_server_pd.OpenAIServingCompletion",
                    return_value=fake_completion) as mock_completion_cls, \
-             patch("aura.aura.runner.infer_adapter.vllm.vllm_async_server_pd.ray.get_runtime_context") as mock_ctx, \
-             patch("aura.aura.runner.infer_adapter.vllm.vllm_async_server_pd.asyncio.create_task",
+             patch("aura.runner.infer_adapter.vllm.vllm_async_server_pd.ray.get_runtime_context") as mock_ctx, \
+             patch("aura.runner.infer_adapter.vllm.vllm_async_server_pd.asyncio.create_task",
                    side_effect=fake_create_task) as mock_create_task, \
-             patch("aura.aura.runner.infer_adapter.vllm.vllm_async_server_pd.vllm_log_stats_periodically",
+             patch("aura.runner.infer_adapter.vllm.vllm_async_server_pd.vllm_log_stats_periodically",
                    new_callable=AsyncMock) as mock_log_stats:
 
             ctx = MagicMock()

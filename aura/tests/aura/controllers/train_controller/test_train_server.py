@@ -62,11 +62,11 @@ with patch.dict('sys.modules', {
     'fastapi': mock_fastapi,
     'starlette': mock_starlette,
     'starlette.responses': mock_starlette_responses,
-    'aura.aura.base.log.loggers': mock_loggers_module,
-    'aura.aura.controllers.train_controller.train_queue': mock_train_queue_module,
-    'aura.aura.controllers.utils.msg_handler': mock_msg_handler_module,
+    'aura.base.log.loggers': mock_loggers_module,
+    'aura.controllers.train_controller.train_queue': mock_train_queue_module,
+    'aura.controllers.utils.msg_handler': mock_msg_handler_module,
 }):
-    from aura.aura.controllers.train_controller.train_server import TrainServer
+    from aura.controllers.train_controller.train_server import TrainServer
 
 
 class TestTrainServer(unittest.TestCase):

@@ -210,7 +210,7 @@ def mock_aura_dependencies():
     mock_aura = MagicMock()
     
     # 构建嵌套结构
-    # aura.aura.runner.agent_engine_wrapper.base.agent.base_agent
+    # aura.runner.agent_engine_wrapper.base.agent.base_agent
     mock_base_agent = MagicMock()
     mock_base_agent.Trajectory = MagicMock()
     mock_base_agent.Step = MagicMock()
@@ -263,15 +263,15 @@ def mock_aura_dependencies():
     with patch.dict(
         sys.modules,
         {
-            "aura.aura": mock_aura,
-            "aura.aura.runner": mock_runner,
-            "aura.aura.runner.agent_engine_wrapper": mock_agent_engine_wrapper,
-            "aura.aura.runner.agent_engine_wrapper.base": mock_base,
-            "aura.aura.runner.agent_engine_wrapper.base.agent": mock_agent,
-            "aura.aura.runner.agent_engine_wrapper.base.agent.base_agent": mock_base_agent,
-            "aura.aura.runner.agent_engine_wrapper.base.environment": mock_environment,
-            "aura.aura.runner.agent_engine_wrapper.base.environment.base_env": mock_base_env_module,
-            "aura.aura.runner.agent_engine_wrapper.base.environment.env_utils": mock_env_utils_module,
+            "aura.": mock_aura,
+            "aura.runner": mock_runner,
+            "aura.runner.agent_engine_wrapper": mock_agent_engine_wrapper,
+            "aura.runner.agent_engine_wrapper.base": mock_base,
+            "aura.runner.agent_engine_wrapper.base.agent": mock_agent,
+            "aura.runner.agent_engine_wrapper.base.agent.base_agent": mock_base_agent,
+            "aura.runner.agent_engine_wrapper.base.environment": mock_environment,
+            "aura.runner.agent_engine_wrapper.base.environment.base_env": mock_base_env_module,
+            "aura.runner.agent_engine_wrapper.base.environment.env_utils": mock_env_utils_module,
         },
     ):
         yield

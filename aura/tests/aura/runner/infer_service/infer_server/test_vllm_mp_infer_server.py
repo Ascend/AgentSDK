@@ -31,7 +31,7 @@ class TestHelperFunctions:
 
     def setup_method(self):
         """Setup method to import helper functions before each test."""
-        from aura.aura.runner.infer_service.infer_server.vllm_mp_infer_server import (
+        from aura.runner.infer_service.infer_server.vllm_mp_infer_server import (
             print_log, start_cmd, map_dict_to_cli_args, start_slave, start_master
         )
         self.print_log = print_log
@@ -40,7 +40,7 @@ class TestHelperFunctions:
         self.start_slave = start_slave
         self.start_master = start_master
 
-    @patch('aura.aura.runner.infer_service.infer_server.vllm_mp_infer_server.logger')
+    @patch('aura.runner.infer_service.infer_server.vllm_mp_infer_server.logger')
     @patch('time.sleep')
     def test_print_log(self, mock_sleep, mock_logger):
         def stop(_):
@@ -58,9 +58,9 @@ class TestHelperFunctions:
         assert key_event.is_set()
 
     @patch('os.getpgid', return_value=1234)
-    @patch('aura.aura.runner.infer_service.infer_server.vllm_mp_infer_server.subprocess.Popen')
-    @patch('aura.aura.runner.infer_service.infer_server.vllm_mp_infer_server.logger')
-    @patch('aura.aura.runner.infer_service.infer_server.vllm_mp_infer_server.atexit')
+    @patch('aura.runner.infer_service.infer_server.vllm_mp_infer_server.subprocess.Popen')
+    @patch('aura.runner.infer_service.infer_server.vllm_mp_infer_server.logger')
+    @patch('aura.runner.infer_service.infer_server.vllm_mp_infer_server.atexit')
     @patch('os.killpg')
     @patch.dict('os.environ', {'ASCEND_RT_VISIBLE_DEVICES': '3,1,2'})
     def test_start_cmd(self, mock_killpg, mock_atexit, mock_logger, mock_popen, mock_getpgid):
@@ -82,9 +82,9 @@ class TestHelperFunctions:
         mock_killpg.assert_called()
 
     @patch('os.getpgid', side_effect=ProcessLookupError("Process not found"))
-    @patch('aura.aura.runner.infer_service.infer_server.vllm_mp_infer_server.subprocess.Popen')
-    @patch('aura.aura.runner.infer_service.infer_server.vllm_mp_infer_server.logger')
-    @patch('aura.aura.runner.infer_service.infer_server.vllm_mp_infer_server.atexit')
+    @patch('aura.runner.infer_service.infer_server.vllm_mp_infer_server.subprocess.Popen')
+    @patch('aura.runner.infer_service.infer_server.vllm_mp_infer_server.logger')
+    @patch('aura.runner.infer_service.infer_server.vllm_mp_infer_server.atexit')
     @patch.dict('os.environ', {'ASCEND_RT_VISIBLE_DEVICES': '3,1,2'})
     def test_start_cmd_cleanup_process_lookup_error(self, mock_atexit, mock_logger, mock_popen, mock_getpgid):
         mock_process = MagicMock()
@@ -101,8 +101,8 @@ class TestHelperFunctions:
 
         mock_getpgid.assert_called_with(1234)
 
-    @patch('aura.aura.runner.infer_service.infer_server.vllm_mp_infer_server.subprocess.Popen')
-    @patch('aura.aura.runner.infer_service.infer_server.vllm_mp_infer_server.logger')
+    @patch('aura.runner.infer_service.infer_server.vllm_mp_infer_server.subprocess.Popen')
+    @patch('aura.runner.infer_service.infer_server.vllm_mp_infer_server.logger')
     @patch.dict('os.environ', {'ASCEND_RT_VISIBLE_DEVICES': '3,1,2'})
     def test_start_cmd_keyboard_interrupt(self, mock_logger, mock_popen):
         mock_process = MagicMock()
@@ -116,8 +116,8 @@ class TestHelperFunctions:
 
         mock_logger.error.assert_called_once_with("User interrupted.")
 
-    @patch('aura.aura.runner.infer_service.infer_server.vllm_mp_infer_server.subprocess.Popen')
-    @patch('aura.aura.runner.infer_service.infer_server.vllm_mp_infer_server.logger')
+    @patch('aura.runner.infer_service.infer_server.vllm_mp_infer_server.subprocess.Popen')
+    @patch('aura.runner.infer_service.infer_server.vllm_mp_infer_server.logger')
     @patch.dict('os.environ', {'ASCEND_RT_VISIBLE_DEVICES': '3,1,2'})
     def test_start_cmd_exception(self, mock_logger, mock_popen):
         mock_popen.side_effect = Exception("启动失败")
@@ -142,8 +142,8 @@ class TestHelperFunctions:
         assert self.map_dict_to_cli_args({}) == []
         assert self.map_dict_to_cli_args({"a": None}) == []
 
-    @patch('aura.aura.runner.infer_service.infer_server.vllm_mp_infer_server.threading.Thread')
-    @patch('aura.aura.runner.infer_service.infer_server.vllm_mp_infer_server.map_dict_to_cli_args')
+    @patch('aura.runner.infer_service.infer_server.vllm_mp_infer_server.threading.Thread')
+    @patch('aura.runner.infer_service.infer_server.vllm_mp_infer_server.map_dict_to_cli_args')
     def test_start_slave(self, mock_map, mock_thread):
         mock_map.return_value = ["cmd"]
 
@@ -155,9 +155,9 @@ class TestHelperFunctions:
 
         assert mock_thread.call_count == 2
 
-    @patch('aura.aura.runner.infer_service.infer_server.vllm_mp_infer_server.threading.Event')
-    @patch('aura.aura.runner.infer_service.infer_server.vllm_mp_infer_server.threading.Thread')
-    @patch('aura.aura.runner.infer_service.infer_server.vllm_mp_infer_server.map_dict_to_cli_args')
+    @patch('aura.runner.infer_service.infer_server.vllm_mp_infer_server.threading.Event')
+    @patch('aura.runner.infer_service.infer_server.vllm_mp_infer_server.threading.Thread')
+    @patch('aura.runner.infer_service.infer_server.vllm_mp_infer_server.map_dict_to_cli_args')
     def test_start_master(self, mock_map, mock_thread, mock_event):
         mock_event_instance = MagicMock()
         mock_event.return_value = mock_event_instance
@@ -177,10 +177,10 @@ class TestRemoteMPVLLMInferServer:
 
     def setup_method(self):
         """Setup method to import RemoteMPVLLMInferServer before each test."""
-        from aura.aura.runner.infer_service.infer_server.vllm_mp_infer_server import RemoteMPVLLMInferServer
+        from aura.runner.infer_service.infer_server.vllm_mp_infer_server import RemoteMPVLLMInferServer
         self.RemoteMPVLLMInferServer = RemoteMPVLLMInferServer
 
-    @patch('aura.aura.runner.infer_service.infer_server.vllm_mp_infer_server.start_master')
+    @patch('aura.runner.infer_service.infer_server.vllm_mp_infer_server.start_master')
     async def test_init_master(self, mock_master):
         with (
             patch.object(self.RemoteMPVLLMInferServer, "init_environment", new_callable=AsyncMock),
@@ -191,7 +191,7 @@ class TestRemoteMPVLLMInferServer:
 
         mock_master.assert_called_once()
 
-    @patch('aura.aura.runner.infer_service.infer_server.vllm_mp_infer_server.start_slave')
+    @patch('aura.runner.infer_service.infer_server.vllm_mp_infer_server.start_slave')
     async def test_init_slave(self, mock_slave):
         with (
             patch.object(self.RemoteMPVLLMInferServer, "init_environment", new_callable=AsyncMock),
@@ -245,7 +245,7 @@ class TestRemoteMPVLLMInferServer:
         assert ip == "ip"
 
     @patch("socket.socket")
-    @patch("aura.aura.runner.infer_service.infer_server.vllm_mp_infer_server.logger")
+    @patch("aura.runner.infer_service.infer_server.vllm_mp_infer_server.logger")
     async def test_get_local_addr_exception(self, mock_logger, mock_socket):
         mock_socket.side_effect = Exception("Connection failed")
 
@@ -262,7 +262,7 @@ class TestVLLMMPInferServer:
 
     def setup_method(self):
         """Setup method to import VLLMMPInferServer before each test."""
-        from aura.aura.runner.infer_service.infer_server.vllm_mp_infer_server import VLLMMPInferServer
+        from aura.runner.infer_service.infer_server.vllm_mp_infer_server import VLLMMPInferServer
         self.VLLMMPInferServer = VLLMMPInferServer
 
     def _setup_mocks(self, mock_pg, mock_remote, mock_openai, mock_ray_get):
@@ -294,7 +294,7 @@ class TestVLLMMPInferServer:
     @patch("ray.get")
     @patch("ray.util.get_current_placement_group")
     @patch("ray.remote")
-    @patch("aura.aura.runner.infer_service.infer_server.vllm_mp_infer_server.AsyncOpenAI")
+    @patch("aura.runner.infer_service.infer_server.vllm_mp_infer_server.AsyncOpenAI")
     def test_init(self, mock_openai, mock_remote, mock_pg, mock_ray_get):
         client = self._setup_mocks(mock_pg, mock_remote, mock_openai, mock_ray_get)
 
@@ -317,7 +317,7 @@ class TestVLLMMPInferServer:
     @patch("ray.get")
     @patch("ray.util.get_current_placement_group")
     @patch("ray.remote")
-    @patch("aura.aura.runner.infer_service.infer_server.vllm_mp_infer_server.AsyncOpenAI")
+    @patch("aura.runner.infer_service.infer_server.vllm_mp_infer_server.AsyncOpenAI")
     @pytest.mark.asyncio
     async def test_completions(self, mock_openai, mock_remote, mock_pg, mock_ray_get):
         client = self._setup_mocks(mock_pg, mock_remote, mock_openai, mock_ray_get)
@@ -340,7 +340,7 @@ class TestVLLMMPInferServer:
     @patch("ray.get")
     @patch("ray.util.get_current_placement_group")
     @patch("ray.remote")
-    @patch("aura.aura.runner.infer_service.infer_server.vllm_mp_infer_server.AsyncOpenAI")
+    @patch("aura.runner.infer_service.infer_server.vllm_mp_infer_server.AsyncOpenAI")
     @pytest.mark.asyncio
     async def test_completions_with_extra_headers(self, mock_openai, mock_remote, mock_pg, mock_ray_get):
         client = self._setup_mocks(mock_pg, mock_remote, mock_openai, mock_ray_get)
@@ -362,7 +362,7 @@ class TestVLLMMPInferServer:
     @patch("ray.get")
     @patch("ray.util.get_current_placement_group")
     @patch("ray.remote")
-    @patch("aura.aura.runner.infer_service.infer_server.vllm_mp_infer_server.AsyncOpenAI")
+    @patch("aura.runner.infer_service.infer_server.vllm_mp_infer_server.AsyncOpenAI")
     @pytest.mark.asyncio
     async def test_chat_completions(self, mock_openai, mock_remote, mock_pg, mock_ray_get):
         client = self._setup_mocks(mock_pg, mock_remote, mock_openai, mock_ray_get)
@@ -385,7 +385,7 @@ class TestVLLMMPInferServer:
     @patch("ray.get")
     @patch("ray.util.get_current_placement_group")
     @patch("ray.remote")
-    @patch("aura.aura.runner.infer_service.infer_server.vllm_mp_infer_server.AsyncOpenAI")
+    @patch("aura.runner.infer_service.infer_server.vllm_mp_infer_server.AsyncOpenAI")
     @pytest.mark.asyncio
     async def test_chat_completions_with_extra_headers(self, mock_openai, mock_remote, mock_pg, mock_ray_get):
         client = self._setup_mocks(mock_pg, mock_remote, mock_openai, mock_ray_get)
@@ -407,7 +407,7 @@ class TestVLLMMPInferServer:
     @patch("ray.get")
     @patch("ray.util.get_current_placement_group")
     @patch("ray.remote")
-    @patch("aura.aura.runner.infer_service.infer_server.vllm_mp_infer_server.AsyncOpenAI")
+    @patch("aura.runner.infer_service.infer_server.vllm_mp_infer_server.AsyncOpenAI")
     @pytest.mark.asyncio
     async def test_stream(self, mock_openai, mock_remote, mock_pg, mock_ray_get):
         client = self._setup_mocks(mock_pg, mock_remote, mock_openai, mock_ray_get)
@@ -430,8 +430,8 @@ class TestVLLMMPInferServer:
     @patch("ray.get")
     @patch("ray.util.get_current_placement_group")
     @patch("ray.remote")
-    @patch("aura.aura.runner.infer_service.infer_server.vllm_mp_infer_server.AsyncOpenAI")
-    @patch("aura.aura.runner.infer_service.infer_server.vllm_mp_infer_server.requests")
+    @patch("aura.runner.infer_service.infer_server.vllm_mp_infer_server.AsyncOpenAI")
+    @patch("aura.runner.infer_service.infer_server.vllm_mp_infer_server.requests")
     @pytest.mark.asyncio
     async def test_rpc(self, mock_req, mock_openai, mock_remote, mock_pg, mock_ray_get):
         client = self._setup_mocks(mock_pg, mock_remote, mock_openai, mock_ray_get)
@@ -451,8 +451,8 @@ class TestVLLMMPInferServer:
     @patch("ray.get")
     @patch("ray.util.get_current_placement_group")
     @patch("ray.remote")
-    @patch("aura.aura.runner.infer_service.infer_server.vllm_mp_infer_server.AsyncOpenAI")
-    @patch("aura.aura.runner.infer_service.infer_server.vllm_mp_infer_server.requests")
+    @patch("aura.runner.infer_service.infer_server.vllm_mp_infer_server.AsyncOpenAI")
+    @patch("aura.runner.infer_service.infer_server.vllm_mp_infer_server.requests")
     @pytest.mark.asyncio
     async def test_rpc_non_200_status(self, mock_req, mock_openai, mock_remote, mock_pg, mock_ray_get):
         client = self._setup_mocks(mock_pg, mock_remote, mock_openai, mock_ray_get)
@@ -472,8 +472,8 @@ class TestVLLMMPInferServer:
     @patch("ray.get")
     @patch("ray.util.get_current_placement_group")
     @patch("ray.remote")
-    @patch("aura.aura.runner.infer_service.infer_server.vllm_mp_infer_server.AsyncOpenAI")
-    @patch("aura.aura.runner.infer_service.infer_server.vllm_mp_infer_server.requests")
+    @patch("aura.runner.infer_service.infer_server.vllm_mp_infer_server.AsyncOpenAI")
+    @patch("aura.runner.infer_service.infer_server.vllm_mp_infer_server.requests")
     @pytest.mark.asyncio
     async def test_rpc_exception(self, mock_req, mock_openai, mock_remote, mock_pg, mock_ray_get):
         client = self._setup_mocks(mock_pg, mock_remote, mock_openai, mock_ray_get)

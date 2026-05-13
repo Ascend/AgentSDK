@@ -25,8 +25,8 @@ from mindspeed_rl.workers.resharding.memory_buffer import (
     build_experts_memory_buffer, 
     get_weight_buffer_meta_from_buffer
 )
-from aura.aura.base.log.loggers import Loggers
-from aura.aura.runner.infer_adapter.vllm.extension.custom_worker_extensions import broadcast_if_gpu
+from aura.base.log.loggers import Loggers
+from aura.runner.infer_adapter.vllm.extension.custom_worker_extensions import broadcast_if_gpu
 
 logger = Loggers(__name__).get_logger()
 

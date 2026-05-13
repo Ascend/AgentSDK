@@ -36,7 +36,7 @@ from rllm.rewards.code_utils.taco import run_test as taco_run_test
 from rllm.tools.code_tools.code_tool import CodeTool
 from rllm.tools.code_tools.together_tool import TogetherCodeTool
 
-from aura.agents.math_agent.reward.reward_types import RewardConfig, RewardOutput, RewardType
+from agents.math_agent.reward.reward_types import RewardConfig, RewardOutput, RewardType
 
 logger = logging.getLogger(__name__)
 

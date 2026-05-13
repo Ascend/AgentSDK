@@ -22,6 +22,6 @@ import os
 version = os.getenv("VLLM_VERSION")
 
 if version and version in "0.10.2":
-    import aura.aura.runner.infer_adapter.vllm.patch.patch_0_10_2
+    import aura.runner.infer_adapter.vllm.patch.patch_0_10_2
 elif version and version in "0.9.1":
-    import aura.aura.runner.infer_adapter.vllm.patch.patch_0_9_1
+    import aura.runner.infer_adapter.vllm.patch.patch_0_9_1

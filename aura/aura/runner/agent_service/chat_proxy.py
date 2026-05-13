@@ -21,8 +21,8 @@ import copy
 from openai import AsyncOpenAI
 from openai.types import Completion
 
-from aura.aura.base.log.loggers import Loggers
-from aura.aura.runner.infer_router import InferRouter
+from aura.base.log.loggers import Loggers
+from aura.runner.infer_router import InferRouter
 
 logger = Loggers(__name__).get_logger()
 

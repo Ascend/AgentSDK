@@ -36,7 +36,7 @@ class TestJsonEpisodeStore:
 
     def test_initialization(self):
         """Test JsonEpisodeStore initialization."""
-        from aura.aura.memory.episode.backend.json_episode_store import JsonEpisodeStore
+        from aura.memory.episode.backend.json_episode_store import JsonEpisodeStore
         
         store = JsonEpisodeStore(path="/tmp/test.jsonl")
         
@@ -44,7 +44,7 @@ class TestJsonEpisodeStore:
 
     def test_store_episode_simple(self):
         """Test storing a simple episode."""
-        from aura.aura.memory.episode.backend.json_episode_store import JsonEpisodeStore
+        from aura.memory.episode.backend.json_episode_store import JsonEpisodeStore
         
         with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.jsonl') as f:
             temp_path = f.name
@@ -73,7 +73,7 @@ class TestJsonEpisodeStore:
 
     def test_store_episode_with_trajectories(self):
         """Test storing an episode with trajectories."""
-        from aura.aura.memory.episode.backend.json_episode_store import JsonEpisodeStore
+        from aura.memory.episode.backend.json_episode_store import JsonEpisodeStore
         
         with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.jsonl') as f:
             temp_path = f.name
@@ -105,7 +105,7 @@ class TestJsonEpisodeStore:
 
     def test_store_episode_with_nested_data(self):
         """Test storing an episode with nested data structures."""
-        from aura.aura.memory.episode.backend.json_episode_store import JsonEpisodeStore
+        from aura.memory.episode.backend.json_episode_store import JsonEpisodeStore
         
         with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.jsonl') as f:
             temp_path = f.name
@@ -146,7 +146,7 @@ class TestJsonEpisodeStore:
 
     def test_store_multiple_episodes(self):
         """Test storing multiple episodes to the same file."""
-        from aura.aura.memory.episode.backend.json_episode_store import JsonEpisodeStore
+        from aura.memory.episode.backend.json_episode_store import JsonEpisodeStore
         
         with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.jsonl') as f:
             temp_path = f.name
@@ -176,7 +176,7 @@ class TestJsonEpisodeStore:
 
     def test_store_episode_with_permission_error_retry(self):
         """Test that store_episode retries on PermissionError."""
-        from aura.aura.memory.episode.backend.json_episode_store import JsonEpisodeStore
+        from aura.memory.episode.backend.json_episode_store import JsonEpisodeStore
         
         with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.jsonl') as f:
             temp_path = f.name
@@ -211,7 +211,7 @@ class TestJsonEpisodeStore:
 
     def test_convert_to_string_with_list(self):
         """Test convert_to_string function with list."""
-        from aura.aura.memory.episode.backend.json_episode_store import JsonEpisodeStore
+        from aura.memory.episode.backend.json_episode_store import JsonEpisodeStore
         
         store = JsonEpisodeStore(path="/tmp/test.jsonl")
         
@@ -231,7 +231,7 @@ class TestJsonEpisodeStore:
 
     def test_convert_to_string_with_dict(self):
         """Test convert_to_string function with dict."""
-        from aura.aura.memory.episode.backend.json_episode_store import JsonEpisodeStore
+        from aura.memory.episode.backend.json_episode_store import JsonEpisodeStore
         
         store = JsonEpisodeStore(path="/tmp/test.jsonl")
         
@@ -261,7 +261,7 @@ class TestJsonEpisodeStore:
 
     def test_convert_to_string_nested(self):
         """Test convert_to_string function with nested structures."""
-        from aura.aura.memory.episode.backend.json_episode_store import JsonEpisodeStore
+        from aura.memory.episode.backend.json_episode_store import JsonEpisodeStore
         
         test_nested = {
             "list": [1, 2, {"nested": "value"}],
@@ -284,7 +284,7 @@ class TestJsonEpisodeStore:
 
     def test_get_episodes_not_implemented(self):
         """Test that get_episodes is not implemented."""
-        from aura.aura.memory.episode.backend.json_episode_store import JsonEpisodeStore
+        from aura.memory.episode.backend.json_episode_store import JsonEpisodeStore
         
         store = JsonEpisodeStore(path="/tmp/test.jsonl")
         
@@ -294,7 +294,7 @@ class TestJsonEpisodeStore:
 
     def test_store_episode_with_special_characters(self):
         """Test storing an episode with special characters."""
-        from aura.aura.memory.episode.backend.json_episode_store import JsonEpisodeStore
+        from aura.memory.episode.backend.json_episode_store import JsonEpisodeStore
         
         with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.jsonl') as f:
             temp_path = f.name
@@ -322,7 +322,7 @@ class TestJsonEpisodeStore:
 
     def test_store_episode_empty_trajectories(self):
         """Test storing an episode with empty trajectories."""
-        from aura.aura.memory.episode.backend.json_episode_store import JsonEpisodeStore
+        from aura.memory.episode.backend.json_episode_store import JsonEpisodeStore
         
         with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.jsonl') as f:
             temp_path = f.name

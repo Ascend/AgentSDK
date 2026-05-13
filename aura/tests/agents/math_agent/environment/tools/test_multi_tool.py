@@ -30,7 +30,7 @@ class TestMultiTool:
 
     def test_init_with_tools_list(self, mock_dependencies):
         """Test MultiTool initialization with tools list."""
-        from aura.agents.math_agent.environment.tools.multi_tool import MultiTool
+        from agents.math_agent.environment.tools.multi_tool import MultiTool
         
         tool = MultiTool(tools=["python"])
         
@@ -38,7 +38,7 @@ class TestMultiTool:
 
     def test_init_with_tool_map(self, mock_dependencies):
         """Test MultiTool initialization with tool_map."""
-        from aura.agents.math_agent.environment.tools.multi_tool import MultiTool
+        from agents.math_agent.environment.tools.multi_tool import MultiTool
         
         mock_tool_class = MagicMock()
         mock_tool_instance = MagicMock()
@@ -52,7 +52,7 @@ class TestMultiTool:
 
     def test_init_raises_error_when_both_params_provided(self, mock_dependencies):
         """Test MultiTool raises error when both tools and tool_map provided."""
-        from aura.agents.math_agent.environment.tools.multi_tool import MultiTool
+        from agents.math_agent.environment.tools.multi_tool import MultiTool
         
         mock_tool_class = MagicMock()
         
@@ -61,7 +61,7 @@ class TestMultiTool:
 
     def test_init_with_empty_params(self, mock_dependencies):
         """Test MultiTool initialization with no params."""
-        from aura.agents.math_agent.environment.tools.multi_tool import MultiTool
+        from agents.math_agent.environment.tools.multi_tool import MultiTool
         
         tool = MultiTool()
         
@@ -70,7 +70,7 @@ class TestMultiTool:
 
     def test_json_property(self, mock_dependencies):
         """Test MultiTool json property."""
-        from aura.agents.math_agent.environment.tools.multi_tool import MultiTool
+        from agents.math_agent.environment.tools.multi_tool import MultiTool
         
         mock_tool_class = MagicMock()
         mock_tool_instance = MagicMock()
@@ -86,7 +86,7 @@ class TestMultiTool:
 
     def test_json_property_empty(self, mock_dependencies):
         """Test MultiTool json property with no tools."""
-        from aura.agents.math_agent.environment.tools.multi_tool import MultiTool
+        from agents.math_agent.environment.tools.multi_tool import MultiTool
         
         tool = MultiTool()
         result = tool.json
@@ -95,7 +95,7 @@ class TestMultiTool:
 
     def test_forward_existing_tool(self, mock_dependencies):
         """Test MultiTool forward with existing tool."""
-        from aura.agents.math_agent.environment.tools.multi_tool import MultiTool
+        from agents.math_agent.environment.tools.multi_tool import MultiTool
         
         mock_tool_instance = MagicMock()
         mock_tool_instance.return_value = MagicMock(output="result", to_string=lambda: "result")
@@ -108,7 +108,7 @@ class TestMultiTool:
 
     def test_forward_nonexistent_tool(self, mock_dependencies):
         """Test MultiTool forward with nonexistent tool."""
-        from aura.agents.math_agent.environment.tools.multi_tool import MultiTool
+        from agents.math_agent.environment.tools.multi_tool import MultiTool
         
         mock_tool_class = MagicMock()
         mock_tool_instance = MagicMock()
@@ -122,7 +122,7 @@ class TestMultiTool:
 
     def test_init_with_registry_tools(self, mock_dependencies):
         """Test MultiTool initialization with tools from registry."""
-        from aura.agents.math_agent.environment.tools.multi_tool import MultiTool
+        from agents.math_agent.environment.tools.multi_tool import MultiTool
         
         tool = MultiTool(tools=["python"])
         
@@ -130,7 +130,7 @@ class TestMultiTool:
 
     def test_tool_map_instantiation(self, mock_dependencies):
         """Test that tool_map tools are instantiated correctly."""
-        from aura.agents.math_agent.environment.tools.multi_tool import MultiTool
+        from agents.math_agent.environment.tools.multi_tool import MultiTool
         
         mock_tool_class = MagicMock()
         mock_tool_instance = MagicMock()

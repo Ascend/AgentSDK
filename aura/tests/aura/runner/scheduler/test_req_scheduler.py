@@ -56,12 +56,12 @@ def mock_dependencies(monkeypatch):
     mock_workload.WorkLoadManger = create_mock_workload_manager()
     mock_workload.start_workload_update = MagicMock(return_value=MagicMock())
 
-    monkeypatch.setitem(sys.modules, "aura.aura.controllers.utils.utils", mock_utils)
-    monkeypatch.setitem(sys.modules, "aura.aura.runner.scheduler.workload", mock_workload)
+    monkeypatch.setitem(sys.modules, "aura.controllers.utils.utils", mock_utils)
+    monkeypatch.setitem(sys.modules, "aura.runner.scheduler.workload", mock_workload)
 
-    monkeypatch.delitem(sys.modules, "aura.aura.runner.scheduler.req_scheduler", raising=False)
+    monkeypatch.delitem(sys.modules, "aura.runner.scheduler.req_scheduler", raising=False)
 
-    with patch("aura.aura.runner.scheduler.req_scheduler.logger") as mock_logger:
+    with patch("aura.runner.scheduler.req_scheduler.logger") as mock_logger:
         yield {
             "logger": mock_logger,
             "utils": mock_utils,
@@ -74,7 +74,7 @@ class TestSchedulerBase:
 
     def setup_method(self):
         """Setup method to import scheduler classes before each test."""
-        from aura.aura.runner.scheduler.req_scheduler import (
+        from aura.runner.scheduler.req_scheduler import (
             SchedulerBase, SimpleTrajScheduler, LBStepScheduler,
             LBTrajScheduler, SchedulerFactory
         )
@@ -281,7 +281,7 @@ class TestSimpleTrajScheduler:
 
     def setup_method(self):
         """Setup method to import scheduler classes before each test."""
-        from aura.aura.runner.scheduler.req_scheduler import SimpleTrajScheduler
+        from aura.runner.scheduler.req_scheduler import SimpleTrajScheduler
         self.SimpleTrajScheduler = SimpleTrajScheduler
 
     @pytest.fixture
@@ -365,7 +365,7 @@ class TestLBStepScheduler:
 
     def setup_method(self):
         """Setup method to import scheduler classes before each test."""
-        from aura.aura.runner.scheduler.req_scheduler import LBStepScheduler
+        from aura.runner.scheduler.req_scheduler import LBStepScheduler
         self.LBStepScheduler = LBStepScheduler
 
     @pytest.fixture
@@ -433,7 +433,7 @@ class TestLBTrajScheduler:
 
     def setup_method(self):
         """Setup method to import scheduler classes before each test."""
-        from aura.aura.runner.scheduler.req_scheduler import LBTrajScheduler
+        from aura.runner.scheduler.req_scheduler import LBTrajScheduler
         self.LBTrajScheduler = LBTrajScheduler
 
     @pytest.fixture
@@ -574,7 +574,7 @@ class TestSchedulerFactory:
 
     def setup_method(self):
         """Setup method to import scheduler classes before each test."""
-        from aura.aura.runner.scheduler.req_scheduler import (
+        from aura.runner.scheduler.req_scheduler import (
             SchedulerFactory, SimpleTrajScheduler, LBStepScheduler, LBTrajScheduler
         )
         self.SchedulerFactory = SchedulerFactory

@@ -93,16 +93,16 @@ with patch.dict('sys.modules', {
     'socket': mock_socket,
     'os': MagicMock(getpid=mock_os_pid, path=os.path),
     # Mock aura submodules
-    'aura.aura.trainer.train_adapter.verl.full_async.workers.fsdp_workers': mock_fsdp_workers,
-    'aura.aura.trainer.train_adapter.verl.full_async.workers.megatron_worker': mock_megatron_worker,
-    'aura.aura.trainer.train_adapter.verl.full_async.full_async_trainer': mock_full_async_trainer,
-    'aura.aura.trainer.train_adapter.verl.full_async.param_sync': mock_param_sync,
-    'aura.aura.controllers.train_controller.train_controller': mock_train_controller,
-    'aura.aura.data_manager.data_manager': mock_data_manager,
-    'aura.aura.trainer.train_adapter.mindspeed_rl.utils.default_train_dataloader': mock_default_train_dataloader
+    'aura.trainer.train_adapter.verl.full_async.workers.fsdp_workers': mock_fsdp_workers,
+    'aura.trainer.train_adapter.verl.full_async.workers.megatron_worker': mock_megatron_worker,
+    'aura.trainer.train_adapter.verl.full_async.full_async_trainer': mock_full_async_trainer,
+    'aura.trainer.train_adapter.verl.full_async.param_sync': mock_param_sync,
+    'aura.controllers.train_controller.train_controller': mock_train_controller,
+    'aura.data_manager.data_manager': mock_data_manager,
+    'aura.trainer.train_adapter.mindspeed_rl.utils.default_train_dataloader': mock_default_train_dataloader
 }):
     # Now we can safely import the classes and functions under test
-    from aura.aura.trainer.train_adapter.verl.full_async.train_main import FullyAsyncTaskRunner, start_train
+    from aura.trainer.train_adapter.verl.full_async.train_main import FullyAsyncTaskRunner, start_train
 
 class TestFullyAsyncTaskRunner(unittest.TestCase):
     def setUp(self):
@@ -159,12 +159,12 @@ class TestFullyAsyncTaskRunner(unittest.TestCase):
         with patch.dict('sys.modules', {
             'verl': mock_verl,
             'verl.utils': mock_verl.utils,
-            'aura.aura.trainer.train_adapter.verl.full_async.workers.fsdp_workers': mock_fsdp_workers,
-            'aura.aura.trainer.train_adapter.verl.full_async.full_async_trainer': mock_full_async_trainer,
-            'aura.aura.trainer.train_adapter.verl.full_async.param_sync': mock_param_sync,
-            'aura.aura.controllers.train_controller.train_controller': mock_train_controller,
-            'aura.aura.data_manager.data_manager': mock_data_manager,
-            'aura.aura.trainer.train_adapter.mindspeed_rl.utils.default_train_dataloader': mock_default_train_dataloader
+            'aura.trainer.train_adapter.verl.full_async.workers.fsdp_workers': mock_fsdp_workers,
+            'aura.trainer.train_adapter.verl.full_async.full_async_trainer': mock_full_async_trainer,
+            'aura.trainer.train_adapter.verl.full_async.param_sync': mock_param_sync,
+            'aura.controllers.train_controller.train_controller': mock_train_controller,
+            'aura.data_manager.data_manager': mock_data_manager,
+            'aura.trainer.train_adapter.mindspeed_rl.utils.default_train_dataloader': mock_default_train_dataloader
         }):
             # Call _initialize_components method
             self.task_runner._initialize_components(self.mock_config)
@@ -215,12 +215,12 @@ class TestFullyAsyncTaskRunner(unittest.TestCase):
         with patch.dict('sys.modules', {
             'verl': mock_verl,
             'verl.utils': mock_verl.utils,
-            'aura.aura.trainer.train_adapter.verl.full_async.workers.megatron_worker': mock_megatron_worker,
-            'aura.aura.trainer.train_adapter.verl.full_async.full_async_trainer': mock_full_async_trainer,
-            'aura.aura.trainer.train_adapter.verl.full_async.param_sync': mock_param_sync,
-            'aura.aura.controllers.train_controller.train_controller': mock_train_controller,
-            'aura.aura.data_manager.data_manager': mock_data_manager,
-            'aura.aura.trainer.train_adapter.mindspeed_rl.utils.default_train_dataloader': mock_default_train_dataloader
+            'aura.trainer.train_adapter.verl.full_async.workers.megatron_worker': mock_megatron_worker,
+            'aura.trainer.train_adapter.verl.full_async.full_async_trainer': mock_full_async_trainer,
+            'aura.trainer.train_adapter.verl.full_async.param_sync': mock_param_sync,
+            'aura.controllers.train_controller.train_controller': mock_train_controller,
+            'aura.data_manager.data_manager': mock_data_manager,
+            'aura.trainer.train_adapter.mindspeed_rl.utils.default_train_dataloader': mock_default_train_dataloader
         }):
             # Call _initialize_components method
             self.task_runner._initialize_components(self.mock_config)

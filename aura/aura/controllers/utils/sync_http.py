@@ -22,8 +22,8 @@ import time
 
 import requests
 
-from aura.aura.base.log.loggers import Loggers
-from aura.aura.controllers.utils.utils import MIN_RETRY_COUNT, DEFAULT_BACKOFF_FACTOR
+from aura.base.log.loggers import Loggers
+from aura.controllers.utils.utils import MIN_RETRY_COUNT, DEFAULT_BACKOFF_FACTOR
 
 logger = Loggers(__name__).get_logger()
 

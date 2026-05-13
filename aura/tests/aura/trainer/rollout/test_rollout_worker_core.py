@@ -72,7 +72,7 @@ class TestRolloutWorkerUtils(unittest.TestCase):
         # Import test objects
         global get_least_common_multiple, generate_dummy_trajectory, parse_messages
         global _stat_rollout_metrics, clean_traj_groups, get_all_prompt_ids, RolloutWorker
-        from aura.aura.trainer.rollout.rollout_worker import (
+        from aura.trainer.rollout.rollout_worker import (
             get_least_common_multiple,
             generate_dummy_trajectory,
             parse_messages,
@@ -115,16 +115,16 @@ class TestRolloutWorkerCore(TestRolloutWorkerUtils):
         super().setUp()
         
         # Use patch to mock external dependencies
-        self.patcher_tokenizer = patch('aura.aura.trainer.rollout.rollout_worker.AutoTokenizer')
-        self.patcher_data_manager = patch('aura.aura.trainer.rollout.rollout_worker.DataManager')
-        self.patcher_os = patch('aura.aura.trainer.rollout.rollout_worker.os')
-        self.patcher_time = patch('aura.aura.trainer.rollout.rollout_worker.time')
-        self.patcher_async_server_proxy_manager = patch('aura.aura.trainer.rollout.rollout_worker.AsyncServerProxyManager')
-        self.patcher_async_server_manager = patch('aura.aura.trainer.rollout.rollout_worker.AsyncServerManager')
-        self.patcher_agent_router = patch('aura.aura.trainer.rollout.rollout_worker.AgentRouter')
-        self.patcher_get_rollout_queue_actor = patch('aura.aura.trainer.rollout.rollout_worker.get_rollout_queue_actor')
-        self.patcher_gc = patch('aura.aura.trainer.rollout.rollout_worker.gc')
-        self.patcher_torch = patch('aura.aura.trainer.rollout.rollout_worker.torch')
+        self.patcher_tokenizer = patch('aura.trainer.rollout.rollout_worker.AutoTokenizer')
+        self.patcher_data_manager = patch('aura.trainer.rollout.rollout_worker.DataManager')
+        self.patcher_os = patch('aura.trainer.rollout.rollout_worker.os')
+        self.patcher_time = patch('aura.trainer.rollout.rollout_worker.time')
+        self.patcher_async_server_proxy_manager = patch('aura.trainer.rollout.rollout_worker.AsyncServerProxyManager')
+        self.patcher_async_server_manager = patch('aura.trainer.rollout.rollout_worker.AsyncServerManager')
+        self.patcher_agent_router = patch('aura.trainer.rollout.rollout_worker.AgentRouter')
+        self.patcher_get_rollout_queue_actor = patch('aura.trainer.rollout.rollout_worker.get_rollout_queue_actor')
+        self.patcher_gc = patch('aura.trainer.rollout.rollout_worker.gc')
+        self.patcher_torch = patch('aura.trainer.rollout.rollout_worker.torch')
 
         # Start patches to mock external dependencies
         self.mock_tokenizer = self.patcher_tokenizer.start()
@@ -480,7 +480,7 @@ class TestRolloutWorkerCore(TestRolloutWorkerUtils):
         self.rollout_worker.get_train_batch_traj = MagicMock(return_value=[1, 2, 3, 4, 5, 6, 7, 8])
 
         # Mock clean_traj_groups function
-        with patch('aura.aura.trainer.rollout.rollout_worker.clean_traj_groups') as mock_clean_traj_groups:
+        with patch('aura.trainer.rollout.rollout_worker.clean_traj_groups') as mock_clean_traj_groups:
             # Mock handle_full_batch_trajectories method
             self.rollout_worker.handle_full_batch_trajectories = MagicMock()
 
@@ -532,7 +532,7 @@ class TestRolloutWorkerCore(TestRolloutWorkerUtils):
         self.rollout_worker.trajectories_collect_done = MagicMock(return_value=True)
 
         # Mock clean_traj_groups function
-        with patch('aura.aura.trainer.rollout.rollout_worker.clean_traj_groups') as mock_clean_traj_groups:
+        with patch('aura.trainer.rollout.rollout_worker.clean_traj_groups') as mock_clean_traj_groups:
             # Mock handle_full_batch_trajectories method
             self.rollout_worker.handle_full_batch_trajectories = MagicMock()
 
@@ -591,7 +591,7 @@ class TestRolloutWorkerCore(TestRolloutWorkerUtils):
         prefix = "test"
 
         # Mock os.path.join
-        with patch('aura.aura.trainer.rollout.rollout_worker.os.path.join') as mock_join:
+        with patch('aura.trainer.rollout.rollout_worker.os.path.join') as mock_join:
             mock_join.return_value = "/path/to/output/rollout_test_20230101_000000.json"
 
             # Mock open function
@@ -657,7 +657,7 @@ class TestRolloutWorkerCore(TestRolloutWorkerUtils):
         self.rollout_worker.write_file = MagicMock()
 
         # Mock parse_messages function
-        with patch('aura.aura.trainer.rollout.rollout_worker.parse_messages', return_value=[{"role": "user", "content": "test"}]):
+        with patch('aura.trainer.rollout.rollout_worker.parse_messages', return_value=[{"role": "user", "content": "test"}]):
             # Call the method
             asyncio.run(self.rollout_worker.generate_validation(batch, index))
 

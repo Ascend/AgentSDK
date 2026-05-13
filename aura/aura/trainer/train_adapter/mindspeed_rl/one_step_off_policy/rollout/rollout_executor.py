@@ -22,13 +22,13 @@ import ray
 from mindspeed_rl.trainer.utils.transfer_dock import put_prompts_experience
 from mindspeed_rl.utils.pad_process import padding_dict_to_tensor_dict
 
-from aura.aura.base.log.loggers import Loggers
-from aura.aura.controllers.rollout_controller.rollout_queue import get_rollout_queue_actor
-from aura.aura.controllers.utils.utils import MIN_SLEEP_TIME
-from aura.aura.trainer.rollout.rollout_dataset import (
+from aura.base.log.loggers import Loggers
+from aura.controllers.rollout_controller.rollout_queue import get_rollout_queue_actor
+from aura.controllers.utils.utils import MIN_SLEEP_TIME
+from aura.trainer.rollout.rollout_dataset import (
     optimized_preprocess_input, optimized_put_prompt_experience
 )
-from aura.aura.trainer.train_adapter.mindspeed_rl.utils.trainer_utils import CommonGRPOTrainer
+from aura.trainer.train_adapter.mindspeed_rl.utils.trainer_utils import CommonGRPOTrainer
 
 logger = Loggers(__name__).get_logger()
 

@@ -61,23 +61,23 @@ with patch.dict(sys.modules, {
     'numpy': mock_np,
     'verl': mock_verl,
     'requests': mock_requests,
-    'aura.aura.base.log.loggers': mock_loggers_module,
-    'aura.aura.base.utils.utils': mock_base_utils_module,
-    'aura.aura.controllers.rollout_controller.rollout_queue': mock_rollout_queue_module,
-    'aura.aura.controllers.rollout_controller.rollout_client': mock_rollout_client_module,
-    'aura.aura.controllers.utils.controller_config': mock_controller_config_module,
-    'aura.aura.controllers.utils.http_status': mock_http_status_module,
-    'aura.aura.controllers.utils.utils': mock_controller_utils_module,
-    'aura.aura.data_manager.data_transform': mock_data_transform_module,
+    'aura.base.log.loggers': mock_loggers_module,
+    'aura.base.utils.utils': mock_base_utils_module,
+    'aura.controllers.rollout_controller.rollout_queue': mock_rollout_queue_module,
+    'aura.controllers.rollout_controller.rollout_client': mock_rollout_client_module,
+    'aura.controllers.utils.controller_config': mock_controller_config_module,
+    'aura.controllers.utils.http_status': mock_http_status_module,
+    'aura.controllers.utils.utils': mock_controller_utils_module,
+    'aura.data_manager.data_transform': mock_data_transform_module,
 }):
-    from aura.aura.data_manager.data_registry import (
+    from aura.data_manager.data_registry import (
         DataManagerRegistry,
         registry,
         data_manager_class,
     )
-    from aura.aura.data_manager.infer_data import InferDataManager
-    from aura.aura.data_manager.mindspeed_rl_data import MindSpeedRLDataManager
-    from aura.aura.data_manager.verl_data import VerlDataManager
+    from aura.data_manager.infer_data import InferDataManager
+    from aura.data_manager.mindspeed_rl_data import MindSpeedRLDataManager
+    from aura.data_manager.verl_data import VerlDataManager
 
 
 class TestDataManagerRegistry(unittest.TestCase):

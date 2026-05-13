@@ -20,7 +20,7 @@
 from abc import ABC, abstractmethod
 from typing import Optional
 
-from aura.aura.memory.episode.episode import Episode
+from aura.memory.episode.episode import Episode
 
 
 class EpisodeStore(ABC):

@@ -110,7 +110,7 @@ class TestPatchScheduler(unittest.TestCase):
             'vllm.v1.request': mock_vllm_request,
             'vllm.v1.structured_output': mock_vllm_structured_output,
             'vllm.v1.core.sched.scheduler': mock_vllm_core_sched_scheduler,
-            'aura.aura.runner.infer_adapter.vllm.patch.comm.scheduler_stat': cls.mock_scheduler_stat,
+            'aura.runner.infer_adapter.vllm.patch.comm.scheduler_stat': cls.mock_scheduler_stat,
             'vllm_ascend': MagicMock(),
             'vllm_ascend.patch': MagicMock(),
             'vllm_ascend.patch.platform': MagicMock(),

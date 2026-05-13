@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 
-from aura.aura.runner.agent_engine_wrapper.base.agent.base_agent import (
+from aura.runner.agent_engine_wrapper.base.agent.base_agent import (
     Action,
     BaseAgent,
     Step,

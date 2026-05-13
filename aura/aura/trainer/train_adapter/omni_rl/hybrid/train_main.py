@@ -25,7 +25,7 @@ import socket
 import ray
 from omni_rl.train.training_adapter import pgrl
 
-from aura.aura.trainer.train_adapter.omni_rl.hybrid.ray_trainer import HybridTrainer
+from aura.trainer.train_adapter.omni_rl.hybrid.ray_trainer import HybridTrainer
 from omni_rl.rl.pangu_adapt import Role
 from omni_rl.rl.timely_agent.common.logging import ManageLogger
 from verl.trainer.main_ppo import TaskRunner, create_rl_dataset, create_rl_sampler

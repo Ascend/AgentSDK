@@ -18,8 +18,8 @@
 # -------------------------------------------------------------------------
 
 
-from aura.aura.trainer.train_adapter.mindspeed_rl.config_cls.agentic_env import AgenticEnvConfig
-from aura.aura.trainer.train_adapter.mindspeed_rl.config_cls.extend_generate import ExtendedGenerateConfig
-from aura.aura.trainer.train_adapter.mindspeed_rl.config_cls.extend_rl_config import ExtendedRLConfig
+from aura.trainer.train_adapter.mindspeed_rl.config_cls.agentic_env import AgenticEnvConfig
+from aura.trainer.train_adapter.mindspeed_rl.config_cls.extend_generate import ExtendedGenerateConfig
+from aura.trainer.train_adapter.mindspeed_rl.config_cls.extend_rl_config import ExtendedRLConfig
 
 __all__ = ["AgenticEnvConfig", "ExtendedGenerateConfig", "ExtendedRLConfig"]

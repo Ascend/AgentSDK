@@ -52,22 +52,22 @@ mock_ray.available_resources = MagicMock(return_value={"CPU": 8})
 
 sys.modules['ray'] = mock_ray
 
-from aura.aura.controllers.rollout_controller.rollout_client import (
+from aura.controllers.rollout_controller.rollout_client import (
     send_ready_to_train_remote,
     send_outputs_to_train_server_remote,
     RolloutClient,
 )
-from aura.aura.controllers.utils.http_status import HTTP_OK_200
-from aura.aura.controllers.utils.utils import DEFAULT_SLEEP_TIME, READ_TIMEOUT, DEFAULT_URL_METHOD
+from aura.controllers.utils.http_status import HTTP_OK_200
+from aura.controllers.utils.utils import DEFAULT_SLEEP_TIME, READ_TIMEOUT, DEFAULT_URL_METHOD
 
 
 class TestSendReadyToTrainRemote:
     """Test cases for send_ready_to_train_remote function."""
 
-    @patch('aura.aura.controllers.rollout_controller.rollout_client.time.sleep')
-    @patch('aura.aura.controllers.rollout_controller.rollout_client.requests.post')
-    @patch('aura.aura.controllers.rollout_controller.rollout_client.get_rollout_queue_actor')
-    @patch('aura.aura.controllers.rollout_controller.rollout_client.ray.get')
+    @patch('aura.controllers.rollout_controller.rollout_client.time.sleep')
+    @patch('aura.controllers.rollout_controller.rollout_client.requests.post')
+    @patch('aura.controllers.rollout_controller.rollout_client.get_rollout_queue_actor')
+    @patch('aura.controllers.rollout_controller.rollout_client.ray.get')
     def test_send_ready_success_first_attempt(self, mock_ray_get, mock_get_actor, mock_post, mock_sleep):
         """Test successful send on first attempt."""
         mock_actor = MagicMock()
@@ -83,10 +83,10 @@ class TestSendReadyToTrainRemote:
         mock_post.assert_called_once_with(f"{DEFAULT_URL_METHOD}://localhost:8080/train/is_ready")
         mock_sleep.assert_not_called()
 
-    @patch('aura.aura.controllers.rollout_controller.rollout_client.time.sleep')
-    @patch('aura.aura.controllers.rollout_controller.rollout_client.requests.post')
-    @patch('aura.aura.controllers.rollout_controller.rollout_client.get_rollout_queue_actor')
-    @patch('aura.aura.controllers.rollout_controller.rollout_client.ray.get')
+    @patch('aura.controllers.rollout_controller.rollout_client.time.sleep')
+    @patch('aura.controllers.rollout_controller.rollout_client.requests.post')
+    @patch('aura.controllers.rollout_controller.rollout_client.get_rollout_queue_actor')
+    @patch('aura.controllers.rollout_controller.rollout_client.ray.get')
     def test_send_ready_retry_on_failure(self, mock_ray_get, mock_get_actor, mock_post, mock_sleep):
         """Test retry on non-200 status code."""
         mock_actor = MagicMock()
@@ -104,10 +104,10 @@ class TestSendReadyToTrainRemote:
         assert mock_post.call_count == 2
         mock_sleep.assert_called_with(DEFAULT_SLEEP_TIME)
 
-    @patch('aura.aura.controllers.rollout_controller.rollout_client.time.sleep')
-    @patch('aura.aura.controllers.rollout_controller.rollout_client.requests.post')
-    @patch('aura.aura.controllers.rollout_controller.rollout_client.get_rollout_queue_actor')
-    @patch('aura.aura.controllers.rollout_controller.rollout_client.ray.get')
+    @patch('aura.controllers.rollout_controller.rollout_client.time.sleep')
+    @patch('aura.controllers.rollout_controller.rollout_client.requests.post')
+    @patch('aura.controllers.rollout_controller.rollout_client.get_rollout_queue_actor')
+    @patch('aura.controllers.rollout_controller.rollout_client.ray.get')
     def test_send_ready_retry_on_exception(self, mock_ray_get, mock_get_actor, mock_post, mock_sleep):
         """Test retry on request exception."""
         mock_actor = MagicMock()
@@ -123,10 +123,10 @@ class TestSendReadyToTrainRemote:
         assert mock_post.call_count == 2
         mock_sleep.assert_called_with(DEFAULT_SLEEP_TIME)
 
-    @patch('aura.aura.controllers.rollout_controller.rollout_client.time.sleep')
-    @patch('aura.aura.controllers.rollout_controller.rollout_client.requests.post')
-    @patch('aura.aura.controllers.rollout_controller.rollout_client.get_rollout_queue_actor')
-    @patch('aura.aura.controllers.rollout_controller.rollout_client.ray.get')
+    @patch('aura.controllers.rollout_controller.rollout_client.time.sleep')
+    @patch('aura.controllers.rollout_controller.rollout_client.requests.post')
+    @patch('aura.controllers.rollout_controller.rollout_client.get_rollout_queue_actor')
+    @patch('aura.controllers.rollout_controller.rollout_client.ray.get')
     def test_send_ready_stops_on_shutdown(self, mock_ray_get, mock_get_actor, mock_post, mock_sleep):
         """Test that loop stops when shutdown is signaled."""
         mock_actor = MagicMock()
@@ -146,11 +146,11 @@ class TestSendReadyToTrainRemote:
 class TestSendOutputsToTrainServerRemote:
     """Test cases for send_outputs_to_train_server_remote function."""
 
-    @patch('aura.aura.controllers.rollout_controller.rollout_client.time.sleep')
-    @patch('aura.aura.controllers.rollout_controller.rollout_client.torch.save')
-    @patch('aura.aura.controllers.rollout_controller.rollout_client.requests.post')
-    @patch('aura.aura.controllers.rollout_controller.rollout_client.get_rollout_queue_actor')
-    @patch('aura.aura.controllers.rollout_controller.rollout_client.ray.get')
+    @patch('aura.controllers.rollout_controller.rollout_client.time.sleep')
+    @patch('aura.controllers.rollout_controller.rollout_client.torch.save')
+    @patch('aura.controllers.rollout_controller.rollout_client.requests.post')
+    @patch('aura.controllers.rollout_controller.rollout_client.get_rollout_queue_actor')
+    @patch('aura.controllers.rollout_controller.rollout_client.ray.get')
     def test_send_outputs_success(self, mock_ray_get, mock_get_actor, mock_post, mock_torch_save, mock_sleep):
         """Test successful send outputs."""
         mock_actor = MagicMock()
@@ -171,11 +171,11 @@ class TestSendOutputsToTrainServerRemote:
         mock_post.assert_called_once()
         mock_sleep.assert_not_called()
 
-    @patch('aura.aura.controllers.rollout_controller.rollout_client.time.sleep')
-    @patch('aura.aura.controllers.rollout_controller.rollout_client.torch.save')
-    @patch('aura.aura.controllers.rollout_controller.rollout_client.requests.post')
-    @patch('aura.aura.controllers.rollout_controller.rollout_client.get_rollout_queue_actor')
-    @patch('aura.aura.controllers.rollout_controller.rollout_client.ray.get')
+    @patch('aura.controllers.rollout_controller.rollout_client.time.sleep')
+    @patch('aura.controllers.rollout_controller.rollout_client.torch.save')
+    @patch('aura.controllers.rollout_controller.rollout_client.requests.post')
+    @patch('aura.controllers.rollout_controller.rollout_client.get_rollout_queue_actor')
+    @patch('aura.controllers.rollout_controller.rollout_client.ray.get')
     def test_send_outputs_retry_on_non_200(self, mock_ray_get, mock_get_actor, mock_post, mock_torch_save, mock_sleep):
         """Test retry on non-200 status code."""
         mock_actor = MagicMock()
@@ -198,11 +198,11 @@ class TestSendOutputsToTrainServerRemote:
         assert mock_post.call_count == 2
         mock_sleep.assert_called_with(DEFAULT_SLEEP_TIME)
 
-    @patch('aura.aura.controllers.rollout_controller.rollout_client.time.sleep')
-    @patch('aura.aura.controllers.rollout_controller.rollout_client.torch.save')
-    @patch('aura.aura.controllers.rollout_controller.rollout_client.requests.post')
-    @patch('aura.aura.controllers.rollout_controller.rollout_client.get_rollout_queue_actor')
-    @patch('aura.aura.controllers.rollout_controller.rollout_client.ray.get')
+    @patch('aura.controllers.rollout_controller.rollout_client.time.sleep')
+    @patch('aura.controllers.rollout_controller.rollout_client.torch.save')
+    @patch('aura.controllers.rollout_controller.rollout_client.requests.post')
+    @patch('aura.controllers.rollout_controller.rollout_client.get_rollout_queue_actor')
+    @patch('aura.controllers.rollout_controller.rollout_client.ray.get')
     def test_send_outputs_retry_on_request_exception(self, mock_ray_get, mock_get_actor, mock_post, mock_torch_save, mock_sleep):
         """Test retry on RequestException."""
         mock_actor = MagicMock()
@@ -222,11 +222,11 @@ class TestSendOutputsToTrainServerRemote:
         assert result == {"status": "ok"}
         assert mock_post.call_count == 2
 
-    @patch('aura.aura.controllers.rollout_controller.rollout_client.time.sleep')
-    @patch('aura.aura.controllers.rollout_controller.rollout_client.torch.save')
-    @patch('aura.aura.controllers.rollout_controller.rollout_client.requests.post')
-    @patch('aura.aura.controllers.rollout_controller.rollout_client.get_rollout_queue_actor')
-    @patch('aura.aura.controllers.rollout_controller.rollout_client.ray.get')
+    @patch('aura.controllers.rollout_controller.rollout_client.time.sleep')
+    @patch('aura.controllers.rollout_controller.rollout_client.torch.save')
+    @patch('aura.controllers.rollout_controller.rollout_client.requests.post')
+    @patch('aura.controllers.rollout_controller.rollout_client.get_rollout_queue_actor')
+    @patch('aura.controllers.rollout_controller.rollout_client.ray.get')
     def test_send_outputs_retry_on_generic_exception(self, mock_ray_get, mock_get_actor, mock_post, mock_torch_save, mock_sleep):
         """Test retry on generic exception."""
         mock_actor = MagicMock()
@@ -246,11 +246,11 @@ class TestSendOutputsToTrainServerRemote:
         assert result == {"status": "ok"}
         assert mock_post.call_count == 2
 
-    @patch('aura.aura.controllers.rollout_controller.rollout_client.time.sleep')
-    @patch('aura.aura.controllers.rollout_controller.rollout_client.torch.save')
-    @patch('aura.aura.controllers.rollout_controller.rollout_client.requests.post')
-    @patch('aura.aura.controllers.rollout_controller.rollout_client.get_rollout_queue_actor')
-    @patch('aura.aura.controllers.rollout_controller.rollout_client.ray.get')
+    @patch('aura.controllers.rollout_controller.rollout_client.time.sleep')
+    @patch('aura.controllers.rollout_controller.rollout_client.torch.save')
+    @patch('aura.controllers.rollout_controller.rollout_client.requests.post')
+    @patch('aura.controllers.rollout_controller.rollout_client.get_rollout_queue_actor')
+    @patch('aura.controllers.rollout_controller.rollout_client.ray.get')
     def test_send_outputs_stops_on_shutdown(self, mock_ray_get, mock_get_actor, mock_post, mock_torch_save, mock_sleep):
         """Test that loop stops when shutdown is signaled."""
         mock_actor = MagicMock()
@@ -269,11 +269,11 @@ class TestSendOutputsToTrainServerRemote:
         assert result is None
         assert mock_post.call_count == 1
 
-    @patch('aura.aura.controllers.rollout_controller.rollout_client.time.sleep')
-    @patch('aura.aura.controllers.rollout_controller.rollout_client.torch.save')
-    @patch('aura.aura.controllers.rollout_controller.rollout_client.requests.post')
-    @patch('aura.aura.controllers.rollout_controller.rollout_client.get_rollout_queue_actor')
-    @patch('aura.aura.controllers.rollout_controller.rollout_client.ray.get')
+    @patch('aura.controllers.rollout_controller.rollout_client.time.sleep')
+    @patch('aura.controllers.rollout_controller.rollout_client.torch.save')
+    @patch('aura.controllers.rollout_controller.rollout_client.requests.post')
+    @patch('aura.controllers.rollout_controller.rollout_client.get_rollout_queue_actor')
+    @patch('aura.controllers.rollout_controller.rollout_client.ray.get')
     def test_send_outputs_with_custom_backoff(self, mock_ray_get, mock_get_actor, mock_post, mock_torch_save, mock_sleep):
         """Test send outputs with custom backoff time."""
         mock_actor = MagicMock()
@@ -300,7 +300,7 @@ class TestSendOutputsToTrainServerRemote:
 class TestRolloutClient:
     """Test cases for RolloutClient class."""
 
-    @patch('aura.aura.controllers.rollout_controller.rollout_client.ControllerConfig')
+    @patch('aura.controllers.rollout_controller.rollout_client.ControllerConfig')
     def test_rollout_client_init(self, mock_config_class):
         """Test RolloutClient initialization."""
         mock_config = MagicMock()
@@ -311,8 +311,8 @@ class TestRolloutClient:
 
         assert client.train_server_addr == "localhost:8080"
 
-    @patch('aura.aura.controllers.rollout_controller.rollout_client.send_outputs_to_train_server_remote')
-    @patch('aura.aura.controllers.rollout_controller.rollout_client.ControllerConfig')
+    @patch('aura.controllers.rollout_controller.rollout_client.send_outputs_to_train_server_remote')
+    @patch('aura.controllers.rollout_controller.rollout_client.ControllerConfig')
     def test_send_outputs_to_train_server(self, mock_config_class, mock_send_outputs):
         """Test send_outputs_to_train_server method."""
         mock_config = MagicMock()
@@ -327,8 +327,8 @@ class TestRolloutClient:
 
         mock_send_outputs.assert_called_once_with("localhost:8080", outputs, metric)
 
-    @patch('aura.aura.controllers.rollout_controller.rollout_client.send_ready_to_train_remote')
-    @patch('aura.aura.controllers.rollout_controller.rollout_client.ControllerConfig')
+    @patch('aura.controllers.rollout_controller.rollout_client.send_ready_to_train_remote')
+    @patch('aura.controllers.rollout_controller.rollout_client.ControllerConfig')
     def test_send_ready_to_train(self, mock_config_class, mock_send_ready):
         """Test send_ready_to_train method."""
         mock_config = MagicMock()
@@ -341,7 +341,7 @@ class TestRolloutClient:
 
         mock_send_ready.assert_called_once_with("localhost:8080")
 
-    @patch('aura.aura.controllers.rollout_controller.rollout_client.ControllerConfig')
+    @patch('aura.controllers.rollout_controller.rollout_client.ControllerConfig')
     def test_rollout_client_singleton(self, mock_config_class):
         """Test that RolloutClient is a singleton."""
         mock_config = MagicMock()

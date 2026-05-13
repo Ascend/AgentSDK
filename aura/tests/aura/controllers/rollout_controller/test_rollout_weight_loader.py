@@ -50,7 +50,7 @@ mock_safetensors_torch = MagicMock()
 mock_safetensors_torch.__spec__ = importlib.util.spec_from_loader('safetensors.torch', loader=None)
 sys.modules['safetensors.torch'] = mock_safetensors_torch
 
-from aura.aura.controllers.rollout_controller.rollout_weight_loader import (
+from aura.controllers.rollout_controller.rollout_weight_loader import (
     _norm,
     cat_dim0,
     cat_dim1,
@@ -271,7 +271,7 @@ class TestLaunchedGroup:
     def test_get_simple(self):
         """Test LaunchedGroup.get with simple result."""
         mock_ref = MagicMock()
-        with patch('aura.aura.controllers.rollout_controller.rollout_weight_loader.ray.get') as mock_ray_get:
+        with patch('aura.controllers.rollout_controller.rollout_weight_loader.ray.get') as mock_ray_get:
             mock_ray_get.return_value = ["result1", "result2"]
             lg = LaunchedGroup(refs=[mock_ref], pg=None, flatten=False)
             result = lg.get()
@@ -280,7 +280,7 @@ class TestLaunchedGroup:
     def test_get_flatten(self):
         """Test LaunchedGroup.get with flatten."""
         mock_ref = MagicMock()
-        with patch('aura.aura.controllers.rollout_controller.rollout_weight_loader.ray.get') as mock_ray_get:
+        with patch('aura.controllers.rollout_controller.rollout_weight_loader.ray.get') as mock_ray_get:
             mock_ray_get.return_value = [["a", "b"], ["c", "d"]]
             lg = LaunchedGroup(refs=[mock_ref], pg=None, flatten=True)
             result = lg.get()
@@ -381,7 +381,7 @@ class TestParamsAssembler:
         with tempfile.TemporaryDirectory() as tmpdir:
             out_path = os.path.join(tmpdir, "test.safetensors")
             tensors = {"weight": torch.randn(3, 4)}
-            with patch('aura.aura.controllers.rollout_controller.rollout_weight_loader.save_file') as mock_save:
+            with patch('aura.controllers.rollout_controller.rollout_weight_loader.save_file') as mock_save:
                 def create_file(data, path):
                     with open(path, 'wb') as f:
                         f.write(b"test")
@@ -436,7 +436,7 @@ class TestQwen3MoEParamsAssembler:
         mock_config.num_hidden_layers = 32
         mock_config.vocab_size = 32000
 
-        from aura.aura.controllers.rollout_controller.rollout_weight_loader import Qwen3MoEParamsAssembler
+        from aura.controllers.rollout_controller.rollout_weight_loader import Qwen3MoEParamsAssembler
         assembler = Qwen3MoEParamsAssembler(mock_config, infer_tp=2)
 
         assert assembler.hidden_size == 4096
@@ -458,7 +458,7 @@ class TestQwen3MoEParamsAssembler:
         mock_config.num_hidden_layers = 32
         mock_config.vocab_size = 32000
 
-        from aura.aura.controllers.rollout_controller.rollout_weight_loader import Qwen3MoEParamsAssembler
+        from aura.controllers.rollout_controller.rollout_weight_loader import Qwen3MoEParamsAssembler
         assembler = Qwen3MoEParamsAssembler(mock_config)
 
         assert assembler.is_fused_qkv_weight("model.layers.0.self_attn.qkv_proj.weight") is True
@@ -475,7 +475,7 @@ class TestQwen3MoEParamsAssembler:
         mock_config.num_hidden_layers = 32
         mock_config.vocab_size = 32000
 
-        from aura.aura.controllers.rollout_controller.rollout_weight_loader import Qwen3MoEParamsAssembler
+        from aura.controllers.rollout_controller.rollout_weight_loader import Qwen3MoEParamsAssembler
         assembler = Qwen3MoEParamsAssembler(mock_config)
 
         assert assembler.is_fused_qkv_bias("model.layers.0.self_attn.qkv_proj.bias") is True
@@ -492,7 +492,7 @@ class TestQwen3MoEParamsAssembler:
         mock_config.num_hidden_layers = 32
         mock_config.vocab_size = 32000
 
-        from aura.aura.controllers.rollout_controller.rollout_weight_loader import Qwen3MoEParamsAssembler
+        from aura.controllers.rollout_controller.rollout_weight_loader import Qwen3MoEParamsAssembler
         assembler = Qwen3MoEParamsAssembler(mock_config)
 
         assert assembler.is_w13("model.layers.0.mlp.experts.w13_weight") is True
@@ -509,7 +509,7 @@ class TestQwen3MoEParamsAssembler:
         mock_config.num_hidden_layers = 32
         mock_config.vocab_size = 32000
 
-        from aura.aura.controllers.rollout_controller.rollout_weight_loader import Qwen3MoEParamsAssembler
+        from aura.controllers.rollout_controller.rollout_weight_loader import Qwen3MoEParamsAssembler
         assembler = Qwen3MoEParamsAssembler(mock_config)
 
         assert assembler.is_w2("model.layers.0.mlp.experts.w2_weight") is True
@@ -526,7 +526,7 @@ class TestQwen3MoEParamsAssembler:
         mock_config.num_hidden_layers = 32
         mock_config.vocab_size = 32000
 
-        from aura.aura.controllers.rollout_controller.rollout_weight_loader import Qwen3MoEParamsAssembler
+        from aura.controllers.rollout_controller.rollout_weight_loader import Qwen3MoEParamsAssembler
         assembler = Qwen3MoEParamsAssembler(mock_config)
 
         assert assembler.get_tp_split_axis("model.layers.0.mlp.experts.w13_weight") == 0
@@ -547,7 +547,7 @@ class TestQwen3MoEParamsAssembler:
         mock_config.num_hidden_layers = 32
         mock_config.vocab_size = 32000
 
-        from aura.aura.controllers.rollout_controller.rollout_weight_loader import Qwen3MoEParamsAssembler
+        from aura.controllers.rollout_controller.rollout_weight_loader import Qwen3MoEParamsAssembler
         assembler = Qwen3MoEParamsAssembler(mock_config)
 
         result = assembler.get_weight_3D_shape("model.layers.0.mlp.experts.w13_weight", [4096, 32768])
@@ -564,7 +564,7 @@ class TestQwen3MoEParamsAssembler:
         mock_config.num_hidden_layers = 32
         mock_config.vocab_size = 32000
 
-        from aura.aura.controllers.rollout_controller.rollout_weight_loader import Qwen3MoEParamsAssembler
+        from aura.controllers.rollout_controller.rollout_weight_loader import Qwen3MoEParamsAssembler
         assembler = Qwen3MoEParamsAssembler(mock_config)
 
         result = assembler.get_weight_3D_shape("model.layers.0.mlp.experts.w2_weight", [32768, 4096])
@@ -581,7 +581,7 @@ class TestQwen3MoEParamsAssembler:
         mock_config.num_hidden_layers = 32
         mock_config.vocab_size = 32000
 
-        from aura.aura.controllers.rollout_controller.rollout_weight_loader import Qwen3MoEParamsAssembler
+        from aura.controllers.rollout_controller.rollout_weight_loader import Qwen3MoEParamsAssembler
         assembler = Qwen3MoEParamsAssembler(mock_config)
 
         result = assembler.get_weight_3D_permute("model.layers.0.mlp.experts.w13_weight")
@@ -598,7 +598,7 @@ class TestQwen3MoEParamsAssembler:
         mock_config.num_hidden_layers = 32
         mock_config.vocab_size = 32000
 
-        from aura.aura.controllers.rollout_controller.rollout_weight_loader import Qwen3MoEParamsAssembler
+        from aura.controllers.rollout_controller.rollout_weight_loader import Qwen3MoEParamsAssembler
         assembler = Qwen3MoEParamsAssembler(mock_config)
 
         result = assembler.get_weight_3D_permute("model.layers.0.mlp.experts.w2_weight")

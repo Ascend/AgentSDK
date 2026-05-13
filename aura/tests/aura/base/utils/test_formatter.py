@@ -18,7 +18,7 @@
 # -------------------------------------------------------------------------
 import json
 import pytest
-from aura.aura.base.utils.formatter import (
+from aura.base.utils.formatter import (
     default_tool_formatter,
     default_tool_extractor,
     EmptyFormatter,

@@ -24,22 +24,22 @@ from mindspeed_rl.utils.pad_process import (
 )
 from mindspeed_rl.workers.reward_woker import RewardWorker
 
-from aura.aura.base.log.loggers import Loggers
-from aura.aura.controllers.rollout_controller.rollout_client import send_ready_to_train_remote
-from aura.aura.controllers.rollout_controller.rollout_controller import RolloutController
-from aura.aura.trainer.rollout.rollout_worker import RolloutWorker
-from aura.aura.trainer.train_adapter.mindspeed_rl.one_step_off_policy.rollout.rollout_executor import (
+from aura.base.log.loggers import Loggers
+from aura.controllers.rollout_controller.rollout_client import send_ready_to_train_remote
+from aura.controllers.rollout_controller.rollout_controller import RolloutController
+from aura.trainer.rollout.rollout_worker import RolloutWorker
+from aura.trainer.train_adapter.mindspeed_rl.one_step_off_policy.rollout.rollout_executor import (
     OneStepOffRolloutExecutor
 )
-from aura.aura.trainer.train_adapter.mindspeed_rl.utils.megatron_utils import (
+from aura.trainer.train_adapter.mindspeed_rl.utils.megatron_utils import (
     get_megatron_module,
     gpt_model_provider,
     initialize_megatron,
     parse_training_config,
     rm_model_provider
 )
-from aura.aura.trainer.train_adapter.mindspeed_rl.workers.actor_hybrid_worker import ActorHybridWorker
-from aura.aura.trainer.train_adapter.mindspeed_rl.workers.integrated_worker import IntegratedWorker
+from aura.trainer.train_adapter.mindspeed_rl.workers.actor_hybrid_worker import ActorHybridWorker
+from aura.trainer.train_adapter.mindspeed_rl.workers.integrated_worker import IntegratedWorker
 
 logger = Loggers(__name__).get_logger()
 

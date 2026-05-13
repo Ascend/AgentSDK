@@ -50,9 +50,9 @@ from vllm_ascend.attention.attention_v1 import AscendAttentionState
 from vllm_ascend.worker.mtp_proposer_v1 import MtpProposer
 from vllm_ascend.worker.eagle_proposer_v1 import EagleProposer
 
-from aura.aura.runner.infer_adapter.vllm.patch.comm.vllm_execute_stat import (
+from aura.runner.infer_adapter.vllm.patch.comm.vllm_execute_stat import (
     StatTimeUtil, vllm_output_statics, StatPhase)
-from aura.aura.runner.infer_adapter.vllm.patch.comm.npu_model_profiling import (
+from aura.runner.infer_adapter.vllm.patch.comm.npu_model_profiling import (
     run_model_with_profiling)
 
 if TYPE_CHECKING:

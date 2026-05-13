@@ -21,8 +21,8 @@ from typing import List
 
 import ray
 
-from aura.aura.base.log.loggers import Loggers
-from aura.aura.data_manager.data_transform import padding_dict_to_tensor_dict
+from aura.base.log.loggers import Loggers
+from aura.data_manager.data_transform import padding_dict_to_tensor_dict
 
 logger = Loggers(__name__).get_logger()
 

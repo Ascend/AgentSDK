@@ -21,9 +21,9 @@
 from fastapi import APIRouter, Request
 from sse_starlette import EventSourceResponse
 
-from aura.aura.base.exceptions.exceptions import async_raise_http_exception
-from aura.aura.base.log.loggers import Loggers
-from aura.aura.runner.agent_engine_wrapper.base_engine_wrapper import AgentTask
+from aura.base.exceptions.exceptions import async_raise_http_exception
+from aura.base.log.loggers import Loggers
+from aura.runner.agent_engine_wrapper.base_engine_wrapper import AgentTask
 
 logger = Loggers(__name__).get_logger()
 
@@ -37,7 +37,7 @@ async def agent_invoke(request: Request):
     Agent Invoke API: Returns in SSE streaming mode (chunked push)
     """
 
-    from aura.aura.runner.agent_router import AgentRouter
+    from aura.runner.agent_router import AgentRouter
     agent_router: AgentRouter = await AgentRouter.create()
 
     request_data = await request.json()
@@ -53,7 +53,7 @@ async def chat_completions(request: Request):
     - stream=False -> Returns complete result at once (JSON)
     - stream=True -> Returns in SSE streaming mode (chunked push)
     """
-    from aura.aura.runner.infer_router import InferRouter
+    from aura.runner.infer_router import InferRouter
     infer_router: InferRouter = await InferRouter.create()
 
     request_data = await request.json()

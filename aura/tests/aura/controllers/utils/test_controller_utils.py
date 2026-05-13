@@ -34,9 +34,9 @@ with patch.dict('sys.modules', {
     'torch': mock_torch,
     'ray': mock_ray,
     'requests': mock_requests,
-    'aura.aura.base.log.loggers': mock_loggers_module,
+    'aura.base.log.loggers': mock_loggers_module,
 }):
-    from aura.aura.controllers.utils.utils import (
+    from aura.controllers.utils.utils import (
         post_with_url,
         tensor_item,
         create_actor,
@@ -58,7 +58,7 @@ with patch.dict('sys.modules', {
         MAX_CPUS,
         MAX_CONCURRENCY,
     )
-    import aura.aura.controllers.utils.utils as _utils_mod
+    import aura.controllers.utils.utils as _utils_mod
 
 
 class TestConstants(unittest.TestCase):

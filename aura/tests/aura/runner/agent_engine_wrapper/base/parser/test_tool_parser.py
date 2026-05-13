@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from aura.aura.runner.agent_engine_wrapper.base.parser.tool_parser import DeepSeekToolParser
+from aura.runner.agent_engine_wrapper.base.parser.tool_parser import DeepSeekToolParser
 
 
 # ---------------------------------------------------------------------------
@@ -130,7 +130,7 @@ class TestParseDeepseekToolCalls:
 # ---------------------------------------------------------------------------
 
 class TestParse:
-    @patch("aura.aura.runner.agent_engine_wrapper.base.parser.tool_parser.ToolCall")
+    @patch("aura.runner.agent_engine_wrapper.base.parser.tool_parser.ToolCall")
     def test_parse_returns_tool_call_objects(self, MockToolCall, parser):
         MockToolCall.side_effect = lambda name, arguments: MagicMock(name=name, arguments=arguments)
         text = _build_tool_call("search", {"query": "python"})
@@ -138,13 +138,13 @@ class TestParse:
         assert len(result) == 1
         MockToolCall.assert_called_once_with(name="search", arguments={"query": "python"})
 
-    @patch("aura.aura.runner.agent_engine_wrapper.base.parser.tool_parser.ToolCall")
+    @patch("aura.runner.agent_engine_wrapper.base.parser.tool_parser.ToolCall")
     def test_parse_empty_returns_empty_list(self, MockToolCall, parser):
         result = parser.parse("no tools")
         assert result == []
         MockToolCall.assert_not_called()
 
-    @patch("aura.aura.runner.agent_engine_wrapper.base.parser.tool_parser.ToolCall")
+    @patch("aura.runner.agent_engine_wrapper.base.parser.tool_parser.ToolCall")
     def test_parse_multiple_calls(self, MockToolCall, parser):
         MockToolCall.side_effect = lambda name, arguments: MagicMock(name=name, arguments=arguments)
         text = _build_tool_call("fn1", {"a": 1}) + _build_tool_call("fn2", {"b": 2})

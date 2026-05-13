@@ -6,16 +6,16 @@ import traceback
 import ray
 from omegaconf import OmegaConf
 
-from aura.aura.base.execution.executor_manager import ExecutorManager
-from aura.aura.base.log.loggers import Loggers
-from aura.aura.runner.agent_service.agent_executor import AgentExecutor
+from aura.base.execution.executor_manager import ExecutorManager
+from aura.base.log.loggers import Loggers
+from aura.runner.agent_service.agent_executor import AgentExecutor
 
 logger = Loggers(__name__).get_logger()
 
 class AgentManager(ExecutorManager):
     async def setup(self, *args, **kwargs) -> None:
         try:
-            from aura.aura.base.conf.conf import AgenticRLConf
+            from aura.base.conf.conf import AgenticRLConf
             conf = AgenticRLConf.load_config()
             for instance_conf in conf.agent_instances:
                 logger.info(f"Agent manager instance conf: {instance_conf}")

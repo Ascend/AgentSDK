@@ -31,16 +31,16 @@ import ray
 from ray import serve
 from ray.serve import HTTPOptions
 
-from aura.aura.base.conf.conf import AgenticRLConf
-from aura.aura.base.log.loggers import Loggers
-from aura.aura.controllers.utils.utils import DEFAULT_SLEEP_TIME
-from aura.aura.runner.infer_manager import get_or_create_infer_manager, destroy_infer_manager
+from aura.base.conf.conf import AgenticRLConf
+from aura.base.log.loggers import Loggers
+from aura.controllers.utils.utils import DEFAULT_SLEEP_TIME
+from aura.runner.infer_manager import get_or_create_infer_manager, destroy_infer_manager
 
 logger = Loggers(__name__).get_logger()
 
 
 def start_direct_mode(conf: DictConfig):
-    from aura.aura.runner.agent_manager import get_or_create_agent_manager, destroy_agent_manager
+    from aura.runner.agent_manager import get_or_create_agent_manager, destroy_agent_manager
 
     async def _init_manager():
         await get_or_create_agent_manager()
@@ -61,7 +61,7 @@ def start_direct_mode(conf: DictConfig):
         logger.info(f"[START] job_type={job_type}, job_name={job_name}, job={job_dict}")
 
         if job_type == "train":
-            from aura.aura.trainer.train_router import TrainRouter
+            from aura.trainer.train_router import TrainRouter
             router = await TrainRouter.create()
             try:
                 await router.train(name=job_name, **job_dict.get("job_kwargs", {}))
@@ -85,8 +85,8 @@ def start_direct_mode(conf: DictConfig):
 
 
 def start_serve_mode(conf: DictConfig):
-    from aura.aura.runner.agent_manager import get_or_create_agent_manager
-    from aura.aura.runner.infer_manager import get_or_create_infer_manager
+    from aura.runner.agent_manager import get_or_create_agent_manager
+    from aura.runner.infer_manager import get_or_create_infer_manager
 
     async def _init_manager():
         await get_or_create_agent_manager()
@@ -109,7 +109,7 @@ def start_serve_mode(conf: DictConfig):
         serve.get_app_handle("aura")
     except Exception as e:
         logger.info(f"No exists app: [aura], exception={e}.")
-        from aura.aura.serve.serve import deployment
+        from aura.serve.serve import deployment
         serve.run(
             target=deployment,
             blocking=False,

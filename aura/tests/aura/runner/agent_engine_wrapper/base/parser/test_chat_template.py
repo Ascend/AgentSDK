@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from aura.aura.runner.agent_engine_wrapper.base.parser.chat_template import (
+from aura.runner.agent_engine_wrapper.base.parser.chat_template import (
     ChatTemplateParser,
     DeepseekQwenChatTemplateParser,
     LlamaChatTemplateParser,
@@ -137,7 +137,7 @@ class TestChatTemplateParser:
 
 
 class TestChatTemplateParserGetParser:
-    @patch("aura.aura.runner.agent_engine_wrapper.base.parser.chat_template.logger")
+    @patch("aura.runner.agent_engine_wrapper.base.parser.chat_template.logger")
     def test_deepseek_with_llama_tokenizer(self, mock_logger):
         tokenizer = MagicMock()
         tokenizer.name_or_path = "deepseek-model-v2"
@@ -147,7 +147,7 @@ class TestChatTemplateParserGetParser:
         result = ChatTemplateParser.get_parser(tokenizer)
         assert isinstance(result, DeepseekQwenChatTemplateParser)
 
-    @patch("aura.aura.runner.agent_engine_wrapper.base.parser.chat_template.logger")
+    @patch("aura.runner.agent_engine_wrapper.base.parser.chat_template.logger")
     def test_qwen_model(self, mock_logger):
         tokenizer = MagicMock()
         tokenizer.name_or_path = "Qwen-7B-Chat"
@@ -157,7 +157,7 @@ class TestChatTemplateParserGetParser:
         result = ChatTemplateParser.get_parser(tokenizer)
         assert isinstance(result, QwenChatTemplateParser)
 
-    @patch("aura.aura.runner.agent_engine_wrapper.base.parser.chat_template.logger")
+    @patch("aura.runner.agent_engine_wrapper.base.parser.chat_template.logger")
     def test_r2e_model_returns_qwen(self, mock_logger):
         tokenizer = MagicMock()
         tokenizer.name_or_path = "r2e-model"
@@ -167,7 +167,7 @@ class TestChatTemplateParserGetParser:
         result = ChatTemplateParser.get_parser(tokenizer)
         assert isinstance(result, QwenChatTemplateParser)
 
-    @patch("aura.aura.runner.agent_engine_wrapper.base.parser.chat_template.logger")
+    @patch("aura.runner.agent_engine_wrapper.base.parser.chat_template.logger")
     def test_deepswe_model_returns_qwen(self, mock_logger):
         tokenizer = MagicMock()
         tokenizer.name_or_path = "deepswe-model"
@@ -177,7 +177,7 @@ class TestChatTemplateParserGetParser:
         result = ChatTemplateParser.get_parser(tokenizer)
         assert isinstance(result, QwenChatTemplateParser)
 
-    @patch("aura.aura.runner.agent_engine_wrapper.base.parser.chat_template.logger")
+    @patch("aura.runner.agent_engine_wrapper.base.parser.chat_template.logger")
     def test_llama_model(self, mock_logger):
         tokenizer = MagicMock()
         tokenizer.name_or_path = "llama-3-8B"
@@ -187,7 +187,7 @@ class TestChatTemplateParserGetParser:
         result = ChatTemplateParser.get_parser(tokenizer)
         assert isinstance(result, LlamaChatTemplateParser)
 
-    @patch("aura.aura.runner.agent_engine_wrapper.base.parser.chat_template.logger")
+    @patch("aura.runner.agent_engine_wrapper.base.parser.chat_template.logger")
     def test_default_parser_when_equivalence_passes(self, mock_logger):
         tokenizer = MagicMock()
         tokenizer.name_or_path = "unknown-model"
@@ -199,7 +199,7 @@ class TestChatTemplateParserGetParser:
         assert isinstance(result, ChatTemplateParser)
         assert not isinstance(result, (DeepseekQwenChatTemplateParser, QwenChatTemplateParser, LlamaChatTemplateParser))
 
-    @patch("aura.aura.runner.agent_engine_wrapper.base.parser.chat_template.logger")
+    @patch("aura.runner.agent_engine_wrapper.base.parser.chat_template.logger")
     def test_default_parser_raises_when_equivalence_fails(self, mock_logger):
         tokenizer = MagicMock()
         tokenizer.name_or_path = "unknown-model"
@@ -214,7 +214,7 @@ class TestChatTemplateParserGetParser:
         with pytest.raises(Exception, match="Parser failed equivalence check"):
             ChatTemplateParser.get_parser(tokenizer)
 
-    @patch("aura.aura.runner.agent_engine_wrapper.base.parser.chat_template.logger")
+    @patch("aura.runner.agent_engine_wrapper.base.parser.chat_template.logger")
     def test_deepscaler_with_llama_tokenizer(self, mock_logger):
         tokenizer = MagicMock()
         tokenizer.name_or_path = "deepscaler-model"
@@ -224,7 +224,7 @@ class TestChatTemplateParserGetParser:
         result = ChatTemplateParser.get_parser(tokenizer)
         assert isinstance(result, DeepseekQwenChatTemplateParser)
 
-    @patch("aura.aura.runner.agent_engine_wrapper.base.parser.chat_template.logger")
+    @patch("aura.runner.agent_engine_wrapper.base.parser.chat_template.logger")
     def test_deepcoder_with_llama_tokenizer(self, mock_logger):
         tokenizer = MagicMock()
         tokenizer.name_or_path = "deepcoder-v1"
@@ -234,7 +234,7 @@ class TestChatTemplateParserGetParser:
         result = ChatTemplateParser.get_parser(tokenizer)
         assert isinstance(result, DeepseekQwenChatTemplateParser)
 
-    @patch("aura.aura.runner.agent_engine_wrapper.base.parser.chat_template.logger")
+    @patch("aura.runner.agent_engine_wrapper.base.parser.chat_template.logger")
     def test_qwen_tokenizer_class(self, mock_logger):
         tokenizer = MagicMock()
         tokenizer.name_or_path = "some-custom-model"

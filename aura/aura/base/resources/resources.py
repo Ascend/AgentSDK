@@ -24,7 +24,7 @@ from pydantic import BaseModel, ConfigDict
 from ray.util.placement_group import PlacementGroup
 from ray.util.placement_group import placement_group
 
-from aura.aura.base.log.loggers import Loggers
+from aura.base.log.loggers import Loggers
 
 logger = Loggers(__name__).get_logger()
 

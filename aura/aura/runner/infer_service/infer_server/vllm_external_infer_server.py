@@ -22,8 +22,8 @@
 from typing import Dict
 
 # Internal imports
-from aura.aura.base.log.loggers import Loggers
-from aura.aura.runner.infer_service.base_infer_server import BaseInferServer
+from aura.base.log.loggers import Loggers
+from aura.runner.infer_service.base_infer_server import BaseInferServer
 
 logger = Loggers(__name__).get_logger()
 
@@ -66,10 +66,10 @@ class VLLMExternalInferServer(BaseInferServer):
 
     async def wake_up(self, *args, **kwargs):
         if self.server is None:
-            from aura.aura.base.utils.run_env import get_vllm_version
+            from aura.base.utils.run_env import get_vllm_version
             import os
             os.environ['VLLM_VERSION'] = get_vllm_version()
-            from aura.aura.runner.infer_adapter.vllm.vllm_async_server import AsyncVLLMServer
+            from aura.runner.infer_adapter.vllm.vllm_async_server import AsyncVLLMServer
             self.server = AsyncVLLMServer(*args, **kwargs)
             await self.server.init_engine()
             return

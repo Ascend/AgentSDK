@@ -24,7 +24,7 @@ from typing import Any
 
 import numpy as np
 
-from aura.aura.runner.agent_engine_wrapper.base.agent.base_agent import Trajectory
+from aura.runner.agent_engine_wrapper.base.agent.base_agent import Trajectory
 
 
 def compute_trajectory_reward_raw(trajectory: Trajectory) -> Trajectory:

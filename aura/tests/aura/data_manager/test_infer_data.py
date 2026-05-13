@@ -33,11 +33,11 @@ mock_rollout_client_module = MagicMock()
 
 # RolloutClient's transitive dependencies also need mocking:
 #   rollout_client.py imports: io, time, ray, requests, torch,
-#     aura.aura.base.log.loggers, aura.aura.base.utils.utils (singleton),
-#     aura.aura.controllers.rollout_controller.rollout_queue,
-#     aura.aura.controllers.utils.controller_config,
-#     aura.aura.controllers.utils.http_status,
-#     aura.aura.controllers.utils.utils
+#     aura.base.log.loggers, aura.base.utils.utils (singleton),
+#     aura.controllers.rollout_controller.rollout_queue,
+#     aura.controllers.utils.controller_config,
+#     aura.controllers.utils.http_status,
+#     aura.controllers.utils.utils
 
 mock_base_utils_module = MagicMock()
 mock_base_utils_module.singleton = lambda cls: cls  # passthrough decorator
@@ -59,15 +59,15 @@ with patch.dict(sys.modules, {
     'torch.distributed': mock_torch.distributed,
     'ray': mock_ray,
     'requests': mock_requests,
-    'aura.aura.base.log.loggers': mock_loggers_module,
-    'aura.aura.base.utils.utils': mock_base_utils_module,
-    'aura.aura.controllers.rollout_controller.rollout_queue': mock_rollout_queue_module,
-    'aura.aura.controllers.rollout_controller.rollout_client': mock_rollout_client_module,
-    'aura.aura.controllers.utils.controller_config': mock_controller_config_module,
-    'aura.aura.controllers.utils.http_status': mock_http_status_module,
-    'aura.aura.controllers.utils.utils': mock_controller_utils_module,
+    'aura.base.log.loggers': mock_loggers_module,
+    'aura.base.utils.utils': mock_base_utils_module,
+    'aura.controllers.rollout_controller.rollout_queue': mock_rollout_queue_module,
+    'aura.controllers.rollout_controller.rollout_client': mock_rollout_client_module,
+    'aura.controllers.utils.controller_config': mock_controller_config_module,
+    'aura.controllers.utils.http_status': mock_http_status_module,
+    'aura.controllers.utils.utils': mock_controller_utils_module,
 }):
-    from aura.aura.data_manager.infer_data import InferDataManager
+    from aura.data_manager.infer_data import InferDataManager
 
 
 class TestInferDataManager(unittest.TestCase):

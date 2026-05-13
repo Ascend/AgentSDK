@@ -26,16 +26,16 @@ from mindspeed_rl.utils.pad_process import (
 )
 from mindspeed_rl.trainer.utils.transfer_dock import put_prompts_experience
 
-from aura.aura.base.log.loggers import Loggers
-from aura.aura.controllers.train_controller.train_controller import TrainController
-from aura.aura.controllers.utils.utils import DEFAULT_SLEEP_TIME
-from aura.aura.trainer.train_adapter.mindspeed_rl.config_cls import ExtendedGenerateConfig
-from aura.aura.trainer.train_adapter.mindspeed_rl.one_step_off_policy.train.train_dataloader import \
+from aura.base.log.loggers import Loggers
+from aura.controllers.train_controller.train_controller import TrainController
+from aura.controllers.utils.utils import DEFAULT_SLEEP_TIME
+from aura.trainer.train_adapter.mindspeed_rl.config_cls import ExtendedGenerateConfig
+from aura.trainer.train_adapter.mindspeed_rl.one_step_off_policy.train.train_dataloader import \
     optimize_train_dataloader
-from aura.aura.trainer.train_adapter.mindspeed_rl.one_step_off_policy.train.train_executor import \
+from aura.trainer.train_adapter.mindspeed_rl.one_step_off_policy.train.train_executor import \
     OneStepOffTrainExecutor
-from aura.aura.trainer.train_adapter.mindspeed_rl.utils.default_train_dataloader import default_train_dataloader
-from aura.aura.trainer.train_adapter.mindspeed_rl.utils.prepare_train import prepare_train
+from aura.trainer.train_adapter.mindspeed_rl.utils.default_train_dataloader import default_train_dataloader
+from aura.trainer.train_adapter.mindspeed_rl.utils.prepare_train import prepare_train
 
 logger = Loggers(__name__).get_logger()
 
@@ -66,7 +66,7 @@ def dummy_rollout(
     Returns:
         A remote RolloutWorker reference.
     """
-    from aura.aura.trainer.rollout.rollout_worker import RolloutWorker
+    from aura.trainer.rollout.rollout_worker import RolloutWorker
 
     rollout_worker = RolloutWorker.remote(
         n_parallel_agents=rl_config.n_samples_per_prompt,
@@ -111,7 +111,7 @@ def get_train_controller(
         A TrainController or TrainMockController instance.
     """
     if rl_config.mock_rollout:
-        from aura.aura.controllers.train_controller.train_mock_controller import TrainMockController
+        from aura.controllers.train_controller.train_mock_controller import TrainMockController
         return TrainMockController(
             actor_worker=actor_worker,
             actor_config=actor_config,
@@ -167,7 +167,7 @@ def create_rollout_worker(
         padding_fn: Function to pad dicts to tensor dicts.
         put_experience_fn: Function to put prompts experience into transfer dock.
     """
-    from aura.aura.trainer.rollout.rollout_service import start_async_rollout_worker
+    from aura.trainer.rollout.rollout_service import start_async_rollout_worker
     from ray.util.scheduling_strategies import NodeAffinitySchedulingStrategy
 
     start_async_rollout_worker.options(
@@ -281,7 +281,7 @@ def dummy_train(config: Any, agent_service: Any, infer_service: Any) -> None:
         agent_service: Agent service handle.
         infer_service: Inference service handle.
     """
-    from aura.aura.trainer.train_adapter.mindspeed_rl.utils.megatron_utils import parse_training_config
+    from aura.trainer.train_adapter.mindspeed_rl.utils.megatron_utils import parse_training_config
 
     actor_config, _, _, rl_config, \
         generate_config, _, _, \

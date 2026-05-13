@@ -17,8 +17,8 @@
 # -------------------------------------------------------------------------
 from collections import deque
 
-from aura.aura.base.log.loggers import Loggers
-from aura.aura.controllers.utils.utils import DEFAULT_SLEEP_TIME, MAX_TIMEOUT
+from aura.base.log.loggers import Loggers
+from aura.controllers.utils.utils import DEFAULT_SLEEP_TIME, MAX_TIMEOUT
 
 
 class TrainQueue:

@@ -33,7 +33,7 @@ class TestEpisodeStoreInterface:
 
     def test_episode_store_is_abstract(self):
         """Test that EpisodeStore is an abstract class."""
-        from aura.aura.memory.episode.episode_store import EpisodeStore
+        from aura.memory.episode.episode_store import EpisodeStore
         
         assert ABC in EpisodeStore.__bases__
         
@@ -42,21 +42,21 @@ class TestEpisodeStoreInterface:
 
     def test_episode_store_has_store_episode_method(self):
         """Test that EpisodeStore has store_episode abstract method."""
-        from aura.aura.memory.episode.episode_store import EpisodeStore
+        from aura.memory.episode.episode_store import EpisodeStore
         
         assert hasattr(EpisodeStore, 'store_episode')
         assert getattr(EpisodeStore.store_episode, '__isabstractmethod__', False)
 
     def test_episode_store_has_get_episodes_method(self):
         """Test that EpisodeStore has get_episodes abstract method."""
-        from aura.aura.memory.episode.episode_store import EpisodeStore
+        from aura.memory.episode.episode_store import EpisodeStore
         
         assert hasattr(EpisodeStore, 'get_episodes')
         assert getattr(EpisodeStore.get_episodes, '__isabstractmethod__', False)
 
     def test_episode_store_store_episode_signature(self):
         """Test store_episode method signature."""
-        from aura.aura.memory.episode.episode_store import EpisodeStore
+        from aura.memory.episode.episode_store import EpisodeStore
         import inspect
         
         sig = inspect.signature(EpisodeStore.store_episode)
@@ -68,7 +68,7 @@ class TestEpisodeStoreInterface:
 
     def test_episode_store_get_episodes_signature(self):
         """Test get_episodes method signature."""
-        from aura.aura.memory.episode.episode_store import EpisodeStore
+        from aura.memory.episode.episode_store import EpisodeStore
         import inspect
         
         sig = inspect.signature(EpisodeStore.get_episodes)
@@ -84,7 +84,7 @@ class TestConcreteEpisodeStore:
 
     def test_concrete_implementation_must_implement_store_episode(self):
         """Test that concrete class must implement store_episode."""
-        from aura.aura.memory.episode.episode_store import EpisodeStore
+        from aura.memory.episode.episode_store import EpisodeStore
         
         class IncompleteStore(EpisodeStore):
             def get_episodes(self, workflow_id, limit=None):
@@ -95,7 +95,7 @@ class TestConcreteEpisodeStore:
 
     def test_concrete_implementation_must_implement_get_episodes(self):
         """Test that concrete class must implement get_episodes."""
-        from aura.aura.memory.episode.episode_store import EpisodeStore
+        from aura.memory.episode.episode_store import EpisodeStore
         
         class IncompleteStore(EpisodeStore):
             def store_episode(self, episode, workflow_id):
@@ -106,7 +106,7 @@ class TestConcreteEpisodeStore:
 
     def test_complete_concrete_implementation(self):
         """Test that complete implementation can be instantiated."""
-        from aura.aura.memory.episode.episode_store import EpisodeStore
+        from aura.memory.episode.episode_store import EpisodeStore
         
         class CompleteStore(EpisodeStore):
             def store_episode(self, episode, workflow_id):
@@ -120,7 +120,7 @@ class TestConcreteEpisodeStore:
 
     def test_concrete_store_store_episode(self):
         """Test store_episode in concrete implementation."""
-        from aura.aura.memory.episode.episode_store import EpisodeStore
+        from aura.memory.episode.episode_store import EpisodeStore
         
         class TestStore(EpisodeStore):
             def __init__(self):
@@ -147,7 +147,7 @@ class TestConcreteEpisodeStore:
 
     def test_concrete_store_get_episodes(self):
         """Test get_episodes in concrete implementation."""
-        from aura.aura.memory.episode.episode_store import EpisodeStore
+        from aura.memory.episode.episode_store import EpisodeStore
         
         class TestStore(EpisodeStore):
             def __init__(self):
@@ -182,7 +182,7 @@ class TestConcreteEpisodeStore:
 
     def test_concrete_store_with_multiple_workflows(self):
         """Test store with multiple workflows."""
-        from aura.aura.memory.episode.episode_store import EpisodeStore
+        from aura.memory.episode.episode_store import EpisodeStore
         
         class TestStore(EpisodeStore):
             def __init__(self):

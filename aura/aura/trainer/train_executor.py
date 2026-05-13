@@ -20,8 +20,8 @@ import ray
 from omegaconf import OmegaConf
 from ray.util.scheduling_strategies import NodeAffinitySchedulingStrategy
 
-from aura.aura.base.execution.executor import Executor, public_api
-from aura.aura.base.log.loggers import Loggers
+from aura.base.execution.executor import Executor, public_api
+from aura.base.log.loggers import Loggers
 
 logger = Loggers(__name__).get_logger()
 
@@ -98,7 +98,7 @@ class TrainExecutor(Executor):
 
     async def _run_train_and_rollout(self) -> None:
         """Start the rollout worker (non-blocking) followed by the train worker (blocking)."""
-        from aura.aura.trainer.train_register import registry
+        from aura.trainer.train_register import registry
 
         start_rollout, start_train = registry.get_method(
             train_engine=self.train_engine,

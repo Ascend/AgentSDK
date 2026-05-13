@@ -17,12 +17,12 @@
 import pytest
 import unittest.mock as mock
 
-from aura.aura.base.utils.http_server import start_server
+from aura.base.utils.http_server import start_server
 
 
 class TestHttpServer:
-    @mock.patch("aura.aura.base.utils.http_server.uvicorn.run")
-    @mock.patch("aura.aura.base.utils.http_server.logger")
+    @mock.patch("aura.base.utils.http_server.uvicorn.run")
+    @mock.patch("aura.base.utils.http_server.logger")
     def test_start_server_default_params(self, mock_logger, mock_uvicorn_run):
         """Test start_server with default parameters."""
         # Create mock server application
@@ -44,8 +44,8 @@ class TestHttpServer:
             reload=False
         )
 
-    @mock.patch("aura.aura.base.utils.http_server.uvicorn.run")
-    @mock.patch("aura.aura.base.utils.http_server.logger")
+    @mock.patch("aura.base.utils.http_server.uvicorn.run")
+    @mock.patch("aura.base.utils.http_server.logger")
     def test_start_server_custom_params(self, mock_logger, mock_uvicorn_run):
         """Test start_server with custom parameters."""
         # Create mock server application
@@ -69,8 +69,8 @@ class TestHttpServer:
             reload=False
         )
 
-    @mock.patch("aura.aura.base.utils.http_server.uvicorn.run")
-    @mock.patch("aura.aura.base.utils.http_server.logger")
+    @mock.patch("aura.base.utils.http_server.uvicorn.run")
+    @mock.patch("aura.base.utils.http_server.logger")
     def test_start_server_port_as_string(self, mock_logger, mock_uvicorn_run):
         """Test start_server with port as string."""
         # Create mock server application
@@ -93,8 +93,8 @@ class TestHttpServer:
             reload=False
         )
 
-    @mock.patch("aura.aura.base.utils.http_server.uvicorn.run")
-    @mock.patch("aura.aura.base.utils.http_server.logger")
+    @mock.patch("aura.base.utils.http_server.uvicorn.run")
+    @mock.patch("aura.base.utils.http_server.logger")
     def test_start_server_exception_handling(self, mock_logger, mock_uvicorn_run):
         """Test start_server exception handling."""
         # Create mock server application

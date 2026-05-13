@@ -37,12 +37,12 @@ def mock_dependencies(mock_ray_dependencies, mock_aura_dependencies, mock_rllm_d
     mock_code_fn = MagicMock(return_value=mock_reward_output)
     
     with (
-        patch("aura.agents.math_agent.reward.reward_fn.RewardMathFn") as mock_math_class,
-        patch("aura.agents.math_agent.reward.reward_fn.RewardSearchFn") as mock_search_class,
-        patch("aura.agents.math_agent.reward.reward_fn.RewardCodeFn") as mock_code_class,
-        patch("aura.agents.math_agent.reward.reward_fn.RewardConfig") as mock_config,
-        patch("aura.agents.math_agent.reward.reward_fn.RewardInput") as mock_input,
-        patch("aura.agents.math_agent.reward.reward_fn.RewardOutput", MockRewardOutput),
+        patch("agents.math_agent.reward.reward_fn.RewardMathFn") as mock_math_class,
+        patch("agents.math_agent.reward.reward_fn.RewardSearchFn") as mock_search_class,
+        patch("agents.math_agent.reward.reward_fn.RewardCodeFn") as mock_code_class,
+        patch("agents.math_agent.reward.reward_fn.RewardConfig") as mock_config,
+        patch("agents.math_agent.reward.reward_fn.RewardInput") as mock_input,
+        patch("agents.math_agent.reward.reward_fn.RewardOutput", MockRewardOutput),
     ):
         mock_math_class.return_value = mock_math_fn
         mock_search_class.return_value = mock_search_fn
@@ -61,7 +61,7 @@ class TestRewardFunctionProtocol:
 
     def test_zero_reward(self, mock_dependencies):
         """Test zero_reward function."""
-        from aura.agents.math_agent.reward.reward_fn import zero_reward
+        from agents.math_agent.reward.reward_fn import zero_reward
         
         result = zero_reward({"task": "test"}, "action")
         
@@ -70,7 +70,7 @@ class TestRewardFunctionProtocol:
 
     def test_zero_reward_with_empty_task(self, mock_dependencies):
         """Test zero_reward with empty task."""
-        from aura.agents.math_agent.reward.reward_fn import zero_reward
+        from agents.math_agent.reward.reward_fn import zero_reward
         
         result = zero_reward({}, "any action")
         
@@ -82,7 +82,7 @@ class TestMathRewardFn:
 
     def test_math_reward_fn_basic(self, mock_dependencies):
         """Test math_reward_fn with basic input."""
-        from aura.agents.math_agent.reward.reward_fn import math_reward_fn
+        from agents.math_agent.reward.reward_fn import math_reward_fn
         
         task_info = {"task": {"question": "What is 2+2?"}, "ground_truth": "4"}
         result = math_reward_fn(task_info, "The answer is 4")
@@ -91,7 +91,7 @@ class TestMathRewardFn:
 
     def test_math_reward_fn_with_ground_truth(self, mock_dependencies):
         """Test math_reward_fn with ground truth."""
-        from aura.agents.math_agent.reward.reward_fn import math_reward_fn
+        from agents.math_agent.reward.reward_fn import math_reward_fn
         
         task_info = {
             "task": {"question": "Calculate"},
@@ -107,7 +107,7 @@ class TestSearchRewardFn:
 
     def test_search_reward_fn_basic(self, mock_dependencies):
         """Test search_reward_fn with basic input."""
-        from aura.agents.math_agent.reward.reward_fn import search_reward_fn
+        from agents.math_agent.reward.reward_fn import search_reward_fn
         
         task_info = {"question": "What is the capital of France?"}
         result = search_reward_fn(task_info, "Paris")
@@ -120,7 +120,7 @@ class TestCodeRewardFn:
 
     def test_code_reward_fn_basic(self, mock_dependencies):
         """Test code_reward_fn with basic input."""
-        from aura.agents.math_agent.reward.reward_fn import code_reward_fn
+        from agents.math_agent.reward.reward_fn import code_reward_fn
         
         task_info = {"problem": "Write a function"}
         result = code_reward_fn(task_info, "def f(): pass")
@@ -133,7 +133,7 @@ class TestRewardFunctionIntegration:
 
     def test_all_reward_functions_return_reward_output(self, mock_dependencies):
         """Test that all reward functions return RewardOutput."""
-        from aura.agents.math_agent.reward.reward_fn import (
+        from agents.math_agent.reward.reward_fn import (
             zero_reward,
             math_reward_fn,
             search_reward_fn,

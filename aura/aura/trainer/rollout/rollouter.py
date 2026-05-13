@@ -21,9 +21,9 @@
 import time
 import ray
 
-from aura.aura.base.log.loggers import Loggers
-from aura.aura.controllers.rollout_controller.rollout_queue import get_rollout_queue_actor
-from aura.aura.controllers.utils.utils import MIN_SLEEP_TIME
+from aura.base.log.loggers import Loggers
+from aura.controllers.rollout_controller.rollout_queue import get_rollout_queue_actor
+from aura.controllers.utils.utils import MIN_SLEEP_TIME
 
 logger = Loggers(__name__).get_logger()
 
@@ -55,9 +55,9 @@ class OneStepOffRollouter:
 
     def get_batch_dict(self, batch):
         if self.data_optimized:
-            from aura.aura.trainer.rollout.rollout_dataset import \
+            from aura.trainer.rollout.rollout_dataset import \
                 optimized_preprocess_input
-            from aura.aura.trainer.rollout.rollout_dataset import \
+            from aura.trainer.rollout.rollout_dataset import \
                 optimized_put_prompt_experience
             mini_batches, prompt_ids = optimized_preprocess_input(batch)
             batch_dict, indexes = optimized_put_prompt_experience(

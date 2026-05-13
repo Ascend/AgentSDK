@@ -76,7 +76,7 @@ def mock_dependencies(monkeypatch):
     monkeypatch.setitem(sys.modules, "vllm.v1.spec_decode.metrics", mock_vllm_v1_spec_decode)
     monkeypatch.setitem(sys.modules, "vllm.v1.metrics.loggers", mock_vllm_v1_metrics_loggers)
 
-    monkeypatch.delitem(sys.modules, "aura.aura.runner.scheduler.load_stat", raising=False)
+    monkeypatch.delitem(sys.modules, "aura.runner.scheduler.load_stat", raising=False)
 
     yield {
         "MockPrefixCachingMetrics": MockPrefixCachingMetrics,
@@ -90,11 +90,11 @@ class TestVllmLogStatsPeriodically:
 
     def setup_method(self):
         """Setup method to import functions before each test."""
-        from aura.aura.runner.scheduler.load_stat import vllm_log_stats_periodically
+        from aura.runner.scheduler.load_stat import vllm_log_stats_periodically
         self.vllm_log_stats_periodically = vllm_log_stats_periodically
 
     @pytest.mark.asyncio
-    @patch('aura.aura.runner.scheduler.load_stat.logger')
+    @patch('aura.runner.scheduler.load_stat.logger')
     async def test_vllm_log_stats_periodically(self, mock_logger):
         mock_self = MagicMock()
         mock_self.engine.do_log_stats = AsyncMock()
@@ -115,7 +115,7 @@ class TestVllmLogStatsPeriodically:
         mock_self.engine.do_log_stats.assert_called_once()
 
     @pytest.mark.asyncio
-    @patch('aura.aura.runner.scheduler.load_stat.logger')
+    @patch('aura.runner.scheduler.load_stat.logger')
     async def test_vllm_log_stats_periodically_with_exception(self, mock_logger):
         mock_self = MagicMock()
         mock_self.engine.do_log_stats = AsyncMock(side_effect=Exception("Test error"))
@@ -140,8 +140,8 @@ class TestWorkloadStatLogger:
 
     def setup_method(self):
         """Setup method to import classes before each test."""
-        from aura.aura.runner.scheduler.load_stat import WorkloadStatLogger
-        from aura.aura.runner.scheduler.workload import InstanceWorkLoad
+        from aura.runner.scheduler.load_stat import WorkloadStatLogger
+        from aura.runner.scheduler.workload import InstanceWorkLoad
         self.WorkloadStatLogger = WorkloadStatLogger
         self.InstanceWorkLoad = InstanceWorkLoad
 
@@ -249,7 +249,7 @@ class TestWorkloadStatLogger:
             mock_track.assert_not_called()
             assert logger_instance.last_scheduler_stats == mock_scheduler_stats
 
-    @patch('aura.aura.runner.scheduler.load_stat.logger')
+    @patch('aura.runner.scheduler.load_stat.logger')
     def test_log(self, mock_logger, logger_instance):
         logger_instance.num_prompt_tokens = 100
         logger_instance.num_generation_tokens = 200
@@ -279,7 +279,7 @@ class TestWorkloadStatLogger:
         assert logger_instance.tpot_list == []
         assert logger_instance.ttft_list == []
 
-    @patch('aura.aura.runner.scheduler.load_stat.logger')
+    @patch('aura.runner.scheduler.load_stat.logger')
     def test_log_with_no_throughput(self, mock_logger, logger_instance):
         logger_instance.last_scheduler_stats = MagicMock()
         logger_instance.last_scheduler_stats.num_running_reqs = 0
@@ -296,7 +296,7 @@ class TestWorkloadStatLogger:
         call_kwargs = logger_instance.spec_decoding_logging.log.call_args[1]
         assert call_kwargs['log_fn'] == mock_logger.error
 
-    @patch('aura.aura.runner.scheduler.load_stat.logger')
+    @patch('aura.runner.scheduler.load_stat.logger')
     def test_log_engine_initialized(self, mock_logger, logger_instance):
         logger_instance.vllm_config.cache_config.num_gpu_blocks = 100
 
@@ -308,7 +308,7 @@ class TestWorkloadStatLogger:
         assert call_args[0][1] == 0
         assert call_args[0][2] == 100
 
-    @patch('aura.aura.runner.scheduler.load_stat.logger')
+    @patch('aura.runner.scheduler.load_stat.logger')
     def test_log_engine_initialized_no_gpu_blocks(self, mock_logger, logger_instance):
         logger_instance.vllm_config.cache_config.num_gpu_blocks = None
 

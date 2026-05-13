@@ -58,13 +58,13 @@ with patch.dict('sys.modules', {
     'torch': mock_torch,
     'torch.distributed': mock_torch.distributed,
     'aiohttp': mock_aiohttp,
-    'aura.aura.base.log.loggers': mock_loggers_module,
-    'aura.aura.controllers.utils.async_http': mock_async_http_module,
-    'aura.aura.controllers.utils.http_status': mock_http_status_module,
-    'aura.aura.controllers.utils.sync_http': mock_sync_http_module,
-    'aura.aura.controllers.utils.utils': mock_utils_module,
+    'aura.base.log.loggers': mock_loggers_module,
+    'aura.controllers.utils.async_http': mock_async_http_module,
+    'aura.controllers.utils.http_status': mock_http_status_module,
+    'aura.controllers.utils.sync_http': mock_sync_http_module,
+    'aura.controllers.utils.utils': mock_utils_module,
 }):
-    from aura.aura.controllers.train_controller.dispatch_actor import DispatchActor
+    from aura.controllers.train_controller.dispatch_actor import DispatchActor
 
 
 class TestDispatchActor(unittest.TestCase):

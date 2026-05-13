@@ -20,8 +20,8 @@
 import json
 import sqlite3
 from typing import Optional, List, Dict, Any
-from aura.aura.memory.episode.episode_store import Episode, EpisodeStore
-from aura.aura.memory.episode.episode import TerminationReason
+from aura.memory.episode.episode_store import Episode, EpisodeStore
+from aura.memory.episode.episode import TerminationReason
 
 
 class SQLiteEpisodeStore(EpisodeStore):

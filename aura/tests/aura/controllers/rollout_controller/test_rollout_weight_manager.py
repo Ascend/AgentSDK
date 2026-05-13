@@ -44,13 +44,13 @@ with patch.dict('sys.modules', {
     'torch': MagicMock(),
     'torch.distributed': MagicMock(),
     'transformers': mock_transformers,
-    'aura.aura.base.log.loggers': mock_loggers_module,
-    'aura.aura.base.utils.globals': mock_globals_module,
+    'aura.base.log.loggers': mock_loggers_module,
+    'aura.base.utils.globals': mock_globals_module,
 }):
-    from aura.aura.controllers.rollout_controller.rollout_weight_manager import (
+    from aura.controllers.rollout_controller.rollout_weight_manager import (
         RolloutWeightManager, MAX_RETAIN_WEIGHTS_VERSION, PATH_ITER_PATTERN
     )
-    import aura.aura.controllers.rollout_controller.rollout_weight_manager as _rwm_mod
+    import aura.controllers.rollout_controller.rollout_weight_manager as _rwm_mod
 
 
 class TestRolloutWeightManager(unittest.TestCase):

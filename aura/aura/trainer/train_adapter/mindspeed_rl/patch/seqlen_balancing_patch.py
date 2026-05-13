@@ -21,7 +21,7 @@ import torch
 import torch.distributed as dist
 from mindspeed_rl.utils.seqlen_balancing import karmarkar_karp
 
-from aura.aura.base.log.loggers import Loggers
+from aura.base.log.loggers import Loggers
 
 logger = Loggers(__name__).get_logger()
 

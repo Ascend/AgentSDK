@@ -24,11 +24,11 @@ from tensordict import TensorDict
 from verl.utils import hf_tokenizer
 from verl.experimental.agent_loop import AgentLoopManager
 
-from aura.aura.runner.agent_engine_wrapper.base_engine_wrapper import AgentTask
+from aura.runner.agent_engine_wrapper.base_engine_wrapper import AgentTask
 from verl import DataProto
 
-from aura.aura.runner.infer_router import InferRouter
-from aura.aura.base.log.loggers import Loggers
+from aura.runner.infer_router import InferRouter
+from aura.base.log.loggers import Loggers
 
 logger = Loggers(__name__).get_logger()
 
@@ -101,7 +101,7 @@ async def generate_trajectory(agent_task: AgentTask) -> dict:
     Returns:
         A dictionary containing prompt tokens, response tokens, masks, and rewards.
     """
-    from aura.aura.runner.agent_router import AgentRouter
+    from aura.runner.agent_router import AgentRouter
 
     router = await AgentRouter.create()
     trajectory = await router.generate_trajectory(agent_task, mode='Token')

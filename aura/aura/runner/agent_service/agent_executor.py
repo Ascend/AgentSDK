@@ -21,9 +21,9 @@ import json
 import traceback
 from typing import AsyncGenerator, Dict, List
 
-from aura.aura.base.execution.executor import Executor, public_api
-from aura.aura.base.log.loggers import Loggers
-from aura.aura.runner.agent_engine_wrapper.base_engine_wrapper import AgentTask, Trajectory
+from aura.base.execution.executor import Executor, public_api
+from aura.base.log.loggers import Loggers
+from aura.runner.agent_engine_wrapper.base_engine_wrapper import AgentTask, Trajectory
 
 logger = Loggers(__name__).get_logger()
 
@@ -44,7 +44,7 @@ class AgentExecutor(Executor):
         self.trajectory_save_dir = trajectory_save_dir
 
         if self.agent_engine == "rllm":
-            from aura.aura.runner.agent_engine_wrapper.rllm.rllm_engine_wrapper import  RLLMEngineWrapper
+            from aura.runner.agent_engine_wrapper.rllm.rllm_engine_wrapper import  RLLMEngineWrapper
             self.agent_executor_wrapper = RLLMEngineWrapper(
                 infer_service_params=infer_service_params,
                 **agent_engine_kwargs
@@ -81,7 +81,7 @@ class AgentExecutor(Executor):
 
         if self.trajectory_save_dir.endswith('.jsonl'):
             import ray
-            from aura.aura.memory.episode.backend.json_episode_store import JsonEpisodeStore
+            from aura.memory.episode.backend.json_episode_store import JsonEpisodeStore
             json_episode_store = JsonEpisodeStore(path=self.trajectory_save_dir)
             json_episode_store.store_episode(ray.get(self.agent_executor_wrapper.engine.episode.to_dict.remote()), "")
 

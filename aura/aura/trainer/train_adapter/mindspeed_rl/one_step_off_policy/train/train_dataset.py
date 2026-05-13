@@ -22,7 +22,7 @@ import numpy as np
 
 from mindspeed_rl.datasets.base_dataset import BaseDataset
 from mindspeed_rl.datasets.indexed_dataset import get_packed_indexed_dataset
-from aura.aura.base.log.loggers import Loggers
+from aura.base.log.loggers import Loggers
 
 logger = Loggers(__name__).get_logger()
 IGNORE_INDEX = -100

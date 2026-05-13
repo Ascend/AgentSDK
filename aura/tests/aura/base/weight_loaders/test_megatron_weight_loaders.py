@@ -34,7 +34,7 @@ import torch
 from unittest.mock import patch
 from torch import nn
 
-from aura.aura.base.weight_loaders.megatron_weight_loaders import (
+from aura.base.weight_loaders.megatron_weight_loaders import (
     InferParallelConfig,
     BaseMegatronWeightLoader,
 )

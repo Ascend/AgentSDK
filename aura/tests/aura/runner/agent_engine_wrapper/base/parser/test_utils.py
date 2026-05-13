@@ -4,7 +4,7 @@
 
 import pytest
 
-from aura.aura.runner.agent_engine_wrapper.base.parser.utils import PARSER_TEST_MESSAGES
+from aura.runner.agent_engine_wrapper.base.parser.utils import PARSER_TEST_MESSAGES
 
 
 class TestParserTestMessages:

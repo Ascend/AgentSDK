@@ -25,8 +25,8 @@ from unittest.mock import MagicMock, patch
 # Module-level mocks  (BEFORE importing the code under test)
 #
 # train_queue.py imports:
-#   - aura.aura.base.log.loggers.Loggers  (which imports torch, torch.distributed)
-#   - aura.aura.controllers.utils.utils.DEFAULT_SLEEP_TIME, MAX_TIMEOUT
+#   - aura.base.log.loggers.Loggers  (which imports torch, torch.distributed)
+#   - aura.controllers.utils.utils.DEFAULT_SLEEP_TIME, MAX_TIMEOUT
 #     (which imports ray, requests, torch, Loggers)
 # ---------------------------------------------------------------------------
 mock_torch = MagicMock()
@@ -45,10 +45,10 @@ with patch.dict(sys.modules, {
     'torch.distributed': mock_torch.distributed,
     'ray': mock_ray,
     'requests': mock_requests,
-    'aura.aura.base.log.loggers': mock_loggers_module,
-    'aura.aura.controllers.utils.utils': mock_controller_utils_module,
+    'aura.base.log.loggers': mock_loggers_module,
+    'aura.controllers.utils.utils': mock_controller_utils_module,
 }):
-    from aura.aura.controllers.train_controller.train_queue import TrainQueue
+    from aura.controllers.train_controller.train_queue import TrainQueue
 
 
 class TestTrainQueue(unittest.TestCase):

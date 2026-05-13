@@ -20,7 +20,7 @@
 
 import unittest
 
-from aura.aura.controllers.utils.http_status import HTTP_OK_200, HTTP_ERROR_400, HTTP_ERROR_500
+from aura.controllers.utils.http_status import HTTP_OK_200, HTTP_ERROR_400, HTTP_ERROR_500
 
 
 class TestHttpStatus(unittest.TestCase):

@@ -39,7 +39,7 @@ from verl.utils.checkpoint.checkpoint_manager import find_latest_ckpt_path, shou
 from verl.utils.debug import marked_timer
 from verl import DataProto
 
-from aura.aura.base.log.loggers import Loggers
+from aura.base.log.loggers import Loggers
 
 logger = Loggers(__name__).get_logger()
 

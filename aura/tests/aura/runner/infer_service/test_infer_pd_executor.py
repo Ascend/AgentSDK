@@ -62,14 +62,14 @@ def mock_dependencies(monkeypatch):
     mock_infer_executor_module = create_mock_infer_executor_module()
 
     # Mock the modules in sys.modules
-    monkeypatch.setitem(sys.modules, "aura.aura.base.execution.executor", mock_executor_module)
-    monkeypatch.setitem(sys.modules, "aura.aura.runner.infer_service.infer_executor", mock_infer_executor_module)
+    monkeypatch.setitem(sys.modules, "aura.base.execution.executor", mock_executor_module)
+    monkeypatch.setitem(sys.modules, "aura.runner.infer_service.infer_executor", mock_infer_executor_module)
 
     # Delete the infer_pd_executor module if it's already imported
-    monkeypatch.delitem(sys.modules, "aura.aura.runner.infer_service.infer_pd_executor", raising=False)
+    monkeypatch.delitem(sys.modules, "aura.runner.infer_service.infer_pd_executor", raising=False)
 
     # Now patch the logger
-    with patch("aura.aura.runner.infer_service.infer_pd_executor.logger") as mock_logger:
+    with patch("aura.runner.infer_service.infer_pd_executor.logger") as mock_logger:
         yield {
             "logger": mock_logger,
         }
@@ -80,7 +80,7 @@ class TestInferPrefillExecutor:
 
     def setup_method(self):
         """Setup method to import InferPrefillExecutor before each test."""
-        from aura.aura.runner.infer_service.infer_pd_executor import InferPrefillExecutor
+        from aura.runner.infer_service.infer_pd_executor import InferPrefillExecutor
         self.InferPrefillExecutor = InferPrefillExecutor
 
     @pytest.mark.asyncio
@@ -167,13 +167,13 @@ class TestInferDecodeExecutor:
 
     def setup_method(self):
         """Setup method to import InferDecodeExecutor before each test."""
-        from aura.aura.runner.infer_service.infer_pd_executor import InferDecodeExecutor
+        from aura.runner.infer_service.infer_pd_executor import InferDecodeExecutor
         self.InferDecodeExecutor = InferDecodeExecutor
 
     def test_init(self, mock_dependencies):
         """Test InferDecodeExecutor initialization."""
         with patch(
-                "aura.aura.runner.infer_service.infer_executor.InferExecutor.__init__",
+                "aura.runner.infer_service.infer_executor.InferExecutor.__init__",
                 return_value=None
         ) as mock_super:
 
@@ -191,7 +191,7 @@ class TestInferPDSepExecutor:
 
     def setup_method(self):
         """Setup method to import InferPDSepExecutor before each test."""
-        from aura.aura.runner.infer_service.infer_pd_executor import InferPDSepExecutor
+        from aura.runner.infer_service.infer_pd_executor import InferPDSepExecutor
         self.InferPDSepExecutor = InferPDSepExecutor
 
     @pytest.fixture
@@ -299,7 +299,7 @@ class TestInferPDSepExecutor:
         executor.resource_set.model_copy.return_value = MagicMock()
 
         with patch("ray.remote") as mock_remote:
-            with patch("aura.aura.runner.infer_service.infer_pd_executor.NodeAffinitySchedulingStrategy"):
+            with patch("aura.runner.infer_service.infer_pd_executor.NodeAffinitySchedulingStrategy"):
                 mock_actor = MagicMock()
                 mock_actor.options.return_value.remote.return_value = mock_actor
                 mock_actor.setup.remote = AsyncMock()
@@ -428,7 +428,7 @@ class TestInferPDSepExecutor:
         executor.conf = mock_conf
 
         with patch.dict(os.environ, {"ASCEND_PLATFORM": "A2"}):
-            with patch("aura.aura.base.conf.conf.AgenticRLConf") as mock_conf_cls:
+            with patch("aura.base.conf.conf.AgenticRLConf") as mock_conf_cls:
                 mock_conf_cls.load_config.return_value = mock_conf
                 result = executor.alloc_resources()
 
@@ -455,7 +455,7 @@ class TestInferPDSepExecutor:
         executor.conf = mock_conf
 
         with patch.dict(os.environ, {"ASCEND_PLATFORM": "A2"}):
-            with patch("aura.aura.base.conf.conf.AgenticRLConf") as mock_conf_cls:
+            with patch("aura.base.conf.conf.AgenticRLConf") as mock_conf_cls:
                 mock_conf_cls.load_config.return_value = mock_conf
                 with pytest.raises(ValueError, match="Resources are insufficient"):
                     executor.alloc_resources()

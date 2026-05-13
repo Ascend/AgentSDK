@@ -21,8 +21,8 @@ import time
 import torch
 from fastapi import Request, UploadFile, File, HTTPException, APIRouter
 
-from aura.aura.base.log.loggers import Loggers
-from aura.aura.controllers.utils.http_status import HTTP_ERROR_400
+from aura.base.log.loggers import Loggers
+from aura.controllers.utils.http_status import HTTP_ERROR_400
 
 logger = Loggers(__name__).get_logger()
 

@@ -19,8 +19,8 @@ import os
 
 import yaml
 
-from aura.aura.base.log.loggers import Loggers
-from aura.aura.trainer.train_adapter.mindspeed_rl.config_cls import ExtendedGenerateConfig
+from aura.base.log.loggers import Loggers
+from aura.trainer.train_adapter.mindspeed_rl.config_cls import ExtendedGenerateConfig
 
 logger = Loggers(__name__).get_logger()
 

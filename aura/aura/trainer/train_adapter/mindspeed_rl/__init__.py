@@ -15,4 +15,4 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 # 
-import aura.aura.trainer.train_adapter.mindspeed_rl.patch
+import aura.trainer.train_adapter.mindspeed_rl.patch

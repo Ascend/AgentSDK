@@ -27,9 +27,9 @@ from unittest.mock import patch, MagicMock, AsyncMock
 @pytest.fixture(autouse=True, scope="function")
 def mock_dependencies(monkeypatch):
     """Mock all external dependencies for workload tests."""
-    monkeypatch.delitem(sys.modules, "aura.aura.runner.scheduler.workload", raising=False)
+    monkeypatch.delitem(sys.modules, "aura.runner.scheduler.workload", raising=False)
 
-    with patch("aura.aura.runner.scheduler.workload.logger") as mock_logger:
+    with patch("aura.runner.scheduler.workload.logger") as mock_logger:
         yield {
             "logger": mock_logger,
         }
@@ -40,7 +40,7 @@ class TestDPWorkLoad:
 
     def setup_method(self):
         """Setup method to import DPWorkLoad before each test."""
-        from aura.aura.runner.scheduler.workload import DPWorkLoad
+        from aura.runner.scheduler.workload import DPWorkLoad
         self.DPWorkLoad = DPWorkLoad
 
     def test_init(self, mock_dependencies):
@@ -141,7 +141,7 @@ class TestInstanceWorkLoad:
 
     def setup_method(self):
         """Setup method to import InstanceWorkLoad before each test."""
-        from aura.aura.runner.scheduler.workload import InstanceWorkLoad
+        from aura.runner.scheduler.workload import InstanceWorkLoad
         self.InstanceWorkLoad = InstanceWorkLoad
 
     def test_init_with_dp_address(self, mock_dependencies):
@@ -220,7 +220,7 @@ class TestWorkLoadManger:
 
     def setup_method(self):
         """Setup method to import WorkLoadManger before each test."""
-        from aura.aura.runner.scheduler.workload import WorkLoadManger
+        from aura.runner.scheduler.workload import WorkLoadManger
         self.WorkLoadManger = WorkLoadManger
 
     def test_init(self, mock_dependencies):
@@ -308,7 +308,7 @@ class TestPollWorkloadOpenai:
 
     def setup_method(self):
         """Setup method to import poll_workload_openai before each test."""
-        from aura.aura.runner.scheduler.workload import poll_workload_openai
+        from aura.runner.scheduler.workload import poll_workload_openai
         self.poll_workload_openai = poll_workload_openai
 
     @pytest.mark.asyncio
@@ -352,7 +352,7 @@ class TestPollAllInstances:
 
     def setup_method(self):
         """Setup method to import poll_all_instances and WorkLoadManger before each test."""
-        from aura.aura.runner.scheduler.workload import poll_all_instances, WorkLoadManger
+        from aura.runner.scheduler.workload import poll_all_instances, WorkLoadManger
         self.poll_all_instances = poll_all_instances
         self.WorkLoadManger = WorkLoadManger
 
@@ -369,7 +369,7 @@ class TestPollAllInstances:
         async def mock_poll(*args, **kwargs):
             return {"dp_loads": {"0": {"num_running_reqs": 3}}}
 
-        with patch('aura.aura.runner.scheduler.workload.poll_workload_openai', mock_poll):
+        with patch('aura.runner.scheduler.workload.poll_workload_openai', mock_poll):
             result = await self.poll_all_instances(mock_session, workloads)
 
         assert "192.168.1.1:8080" in result
@@ -393,7 +393,7 @@ class TestPollAllInstances:
             else:
                 raise Exception("Connection refused")
 
-        with patch('aura.aura.runner.scheduler.workload.poll_workload_openai', mock_poll):
+        with patch('aura.runner.scheduler.workload.poll_workload_openai', mock_poll):
             result = await self.poll_all_instances(mock_session, workloads)
 
         assert "192.168.1.1:8080" in result
@@ -427,7 +427,7 @@ class TestWorkloadUpdatePeriodically:
 
     def setup_method(self):
         """Setup method to import workload_update_periodically and WorkLoadManger before each test."""
-        from aura.aura.runner.scheduler.workload import workload_update_periodically, WorkLoadManger
+        from aura.runner.scheduler.workload import workload_update_periodically, WorkLoadManger
         self.workload_update_periodically = workload_update_periodically
         self.WorkLoadManger = WorkLoadManger
 
@@ -452,7 +452,7 @@ class TestWorkloadUpdatePeriodically:
                 raise asyncio.CancelledError()
 
         with patch.dict(os.environ, {"VLLM_LOG_STATS_INTERVAL": "1", "LOG_WORKLOAD_ENABLE": "0"}):
-            with patch('aura.aura.runner.scheduler.workload.poll_all_instances', mock_poll_all):
+            with patch('aura.runner.scheduler.workload.poll_all_instances', mock_poll_all):
                 with patch('asyncio.sleep', mock_sleep):
                     with patch('aiohttp.ClientSession') as mock_session_cls:
                         mock_session = AsyncMock()
@@ -483,7 +483,7 @@ class TestWorkloadUpdatePeriodically:
                 raise asyncio.CancelledError()
 
         with patch.dict(os.environ, {"VLLM_LOG_STATS_INTERVAL": "invalid", "LOG_WORKLOAD_ENABLE": "0"}):
-            with patch('aura.aura.runner.scheduler.workload.poll_all_instances', mock_poll_all):
+            with patch('aura.runner.scheduler.workload.poll_all_instances', mock_poll_all):
                 with patch('asyncio.sleep', mock_sleep):
                     with patch('aiohttp.ClientSession') as mock_session_cls:
                         mock_session = AsyncMock()
@@ -513,7 +513,7 @@ class TestWorkloadUpdatePeriodically:
                 raise asyncio.CancelledError()
 
         with patch.dict(os.environ, {"VLLM_LOG_STATS_INTERVAL": "1", "LOG_WORKLOAD_ENABLE": "1"}):
-            with patch('aura.aura.runner.scheduler.workload.poll_all_instances', mock_poll_all):
+            with patch('aura.runner.scheduler.workload.poll_all_instances', mock_poll_all):
                 with patch('asyncio.sleep', mock_sleep):
                     with patch('aiohttp.ClientSession') as mock_session_cls:
                         mock_session = AsyncMock()
@@ -544,7 +544,7 @@ class TestWorkloadUpdatePeriodically:
                 raise asyncio.CancelledError()
 
         with patch.dict(os.environ, {"VLLM_LOG_STATS_INTERVAL": "1", "LOG_WORKLOAD_ENABLE": "0"}):
-            with patch('aura.aura.runner.scheduler.workload.poll_all_instances', mock_poll_all):
+            with patch('aura.runner.scheduler.workload.poll_all_instances', mock_poll_all):
                 with patch('asyncio.sleep', mock_sleep):
                     with patch('aiohttp.ClientSession') as mock_session_cls:
                         mock_session = AsyncMock()
@@ -560,7 +560,7 @@ class TestStartWorkloadUpdate:
 
     def setup_method(self):
         """Setup method to import start_workload_update and WorkLoadManger before each test."""
-        from aura.aura.runner.scheduler.workload import start_workload_update, WorkLoadManger
+        from aura.runner.scheduler.workload import start_workload_update, WorkLoadManger
         self.start_workload_update = start_workload_update
         self.WorkLoadManger = WorkLoadManger
 

@@ -33,7 +33,7 @@ with patch.dict('sys.modules', {
     'ray': mock_ray
 }):
     # Now we can safely import the class under test
-    from aura.aura.trainer.train_adapter.verl.full_async.message_queue import MessageQueueDMClient
+    from aura.trainer.train_adapter.verl.full_async.message_queue import MessageQueueDMClient
 
 class TestMessageQueueDMClient(unittest.TestCase):
     def setUp(self):

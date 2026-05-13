@@ -39,16 +39,16 @@ class TestTrainManager:
         cls.mocked_modules = {
             "ray": create_mock_module(),
             "omegaconf": create_mock_module(),
-            "aura.aura.base.execution.executor_manager": create_mock_module(),
-            "aura.aura.base.log.loggers": create_mock_module(),
-            "aura.aura.trainer.train_executor": create_mock_module(),
-            "aura.aura.base.conf.conf": create_mock_module(),
+            "aura.base.execution.executor_manager": create_mock_module(),
+            "aura.base.log.loggers": create_mock_module(),
+            "aura.trainer.train_executor": create_mock_module(),
+            "aura.base.conf.conf": create_mock_module(),
         }
         cls.module_patcher = patch.dict(sys.modules, cls.mocked_modules)
         cls.module_patcher.start()
 
         # Import inside patch lifecycle
-        from aura.aura.trainer.train_manager import (
+        from aura.trainer.train_manager import (
             TrainManager,
             get_or_create_train_manager,
         )
@@ -64,13 +64,13 @@ class TestTrainManager:
         """
         Provide runtime dependency mocks for TrainManager.
         """
-        with patch("aura.aura.trainer.train_manager.ray") as mock_ray, \
-             patch("aura.aura.trainer.train_manager.OmegaConf") as mock_omega, \
-             patch("aura.aura.trainer.train_manager.logger") as mock_logger, \
-             patch("aura.aura.trainer.train_manager.ExecutorManager") as mock_executor_manager, \
-             patch("aura.aura.base.conf.conf.AgenticRLConf") as mock_agentic_conf, \
-             patch("aura.aura.trainer.train_manager.TrainExecutor") as mock_train_executor, \
-             patch("aura.aura.trainer.train_manager.Loggers") as mock_loggers:
+        with patch("aura.trainer.train_manager.ray") as mock_ray, \
+             patch("aura.trainer.train_manager.OmegaConf") as mock_omega, \
+             patch("aura.trainer.train_manager.logger") as mock_logger, \
+             patch("aura.trainer.train_manager.ExecutorManager") as mock_executor_manager, \
+             patch("aura.base.conf.conf.AgenticRLConf") as mock_agentic_conf, \
+             patch("aura.trainer.train_manager.TrainExecutor") as mock_train_executor, \
+             patch("aura.trainer.train_manager.Loggers") as mock_loggers:
 
             mock_conf_instance = MagicMock()
             instance_conf_1 = MagicMock()

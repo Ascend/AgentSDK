@@ -17,7 +17,7 @@
 import random
 from typing import Any
 
-from aura.aura.base.log.loggers import Loggers
+from aura.base.log.loggers import Loggers
 
 logger = Loggers(__name__).get_logger()
 
@@ -45,7 +45,7 @@ class TrainRouter:
             The singleton TrainRouter instance.
         """
         if cls._router is None:
-            from aura.aura.trainer.train_manager import get_or_create_train_manager
+            from aura.trainer.train_manager import get_or_create_train_manager
 
             train_manager = await get_or_create_train_manager()
             cls._router = TrainRouter(train_manager)

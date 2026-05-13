@@ -25,13 +25,13 @@ from mindspeed_rl.utils import seed_all
 from mindspeed_rl.utils.utils import parse_args_from_config, init_torch_compile
 from mindspeed_rl.config_cls.mindstudio_config import ProfilerConfig, MsprobeConfig
 
-from aura.aura.trainer.train_adapter.mindspeed_rl.config_cls.extend_generate import ExtendedGenerateConfig
-from aura.aura.trainer.train_adapter.mindspeed_rl.config_cls.agentic_env import AgenticEnvConfig
-from aura.aura.trainer.train_adapter.mindspeed_rl.config_cls.extend_rl_config import ExtendedRLConfig
-from aura.aura.trainer.train_adapter.mindspeed_rl.config_cls.extend_megatron_config import ExtendMegatronConfig
-from aura.aura.trainer.train_adapter.mindspeed_rl.config_cls.validate_config import validate_agent_rl_args
+from aura.trainer.train_adapter.mindspeed_rl.config_cls.extend_generate import ExtendedGenerateConfig
+from aura.trainer.train_adapter.mindspeed_rl.config_cls.agentic_env import AgenticEnvConfig
+from aura.trainer.train_adapter.mindspeed_rl.config_cls.extend_rl_config import ExtendedRLConfig
+from aura.trainer.train_adapter.mindspeed_rl.config_cls.extend_megatron_config import ExtendMegatronConfig
+from aura.trainer.train_adapter.mindspeed_rl.config_cls.validate_config import validate_agent_rl_args
 
-from aura.aura.base.log.loggers import Loggers
+from aura.base.log.loggers import Loggers
 
 logger = Loggers("train_hybrid").get_logger()
 

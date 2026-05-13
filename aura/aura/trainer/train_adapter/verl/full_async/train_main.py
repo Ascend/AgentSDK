@@ -24,7 +24,7 @@ from omegaconf import OmegaConf
 from recipe.fully_async_policy.fully_async_main import create_resource_pool_manager, create_role_worker_mapping
 from verl.trainer.ppo.utils import Role
 
-from aura.aura.base.log.loggers import Loggers
+from aura.base.log.loggers import Loggers
 
 logger = Loggers(__name__).get_logger()
 
@@ -74,11 +74,11 @@ class FullyAsyncTaskRunner:
         role_worker_mapping, ray_worker_group_cls = create_role_worker_mapping(config)
 
         if config.actor_rollout_ref.actor.strategy in ["fsdp", "fsdp2"]:
-            from aura.aura.trainer.train_adapter.verl.full_async.workers.fsdp_workers import (
+            from aura.trainer.train_adapter.verl.full_async.workers.fsdp_workers import (
                 FsdpDetachActorWorker as DetachActorWorker,
             )
         elif config.actor_rollout_ref.actor.strategy == "megatron":
-            from aura.aura.trainer.train_adapter.verl.full_async.workers.megatron_worker import (
+            from aura.trainer.train_adapter.verl.full_async.workers.megatron_worker import (
                 MegatronDetachActorWorker as DetachActorWorker,
             )
         else:
@@ -93,13 +93,13 @@ class FullyAsyncTaskRunner:
 
         self.components["trainer"].set_total_train_steps(config.total_train_steps)
 
-        from aura.aura.trainer.train_adapter.verl.full_async.param_sync import ParameterSynchronizer
+        from aura.trainer.train_adapter.verl.full_async.param_sync import ParameterSynchronizer
 
         param_synchronizer = ParameterSynchronizer.remote()
         self.components["trainer"].set_parameter_synchronizer(param_synchronizer)
 
-        from aura.aura.controllers.train_controller.train_controller import TrainController
-        from aura.aura.trainer.train_adapter.mindspeed_rl.utils.default_train_dataloader import (
+        from aura.controllers.train_controller.train_controller import TrainController
+        from aura.trainer.train_adapter.mindspeed_rl.utils.default_train_dataloader import (
             default_train_dataloader,
         )
 
@@ -122,7 +122,7 @@ class FullyAsyncTaskRunner:
         controller.wait_for_rollout_unit_ready()
         controller.initialize_rollout()
 
-        from aura.aura.data_manager.data_manager import DataManager
+        from aura.data_manager.data_manager import DataManager
 
         data_manager = DataManager(train_backend="verl", service_mode="train")
         data_manager.sync_init_data_manager(controller)
@@ -145,7 +145,7 @@ class FullyAsyncTaskRunner:
             if role != Role.Rollout
         }
 
-        from aura.aura.trainer.train_adapter.verl.full_async.full_async_trainer import FullyAsyncTrainer
+        from aura.trainer.train_adapter.verl.full_async.full_async_trainer import FullyAsyncTrainer
 
         trainer = FullyAsyncTrainer(
             config=config,

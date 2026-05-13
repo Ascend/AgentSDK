@@ -27,7 +27,7 @@ from unittest.mock import MagicMock, patch
 # train_weight_updater.py imports:
 #   - time, dataclasses (stdlib -- no mock needed)
 #   - ray  (used as @ray.remote decorator on WeightUpdateActor)
-#   - aura.aura.base.log.loggers.Loggers  (which imports torch, torch.distributed)
+#   - aura.base.log.loggers.Loggers  (which imports torch, torch.distributed)
 # ---------------------------------------------------------------------------
 mock_ray = MagicMock()
 mock_torch = MagicMock()
@@ -42,9 +42,9 @@ with patch.dict(sys.modules, {
     'ray': mock_ray,
     'torch': mock_torch,
     'torch.distributed': mock_torch.distributed,
-    'aura.aura.base.log.loggers': mock_loggers_module,
+    'aura.base.log.loggers': mock_loggers_module,
 }):
-    from aura.aura.controllers.train_controller.train_weight_updater import (
+    from aura.controllers.train_controller.train_weight_updater import (
         WeightUpdateActor,
         _ExportTracker,
     )

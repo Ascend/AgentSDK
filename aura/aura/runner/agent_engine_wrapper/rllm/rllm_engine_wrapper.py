@@ -26,10 +26,10 @@ from typing import Any, Dict
 
 from transformers import AutoTokenizer
 
-from aura.aura.base.log.loggers import Loggers
-from aura.aura.base.utils.load_object_by_path import load_object_by_path
-from aura.aura.memory.episode.episode import Episode
-from aura.aura.runner.agent_engine_wrapper.base_engine_wrapper import BaseEngineWrapper, AgentTask, Trajectory
+from aura.base.log.loggers import Loggers
+from aura.base.utils.load_object_by_path import load_object_by_path
+from aura.memory.episode.episode import Episode
+from aura.runner.agent_engine_wrapper.base_engine_wrapper import BaseEngineWrapper, AgentTask, Trajectory
 
 logger = Loggers(__name__).get_logger()
 
@@ -48,7 +48,7 @@ class RLLMEngineWrapper(BaseEngineWrapper):
     ):
         super().__init__(*args, **kwargs)
 
-        from aura.aura.runner.agent_service.chat_proxy import patch_async_openai_global
+        from aura.runner.agent_service.chat_proxy import patch_async_openai_global
         patch_async_openai_global(infer_service_params)
 
         _original_signal = signal.signal
@@ -69,7 +69,7 @@ class RLLMEngineWrapper(BaseEngineWrapper):
         self.tokenizer = AutoTokenizer.from_pretrained(self.tokenizer_name_or_path, trust_remote_code=True)
         self.sampling_params = infer_service_params
 
-        from aura.agents.agents_mapping import get_agent_by_name
+        from agents.agents_mapping import get_agent_by_name
         agent = get_agent_by_name(agent_name)
         if agent is None:
             raise RuntimeError(f"Agent {agent_name} not found.")
@@ -147,7 +147,7 @@ class RLLMEngineWrapper(BaseEngineWrapper):
         if self.engine is not None:
             return
 
-        from aura.aura.runner.agent_engine_wrapper.rllm.agent_execution_engine import AgentExecutionEngine
+        from aura.runner.agent_engine_wrapper.rllm.agent_execution_engine import AgentExecutionEngine
         self.engine = AgentExecutionEngine(
             server_addresses=self.server_addresses,
             agent_class=self.agent_class,

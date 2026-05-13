@@ -27,7 +27,7 @@ def mock_dependencies(monkeypatch):
     mock_load_stat.WorkloadStatLogger = MagicMock()
     mock_load_stat.vllm_log_stats_periodically = MagicMock()
 
-    monkeypatch.setitem(sys.modules, "aura.aura.runner.scheduler.load_stat", mock_load_stat)
+    monkeypatch.setitem(sys.modules, "aura.runner.scheduler.load_stat", mock_load_stat)
     monkeypatch.setitem(sys.modules, "vllm", MagicMock())
     monkeypatch.setitem(sys.modules, "vllm.v1", MagicMock())
     monkeypatch.setitem(sys.modules, "vllm.v1.engine", MagicMock())
@@ -39,13 +39,13 @@ def mock_dependencies(monkeypatch):
     monkeypatch.setitem(sys.modules, "vllm.entrypoints.openai.serving_models", MagicMock())
     monkeypatch.setitem(sys.modules, "vllm.config", MagicMock())
 
-    monkeypatch.delitem(sys.modules, "aura.aura.runner.infer_service.infer_server.vllm_ray_infer_server", raising=False)
+    monkeypatch.delitem(sys.modules, "aura.runner.infer_service.infer_server.vllm_ray_infer_server", raising=False)
 
     with (
-        patch("aura.aura.runner.infer_service.infer_server.vllm_ray_infer_server.asyncio.create_task") as mock_create_task,
-        patch("aura.aura.runner.infer_service.infer_server.vllm_ray_infer_server.vllm_log_stats_periodically") as mock_log,
-        patch("aura.aura.runner.infer_service.infer_server.vllm_ray_infer_server.InstanceWorkLoad") as mock_workload,
-        patch("aura.aura.runner.infer_service.infer_server.vllm_ray_infer_server.AsyncEngineArgs") as mock_engine_args,
+        patch("aura.runner.infer_service.infer_server.vllm_ray_infer_server.asyncio.create_task") as mock_create_task,
+        patch("aura.runner.infer_service.infer_server.vllm_ray_infer_server.vllm_log_stats_periodically") as mock_log,
+        patch("aura.runner.infer_service.infer_server.vllm_ray_infer_server.InstanceWorkLoad") as mock_workload,
+        patch("aura.runner.infer_service.infer_server.vllm_ray_infer_server.AsyncEngineArgs") as mock_engine_args,
         patch("vllm.v1.engine.async_llm.AsyncLLM") as mock_async_llm,
         patch("vllm.entrypoints.openai.serving_chat.OpenAIServingChat") as mock_chat,
         patch("vllm.entrypoints.openai.serving_models.OpenAIServingModels") as mock_models,
@@ -76,7 +76,7 @@ class TestVLLMRayInferServer:
 
     def setup_method(self):
         """Setup method to import VLLMRayInferServer before each test."""
-        from aura.aura.runner.infer_service.infer_server.vllm_ray_infer_server import VLLMRayInferServer
+        from aura.runner.infer_service.infer_server.vllm_ray_infer_server import VLLMRayInferServer
         self.VLLMRayInferServer = VLLMRayInferServer
 
     def test_init(self, mock_dependencies):

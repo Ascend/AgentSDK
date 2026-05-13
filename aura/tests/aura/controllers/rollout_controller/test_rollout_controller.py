@@ -77,11 +77,11 @@ sys.modules['ray.exceptions'] = MagicMock()
 # Mock uvicorn
 sys.modules['uvicorn'] = MagicMock()
 
-from aura.aura.controllers.rollout_controller.rollout_controller import (
+from aura.controllers.rollout_controller.rollout_controller import (
     clean_rollout_weights,
     RolloutController,
 )
-from aura.aura.base.utils.globals import ROLLOUT_WEIGHTS_PREFIX
+from aura.base.utils.globals import ROLLOUT_WEIGHTS_PREFIX
 
 
 class TestCleanRolloutWeights:
@@ -145,14 +145,14 @@ class TestCleanRolloutWeights:
 class TestRolloutController:
     """Test cases for RolloutController class."""
 
-    @patch('aura.aura.controllers.rollout_controller.rollout_controller.clean_rollout_weights')
-    @patch('aura.aura.controllers.rollout_controller.rollout_controller.threading.Thread')
-    @patch('aura.aura.controllers.rollout_controller.rollout_controller.FastAPI')
-    @patch('aura.aura.controllers.rollout_controller.rollout_controller.RolloutServer')
-    @patch('aura.aura.controllers.rollout_controller.rollout_controller.RolloutClient')
-    @patch('aura.aura.controllers.rollout_controller.rollout_controller.create_actor')
-    @patch('aura.aura.controllers.rollout_controller.rollout_controller.ray.get')
-    @patch('aura.aura.controllers.rollout_controller.rollout_controller.ControllerConfig')
+    @patch('aura.controllers.rollout_controller.rollout_controller.clean_rollout_weights')
+    @patch('aura.controllers.rollout_controller.rollout_controller.threading.Thread')
+    @patch('aura.controllers.rollout_controller.rollout_controller.FastAPI')
+    @patch('aura.controllers.rollout_controller.rollout_controller.RolloutServer')
+    @patch('aura.controllers.rollout_controller.rollout_controller.RolloutClient')
+    @patch('aura.controllers.rollout_controller.rollout_controller.create_actor')
+    @patch('aura.controllers.rollout_controller.rollout_controller.ray.get')
+    @patch('aura.controllers.rollout_controller.rollout_controller.ControllerConfig')
     def test_init(self, mock_config_class, mock_ray_get, mock_create_actor,
                   mock_rollout_client_class, mock_rollout_server_class,
                   mock_fastapi_class, mock_thread_class, mock_clean_weights):
@@ -185,14 +185,14 @@ class TestRolloutController:
         assert controller.rollout_queue_actor == mock_queue_actor
         assert controller.rollout_server == mock_server
 
-    @patch('aura.aura.controllers.rollout_controller.rollout_controller.clean_rollout_weights')
-    @patch('aura.aura.controllers.rollout_controller.rollout_controller.threading.Thread')
-    @patch('aura.aura.controllers.rollout_controller.rollout_controller.FastAPI')
-    @patch('aura.aura.controllers.rollout_controller.rollout_controller.RolloutServer')
-    @patch('aura.aura.controllers.rollout_controller.rollout_controller.RolloutClient')
-    @patch('aura.aura.controllers.rollout_controller.rollout_controller.create_actor')
-    @patch('aura.aura.controllers.rollout_controller.rollout_controller.ray.get')
-    @patch('aura.aura.controllers.rollout_controller.rollout_controller.ControllerConfig')
+    @patch('aura.controllers.rollout_controller.rollout_controller.clean_rollout_weights')
+    @patch('aura.controllers.rollout_controller.rollout_controller.threading.Thread')
+    @patch('aura.controllers.rollout_controller.rollout_controller.FastAPI')
+    @patch('aura.controllers.rollout_controller.rollout_controller.RolloutServer')
+    @patch('aura.controllers.rollout_controller.rollout_controller.RolloutClient')
+    @patch('aura.controllers.rollout_controller.rollout_controller.create_actor')
+    @patch('aura.controllers.rollout_controller.rollout_controller.ray.get')
+    @patch('aura.controllers.rollout_controller.rollout_controller.ControllerConfig')
     def test_send_ready_to_train(self, mock_config_class, mock_ray_get, mock_create_actor,
                                  mock_rollout_client_class, mock_rollout_server_class,
                                  mock_fastapi_class, mock_thread_class, mock_clean_weights):
@@ -219,14 +219,14 @@ class TestRolloutController:
 
         mock_client.send_ready_to_train.assert_called_once()
 
-    @patch('aura.aura.controllers.rollout_controller.rollout_controller.clean_rollout_weights')
-    @patch('aura.aura.controllers.rollout_controller.rollout_controller.threading.Thread')
-    @patch('aura.aura.controllers.rollout_controller.rollout_controller.FastAPI')
-    @patch('aura.aura.controllers.rollout_controller.rollout_controller.RolloutServer')
-    @patch('aura.aura.controllers.rollout_controller.rollout_controller.RolloutClient')
-    @patch('aura.aura.controllers.rollout_controller.rollout_controller.create_actor')
-    @patch('aura.aura.controllers.rollout_controller.rollout_controller.ray.get')
-    @patch('aura.aura.controllers.rollout_controller.rollout_controller.ControllerConfig')
+    @patch('aura.controllers.rollout_controller.rollout_controller.clean_rollout_weights')
+    @patch('aura.controllers.rollout_controller.rollout_controller.threading.Thread')
+    @patch('aura.controllers.rollout_controller.rollout_controller.FastAPI')
+    @patch('aura.controllers.rollout_controller.rollout_controller.RolloutServer')
+    @patch('aura.controllers.rollout_controller.rollout_controller.RolloutClient')
+    @patch('aura.controllers.rollout_controller.rollout_controller.create_actor')
+    @patch('aura.controllers.rollout_controller.rollout_controller.ray.get')
+    @patch('aura.controllers.rollout_controller.rollout_controller.ControllerConfig')
     def test_get_weight_manager(self, mock_config_class, mock_ray_get, mock_create_actor,
                                 mock_rollout_client_class, mock_rollout_server_class,
                                 mock_fastapi_class, mock_thread_class, mock_clean_weights):
@@ -253,14 +253,14 @@ class TestRolloutController:
 
         assert result == mock_weight_manager
 
-    @patch('aura.aura.controllers.rollout_controller.rollout_controller.clean_rollout_weights')
-    @patch('aura.aura.controllers.rollout_controller.rollout_controller.threading.Thread')
-    @patch('aura.aura.controllers.rollout_controller.rollout_controller.FastAPI')
-    @patch('aura.aura.controllers.rollout_controller.rollout_controller.RolloutServer')
-    @patch('aura.aura.controllers.rollout_controller.rollout_controller.RolloutClient')
-    @patch('aura.aura.controllers.rollout_controller.rollout_controller.create_actor')
-    @patch('aura.aura.controllers.rollout_controller.rollout_controller.ray.get')
-    @patch('aura.aura.controllers.rollout_controller.rollout_controller.ControllerConfig')
+    @patch('aura.controllers.rollout_controller.rollout_controller.clean_rollout_weights')
+    @patch('aura.controllers.rollout_controller.rollout_controller.threading.Thread')
+    @patch('aura.controllers.rollout_controller.rollout_controller.FastAPI')
+    @patch('aura.controllers.rollout_controller.rollout_controller.RolloutServer')
+    @patch('aura.controllers.rollout_controller.rollout_controller.RolloutClient')
+    @patch('aura.controllers.rollout_controller.rollout_controller.create_actor')
+    @patch('aura.controllers.rollout_controller.rollout_controller.ray.get')
+    @patch('aura.controllers.rollout_controller.rollout_controller.ControllerConfig')
     def test_initialize_rollout_queue_actor(self, mock_config_class, mock_ray_get, mock_create_actor,
                                             mock_rollout_client_class, mock_rollout_server_class,
                                             mock_fastapi_class, mock_thread_class, mock_clean_weights):
@@ -287,14 +287,14 @@ class TestRolloutController:
         assert controller.rollout_queue_actor == mock_queue_actor
         mock_ray_get.assert_called()
 
-    @patch('aura.aura.controllers.rollout_controller.rollout_controller.clean_rollout_weights')
-    @patch('aura.aura.controllers.rollout_controller.rollout_controller.threading.Thread')
-    @patch('aura.aura.controllers.rollout_controller.rollout_controller.FastAPI')
-    @patch('aura.aura.controllers.rollout_controller.rollout_controller.RolloutServer')
-    @patch('aura.aura.controllers.rollout_controller.rollout_controller.RolloutClient')
-    @patch('aura.aura.controllers.rollout_controller.rollout_controller.create_actor')
-    @patch('aura.aura.controllers.rollout_controller.rollout_controller.ray.get')
-    @patch('aura.aura.controllers.rollout_controller.rollout_controller.ControllerConfig')
+    @patch('aura.controllers.rollout_controller.rollout_controller.clean_rollout_weights')
+    @patch('aura.controllers.rollout_controller.rollout_controller.threading.Thread')
+    @patch('aura.controllers.rollout_controller.rollout_controller.FastAPI')
+    @patch('aura.controllers.rollout_controller.rollout_controller.RolloutServer')
+    @patch('aura.controllers.rollout_controller.rollout_controller.RolloutClient')
+    @patch('aura.controllers.rollout_controller.rollout_controller.create_actor')
+    @patch('aura.controllers.rollout_controller.rollout_controller.ray.get')
+    @patch('aura.controllers.rollout_controller.rollout_controller.ControllerConfig')
     def test_initialize_rollout_server(self, mock_config_class, mock_ray_get, mock_create_actor,
                                        mock_rollout_client_class, mock_rollout_server_class,
                                        mock_fastapi_class, mock_thread_class, mock_clean_weights):
@@ -328,14 +328,14 @@ class TestRolloutController:
         mock_thread_class.assert_called_once()
         mock_thread.start.assert_called_once()
 
-    @patch('aura.aura.controllers.rollout_controller.rollout_controller.clean_rollout_weights')
-    @patch('aura.aura.controllers.rollout_controller.rollout_controller.threading.Thread')
-    @patch('aura.aura.controllers.rollout_controller.rollout_controller.FastAPI')
-    @patch('aura.aura.controllers.rollout_controller.rollout_controller.RolloutServer')
-    @patch('aura.aura.controllers.rollout_controller.rollout_controller.RolloutClient')
-    @patch('aura.aura.controllers.rollout_controller.rollout_controller.create_actor')
-    @patch('aura.aura.controllers.rollout_controller.rollout_controller.ray.get')
-    @patch('aura.aura.controllers.rollout_controller.rollout_controller.ControllerConfig')
+    @patch('aura.controllers.rollout_controller.rollout_controller.clean_rollout_weights')
+    @patch('aura.controllers.rollout_controller.rollout_controller.threading.Thread')
+    @patch('aura.controllers.rollout_controller.rollout_controller.FastAPI')
+    @patch('aura.controllers.rollout_controller.rollout_controller.RolloutServer')
+    @patch('aura.controllers.rollout_controller.rollout_controller.RolloutClient')
+    @patch('aura.controllers.rollout_controller.rollout_controller.create_actor')
+    @patch('aura.controllers.rollout_controller.rollout_controller.ray.get')
+    @patch('aura.controllers.rollout_controller.rollout_controller.ControllerConfig')
     def test_initialize_rollout_weight_manager(self, mock_config_class, mock_ray_get, mock_create_actor,
                                                mock_rollout_client_class, mock_rollout_server_class,
                                                mock_fastapi_class, mock_thread_class, mock_clean_weights):
@@ -362,14 +362,14 @@ class TestRolloutController:
         assert controller.rollout_weight_manager == mock_weight_manager
         mock_clean_weights.assert_called_once_with("/tmp/weights")
 
-    @patch('aura.aura.controllers.rollout_controller.rollout_controller.clean_rollout_weights')
-    @patch('aura.aura.controllers.rollout_controller.rollout_controller.threading.Thread')
-    @patch('aura.aura.controllers.rollout_controller.rollout_controller.FastAPI')
-    @patch('aura.aura.controllers.rollout_controller.rollout_controller.RolloutServer')
-    @patch('aura.aura.controllers.rollout_controller.rollout_controller.RolloutClient')
-    @patch('aura.aura.controllers.rollout_controller.rollout_controller.create_actor')
-    @patch('aura.aura.controllers.rollout_controller.rollout_controller.ray.get')
-    @patch('aura.aura.controllers.rollout_controller.rollout_controller.ControllerConfig')
+    @patch('aura.controllers.rollout_controller.rollout_controller.clean_rollout_weights')
+    @patch('aura.controllers.rollout_controller.rollout_controller.threading.Thread')
+    @patch('aura.controllers.rollout_controller.rollout_controller.FastAPI')
+    @patch('aura.controllers.rollout_controller.rollout_controller.RolloutServer')
+    @patch('aura.controllers.rollout_controller.rollout_controller.RolloutClient')
+    @patch('aura.controllers.rollout_controller.rollout_controller.create_actor')
+    @patch('aura.controllers.rollout_controller.rollout_controller.ray.get')
+    @patch('aura.controllers.rollout_controller.rollout_controller.ControllerConfig')
     def test_running(self, mock_config_class, mock_ray_get, mock_create_actor,
                      mock_rollout_client_class, mock_rollout_server_class,
                      mock_fastapi_class, mock_thread_class, mock_clean_weights):
@@ -398,16 +398,16 @@ class TestRolloutController:
         assert result is True
         mock_server.running.assert_called_once()
 
-    @patch('aura.aura.controllers.rollout_controller.rollout_controller.time.sleep')
-    @patch('aura.aura.controllers.rollout_controller.rollout_controller.clean_rollout_weights')
-    @patch('aura.aura.controllers.rollout_controller.rollout_controller.threading.Thread')
-    @patch('aura.aura.controllers.rollout_controller.rollout_controller.FastAPI')
-    @patch('aura.aura.controllers.rollout_controller.rollout_controller.RolloutServer')
-    @patch('aura.aura.controllers.rollout_controller.rollout_controller.RolloutClient')
-    @patch('aura.aura.controllers.rollout_controller.rollout_controller.create_actor')
-    @patch('aura.aura.controllers.rollout_controller.rollout_controller.ray.get')
-    @patch('aura.aura.controllers.rollout_controller.rollout_controller.ray.kill')
-    @patch('aura.aura.controllers.rollout_controller.rollout_controller.ControllerConfig')
+    @patch('aura.controllers.rollout_controller.rollout_controller.time.sleep')
+    @patch('aura.controllers.rollout_controller.rollout_controller.clean_rollout_weights')
+    @patch('aura.controllers.rollout_controller.rollout_controller.threading.Thread')
+    @patch('aura.controllers.rollout_controller.rollout_controller.FastAPI')
+    @patch('aura.controllers.rollout_controller.rollout_controller.RolloutServer')
+    @patch('aura.controllers.rollout_controller.rollout_controller.RolloutClient')
+    @patch('aura.controllers.rollout_controller.rollout_controller.create_actor')
+    @patch('aura.controllers.rollout_controller.rollout_controller.ray.get')
+    @patch('aura.controllers.rollout_controller.rollout_controller.ray.kill')
+    @patch('aura.controllers.rollout_controller.rollout_controller.ControllerConfig')
     def test_finish_rollout(self, mock_config_class, mock_ray_kill, mock_ray_get,
                             mock_create_actor, mock_rollout_client_class,
                             mock_rollout_server_class, mock_fastapi_class,

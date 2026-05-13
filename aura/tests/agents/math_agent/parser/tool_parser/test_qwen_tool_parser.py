@@ -23,7 +23,7 @@ class TestQwenToolParserDetailed:
 
     def test_parse_with_nested_json(self):
         """Test parsing with nested JSON arguments."""
-        from aura.agents.math_agent.parser.tool_parser.qwen_tool_parser import QwenToolParser
+        from agents.math_agent.parser.tool_parser.qwen_tool_parser import QwenToolParser
         
         parser = QwenToolParser()
         text = f'{parser.tool_call_begin}{{"name": "python", "arguments": {{"code": "def f():\\n    return 1", "timeout": 10}}}}{parser.tool_call_end}'
@@ -35,7 +35,7 @@ class TestQwenToolParserDetailed:
 
     def test_parse_with_special_characters(self):
         """Test parsing with special characters in arguments."""
-        from aura.agents.math_agent.parser.tool_parser.qwen_tool_parser import QwenToolParser
+        from agents.math_agent.parser.tool_parser.qwen_tool_parser import QwenToolParser
         
         parser = QwenToolParser()
         text = f'{parser.tool_call_begin}{{"name": "search", "arguments": {{"query": "hello world!"}}}}{parser.tool_call_end}'
@@ -47,7 +47,7 @@ class TestQwenToolParserDetailed:
 
     def test_parse_with_empty_arguments(self):
         """Test parsing with empty arguments."""
-        from aura.agents.math_agent.parser.tool_parser.qwen_tool_parser import QwenToolParser
+        from agents.math_agent.parser.tool_parser.qwen_tool_parser import QwenToolParser
         
         parser = QwenToolParser()
         text = f'{parser.tool_call_begin}{{"name": "finish", "arguments": {{}}}}{parser.tool_call_end}'
@@ -60,7 +60,7 @@ class TestQwenToolParserDetailed:
 
     def test_parse_with_unicode(self):
         """Test parsing with unicode characters."""
-        from aura.agents.math_agent.parser.tool_parser.qwen_tool_parser import QwenToolParser
+        from agents.math_agent.parser.tool_parser.qwen_tool_parser import QwenToolParser
         
         parser = QwenToolParser()
         text = f'{parser.tool_call_begin}{{"name": "translate", "arguments": {{"text": "你好世界"}}}}{parser.tool_call_end}'
@@ -72,7 +72,7 @@ class TestQwenToolParserDetailed:
 
     def test_parse_mixed_content(self):
         """Test parsing text with mixed content."""
-        from aura.agents.math_agent.parser.tool_parser.qwen_tool_parser import QwenToolParser
+        from agents.math_agent.parser.tool_parser.qwen_tool_parser import QwenToolParser
         
         parser = QwenToolParser()
         text = f'''Let me think about this problem.
@@ -87,7 +87,7 @@ The answer is 42.'''
 
     def test_parse_consecutive_tool_calls(self):
         """Test parsing consecutive tool calls without text between."""
-        from aura.agents.math_agent.parser.tool_parser.qwen_tool_parser import QwenToolParser
+        from agents.math_agent.parser.tool_parser.qwen_tool_parser import QwenToolParser
         
         parser = QwenToolParser()
         text = f'{parser.tool_call_begin}{{"name": "a", "arguments": {{}}}}{parser.tool_call_end}{parser.tool_call_begin}{{"name": "b", "arguments": {{}}}}{parser.tool_call_end}'
@@ -100,7 +100,7 @@ The answer is 42.'''
 
     def test_parse_qwen_tool_calls_malformed_json(self):
         """Test parse_qwen_tool_calls with malformed JSON."""
-        from aura.agents.math_agent.parser.tool_parser.qwen_tool_parser import QwenToolParser
+        from agents.math_agent.parser.tool_parser.qwen_tool_parser import QwenToolParser
         
         parser = QwenToolParser()
         text = f'{parser.tool_call_begin}{{name: "invalid"}}{parser.tool_call_end}'
@@ -111,7 +111,7 @@ The answer is 42.'''
 
     def test_parse_qwen_tool_calls_missing_name(self):
         """Test parse_qwen_tool_calls with missing name field."""
-        from aura.agents.math_agent.parser.tool_parser.qwen_tool_parser import QwenToolParser
+        from agents.math_agent.parser.tool_parser.qwen_tool_parser import QwenToolParser
         
         parser = QwenToolParser()
         text = f'{parser.tool_call_begin}{{"arguments": {{"a": 1}}}}{parser.tool_call_end}'
@@ -121,7 +121,7 @@ The answer is 42.'''
 
     def test_get_tool_prompt_format(self):
         """Test get_tool_prompt output format."""
-        from aura.agents.math_agent.parser.tool_parser.qwen_tool_parser import QwenToolParser
+        from agents.math_agent.parser.tool_parser.qwen_tool_parser import QwenToolParser
         
         parser = QwenToolParser()
         tools_schema = '[{"type": "function", "function": {"name": "python"}}]'

@@ -24,19 +24,19 @@ from mindspeed_rl.utils.utils import MsProbe, get_node_nums
 from mindspeed_rl.workers.rule_reward import RuleReward
 from mindspeed_rl.workers.reward_woker import RewardWorker
 
-from aura.aura.base.utils.work_mode import set_work_mode
-from aura.aura.trainer.train_adapter.mindspeed_rl.utils.default_train_dataloader import default_train_dataloader
-from aura.aura.trainer.train_adapter.mindspeed_rl.utils.megatron_utils import (
+from aura.base.utils.work_mode import set_work_mode
+from aura.trainer.train_adapter.mindspeed_rl.utils.default_train_dataloader import default_train_dataloader
+from aura.trainer.train_adapter.mindspeed_rl.utils.megatron_utils import (
     get_megatron_module,
     initialize_megatron,
     rm_model_provider,
     gpt_model_provider,
     parse_training_config
 )
-from aura.aura.trainer.train_adapter.mindspeed_rl.workers.actor_hybrid_worker import ActorHybridWorker
-from aura.aura.trainer.train_adapter.mindspeed_rl.workers.integrated_worker import IntegratedWorker
-from aura.aura.trainer.train_adapter.mindspeed_rl.workers.reference_worker import ReferenceWorker
-from aura.aura.base.log.loggers import Loggers
+from aura.trainer.train_adapter.mindspeed_rl.workers.actor_hybrid_worker import ActorHybridWorker
+from aura.trainer.train_adapter.mindspeed_rl.workers.integrated_worker import IntegratedWorker
+from aura.trainer.train_adapter.mindspeed_rl.workers.reference_worker import ReferenceWorker
+from aura.base.log.loggers import Loggers
 
 logger = Loggers(__name__).get_logger()
 

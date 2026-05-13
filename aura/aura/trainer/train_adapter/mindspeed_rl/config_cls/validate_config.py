@@ -23,7 +23,7 @@ from mindspeed_rl.config_cls.megatron_config import MegatronConfig
 from mindspeed_rl.config_cls.rl_config import RLConfig
 from mindspeed_rl.config_cls.validate_config import validate_rl_args
 
-from aura.aura.trainer.train_adapter.mindspeed_rl.config_cls.agentic_env import AgenticEnvConfig
+from aura.trainer.train_adapter.mindspeed_rl.config_cls.agentic_env import AgenticEnvConfig
 
 
 def validate_agent_rl_args(

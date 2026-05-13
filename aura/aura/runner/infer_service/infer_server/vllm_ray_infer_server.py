@@ -30,10 +30,10 @@ from vllm import AsyncEngineArgs
 from vllm.entrypoints.openai.protocol import ChatCompletionRequest
 
 # Internal imports
-from aura.aura.base.log.loggers import Loggers
-from aura.aura.runner.infer_service.base_infer_server import BaseInferServer
-from aura.aura.runner.scheduler.load_stat import WorkloadStatLogger, vllm_log_stats_periodically
-from aura.aura.runner.scheduler.workload import InstanceWorkLoad
+from aura.base.log.loggers import Loggers
+from aura.runner.infer_service.base_infer_server import BaseInferServer
+from aura.runner.scheduler.load_stat import WorkloadStatLogger, vllm_log_stats_periodically
+from aura.runner.scheduler.workload import InstanceWorkLoad
 
 logger = Loggers(__name__).get_logger()
 
@@ -48,7 +48,7 @@ class VLLMRayInferServer(BaseInferServer):
         from vllm.entrypoints.openai.serving_models import OpenAIServingModels
 
         # init async llm engine
-        kwargs["worker_extension_cls"] = "aura.aura.runner.infer_adapter.vllm.extension.custom_worker_extensions.CustomWorkerExtensions"
+        kwargs["worker_extension_cls"] = "aura.runner.infer_adapter.vllm.extension.custom_worker_extensions.CustomWorkerExtensions"
         logger.info(f"VLLMInferServer kwargs={kwargs}")
         dp_size = int(os.getenv("VLLM_DP_SIZE", "1"))
         self.ins_workload = InstanceWorkLoad(dp_size=dp_size)

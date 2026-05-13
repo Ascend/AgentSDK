@@ -32,10 +32,10 @@ from mindspeed_rl.utils.utils import MsProbe, mstx_timer_decorator, profiler_sta
 from mindspeed_rl.workers.resharding.megatron_off_loader import MegatronOffLoader
 from mindspeed_rl.workers.reward_woker import RewardWorkerBase
 
-from aura.aura.trainer.train_adapter.mindspeed_rl.workers.actor_hybrid_worker import (
+from aura.trainer.train_adapter.mindspeed_rl.workers.actor_hybrid_worker import (
     AgentActorHybridWorkerBase,
 )
-from aura.aura.trainer.train_adapter.mindspeed_rl.workers.reference_worker import (
+from aura.trainer.train_adapter.mindspeed_rl.workers.reference_worker import (
     ReferenceWorkerBasePatch as ReferenceWorkerBase,
 )
 

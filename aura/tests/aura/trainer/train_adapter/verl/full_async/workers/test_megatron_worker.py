@@ -49,7 +49,7 @@ with patch.dict('sys.modules', {
     'verl.single_controller.base.decorator': mock_verl
 }):
     # Now we can safely import the class under test
-    from aura.aura.trainer.train_adapter.verl.full_async.workers.megatron_worker import MegatronDetachActorWorker
+    from aura.trainer.train_adapter.verl.full_async.workers.megatron_worker import MegatronDetachActorWorker
 
 
 class TestMegatronDetachActorWorker(unittest.TestCase):

@@ -146,7 +146,7 @@ class TestHybridTrainer:
     def mock_trainer(self, mock_config, patch_modules):
         """创建模拟的HybridTrainer对象"""
         with patch("verl.trainer.ppo.ray_trainer.RayPPOTrainer", MockRayPPOTrainer):
-            from aura.aura.trainer.train_adapter.verl.hybrid.ray_trainer import HybridTrainer
+            from aura.trainer.train_adapter.verl.hybrid.ray_trainer import HybridTrainer
 
             trainer = HybridTrainer()
             trainer.config = mock_config
@@ -176,12 +176,12 @@ class TestHybridTrainer:
 
     def test_fit_basic_flow(self, mock_trainer, mock_data_proto):
         """测试fit方法的基本流程"""
-        with patch("aura.aura.trainer.train_adapter.verl.hybrid.ray_trainer.DataProto") as mock_data_proto_class, \
-                patch("aura.aura.trainer.train_adapter.verl.hybrid.ray_trainer.uuid.uuid4") as mock_uuid, \
+        with patch("aura.trainer.train_adapter.verl.hybrid.ray_trainer.DataProto") as mock_data_proto_class, \
+                patch("aura.trainer.train_adapter.verl.hybrid.ray_trainer.uuid.uuid4") as mock_uuid, \
                 patch("omegaconf.OmegaConf") as mock_omega_conf, \
-                patch("aura.aura.trainer.train_adapter.verl.hybrid.ray_trainer."
+                patch("aura.trainer.train_adapter.verl.hybrid.ray_trainer."
                       "AbstractCurriculumSampler", MagicMock), \
-                patch("aura.aura.trainer.train_adapter.verl.hybrid.ray_trainer.apply_kl_penalty") as mock_apply_kl:
+                patch("aura.trainer.train_adapter.verl.hybrid.ray_trainer.apply_kl_penalty") as mock_apply_kl:
             # 设置mock
             mock_trainer._load_checkpoint = MagicMock()
             mock_trainer._get_gen_batch = MagicMock(return_value=mock_data_proto)
@@ -258,10 +258,10 @@ class TestHybridTrainer:
 
     def test_fit_async_rollout_mode(self, mock_trainer, mock_data_proto):
         """测试fit方法的异步rollout模式"""
-        with patch("aura.aura.trainer.train_adapter.verl.hybrid.ray_trainer.DataProto") as mock_data_proto_class, \
-                patch("aura.aura.trainer.train_adapter.verl.hybrid.ray_trainer.uuid.uuid4") as mock_uuid, \
+        with patch("aura.trainer.train_adapter.verl.hybrid.ray_trainer.DataProto") as mock_data_proto_class, \
+                patch("aura.trainer.train_adapter.verl.hybrid.ray_trainer.uuid.uuid4") as mock_uuid, \
                 patch("omegaconf.OmegaConf") as mock_omega_conf, \
-                patch("aura.aura.trainer.train_adapter.verl.hybrid.ray_trainer.AbstractCurriculumSampler", MagicMock):
+                patch("aura.trainer.train_adapter.verl.hybrid.ray_trainer.AbstractCurriculumSampler", MagicMock):
             # 设置异步模式
             mock_trainer.async_rollout_mode = True
 
@@ -306,12 +306,12 @@ class TestHybridTrainer:
 
     def test_fit_async_reward_mode(self, mock_trainer, mock_data_proto):
         """测试fit方法的异步奖励计算模式"""
-        with patch("aura.aura.trainer.train_adapter.verl.hybrid.ray_trainer.DataProto") as mock_data_proto_class, \
-                patch("aura.aura.trainer.train_adapter.verl.hybrid.ray_trainer.uuid.uuid4") as mock_uuid, \
+        with patch("aura.trainer.train_adapter.verl.hybrid.ray_trainer.DataProto") as mock_data_proto_class, \
+                patch("aura.trainer.train_adapter.verl.hybrid.ray_trainer.uuid.uuid4") as mock_uuid, \
                 patch("omegaconf.OmegaConf") as mock_omega_conf, \
-                patch("aura.aura.trainer.train_adapter.verl.hybrid.ray_trainer."
+                patch("aura.trainer.train_adapter.verl.hybrid.ray_trainer."
                       "AbstractCurriculumSampler", MagicMock), \
-                patch("aura.aura.trainer.train_adapter.verl.hybrid.ray_trainer."
+                patch("aura.trainer.train_adapter.verl.hybrid.ray_trainer."
                       "compute_reward_async") as mock_compute_reward_async, \
                 patch("ray.get") as mock_ray_get:
             # 设置异步奖励模式
@@ -361,10 +361,10 @@ class TestHybridTrainer:
 
     def test_fit_bypass_recomputing_logprobs(self, mock_trainer, mock_data_proto):
         """测试fit方法的bypass recomputing logprobs模式"""
-        with patch("aura.aura.trainer.train_adapter.verl.hybrid.ray_trainer.DataProto") as mock_data_proto_class, \
-                patch("aura.aura.trainer.train_adapter.verl.hybrid.ray_trainer.uuid.uuid4") as mock_uuid, \
+        with patch("aura.trainer.train_adapter.verl.hybrid.ray_trainer.DataProto") as mock_data_proto_class, \
+                patch("aura.trainer.train_adapter.verl.hybrid.ray_trainer.uuid.uuid4") as mock_uuid, \
                 patch("omegaconf.OmegaConf") as mock_omega_conf, \
-                patch("aura.aura.trainer.train_adapter.verl.hybrid.ray_trainer."
+                patch("aura.trainer.train_adapter.verl.hybrid.ray_trainer."
                       "AbstractCurriculumSampler", MagicMock), \
                 patch('verl.trainer.ppo.rollout_corr_helper.apply_bypass_mode'):
             # 设置bypass模式
@@ -411,12 +411,12 @@ class TestHybridTrainer:
 
     def test_fit_with_estimator_remax(self, mock_trainer, mock_data_proto):
         """测试fit方法的使用REMAX计算优势值"""
-        with patch("aura.aura.trainer.train_adapter.verl.hybrid.ray_trainer.DataProto") as mock_data_proto_class, \
-                patch("aura.aura.trainer.train_adapter.verl.hybrid.ray_trainer.uuid.uuid4") as mock_uuid, \
+        with patch("aura.trainer.train_adapter.verl.hybrid.ray_trainer.DataProto") as mock_data_proto_class, \
+                patch("aura.trainer.train_adapter.verl.hybrid.ray_trainer.uuid.uuid4") as mock_uuid, \
                 patch("omegaconf.OmegaConf") as mock_omega_conf, \
-                patch("aura.aura.trainer.train_adapter.verl.hybrid.ray_trainer."
+                patch("aura.trainer.train_adapter.verl.hybrid.ray_trainer."
                       "AbstractCurriculumSampler", MagicMock), \
-                patch("aura.aura.trainer.train_adapter.verl.hybrid.ray_trainer."
+                patch("aura.trainer.train_adapter.verl.hybrid.ray_trainer."
                       "AdvantageEstimator") as mock_estimator_type:
             mock_estimator_type.REMAX = "REMAX"
             mock_trainer.config.algorithm.adv_estimator = "REMAX"

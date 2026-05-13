@@ -29,7 +29,7 @@ from mindspeed_rl.utils.pad_process import truncate_rows
 from mindspeed_rl.utils.utils import is_multimodal, mstx_timer_decorator
 from mindspeed_rl.workers.reference_woker import ReferenceWorkerBase
 
-from aura.aura.base.log.loggers import Loggers
+from aura.base.log.loggers import Loggers
 
 logger = Loggers(__name__).get_logger()
 

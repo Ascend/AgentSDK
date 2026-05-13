@@ -25,7 +25,7 @@ class TestRewardConfig:
 
     def test_default_values(self):
         """Test RewardConfig default values."""
-        from aura.agents.math_agent.reward.reward_types import RewardConfig
+        from agents.math_agent.reward.reward_types import RewardConfig
         
         config = RewardConfig()
         
@@ -43,7 +43,7 @@ class TestRewardConfig:
 
     def test_custom_values(self):
         """Test RewardConfig with custom values."""
-        from aura.agents.math_agent.reward.reward_types import RewardConfig
+        from agents.math_agent.reward.reward_types import RewardConfig
         
         config = RewardConfig(
             apply_format_reward=True,
@@ -57,7 +57,7 @@ class TestRewardConfig:
 
     def test_correct_reward_default(self):
         """Test correct_reward default value."""
-        from aura.agents.math_agent.reward.reward_types import RewardConfig
+        from agents.math_agent.reward.reward_types import RewardConfig
         
         config = RewardConfig()
         
@@ -65,7 +65,7 @@ class TestRewardConfig:
 
     def test_incorrect_reward_default(self):
         """Test incorrect_reward default value."""
-        from aura.agents.math_agent.reward.reward_types import RewardConfig
+        from agents.math_agent.reward.reward_types import RewardConfig
         
         config = RewardConfig()
         
@@ -73,7 +73,7 @@ class TestRewardConfig:
 
     def test_toolcall_bonus_default(self):
         """Test toolcall_bonus default value."""
-        from aura.agents.math_agent.reward.reward_types import RewardConfig
+        from agents.math_agent.reward.reward_types import RewardConfig
         
         config = RewardConfig()
         
@@ -85,31 +85,31 @@ class TestRewardType:
 
     def test_math_type(self):
         """Test RewardType.MATH value."""
-        from aura.agents.math_agent.reward.reward_types import RewardType
+        from agents.math_agent.reward.reward_types import RewardType
         
         assert RewardType.MATH.value == "MATH"
 
     def test_code_type(self):
         """Test RewardType.CODE value."""
-        from aura.agents.math_agent.reward.reward_types import RewardType
+        from agents.math_agent.reward.reward_types import RewardType
         
         assert RewardType.CODE.value == "CODE"
 
     def test_web_type(self):
         """Test RewardType.WEB value."""
-        from aura.agents.math_agent.reward.reward_types import RewardType
+        from agents.math_agent.reward.reward_types import RewardType
         
         assert RewardType.WEB.value == "WEB"
 
     def test_unk_type(self):
         """Test RewardType.UNK value."""
-        from aura.agents.math_agent.reward.reward_types import RewardType
+        from agents.math_agent.reward.reward_types import RewardType
         
         assert RewardType.UNK.value == "UNK"
 
     def test_all_types_exist(self):
         """Test all expected reward types exist."""
-        from aura.agents.math_agent.reward.reward_types import RewardType
+        from agents.math_agent.reward.reward_types import RewardType
         
         expected_types = {"MATH", "CODE", "WEB", "UNK"}
         actual_types = {rt.value for rt in RewardType}
@@ -118,7 +118,7 @@ class TestRewardType:
 
     def test_reward_type_enum_members(self):
         """Test RewardType enum members count."""
-        from aura.agents.math_agent.reward.reward_types import RewardType
+        from agents.math_agent.reward.reward_types import RewardType
         
         assert len(RewardType) == 4
 
@@ -128,7 +128,7 @@ class TestRewardOutput:
 
     def test_reward_output_creation(self):
         """Test RewardOutput creation."""
-        from aura.agents.math_agent.reward.reward_types import RewardOutput
+        from agents.math_agent.reward.reward_types import RewardOutput
         
         output = RewardOutput(reward=1.0, metadata={"key": "value"})
         
@@ -137,7 +137,7 @@ class TestRewardOutput:
 
     def test_reward_output_with_is_correct(self):
         """Test RewardOutput with is_correct field."""
-        from aura.agents.math_agent.reward.reward_types import RewardOutput
+        from agents.math_agent.reward.reward_types import RewardOutput
         
         output = RewardOutput(reward=1.0, metadata={}, is_correct=True)
         
@@ -145,7 +145,7 @@ class TestRewardOutput:
 
     def test_reward_output_default_is_correct(self):
         """Test RewardOutput default is_correct value."""
-        from aura.agents.math_agent.reward.reward_types import RewardOutput
+        from agents.math_agent.reward.reward_types import RewardOutput
         
         output = RewardOutput(reward=0.5, metadata={})
         
@@ -157,7 +157,7 @@ class TestRewardInput:
 
     def test_reward_input_creation(self):
         """Test RewardInput creation."""
-        from aura.agents.math_agent.reward.reward_types import RewardInput
+        from agents.math_agent.reward.reward_types import RewardInput
         
         task_info = {"question": "test"}
         inp = RewardInput(task_info=task_info, action="test action")
@@ -167,7 +167,7 @@ class TestRewardInput:
 
     def test_reward_input_fields(self):
         """Test RewardInput has required fields."""
-        from aura.agents.math_agent.reward.reward_types import RewardInput
+        from agents.math_agent.reward.reward_types import RewardInput
         
         inp = RewardInput(
             task_info={"q": "test"},

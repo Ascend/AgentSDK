@@ -10,9 +10,9 @@ import torch
 import torch.distributed as dist
 from safetensors.torch import safe_open
 
-from aura.aura.runner.infer_adapter.vllm.patch.comm.vllm_execute_stat import (vllm_output_statics)
+from aura.runner.infer_adapter.vllm.patch.comm.vllm_execute_stat import (vllm_output_statics)
 
-from aura.aura.base.log.loggers import Loggers
+from aura.base.log.loggers import Loggers
 
 logger = Loggers(__name__).get_logger()
 

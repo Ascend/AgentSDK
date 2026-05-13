@@ -17,7 +17,7 @@
 import os
 import unittest.mock as mock
 
-from aura.aura.base.utils.get_local_rank import get_local_rank
+from aura.base.utils.get_local_rank import get_local_rank
 
 
 class TestGetLocalRank:
@@ -36,7 +36,7 @@ class TestGetLocalRank:
             # Clean up environment variable
             del os.environ["LOCAL_RANK"]
 
-    @mock.patch("aura.aura.base.utils.get_local_rank.ray")
+    @mock.patch("aura.base.utils.get_local_rank.ray")
     def test_local_rank_from_ray(self, mock_ray):
         """Test that local rank is correctly retrieved from ray runtime context."""
         # Mock ray runtime context
@@ -55,7 +55,7 @@ class TestGetLocalRank:
 
         del os.environ["LOCAL_RANK"]
 
-    @mock.patch("aura.aura.base.utils.get_local_rank.ray")
+    @mock.patch("aura.base.utils.get_local_rank.ray")
     def test_ray_exception_fallback(self, mock_ray):
         """Test that function falls back to default when ray raises an exception."""
         mock_ray.get_runtime_context.side_effect = Exception("Ray error")
@@ -67,7 +67,7 @@ class TestGetLocalRank:
 
         assert rank == 0
 
-    @mock.patch("aura.aura.base.utils.get_local_rank.ray")
+    @mock.patch("aura.base.utils.get_local_rank.ray")
     def test_default_rank(self, mock_ray):
         """Test that default rank 0 is returned when no context is available."""
         mock_context = mock.Mock()
@@ -81,7 +81,7 @@ class TestGetLocalRank:
 
         assert rank == 0
 
-    @mock.patch("aura.aura.base.utils.get_local_rank.ray")
+    @mock.patch("aura.base.utils.get_local_rank.ray")
     def test_with_custom_logger_name(self, mock_ray):
         """Test that function works with custom logger name."""
         mock_ray.get_runtime_context.side_effect = Exception("Ray error")

@@ -9,14 +9,14 @@ from unittest.mock import AsyncMock, MagicMock, patch, PropertyMock
 import pytest
 import torch
 
-from aura.aura.runner.agent_engine_wrapper.base.agent.base_agent import (
+from aura.runner.agent_engine_wrapper.base.agent.base_agent import (
     Action,
     BaseAgent,
     Step,
     Trajectory,
 )
-from aura.aura.runner.agent_engine_wrapper.base_engine_wrapper import AgentTask
-from aura.aura.runner.agent_engine_wrapper.rllm.agent_execution_engine import (
+from aura.runner.agent_engine_wrapper.base_engine_wrapper import AgentTask
+from aura.runner.agent_engine_wrapper.rllm.agent_execution_engine import (
     AgentExecutionEngine,
     AsyncAgentExecutionEngine,
     _generate_key,
@@ -62,7 +62,7 @@ def mock_agent_class():
 
 @pytest.fixture
 def engine(mock_tokenizer, mock_chat_parser, mock_env_class, mock_agent_class):
-    with patch("aura.aura.runner.agent_engine_wrapper.rllm.agent_execution_engine.ChatTemplateParser") as mock_ctp:
+    with patch("aura.runner.agent_engine_wrapper.rllm.agent_execution_engine.ChatTemplateParser") as mock_ctp:
         mock_ctp.get_parser = MagicMock(return_value=mock_chat_parser)
         eng = AgentExecutionEngine(
             tokenizer=mock_tokenizer,
@@ -290,7 +290,7 @@ class TestInitRouter:
         mock_router_module = MagicMock()
         mock_router_module.Router = mock_router_class
 
-        with patch.dict('sys.modules', {'aura.aura.runner.scheduler.router': mock_router_module}):
+        with patch.dict('sys.modules', {'aura.runner.scheduler.router': mock_router_module}):
             engine.router = None
             engine.init_router(["http://localhost:8000"])
             assert engine.router is not None

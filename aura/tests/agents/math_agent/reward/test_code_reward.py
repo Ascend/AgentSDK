@@ -37,38 +37,38 @@ def mock_multiprocessing():
 
 class TestExtractCodeFromModel:
     def test_extract_code_single_block(self):
-        from aura.agents.math_agent.reward.code_reward import extract_code_from_model
+        from agents.math_agent.reward.code_reward import extract_code_from_model
         response = "Here's the code:\n```python\nprint('hello')\n```"
         result = extract_code_from_model(response)
         assert result == "print('hello')"
 
     def test_extract_code_multiple_blocks_returns_last(self):
-        from aura.agents.math_agent.reward.code_reward import extract_code_from_model
+        from agents.math_agent.reward.code_reward import extract_code_from_model
         response = "First:\n```python\ncode1\n```\nSecond:\n```python\ncode2\n```"
         result = extract_code_from_model(response)
         assert result == "code2"
 
     def test_extract_code_no_code_block(self):
-        from aura.agents.math_agent.reward.code_reward import extract_code_from_model
+        from agents.math_agent.reward.code_reward import extract_code_from_model
         response = "Just plain text without code blocks"
         result = extract_code_from_model(response)
         assert result is None
 
     def test_extract_code_with_language_specifier(self):
-        from aura.agents.math_agent.reward.code_reward import extract_code_from_model
+        from agents.math_agent.reward.code_reward import extract_code_from_model
         response = "```java\nSystem.out.println('hello');\n```"
         result = extract_code_from_model(response)
         assert result == "System.out.println('hello');"
 
     def test_extract_code_empty_response(self):
-        from aura.agents.math_agent.reward.code_reward import extract_code_from_model
+        from agents.math_agent.reward.code_reward import extract_code_from_model
         result = extract_code_from_model("")
         assert result is None
 
 
 class TestCleanCodeMainBlock:
     def test_remove_if_main_block_double_quotes(self):
-        from aura.agents.math_agent.reward.code_reward import clean_code_main_block
+        from agents.math_agent.reward.code_reward import clean_code_main_block
         code = """def hello():
     print('hello')
 
@@ -79,7 +79,7 @@ if __name__ == "__main__":
         assert "def hello():" in result
 
     def test_remove_if_main_block_single_quotes(self):
-        from aura.agents.math_agent.reward.code_reward import clean_code_main_block
+        from agents.math_agent.reward.code_reward import clean_code_main_block
         code = """def hello():
     print('hello')
 
@@ -89,14 +89,14 @@ if __name__ == '__main__':
         assert "if __name__ == '__main__'" not in result
 
     def test_no_main_block(self):
-        from aura.agents.math_agent.reward.code_reward import clean_code_main_block
+        from agents.math_agent.reward.code_reward import clean_code_main_block
         code = """def hello():
     print('hello')"""
         result = clean_code_main_block(code)
         assert result == code
 
     def test_main_block_with_indented_code(self):
-        from aura.agents.math_agent.reward.code_reward import clean_code_main_block
+        from agents.math_agent.reward.code_reward import clean_code_main_block
         code = """def hello():
     print('hello')
 
@@ -108,7 +108,7 @@ if __name__ == "__main__":
         assert "print('running main')" not in result
 
     def test_main_block_not_at_end(self):
-        from aura.agents.math_agent.reward.code_reward import clean_code_main_block
+        from agents.math_agent.reward.code_reward import clean_code_main_block
         code = """if __name__ == "__main__":
     print('main')
     
@@ -121,7 +121,7 @@ def other():
 
 class TestTacoToLcbFormat:
     def test_convert_dict_to_list_format(self):
-        from aura.agents.math_agent.reward.code_reward import taco_to_lcb_format
+        from agents.math_agent.reward.code_reward import taco_to_lcb_format
         tests = {
             "inputs": ["input1", "input2"],
             "outputs": ["output1", "output2"]
@@ -134,7 +134,7 @@ class TestTacoToLcbFormat:
         assert result[1]["output"] == "output2"
 
     def test_unequal_lengths_inputs_longer(self):
-        from aura.agents.math_agent.reward.code_reward import taco_to_lcb_format
+        from agents.math_agent.reward.code_reward import taco_to_lcb_format
         tests = {
             "inputs": ["input1", "input2", "input3"],
             "outputs": ["output1"]
@@ -145,7 +145,7 @@ class TestTacoToLcbFormat:
         assert result[2]["output"] == "output1"
 
     def test_unequal_lengths_outputs_longer(self):
-        from aura.agents.math_agent.reward.code_reward import taco_to_lcb_format
+        from agents.math_agent.reward.code_reward import taco_to_lcb_format
         tests = {
             "inputs": ["input1"],
             "outputs": ["output1", "output2", "output3"]
@@ -156,13 +156,13 @@ class TestTacoToLcbFormat:
         assert result[2]["input"] == "input1"
 
     def test_empty_inputs_and_outputs(self):
-        from aura.agents.math_agent.reward.code_reward import taco_to_lcb_format
+        from agents.math_agent.reward.code_reward import taco_to_lcb_format
         tests = {"inputs": [], "outputs": []}
         result = taco_to_lcb_format(tests)
         assert result == []
 
     def test_with_fn_name(self):
-        from aura.agents.math_agent.reward.code_reward import taco_to_lcb_format
+        from agents.math_agent.reward.code_reward import taco_to_lcb_format
         tests = {
             "inputs": ["input1"],
             "outputs": ["output1"],
@@ -175,7 +175,7 @@ class TestTacoToLcbFormat:
 
 class TestPostprocessLcbSample:
     def test_basic_sample(self):
-        from aura.agents.math_agent.reward.code_reward import postprocess_lcb_sample
+        from agents.math_agent.reward.code_reward import postprocess_lcb_sample
         sample = [
             {"input": "test1", "output": "out1"},
             {"input": "test2", "output": "out2"}
@@ -187,7 +187,7 @@ class TestPostprocessLcbSample:
         assert parsed["outputs"] == ["out1", "out2"]
 
     def test_functional_testtype(self):
-        from aura.agents.math_agent.reward.code_reward import postprocess_lcb_sample
+        from agents.math_agent.reward.code_reward import postprocess_lcb_sample
         sample = [
             {
                 "input": "test1",
@@ -201,7 +201,7 @@ class TestPostprocessLcbSample:
         assert parsed["fn_name"] == "my_function"
 
     def test_functional_without_fn_name_raises_assertion(self):
-        from aura.agents.math_agent.reward.code_reward import postprocess_lcb_sample
+        from agents.math_agent.reward.code_reward import postprocess_lcb_sample
         sample = [
             {
                 "input": "test1",
@@ -221,7 +221,7 @@ class TestCheckCorrectness:
         
         tests = [{"input": "1", "output": "2"}, {"input": "3", "output": "4"}]
         
-        with patch('aura.agents.math_agent.reward.code_reward.Manager') as mock_manager_class:
+        with patch('agents.math_agent.reward.code_reward.Manager') as mock_manager_class:
             mock_manager = Mock()
             mock_list = Mock()
             # Mock the list to behave like a list that can be appended to
@@ -235,7 +235,7 @@ class TestCheckCorrectness:
                 mock_instance = Mock()
                 mock_instance.is_alive.return_value = False
                 mock_process_class.return_value = mock_instance
-                from aura.agents.math_agent.reward.code_reward import check_correctness
+                from agents.math_agent.reward.code_reward import check_correctness
                 # Manually call evaluate_code to populate test_results
                 def evaluate_side_effect(target, args):
                     # Simulate the process running evaluate_code
@@ -255,14 +255,14 @@ class TestCheckCorrectness:
         
         tests = [{"input": "1", "output": "2"}, {"input": "3", "output": "4"}, {"input": "5", "output": "6"}]
         
-        with patch('aura.agents.math_agent.reward.code_reward.Manager') as mock_manager_class:
+        with patch('agents.math_agent.reward.code_reward.Manager') as mock_manager_class:
             mock_manager = Mock()
             mock_list_data = []
             mock_manager.list.return_value = mock_list_data
             mock_manager_class.return_value = mock_manager
             
             with patch('multiprocessing.Process') as mock_process_class:
-                from aura.agents.math_agent.reward.code_reward import check_correctness
+                from agents.math_agent.reward.code_reward import check_correctness
                 mock_instance = Mock()
                 mock_instance.is_alive.return_value = False
                 mock_process_class.return_value = mock_instance
@@ -284,14 +284,14 @@ class TestCheckCorrectness:
         
         tests = {"inputs": ["1", "2"], "outputs": ["2", "3"]}
         
-        with patch('aura.agents.math_agent.reward.code_reward.Manager') as mock_manager_class:
+        with patch('agents.math_agent.reward.code_reward.Manager') as mock_manager_class:
             mock_manager = Mock()
             mock_list_data = []
             mock_manager.list.return_value = mock_list_data
             mock_manager_class.return_value = mock_manager
             
             with patch('multiprocessing.Process') as mock_process_class:
-                from aura.agents.math_agent.reward.code_reward import check_correctness
+                from agents.math_agent.reward.code_reward import check_correctness
                 mock_instance = Mock()
                 mock_instance.is_alive.return_value = False
                 mock_process_class.return_value = mock_instance
@@ -311,14 +311,14 @@ class TestCheckCorrectness:
         
         tests = [{"input": "1", "output": "2"}]
         
-        with patch('aura.agents.math_agent.reward.code_reward.Manager') as mock_manager_class:
+        with patch('agents.math_agent.reward.code_reward.Manager') as mock_manager_class:
             mock_manager = Mock()
             mock_list_data = []
             mock_manager.list.return_value = mock_list_data
             mock_manager_class.return_value = mock_manager
             
             with patch('multiprocessing.Process') as mock_process_class:
-                from aura.agents.math_agent.reward.code_reward import check_correctness
+                from agents.math_agent.reward.code_reward import check_correctness
                 mock_instance = Mock()
                 mock_instance.is_alive.return_value = True
                 mock_process_class.return_value = mock_instance
@@ -332,7 +332,7 @@ class TestCheckCorrectness:
 class TestPrimeIntellectCheckCorrectness:
 
     def test_string_input_parse_error(self):
-        from aura.agents.math_agent.reward.code_reward import primeintellect_check_correctness
+        from agents.math_agent.reward.code_reward import primeintellect_check_correctness
         tests_str = 'invalid json'
         result, details = primeintellect_check_correctness(tests_str, "code")
         
@@ -342,8 +342,8 @@ class TestPrimeIntellectCheckCorrectness:
     def test_dict_input(self):
         tests = [{"input": "1", "output": "2"}, {"input": "3", "output": "4"}]
         
-        with patch('aura.agents.math_agent.reward.code_reward.check_correctness') as mock_check:
-            from aura.agents.math_agent.reward.code_reward import primeintellect_check_correctness
+        with patch('agents.math_agent.reward.code_reward.check_correctness') as mock_check:
+            from agents.math_agent.reward.code_reward import primeintellect_check_correctness
             mock_check.return_value = (True, {"all_passed": True})
             result, details = primeintellect_check_correctness(tests, "code")
             
@@ -352,8 +352,8 @@ class TestPrimeIntellectCheckCorrectness:
     def test_with_fn_name(self):
         tests = [{"input": "1", "output": "2", "fn_name": "test_func"}]
         
-        with patch('aura.agents.math_agent.reward.code_reward.check_correctness') as mock_check:
-            from aura.agents.math_agent.reward.code_reward import primeintellect_check_correctness
+        with patch('agents.math_agent.reward.code_reward.check_correctness') as mock_check:
+            from agents.math_agent.reward.code_reward import primeintellect_check_correctness
             mock_check.return_value = (True, {"all_passed": True})
             result, details = primeintellect_check_correctness(tests, "code")
             
@@ -363,12 +363,12 @@ class TestPrimeIntellectCheckCorrectness:
     def test_use_tci_true(self):
         tests = [{"input": "1", "output": "2"}]
         
-        with patch('aura.agents.math_agent.reward.code_reward.TogetherCodeTool') as mock_tool_class:
+        with patch('agents.math_agent.reward.code_reward.TogetherCodeTool') as mock_tool_class:
             mock_tool = Mock()
             mock_tool_class.return_value = mock_tool
             
-            with patch('aura.agents.math_agent.reward.code_reward.codetool_check_correctness') as mock_codetool:
-                from aura.agents.math_agent.reward.code_reward import primeintellect_check_correctness
+            with patch('agents.math_agent.reward.code_reward.codetool_check_correctness') as mock_codetool:
+                from agents.math_agent.reward.code_reward import primeintellect_check_correctness
                 mock_codetool.return_value = (True, {})
                 result, details = primeintellect_check_correctness(tests, "code", use_tci=True)
                 
@@ -377,7 +377,7 @@ class TestPrimeIntellectCheckCorrectness:
     def test_empty_tests_assertion(self):
         tests = []
         with pytest.raises(ValueError, match="needs at least one test case"):
-            from aura.agents.math_agent.reward.code_reward import primeintellect_check_correctness
+            from agents.math_agent.reward.code_reward import primeintellect_check_correctness
             primeintellect_check_correctness(tests, "code")
 
 
@@ -385,7 +385,7 @@ class TestLCBCheckCorrectnessV2:
     def test_success_all_passed(self):
         mock_input_output = {"inputs": ["1", "2"], "outputs": ["2", "3"]}
         
-        with patch('aura.agents.math_agent.reward.code_reward.postprocess_lcb_sample') as mock_postprocess:
+        with patch('agents.math_agent.reward.code_reward.postprocess_lcb_sample') as mock_postprocess:
             mock_postprocess.return_value = {"input_output": json.dumps(mock_input_output)}
             
             with patch('multiprocessing.Manager') as mock_manager_class:
@@ -399,8 +399,8 @@ class TestLCBCheckCorrectnessV2:
                     mock_instance.is_alive.return_value = False
                     mock_process_class.return_value = mock_instance
                     
-                    with patch('aura.agents.math_agent.reward.code_reward._temp_run') as mock_temp_run:
-                        from aura.agents.math_agent.reward.code_reward import lcb_check_correctness_v2
+                    with patch('agents.math_agent.reward.code_reward._temp_run') as mock_temp_run:
+                        from agents.math_agent.reward.code_reward import lcb_check_correctness_v2
                         def temp_run_side_effect(sample, generation, debug, result, metadata_list, timeout):
                             result.append([True, True])
                             metadata_list.append({})
@@ -415,7 +415,7 @@ class TestLCBCheckCorrectnessV2:
     def test_some_failed(self):
         mock_input_output = {"inputs": ["1", "2"], "outputs": ["2", "3"]}
         
-        with patch('aura.agents.math_agent.reward.code_reward.postprocess_lcb_sample') as mock_postprocess:
+        with patch('agents.math_agent.reward.code_reward.postprocess_lcb_sample') as mock_postprocess:
             mock_postprocess.return_value = {"input_output": json.dumps(mock_input_output)}
             
             with patch('multiprocessing.Manager') as mock_manager_class:
@@ -429,8 +429,8 @@ class TestLCBCheckCorrectnessV2:
                     mock_instance.is_alive.return_value = False
                     mock_process_class.return_value = mock_instance
                     
-                    with patch('aura.agents.math_agent.reward.code_reward._temp_run') as mock_temp_run:
-                        from aura.agents.math_agent.reward.code_reward import lcb_check_correctness_v2
+                    with patch('agents.math_agent.reward.code_reward._temp_run') as mock_temp_run:
+                        from agents.math_agent.reward.code_reward import lcb_check_correctness_v2
                         def temp_run_side_effect(sample, generation, debug, result, metadata_list, timeout):
                             result.append([True, False])
                             metadata_list.append({})
@@ -446,7 +446,7 @@ class TestLCBCheckCorrectnessV2:
     def test_global_timeout(self):
         mock_input_output = {"inputs": ["1", "2"], "outputs": ["2", "3"]}
         
-        with patch('aura.agents.math_agent.reward.code_reward.postprocess_lcb_sample') as mock_postprocess:
+        with patch('agents.math_agent.reward.code_reward.postprocess_lcb_sample') as mock_postprocess:
             mock_postprocess.return_value = {"input_output": json.dumps(mock_input_output)}
             
             with patch('multiprocessing.Manager') as mock_manager_class:
@@ -456,7 +456,7 @@ class TestLCBCheckCorrectnessV2:
                 mock_manager_class.return_value = mock_manager
                 
                 with patch('multiprocessing.Process') as mock_process_class:
-                    from aura.agents.math_agent.reward.code_reward import lcb_check_correctness_v2
+                    from agents.math_agent.reward.code_reward import lcb_check_correctness_v2
                     mock_instance = Mock()
                     mock_instance.is_alive.return_value = True
                     mock_process_class.return_value = mock_instance
@@ -469,14 +469,14 @@ class TestLCBCheckCorrectnessV2:
 
     def test_empty_sample_assertion(self):
         with pytest.raises(ValueError, match="must contain at least one test case"):
-            from aura.agents.math_agent.reward.code_reward import lcb_check_correctness_v2
+            from agents.math_agent.reward.code_reward import lcb_check_correctness_v2
             lcb_check_correctness_v2([], "code")
 
 
 class TestLeetCodeCheckCorrectness:
     def test_success(self):
-        with patch('aura.agents.math_agent.reward.code_reward.lc_code_exec') as mock_exec:
-            from aura.agents.math_agent.reward.code_reward import leetcode_check_correctness
+        with patch('agents.math_agent.reward.code_reward.lc_code_exec') as mock_exec:
+            from agents.math_agent.reward.code_reward import leetcode_check_correctness
             mock_exec.return_value = (True, "Success output")
             
             tests = {"functional": "def test(): pass"}
@@ -486,8 +486,8 @@ class TestLeetCodeCheckCorrectness:
             assert details["all_passed"] is True
 
     def test_failure(self):
-        with patch('aura.agents.math_agent.reward.code_reward.lc_code_exec') as mock_exec:
-            from aura.agents.math_agent.reward.code_reward import leetcode_check_correctness
+        with patch('agents.math_agent.reward.code_reward.lc_code_exec') as mock_exec:
+            from agents.math_agent.reward.code_reward import leetcode_check_correctness
             mock_exec.return_value = (False, "Error message")
             
             tests = {"functional": "def test(): pass"}
@@ -499,9 +499,9 @@ class TestLeetCodeCheckCorrectness:
 
 class TestKodcodeCheckCorrectness:
     def test_success(self):
-        with patch('aura.agents.math_agent.reward.code_reward.kod_code_exec') as mock_exec:
-            with patch('aura.agents.math_agent.reward.code_reward.clean_code_main_block') as mock_clean:
-                from aura.agents.math_agent.reward.code_reward import kodcode_check_correctness
+        with patch('agents.math_agent.reward.code_reward.kod_code_exec') as mock_exec:
+            with patch('agents.math_agent.reward.code_reward.clean_code_main_block') as mock_clean:
+                from agents.math_agent.reward.code_reward import kodcode_check_correctness
                 mock_clean.return_value = "cleaned code"
                 mock_exec.return_value = (True, "Success")
                 
@@ -512,9 +512,9 @@ class TestKodcodeCheckCorrectness:
                 assert details["total_tests"] == 1
 
     def test_failure(self):
-        with patch('aura.agents.math_agent.reward.code_reward.kod_code_exec') as mock_exec:
-            with patch('aura.agents.math_agent.reward.code_reward.clean_code_main_block') as mock_clean:
-                from aura.agents.math_agent.reward.code_reward import kodcode_check_correctness
+        with patch('agents.math_agent.reward.code_reward.kod_code_exec') as mock_exec:
+            with patch('agents.math_agent.reward.code_reward.clean_code_main_block') as mock_clean:
+                from agents.math_agent.reward.code_reward import kodcode_check_correctness
                 mock_clean.return_value = "cleaned code"
                 mock_exec.return_value = (False, "Error")
                 
@@ -525,9 +525,9 @@ class TestKodcodeCheckCorrectness:
                 assert details["all_passed"] is False
 
     def test_multiple_tests_count(self):
-        with patch('aura.agents.math_agent.reward.code_reward.kod_code_exec') as mock_exec:
-            with patch('aura.agents.math_agent.reward.code_reward.clean_code_main_block') as mock_clean:
-                from aura.agents.math_agent.reward.code_reward import kodcode_check_correctness
+        with patch('agents.math_agent.reward.code_reward.kod_code_exec') as mock_exec:
+            with patch('agents.math_agent.reward.code_reward.clean_code_main_block') as mock_clean:
+                from agents.math_agent.reward.code_reward import kodcode_check_correctness
                 mock_clean.return_value = "cleaned code"
                 mock_exec.return_value = (True, "Success")
                 
@@ -539,10 +539,10 @@ class TestKodcodeCheckCorrectness:
 
 class TestHumanEvalPlusCheckCorrectness:
     def test_success(self):
-        with patch('aura.agents.math_agent.reward.code_reward.humanevalplus_run_test') as mock_run:
-            with patch('aura.agents.math_agent.reward.code_reward.get_num_test_cases') as mock_get_num:
-                with patch('aura.agents.math_agent.reward.code_reward.clean_code_main_block') as mock_clean:
-                    from aura.agents.math_agent.reward.code_reward import humanevalplus_check_correctness
+        with patch('agents.math_agent.reward.code_reward.humanevalplus_run_test') as mock_run:
+            with patch('agents.math_agent.reward.code_reward.get_num_test_cases') as mock_get_num:
+                with patch('agents.math_agent.reward.code_reward.clean_code_main_block') as mock_clean:
+                    from agents.math_agent.reward.code_reward import humanevalplus_check_correctness
                     mock_clean.return_value = "cleaned code"
                     mock_get_num.return_value = 5
                     mock_run.return_value = (True, "Success")
@@ -554,10 +554,10 @@ class TestHumanEvalPlusCheckCorrectness:
                     assert details["total_tests"] == 5
 
     def test_failure(self):
-        with patch('aura.agents.math_agent.reward.code_reward.humanevalplus_run_test') as mock_run:
-            with patch('aura.agents.math_agent.reward.code_reward.get_num_test_cases') as mock_get_num:
-                with patch('aura.agents.math_agent.reward.code_reward.clean_code_main_block') as mock_clean:
-                    from aura.agents.math_agent.reward.code_reward import humanevalplus_check_correctness
+        with patch('agents.math_agent.reward.code_reward.humanevalplus_run_test') as mock_run:
+            with patch('agents.math_agent.reward.code_reward.get_num_test_cases') as mock_get_num:
+                with patch('agents.math_agent.reward.code_reward.clean_code_main_block') as mock_clean:
+                    from agents.math_agent.reward.code_reward import humanevalplus_check_correctness
                     mock_clean.return_value = "cleaned code"
                     mock_get_num.return_value = 3
                     mock_run.return_value = (False, "Error")
@@ -570,12 +570,12 @@ class TestHumanEvalPlusCheckCorrectness:
 
 class TestCodeToolCheckCorrectness:
     def test_success_stdin_format(self):
-        with patch('aura.agents.math_agent.reward.code_reward.taco_to_lcb_format') as mock_taco:
+        with patch('agents.math_agent.reward.code_reward.taco_to_lcb_format') as mock_taco:
             mock_taco.return_value = [{"input": "1", "output": "2"}]
             
             # Mock the internal imports
             with patch('rllm.tools.utils.stdin_test_code_wrapper') as mock_wrapper:
-                from aura.agents.math_agent.reward.code_reward import codetool_check_correctness
+                from agents.math_agent.reward.code_reward import codetool_check_correctness
                 mock_wrapper.return_value = "wrapped code"
                 
                 mock_codetool = Mock()
@@ -591,11 +591,11 @@ class TestCodeToolCheckCorrectness:
                 assert details["all_passed"] is True
 
     def test_success_call_based_format(self):
-        with patch('aura.agents.math_agent.reward.code_reward.taco_to_lcb_format') as mock_taco:
+        with patch('agents.math_agent.reward.code_reward.taco_to_lcb_format') as mock_taco:
             mock_taco.return_value = [{"input": "1", "output": "2"}]
             
             with patch('rllm.tools.utils.call_based_test_code_wrapper') as mock_wrapper:
-                from aura.agents.math_agent.reward.code_reward import codetool_check_correctness
+                from agents.math_agent.reward.code_reward import codetool_check_correctness
                 mock_wrapper.return_value = "wrapped code"
                 
                 mock_codetool = Mock()
@@ -610,11 +610,11 @@ class TestCodeToolCheckCorrectness:
                 assert result is True
 
     def test_failure_with_error(self):
-        with patch('aura.agents.math_agent.reward.code_reward.taco_to_lcb_format') as mock_taco:
+        with patch('agents.math_agent.reward.code_reward.taco_to_lcb_format') as mock_taco:
             mock_taco.return_value = [{"input": "1", "output": "2"}]
             
             with patch('rllm.tools.utils.stdin_test_code_wrapper') as mock_wrapper:
-                from aura.agents.math_agent.reward.code_reward import codetool_check_correctness
+                from agents.math_agent.reward.code_reward import codetool_check_correctness
                 mock_wrapper.return_value = "wrapped code"
                 
                 mock_codetool = Mock()
@@ -636,7 +636,7 @@ class TestCodeToolCheckCorrectness:
         mock_codetool.return_value = mock_response
         
         with patch('rllm.tools.utils.stdin_test_code_wrapper') as mock_wrapper:
-            from aura.agents.math_agent.reward.code_reward import codetool_check_correctness
+            from agents.math_agent.reward.code_reward import codetool_check_correctness
             mock_wrapper.return_value = "wrapped code"
             
             tests = [{"input": "1", "output": "2"}]
@@ -648,7 +648,7 @@ class TestCodeToolCheckCorrectness:
 class TestRewardCodeFn:
     @pytest.fixture
     def config(self):
-        from aura.agents.math_agent.reward.reward_types import RewardConfig
+        from agents.math_agent.reward.reward_types import RewardConfig
         return RewardConfig(
             correct_reward=1.0,
             incorrect_reward=0.0,
@@ -656,7 +656,7 @@ class TestRewardCodeFn:
         )
 
     def test_no_tests_in_task_info(self, config):
-        from aura.agents.math_agent.reward.code_reward import RewardCodeFn
+        from agents.math_agent.reward.code_reward import RewardCodeFn
         reward_fn = RewardCodeFn(config)
         task_info = {"data_source": "taco", "ground_truth": None}
         
@@ -667,7 +667,7 @@ class TestRewardCodeFn:
         assert "No tests found" in result.metadata["error"]
 
     def test_no_code_in_response(self, config):
-        from aura.agents.math_agent.reward.code_reward import RewardCodeFn
+        from agents.math_agent.reward.code_reward import RewardCodeFn
         reward_fn = RewardCodeFn(config)
         task_info = {"data_source": "taco", "ground_truth": {"inputs": ["1"], "outputs": ["2"]}}
         
@@ -677,13 +677,13 @@ class TestRewardCodeFn:
         assert result.is_correct is False
 
     def test_taco_dataset_without_tci(self, config):
-        from aura.agents.math_agent.reward.code_reward import RewardCodeFn
+        from agents.math_agent.reward.code_reward import RewardCodeFn
         reward_fn = RewardCodeFn(config)
         task_info = {"data_source": "taco", "ground_truth": {"inputs": ["1"], "outputs": ["2"]}}
         
-        with patch('aura.agents.math_agent.reward.code_reward.taco_to_lcb_format') as mock_taco:
+        with patch('agents.math_agent.reward.code_reward.taco_to_lcb_format') as mock_taco:
             mock_taco.return_value = [{"input": "1", "output": "2"}]
-            with patch('aura.agents.math_agent.reward.code_reward.lcb_check_correctness_v2') as mock_lcb:
+            with patch('agents.math_agent.reward.code_reward.lcb_check_correctness_v2') as mock_lcb:
                 mock_lcb.return_value = (True, {"all_passed": True})
                 
                 result = reward_fn(task_info, "```python\nprint('hello')\n```")
@@ -692,16 +692,16 @@ class TestRewardCodeFn:
                 assert result.is_correct is True
 
     def test_taco_dataset_with_tci(self, config):
-        from aura.agents.math_agent.reward.code_reward import RewardCodeFn
+        from agents.math_agent.reward.code_reward import RewardCodeFn
         config.use_together_code_interpreter = True
         reward_fn = RewardCodeFn(config)
         task_info = {"data_source": "taco", "ground_truth": {"inputs": ["1"], "outputs": ["2"]}}
         
-        with patch('aura.agents.math_agent.reward.code_reward.TogetherCodeTool') as mock_tool_class:
+        with patch('agents.math_agent.reward.code_reward.TogetherCodeTool') as mock_tool_class:
             mock_codetool = Mock()
             mock_tool_class.return_value = mock_codetool
             
-            with patch('aura.agents.math_agent.reward.code_reward.codetool_check_correctness') as mock_codetool_check:
+            with patch('agents.math_agent.reward.code_reward.codetool_check_correctness') as mock_codetool_check:
                 mock_codetool_check.return_value = (True, {"all_passed": True})
                 
                 result = reward_fn(task_info, "```python\nprint('hello')\n```")
@@ -710,11 +710,11 @@ class TestRewardCodeFn:
                 assert result.is_correct is True
 
     def test_leetcode_dataset(self, config):
-        from aura.agents.math_agent.reward.code_reward import RewardCodeFn
+        from agents.math_agent.reward.code_reward import RewardCodeFn
         reward_fn = RewardCodeFn(config)
         task_info = {"data_source": "leetcode", "ground_truth": {"functional": "def test(): pass"}}
         
-        with patch('aura.agents.math_agent.reward.code_reward.leetcode_check_correctness') as mock_check:
+        with patch('agents.math_agent.reward.code_reward.leetcode_check_correctness') as mock_check:
             mock_check.return_value = (True, {"all_passed": True})
             
             result = reward_fn(task_info, "```python\nprint('hello')\n```")
@@ -722,11 +722,11 @@ class TestRewardCodeFn:
             assert result.reward == config.correct_reward
 
     def test_livecodebench_dataset(self, config):
-        from aura.agents.math_agent.reward.code_reward import RewardCodeFn
+        from agents.math_agent.reward.code_reward import RewardCodeFn
         reward_fn = RewardCodeFn(config)
         task_info = {"data_source": "livecodebench", "ground_truth": [{"input": "1", "output": "2"}]}
         
-        with patch('aura.agents.math_agent.reward.code_reward.lcb_check_correctness_v2') as mock_check:
+        with patch('agents.math_agent.reward.code_reward.lcb_check_correctness_v2') as mock_check:
             mock_check.return_value = (True, {"all_passed": True})
             
             result = reward_fn(task_info, "```python\nprint('hello')\n```")
@@ -734,11 +734,11 @@ class TestRewardCodeFn:
             assert result.reward == config.correct_reward
 
     def test_kodcode_dataset(self, config):
-        from aura.agents.math_agent.reward.code_reward import RewardCodeFn
+        from agents.math_agent.reward.code_reward import RewardCodeFn
         reward_fn = RewardCodeFn(config)
         task_info = {"data_source": "kodcode", "ground_truth": "def test(): pass"}
         
-        with patch('aura.agents.math_agent.reward.code_reward.kodcode_check_correctness') as mock_check:
+        with patch('agents.math_agent.reward.code_reward.kodcode_check_correctness') as mock_check:
             mock_check.return_value = (True, {"all_passed": True})
             
             result = reward_fn(task_info, "```python\nprint('hello')\n```")
@@ -746,11 +746,11 @@ class TestRewardCodeFn:
             assert result.reward == config.correct_reward
 
     def test_humanevalplus_dataset(self, config):
-        from aura.agents.math_agent.reward.code_reward import RewardCodeFn
+        from agents.math_agent.reward.code_reward import RewardCodeFn
         reward_fn = RewardCodeFn(config)
         task_info = {"data_source": "humanevalplus", "ground_truth": "def test(): pass"}
         
-        with patch('aura.agents.math_agent.reward.code_reward.humanevalplus_check_correctness') as mock_check:
+        with patch('agents.math_agent.reward.code_reward.humanevalplus_check_correctness') as mock_check:
             mock_check.return_value = (True, {"all_passed": True})
             
             result = reward_fn(task_info, "```python\nprint('hello')\n```")
@@ -758,13 +758,13 @@ class TestRewardCodeFn:
             assert result.reward == config.correct_reward
 
     def test_incorrect_answer(self, config):
-        from aura.agents.math_agent.reward.code_reward import RewardCodeFn
+        from agents.math_agent.reward.code_reward import RewardCodeFn
         reward_fn = RewardCodeFn(config)
         task_info = {"data_source": "taco", "ground_truth": {"inputs": ["1"], "outputs": ["2"]}}
         
-        with patch('aura.agents.math_agent.reward.code_reward.taco_to_lcb_format') as mock_taco:
+        with patch('agents.math_agent.reward.code_reward.taco_to_lcb_format') as mock_taco:
             mock_taco.return_value = [{"input": "1", "output": "2"}]
-            with patch('aura.agents.math_agent.reward.code_reward.lcb_check_correctness_v2') as mock_lcb:
+            with patch('agents.math_agent.reward.code_reward.lcb_check_correctness_v2') as mock_lcb:
                 mock_lcb.return_value = (False, {"all_passed": False})
                 
                 result = reward_fn(task_info, "```python\nprint('wrong')\n```")
@@ -773,7 +773,7 @@ class TestRewardCodeFn:
                 assert result.is_correct is False
 
     def test_unknown_dataset_raises_error(self, config):
-        from aura.agents.math_agent.reward.code_reward import RewardCodeFn
+        from agents.math_agent.reward.code_reward import RewardCodeFn
         reward_fn = RewardCodeFn(config)
         task_info = {"data_source": "unknown_dataset", "ground_truth": {}}
         
@@ -783,8 +783,8 @@ class TestRewardCodeFn:
 
 class TestRllmRewardFnCode:
     def test_rllm_reward_fn_code(self):
-        with patch('aura.agents.math_agent.reward.code_reward.RewardCodeFn') as mock_reward_class:
-            from aura.agents.math_agent.reward.code_reward import rllm_reward_fn_code
+        with patch('agents.math_agent.reward.code_reward.RewardCodeFn') as mock_reward_class:
+            from agents.math_agent.reward.code_reward import rllm_reward_fn_code
             mock_reward_instance = Mock()
             mock_reward_output = Mock()
             mock_reward_output.reward = 1.0

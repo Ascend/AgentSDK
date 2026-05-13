@@ -25,8 +25,8 @@ from vllm.distributed.parallel_state import (
     init_model_parallel_group,
 )
 
-from aura.aura.base.log.loggers import Loggers
-from aura.aura.base.utils.utils import get_cluster_info
+from aura.base.log.loggers import Loggers
+from aura.base.utils.utils import get_cluster_info
 
 logger = Loggers(__name__).get_logger()
 

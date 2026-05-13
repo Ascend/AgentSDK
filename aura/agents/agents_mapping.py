@@ -18,10 +18,10 @@
 
 from typing import Optional
 
-from aura.aura.runner.agent_engine_wrapper.base.environment.env_utils import compute_trajectory_reward
-from aura.agents.math_agent.environment.tool_env import ToolEnvironment
-from aura.agents.math_agent.reward.reward_fn import math_reward_fn
-from aura.agents.math_agent.tool_agent import ToolAgent
+from aura.runner.agent_engine_wrapper.base.environment.env_utils import compute_trajectory_reward
+from agents.math_agent.environment.tool_env import ToolEnvironment
+from agents.math_agent.reward.reward_fn import math_reward_fn
+from agents.math_agent.tool_agent import ToolAgent
 
 AGENTS_MAPPING = [
     {

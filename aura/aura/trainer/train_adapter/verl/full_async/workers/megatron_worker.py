@@ -22,7 +22,7 @@ import ray
 from recipe.fully_async_policy.megatron_worker import DetachActorWorker
 from verl.single_controller.base.decorator import Dispatch, register
 
-from aura.aura.base.log.loggers import Loggers
+from aura.base.log.loggers import Loggers
 
 logger = Loggers(__name__).get_logger()
 

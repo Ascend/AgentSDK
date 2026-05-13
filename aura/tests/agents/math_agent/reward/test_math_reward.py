@@ -37,13 +37,13 @@ def mock_dependencies(mock_ray_dependencies, mock_aura_dependencies, mock_rllm_d
     with (
         patch("rllm.globals.OAI_RM_MODEL", "test-model"),
         patch("rllm.globals.THOUGHT_DELIMITER_END", "</think"),
-        patch("aura.agents.math_agent.reward.math_reward.call_gemini_llm") as mock_gemini,
-        patch("aura.agents.math_agent.reward.math_reward.call_oai_rm_llm") as mock_oai,
+        patch("agents.math_agent.reward.math_reward.call_gemini_llm") as mock_gemini,
+        patch("agents.math_agent.reward.math_reward.call_oai_rm_llm") as mock_oai,
         patch("rllm.system_prompts.ORM_PROMPT", "test prompt"),
-        patch("aura.agents.math_agent.reward.math_reward.extract_answer") as mock_extract,
-        patch("aura.agents.math_agent.reward.math_reward.grade_answer_mathd") as mock_mathd,
-        patch("aura.agents.math_agent.reward.math_reward.grade_answer_sympy") as mock_sympy,
-        patch("aura.agents.math_agent.reward.reward_types.RewardOutput", MockRewardOutput),
+        patch("agents.math_agent.reward.math_reward.extract_answer") as mock_extract,
+        patch("agents.math_agent.reward.math_reward.grade_answer_mathd") as mock_mathd,
+        patch("agents.math_agent.reward.math_reward.grade_answer_sympy") as mock_sympy,
+        patch("agents.math_agent.reward.reward_types.RewardOutput", MockRewardOutput),
     ):
         mock_extract.return_value = "42"
         mock_mathd.return_value = False
@@ -64,8 +64,8 @@ class TestRewardMathFn:
 
     def test_init(self, mock_dependencies):
         """Test RewardMathFn initialization."""
-        from aura.agents.math_agent.reward.math_reward import RewardMathFn
-        from aura.agents.math_agent.reward.reward_types import RewardConfig
+        from agents.math_agent.reward.math_reward import RewardMathFn
+        from agents.math_agent.reward.reward_types import RewardConfig
         
         config = RewardConfig()
         fn = RewardMathFn(config)
@@ -74,8 +74,8 @@ class TestRewardMathFn:
 
     def test_call_with_correct_answer(self, mock_dependencies):
         """Test __call__ with correct answer."""
-        from aura.agents.math_agent.reward.math_reward import RewardMathFn
-        from aura.agents.math_agent.reward.reward_types import RewardConfig
+        from agents.math_agent.reward.math_reward import RewardMathFn
+        from agents.math_agent.reward.reward_types import RewardConfig
         
         mock_dependencies["grade_mathd"].return_value = True
         mock_dependencies["extract_answer"].return_value = "4"
@@ -95,8 +95,8 @@ class TestRewardMathFn:
 
     def test_call_with_incorrect_answer(self, mock_dependencies):
         """Test __call__ with incorrect answer."""
-        from aura.agents.math_agent.reward.math_reward import RewardMathFn
-        from aura.agents.math_agent.reward.reward_types import RewardConfig
+        from agents.math_agent.reward.math_reward import RewardMathFn
+        from agents.math_agent.reward.reward_types import RewardConfig
         
         mock_dependencies["grade_mathd"].return_value = False
         mock_dependencies["grade_sympy"].return_value = False
@@ -117,8 +117,8 @@ class TestRewardMathFn:
 
     def test_call_with_empty_response(self, mock_dependencies):
         """Test __call__ with empty response."""
-        from aura.agents.math_agent.reward.math_reward import RewardMathFn
-        from aura.agents.math_agent.reward.reward_types import RewardConfig
+        from agents.math_agent.reward.math_reward import RewardMathFn
+        from agents.math_agent.reward.reward_types import RewardConfig
         
         config = RewardConfig()
         fn = RewardMathFn(config)
@@ -131,8 +131,8 @@ class TestRewardMathFn:
 
     def test_call_with_none_response(self, mock_dependencies):
         """Test __call__ with None response."""
-        from aura.agents.math_agent.reward.math_reward import RewardMathFn
-        from aura.agents.math_agent.reward.reward_types import RewardConfig
+        from agents.math_agent.reward.math_reward import RewardMathFn
+        from agents.math_agent.reward.reward_types import RewardConfig
         
         config = RewardConfig()
         fn = RewardMathFn(config)
@@ -145,8 +145,8 @@ class TestRewardMathFn:
 
     def test_call_with_no_ground_truth(self, mock_dependencies):
         """Test __call__ with no ground truth."""
-        from aura.agents.math_agent.reward.math_reward import RewardMathFn
-        from aura.agents.math_agent.reward.reward_types import RewardConfig
+        from agents.math_agent.reward.math_reward import RewardMathFn
+        from agents.math_agent.reward.reward_types import RewardConfig
         
         config = RewardConfig()
         fn = RewardMathFn(config)
@@ -160,8 +160,8 @@ class TestRewardMathFn:
 
     def test_call_with_multiple_ground_truths(self, mock_dependencies):
         """Test __call__ with multiple ground truths."""
-        from aura.agents.math_agent.reward.math_reward import RewardMathFn
-        from aura.agents.math_agent.reward.reward_types import RewardConfig
+        from agents.math_agent.reward.math_reward import RewardMathFn
+        from agents.math_agent.reward.reward_types import RewardConfig
         
         mock_dependencies["grade_mathd"].side_effect = [False, True]
         mock_dependencies["extract_answer"].return_value = "four"
@@ -180,8 +180,8 @@ class TestRewardMathFn:
 
     def test_call_with_toolcall_bonus(self, mock_dependencies):
         """Test __call__ with toolcall bonus."""
-        from aura.agents.math_agent.reward.math_reward import RewardMathFn
-        from aura.agents.math_agent.reward.reward_types import RewardConfig
+        from agents.math_agent.reward.math_reward import RewardMathFn
+        from agents.math_agent.reward.reward_types import RewardConfig
         
         mock_dependencies["grade_mathd"].return_value = True
         mock_dependencies["extract_answer"].return_value = "4"
@@ -201,8 +201,8 @@ class TestRewardMathFn:
 
     def test_call_with_boxed_ground_truth(self, mock_dependencies):
         """Test __call__ with boxed ground truth."""
-        from aura.agents.math_agent.reward.math_reward import RewardMathFn
-        from aura.agents.math_agent.reward.reward_types import RewardConfig
+        from agents.math_agent.reward.math_reward import RewardMathFn
+        from agents.math_agent.reward.reward_types import RewardConfig
         
         mock_dependencies["grade_mathd"].return_value = True
         mock_dependencies["extract_answer"].side_effect = ["4", "4"]
@@ -221,8 +221,8 @@ class TestRewardMathFn:
 
     def test_call_with_orm_enabled(self, mock_dependencies):
         """Test __call__ with ORM enabled."""
-        from aura.agents.math_agent.reward.math_reward import RewardMathFn
-        from aura.agents.math_agent.reward.reward_types import RewardConfig
+        from agents.math_agent.reward.math_reward import RewardMathFn
+        from agents.math_agent.reward.reward_types import RewardConfig
         
         mock_dependencies["grade_mathd"].return_value = False
         mock_dependencies["grade_sympy"].return_value = False
@@ -243,8 +243,8 @@ class TestRewardMathFn:
 
     def test_call_with_format_reward_enabled(self, mock_dependencies):
         """Test __call__ with format reward enabled."""
-        from aura.agents.math_agent.reward.math_reward import RewardMathFn
-        from aura.agents.math_agent.reward.reward_types import RewardConfig
+        from agents.math_agent.reward.math_reward import RewardMathFn
+        from agents.math_agent.reward.reward_types import RewardConfig
         
         config = RewardConfig(apply_format_reward=True)
         fn = RewardMathFn(config)
@@ -262,11 +262,11 @@ class TestRllmRewardFnMath:
 
     def test_rllm_reward_fn_math_basic(self, mock_dependencies):
         """Test rllm_reward_fn_math with basic input."""
-        from aura.agents.math_agent.reward.math_reward import rllm_reward_fn_math
+        from agents.math_agent.reward.math_reward import rllm_reward_fn_math
         
         mock_dependencies["grade_mathd"].return_value = True
         
-        with patch("aura.agents.math_agent.reward.math_reward.RewardMathFn") as mock_fn:
+        with patch("agents.math_agent.reward.math_reward.RewardMathFn") as mock_fn:
             mock_instance = mock_fn.return_value
             mock_instance.return_value = MockRewardOutput(reward=1.0, is_correct=True)
             
@@ -281,11 +281,11 @@ class TestRllmRewardFnMath:
 
     def test_rllm_reward_fn_math_with_extra_info(self, mock_dependencies):
         """Test rllm_reward_fn_math with extra info."""
-        from aura.agents.math_agent.reward.math_reward import rllm_reward_fn_math
+        from agents.math_agent.reward.math_reward import rllm_reward_fn_math
         
         mock_dependencies["grade_mathd"].return_value = True
         
-        with patch("aura.agents.math_agent.reward.math_reward.RewardMathFn") as mock_fn:
+        with patch("agents.math_agent.reward.math_reward.RewardMathFn") as mock_fn:
             mock_instance = mock_fn.return_value
             mock_instance.return_value = MockRewardOutput(reward=1.0, is_correct=True)
             
@@ -301,11 +301,11 @@ class TestRllmRewardFnMath:
 
     def test_rllm_reward_fn_math_with_list_ground_truth(self, mock_dependencies):
         """Test rllm_reward_fn_math with list ground truth."""
-        from aura.agents.math_agent.reward.math_reward import rllm_reward_fn_math
+        from agents.math_agent.reward.math_reward import rllm_reward_fn_math
         
         mock_dependencies["grade_mathd"].return_value = True
         
-        with patch("aura.agents.math_agent.reward.math_reward.RewardMathFn") as mock_fn:
+        with patch("agents.math_agent.reward.math_reward.RewardMathFn") as mock_fn:
             mock_instance = mock_fn.return_value
             mock_instance.return_value = MockRewardOutput(reward=1.0, is_correct=True)
             

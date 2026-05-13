@@ -18,7 +18,7 @@ import pytest
 import unittest.mock as mock
 import numpy as np
 
-from aura.aura.base.utils.tokenizer import (
+from aura.base.utils.tokenizer import (
     get_tokenizer,
     BaseTokenizer,
     _HuggingFaceTokenizer,
@@ -216,7 +216,7 @@ class TestGetTokenizer:
         # Get the actual mock class object
         self.mock_hf_class_obj = mock.MagicMock(return_value=self.mock_hf_tokenizer)
         self.mock_hf_class = mock.patch(
-            "aura.aura.base.utils.tokenizer._HuggingFaceTokenizer",
+            "aura.base.utils.tokenizer._HuggingFaceTokenizer",
             self.mock_hf_class_obj
         )
         self.mock_hf_class.start()
@@ -376,7 +376,7 @@ class TestGetTokenizer:
         self.mock_hf_tokenizer.pad = None
         
         # Mock replace_token_from_template
-        with mock.patch("aura.aura.base.utils.tokenizer.replace_token_from_template") as mock_replace:
+        with mock.patch("aura.base.utils.tokenizer.replace_token_from_template") as mock_replace:
             result = get_tokenizer(
                 tokenizer_model="path/to/tokenizer",
                 eos_token_id=50256,
@@ -411,14 +411,14 @@ class TestReplaceTokenFromTemplate:
         self.mock_template.replace_eos = False
         
         self.mock_get_template = mock.patch(
-            "aura.aura.base.utils.tokenizer.get_model_template",
+            "aura.base.utils.tokenizer.get_model_template",
             return_value=self.mock_template
         )
         self.mock_get_template.start()
         
         # Mock _add_or_replace_eos_token
         self.mock_add_eos = mock.patch(
-            "aura.aura.base.utils.tokenizer._add_or_replace_eos_token"
+            "aura.base.utils.tokenizer._add_or_replace_eos_token"
         )
         self.mock_add_eos.start()
     
@@ -447,7 +447,7 @@ class TestReplaceTokenFromTemplate:
         replace_token_from_template(self.mock_tokenizer, "test_template", "path/to/templates.json")
         
         # Check that _add_or_replace_eos_token is called with first stop word
-        from aura.aura.base.utils.tokenizer import _add_or_replace_eos_token
+        from aura.base.utils.tokenizer import _add_or_replace_eos_token
         _add_or_replace_eos_token.assert_called_once_with(self.mock_tokenizer, eos_token="<|stop1|>")
         
         # Check that remaining stop words are added
@@ -472,7 +472,7 @@ class TestReplaceTokenFromTemplate:
         replace_token_from_template(self.mock_tokenizer, "test_template", "path/to/templates.json")
         
         # Check that eos token is added
-        from aura.aura.base.utils.tokenizer import _add_or_replace_eos_token
+        from aura.base.utils.tokenizer import _add_or_replace_eos_token
         _add_or_replace_eos_token.assert_called_once_with(self.mock_tokenizer, eos_token="<|endoftext|>")
 
 

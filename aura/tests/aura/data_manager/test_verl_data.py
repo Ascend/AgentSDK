@@ -45,8 +45,8 @@ with patch.dict(sys.modules, {
     'numpy': mock_np,
     'verl': mock_verl,
 }):
-    from aura.aura.data_manager.verl_data import VerlDataManager
-    import aura.aura.data_manager.verl_data as _verl_data_mod
+    from aura.data_manager.verl_data import VerlDataManager
+    import aura.data_manager.verl_data as _verl_data_mod
 
 
 class TestVerlDataManager(unittest.TestCase):

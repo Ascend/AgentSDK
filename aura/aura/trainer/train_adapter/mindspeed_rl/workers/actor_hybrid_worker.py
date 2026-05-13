@@ -41,8 +41,8 @@ from mindspeed_rl.workers.actor_hybrid_worker import (
 )
 from mindspeed_rl.workers.resharding.megatron_off_loader import MegatronOffLoader
 
-from aura.aura.base.log.loggers import Loggers
-from aura.aura.runner.infer_adapter.vllm.extension.custom_worker_extensions import (
+from aura.base.log.loggers import Loggers
+from aura.runner.infer_adapter.vllm.extension.custom_worker_extensions import (
     resolve_device,
     split_tensors_and_meta,
 )
@@ -247,7 +247,7 @@ class AgentActorHybridWorkerBase(ActorHybridWorkerBase):
         self.actor_model_config = AutoConfig.from_pretrained(
             self.megatron_config.tokenizer_name_or_path, trust_remote_code=self.generate_config.trust_remote_code)
 
-        from aura.aura.runner.infer_adapter.vllm.vllm_worker import AsyncVLLMInferEngine
+        from aura.runner.infer_adapter.vllm.vllm_worker import AsyncVLLMInferEngine
 
         rollout = AsyncVLLMInferEngine(
             tokenizer_name_or_path=self.megatron_config.tokenizer_name_or_path,

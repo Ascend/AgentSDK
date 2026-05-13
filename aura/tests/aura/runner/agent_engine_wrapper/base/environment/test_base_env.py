@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 
-from aura.aura.runner.agent_engine_wrapper.base.environment.base_env import BaseEnv
+from aura.runner.agent_engine_wrapper.base.environment.base_env import BaseEnv
 
 
 # ---------------------------------------------------------------------------

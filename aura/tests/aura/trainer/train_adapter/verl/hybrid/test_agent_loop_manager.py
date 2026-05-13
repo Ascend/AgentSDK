@@ -144,9 +144,9 @@ class TestAgentLoopManager:
     def test_init(self, mock_config, patch_modules):
         with patch("verl.experimental.agent_loop.AgentLoopManager", MockAgentLoopManager), \
                 patch("verl.utils.hf_tokenizer") as mock_hf_tokenizer, \
-                patch("aura.aura.trainer.train_adapter.verl.hybrid.agent_loop_manager."
+                patch("aura.trainer.train_adapter.verl.hybrid.agent_loop_manager."
                       "launch_server", AsyncMock()) as mock_launch_s:
-            from aura.aura.trainer.train_adapter.verl.hybrid.agent_loop_manager import HybridAgentLoopManager
+            from aura.trainer.train_adapter.verl.hybrid.agent_loop_manager import HybridAgentLoopManager
 
             mock_tokenizer = MagicMock()
             mock_hf_tokenizer.return_value = mock_tokenizer
@@ -164,9 +164,9 @@ class TestAgentLoopManager:
     def mock_hybrid_agent_loop_manager(self, mock_config):
         with patch("verl.experimental.agent_loop.AgentLoopManager", MockAgentLoopManager), \
                 patch("verl.utils.hf_tokenizer") as mock_hf_tokenizer, \
-                patch("aura.aura.trainer.train_adapter.verl.hybrid.agent_loop_manager."
+                patch("aura.trainer.train_adapter.verl.hybrid.agent_loop_manager."
                       "launch_server", AsyncMock()) as mock_launch_s:
-            from aura.aura.trainer.train_adapter.verl.hybrid.agent_loop_manager import HybridAgentLoopManager
+            from aura.trainer.train_adapter.verl.hybrid.agent_loop_manager import HybridAgentLoopManager
             manager = HybridAgentLoopManager(mock_config)
 
             return manager
@@ -179,13 +179,13 @@ class TestAgentLoopManager:
     async def test_async_generate_sequences(self, mock_hybrid_agent_loop_manager, mock_config, mock_prompts,
                                             mock_trajectory, patch_modules):
         with patch("verl.utils.hf_tokenizer") as mock_hf_tokenizer, \
-                patch("aura.aura.trainer.train_adapter.verl.hybrid.agent_loop_manager."
+                patch("aura.trainer.train_adapter.verl.hybrid.agent_loop_manager."
                       "create_tasks", AsyncMock()) as mock_create_tasks, \
-                patch("aura.aura.trainer.train_adapter.verl.hybrid.agent_loop_manager."
+                patch("aura.trainer.train_adapter.verl.hybrid.agent_loop_manager."
                       "generate_trajectory", AsyncMock()) as mock_generate_traj, \
-                patch("aura.aura.trainer.train_adapter.verl.hybrid.agent_loop_manager."
+                patch("aura.trainer.train_adapter.verl.hybrid.agent_loop_manager."
                       "transform_trajectories_to_batch", AsyncMock()) as mock_transform, \
-                patch("aura.aura.trainer.train_adapter.verl.hybrid.agent_loop_manager.HybridAgentLoopManager."
+                patch("aura.trainer.train_adapter.verl.hybrid.agent_loop_manager.HybridAgentLoopManager."
                       "write_file") as mock_write_file:
             # 分词器
             mock_tokenizer = MagicMock()
@@ -218,11 +218,11 @@ class TestAgentLoopManager:
             assert result == mock_transformed_batch
 
     def test_generate_sequences(self, mock_hybrid_agent_loop_manager, mock_config, mock_prompts, patch_modules):
-        with    patch("aura.aura.trainer.train_adapter.verl.hybrid.agent_loop_manager.HybridAgentLoopManager."
+        with    patch("aura.trainer.train_adapter.verl.hybrid.agent_loop_manager.HybridAgentLoopManager."
                       "async_generate_sequences") as mock_async_generate_sequences, \
-                patch("aura.aura.trainer.train_adapter.verl.hybrid.agent_loop_manager.HybridAgentLoopManager."
+                patch("aura.trainer.train_adapter.verl.hybrid.agent_loop_manager.HybridAgentLoopManager."
                       "wake_up") as mock_wake_up, \
-                patch("aura.aura.trainer.train_adapter.verl.hybrid.agent_loop_manager.HybridAgentLoopManager."
+                patch("aura.trainer.train_adapter.verl.hybrid.agent_loop_manager.HybridAgentLoopManager."
                       "sleep") as mock_sleep:
             # 设置模拟
             mock_result = MagicMock()
@@ -290,13 +290,13 @@ class TestAgentLoopManager:
     def test_write_file(self, mock_hybrid_agent_loop_manager, mock_config, patch_modules):
         """测试write_file方法"""
 
-        with patch("aura.aura.trainer.train_adapter.verl.hybrid.agent_loop_manager.datetime") as mock_datetime, \
-             patch("aura.aura.trainer.train_adapter.verl.hybrid.agent_loop_manager.os.path.join") as mock_path_join, \
-             patch("aura.aura.trainer.train_adapter.verl.hybrid.agent_loop_manager.os.path.realpath") as mock_realpath, \
-             patch("aura.aura.trainer.train_adapter.verl.hybrid.agent_loop_manager.os.open") as mock_os_open, \
-             patch("aura.aura.trainer.train_adapter.verl.hybrid.agent_loop_manager.os.fdopen") as mock_fdopen, \
-             patch("aura.aura.trainer.train_adapter.verl.hybrid.agent_loop_manager.json.dump") as mock_json_dump, \
-             patch("aura.aura.trainer.train_adapter.verl.hybrid.agent_loop_manager.logger") as mock_logger:
+        with patch("aura.trainer.train_adapter.verl.hybrid.agent_loop_manager.datetime") as mock_datetime, \
+             patch("aura.trainer.train_adapter.verl.hybrid.agent_loop_manager.os.path.join") as mock_path_join, \
+             patch("aura.trainer.train_adapter.verl.hybrid.agent_loop_manager.os.path.realpath") as mock_realpath, \
+             patch("aura.trainer.train_adapter.verl.hybrid.agent_loop_manager.os.open") as mock_os_open, \
+             patch("aura.trainer.train_adapter.verl.hybrid.agent_loop_manager.os.fdopen") as mock_fdopen, \
+             patch("aura.trainer.train_adapter.verl.hybrid.agent_loop_manager.json.dump") as mock_json_dump, \
+             patch("aura.trainer.train_adapter.verl.hybrid.agent_loop_manager.logger") as mock_logger:
             mock_hybrid_agent_loop_manager.iteration = 1
 
             mock_timestamp = 1234567890
@@ -334,10 +334,10 @@ class TestAgentLoopManager:
     @pytest.mark.asyncio
     async def test_launch_server(self, patch_modules):
         """测试launch_server函数"""
-        with patch("aura.aura.trainer.train_adapter.verl.hybrid.agent_loop_manager."
+        with patch("aura.trainer.train_adapter.verl.hybrid.agent_loop_manager."
                    "InferRouter", AsyncMock()) as mock_infer_router:
             # 在测试函数内部导入，确保patch生效
-            from aura.aura.trainer.train_adapter.verl.hybrid.agent_loop_manager import launch_server
+            from aura.trainer.train_adapter.verl.hybrid.agent_loop_manager import launch_server
 
             # 设置模拟
             mock_router = AsyncMock()
@@ -359,8 +359,8 @@ class TestAgentLoopManager:
     @pytest.mark.asyncio
     async def test_create_tasks(self, mock_prompts, patch_modules):
         """测试create_tasks函数"""
-        from aura.aura.trainer.train_adapter.verl.hybrid.agent_loop_manager import create_tasks
-        from aura.aura.runner.agent_engine_wrapper.base_engine_wrapper import AgentTask
+        from aura.trainer.train_adapter.verl.hybrid.agent_loop_manager import create_tasks
+        from aura.runner.agent_engine_wrapper.base_engine_wrapper import AgentTask
 
         # 设置模拟
         agent_service = "test_agent_service"
@@ -400,9 +400,9 @@ class TestAgentLoopManager:
     @pytest.mark.asyncio
     async def test_generate_trajectory(self, patch_modules):
         """测试generate_trajectory函数"""
-        with patch("aura.aura.runner.agent_router.AgentRouter", AsyncMock()) as mock_agent_router:
-            from aura.aura.trainer.train_adapter.verl.hybrid.agent_loop_manager import generate_trajectory
-            from aura.aura.runner.agent_engine_wrapper.base_engine_wrapper import AgentTask
+        with patch("aura.runner.agent_router.AgentRouter", AsyncMock()) as mock_agent_router:
+            from aura.trainer.train_adapter.verl.hybrid.agent_loop_manager import generate_trajectory
+            from aura.runner.agent_engine_wrapper.base_engine_wrapper import AgentTask
 
             # 设置模拟
             mock_router = AsyncMock()
@@ -434,10 +434,10 @@ class TestAgentLoopManager:
     @pytest.mark.asyncio
     async def test_transform_trajectories_to_batch(self, mock_config, mock_trajectories, patch_modules):
         """测试transform_trajectories_to_batch函数"""
-        with patch("aura.aura.trainer.train_adapter.verl.hybrid.agent_loop_manager.torch.nn.utils."
+        with patch("aura.trainer.train_adapter.verl.hybrid.agent_loop_manager.torch.nn.utils."
                    "rnn.pad_sequence") as mock_pad_sequence, \
-                patch("aura.aura.trainer.train_adapter.verl.hybrid.agent_loop_manager.DataProto") as mock_data_proto:
-            from aura.aura.trainer.train_adapter.verl.hybrid.agent_loop_manager import transform_trajectories_to_batch
+                patch("aura.trainer.train_adapter.verl.hybrid.agent_loop_manager.DataProto") as mock_data_proto:
+            from aura.trainer.train_adapter.verl.hybrid.agent_loop_manager import transform_trajectories_to_batch
 
             # 设置模拟
             mock_tokenizer = MagicMock()

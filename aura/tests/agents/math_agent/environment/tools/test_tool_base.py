@@ -52,7 +52,7 @@ class TestToolCall:
 
     def test_tool_call_creation(self, mock_dependencies):
         """Test ToolCall creation with name and arguments."""
-        from aura.agents.math_agent.environment.tools.tool_base import ToolCall
+        from agents.math_agent.environment.tools.tool_base import ToolCall
         
         tool_call = ToolCall(name="test_tool", arguments={"a": 1, "b": 2})
         
@@ -61,7 +61,7 @@ class TestToolCall:
 
     def test_tool_call_to_dict(self, mock_dependencies):
         """Test ToolCall to_dict method."""
-        from aura.agents.math_agent.environment.tools.tool_base import ToolCall
+        from agents.math_agent.environment.tools.tool_base import ToolCall
         
         tool_call = ToolCall(name="test_tool", arguments={"a": 1, "b": 2})
         result = tool_call.to_dict()
@@ -71,7 +71,7 @@ class TestToolCall:
 
     def test_tool_call_empty_arguments(self, mock_dependencies):
         """Test ToolCall with empty arguments."""
-        from aura.agents.math_agent.environment.tools.tool_base import ToolCall
+        from agents.math_agent.environment.tools.tool_base import ToolCall
         
         tool_call = ToolCall(name="empty_tool", arguments={})
         
@@ -84,7 +84,7 @@ class TestToolOutput:
 
     def test_tool_output_creation_with_output(self, mock_dependencies):
         """Test ToolOutput creation with output."""
-        from aura.agents.math_agent.environment.tools.tool_base import ToolOutput
+        from agents.math_agent.environment.tools.tool_base import ToolOutput
         
         output = ToolOutput(name="test_tool", output="result")
         
@@ -94,7 +94,7 @@ class TestToolOutput:
 
     def test_tool_output_creation_with_error(self, mock_dependencies):
         """Test ToolOutput creation with error."""
-        from aura.agents.math_agent.environment.tools.tool_base import ToolOutput
+        from agents.math_agent.environment.tools.tool_base import ToolOutput
         
         output = ToolOutput(name="test_tool", error="Something went wrong")
         
@@ -104,7 +104,7 @@ class TestToolOutput:
 
     def test_tool_output_str_with_error(self, mock_dependencies):
         """Test ToolOutput __str__ with error."""
-        from aura.agents.math_agent.environment.tools.tool_base import ToolOutput
+        from agents.math_agent.environment.tools.tool_base import ToolOutput
         
         output = ToolOutput(name="test_tool", error="Error message")
         result = str(output)
@@ -113,7 +113,7 @@ class TestToolOutput:
 
     def test_tool_output_str_with_none_output(self, mock_dependencies):
         """Test ToolOutput __str__ with None output."""
-        from aura.agents.math_agent.environment.tools.tool_base import ToolOutput
+        from agents.math_agent.environment.tools.tool_base import ToolOutput
         
         output = ToolOutput(name="test_tool", output=None)
         result = str(output)
@@ -122,7 +122,7 @@ class TestToolOutput:
 
     def test_tool_output_str_with_dict_output(self, mock_dependencies):
         """Test ToolOutput __str__ with dict output."""
-        from aura.agents.math_agent.environment.tools.tool_base import ToolOutput
+        from agents.math_agent.environment.tools.tool_base import ToolOutput
         
         output = ToolOutput(name="test_tool", output={"key": "value"})
         result = str(output)
@@ -131,7 +131,7 @@ class TestToolOutput:
 
     def test_tool_output_str_with_list_output(self, mock_dependencies):
         """Test ToolOutput __str__ with list output."""
-        from aura.agents.math_agent.environment.tools.tool_base import ToolOutput
+        from agents.math_agent.environment.tools.tool_base import ToolOutput
         
         output = ToolOutput(name="test_tool", output=[1, 2, 3])
         result = str(output)
@@ -140,7 +140,7 @@ class TestToolOutput:
 
     def test_tool_output_str_with_string_output(self, mock_dependencies):
         """Test ToolOutput __str__ with string output."""
-        from aura.agents.math_agent.environment.tools.tool_base import ToolOutput
+        from agents.math_agent.environment.tools.tool_base import ToolOutput
         
         output = ToolOutput(name="test_tool", output="simple string")
         result = str(output)
@@ -149,7 +149,7 @@ class TestToolOutput:
 
     def test_tool_output_to_string(self, mock_dependencies):
         """Test ToolOutput to_string method."""
-        from aura.agents.math_agent.environment.tools.tool_base import ToolOutput
+        from agents.math_agent.environment.tools.tool_base import ToolOutput
         
         output = ToolOutput(name="test_tool", output="result")
         result = output.to_string()
@@ -162,7 +162,7 @@ class TestTool:
 
     def test_tool_init_with_name_and_description(self, mock_dependencies):
         """Test Tool initialization with name and description."""
-        from aura.agents.math_agent.environment.tools.tool_base import Tool
+        from agents.math_agent.environment.tools.tool_base import Tool
         
         class TestTool(Tool):
             @property
@@ -183,7 +183,7 @@ class TestTool:
 
     def test_tool_init_with_function(self, mock_dependencies):
         """Test Tool initialization with function."""
-        from aura.agents.math_agent.environment.tools.tool_base import Tool
+        from agents.math_agent.environment.tools.tool_base import Tool
         
         def test_func(a: int, b: int) -> int:
             return a + b
@@ -195,7 +195,7 @@ class TestTool:
 
     def test_tool_forward_with_function(self, mock_dependencies):
         """Test Tool forward with function."""
-        from aura.agents.math_agent.environment.tools.tool_base import Tool
+        from agents.math_agent.environment.tools.tool_base import Tool
         
         def add(a: int, b: int) -> int:
             return a + b
@@ -208,7 +208,7 @@ class TestTool:
 
     def test_tool_forward_with_error(self, mock_dependencies):
         """Test Tool forward with error in function."""
-        from aura.agents.math_agent.environment.tools.tool_base import Tool
+        from agents.math_agent.environment.tools.tool_base import Tool
         
         def error_func():
             raise ValueError("Test error")
@@ -221,7 +221,7 @@ class TestTool:
 
     def test_tool_forward_not_implemented(self, mock_dependencies):
         """Test Tool forward without implementation."""
-        from aura.agents.math_agent.environment.tools.tool_base import Tool
+        from agents.math_agent.environment.tools.tool_base import Tool
         
         class TestTool(Tool):
             @property
@@ -235,7 +235,7 @@ class TestTool:
 
     def test_tool_call_sync(self, mock_dependencies):
         """Test Tool __call__ for sync execution."""
-        from aura.agents.math_agent.environment.tools.tool_base import Tool
+        from agents.math_agent.environment.tools.tool_base import Tool
         
         def add(a: int, b: int) -> int:
             return a + b
@@ -247,7 +247,7 @@ class TestTool:
 
     def test_tool_call_auto_detect_sync(self, mock_dependencies):
         """Test Tool __call__ auto-detects sync implementation."""
-        from aura.agents.math_agent.environment.tools.tool_base import Tool
+        from agents.math_agent.environment.tools.tool_base import Tool
         
         def add(a: int, b: int) -> int:
             return a + b
@@ -260,7 +260,7 @@ class TestTool:
     @pytest.mark.asyncio
     async def test_tool_call_with_use_async_true_no_async_impl(self, mock_dependencies):
         """Test Tool __call__ with use_async=True and sync implementation."""
-        from aura.agents.math_agent.environment.tools.tool_base import Tool
+        from agents.math_agent.environment.tools.tool_base import Tool
         
         def sync_only():
             return "sync result"
@@ -272,7 +272,7 @@ class TestTool:
 
     def test_tool_json_property(self, mock_dependencies):
         """Test Tool json property."""
-        from aura.agents.math_agent.environment.tools.tool_base import Tool
+        from agents.math_agent.environment.tools.tool_base import Tool
         
         def test_func(a: int) -> int:
             return a * 2
@@ -285,7 +285,7 @@ class TestTool:
 
     def test_tool_requires_name_or_function(self, mock_dependencies):
         """Test Tool requires name when no function provided."""
-        from aura.agents.math_agent.environment.tools.tool_base import Tool
+        from agents.math_agent.environment.tools.tool_base import Tool
         
         class TestTool(Tool):
             @property
@@ -297,7 +297,7 @@ class TestTool:
 
     def test_tool_requires_description_or_function(self, mock_dependencies):
         """Test Tool requires description when no function provided."""
-        from aura.agents.math_agent.environment.tools.tool_base import Tool
+        from agents.math_agent.environment.tools.tool_base import Tool
         
         class TestTool(Tool):
             @property

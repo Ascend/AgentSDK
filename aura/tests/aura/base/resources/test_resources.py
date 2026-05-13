@@ -21,7 +21,7 @@ from unittest.mock import patch, MagicMock
 import ray
 from ray.util.placement_group import PlacementGroup
 
-from aura.aura.base.resources.resources import (
+from aura.base.resources.resources import (
     ResourceSet,
     create_placement_group_with_affinity,
     create_resource_set,
@@ -56,8 +56,8 @@ class TestCreatePlacementGroupWithAffinity:
     """Test the create_placement_group_with_affinity function"""
     
     @pytest.mark.asyncio
-    @patch("aura.aura.base.resources.resources.ray._private.state.available_resources_per_node")
-    @patch("aura.aura.base.resources.resources.placement_group")
+    @patch("aura.base.resources.resources.ray._private.state.available_resources_per_node")
+    @patch("aura.base.resources.resources.placement_group")
     async def test_create_pg_success(self, mock_placement_group, mock_available_resources):
         """Test successful placement group creation"""
         # Mock available resources
@@ -97,8 +97,8 @@ class TestCreatePlacementGroupWithAffinity:
         assert result == mock_pg
     
     @pytest.mark.asyncio
-    @patch("aura.aura.base.resources.resources.ray._private.state.available_resources_per_node")
-    @patch("aura.aura.base.resources.resources.placement_group")
+    @patch("aura.base.resources.resources.ray._private.state.available_resources_per_node")
+    @patch("aura.base.resources.resources.placement_group")
     async def test_create_pg_no_feasible_nodes(self, mock_placement_group, mock_available_resources):
         """Test placement group creation when no nodes have enough resources"""
         # Mock available resources (insufficient for requested bundles)
@@ -132,8 +132,8 @@ class TestCreatePlacementGroupWithAffinity:
         assert result == mock_pg
     
     @pytest.mark.asyncio
-    @patch("aura.aura.base.resources.resources.ray._private.state.available_resources_per_node")
-    @patch("aura.aura.base.resources.resources.placement_group")
+    @patch("aura.base.resources.resources.ray._private.state.available_resources_per_node")
+    @patch("aura.base.resources.resources.placement_group")
     async def test_create_pg_timeout(self, mock_placement_group, mock_available_resources):
         """Test placement group creation timeout"""
         # Mock available resources
@@ -156,7 +156,7 @@ class TestCreatePlacementGroupWithAffinity:
         timeout = 0.1
         
         # Call the function and expect timeout
-        with patch("aura.aura.base.resources.resources.ray.util.placement_group") as mock_pg_module:
+        with patch("aura.base.resources.resources.ray.util.placement_group") as mock_pg_module:
             # Setup mock for remove_placement_group
             mock_remove = MagicMock()
             mock_pg_module.remove_placement_group = mock_remove
@@ -168,9 +168,9 @@ class TestCreatePlacementGroupWithAffinity:
             mock_remove.assert_called_once_with(mock_pg)
     
     @pytest.mark.asyncio
-    @patch("aura.aura.base.resources.resources.ray._private.state.available_resources_per_node")
-    @patch("aura.aura.base.resources.resources.ray.available_resources")
-    @patch("aura.aura.base.resources.resources.placement_group")
+    @patch("aura.base.resources.resources.ray._private.state.available_resources_per_node")
+    @patch("aura.base.resources.resources.ray.available_resources")
+    @patch("aura.base.resources.resources.placement_group")
     async def test_ray_api_compatibility(self, mock_placement_group, mock_available, mock_old_api):
         """Test compatibility when old Ray API is not available"""
         # Mock AttributeError for old API
@@ -207,7 +207,7 @@ class TestCreateResourceSet:
     """Test the create_resource_set function"""
     
     @pytest.mark.asyncio
-    @patch("aura.aura.base.resources.resources.create_placement_group_with_affinity")
+    @patch("aura.base.resources.resources.create_placement_group_with_affinity")
     async def test_create_resource_set_success(self, mock_create_pg):
         """Test successful resource set creation"""
         # Mock placement group
@@ -218,7 +218,7 @@ class TestCreateResourceSet:
         bundles_info = [{"CPU": 1.0, "GPU": 1.0}]
         
         # Call the function with mocked ResourceSet to avoid validation
-        with patch("aura.aura.base.resources.resources.ResourceSet") as mock_resource_set:
+        with patch("aura.base.resources.resources.ResourceSet") as mock_resource_set:
             mock_resource_set_instance = MagicMock()
             mock_resource_set_instance.info = bundles_info
             mock_resource_set_instance.ref = mock_pg
@@ -236,8 +236,8 @@ class TestCreateResourceSet:
             assert resource_set.ref == mock_pg
     
     @pytest.mark.asyncio
-    @patch("aura.aura.base.resources.resources.create_placement_group_with_affinity")
-    @patch("aura.aura.base.resources.resources._PG_CREATION_LOCK")
+    @patch("aura.base.resources.resources.create_placement_group_with_affinity")
+    @patch("aura.base.resources.resources._PG_CREATION_LOCK")
     async def test_create_resource_set_lock_usage(self, mock_lock, mock_create_pg):
         """Test that create_resource_set uses the module lock"""
         # Test data
@@ -249,7 +249,7 @@ class TestCreateResourceSet:
         
         # Setup mock to bypass ResourceSet validation
         mock_pg_instance = MagicMock()
-        with patch("aura.aura.base.resources.resources.ResourceSet") as mock_resource_set:
+        with patch("aura.base.resources.resources.ResourceSet") as mock_resource_set:
             mock_resource_set.return_value = mock_pg_instance
             await create_resource_set(bundles_info)
             
@@ -260,7 +260,7 @@ class TestCreateResourceSet:
             mock_resource_set.assert_called_once_with(info=bundles_info, ref=mock_create_pg.return_value)
     
     @pytest.mark.asyncio
-    @patch("aura.aura.base.resources.resources.create_placement_group_with_affinity")
+    @patch("aura.base.resources.resources.create_placement_group_with_affinity")
     async def test_create_resource_set_exception_propagation(self, mock_create_pg):
         """Test that exceptions from create_placement_group_with_affinity are propagated"""
         # Mock exception

@@ -70,7 +70,7 @@ class TestRolloutWorkerUtils(unittest.TestCase):
         # Import test objects
         global get_least_common_multiple, generate_dummy_trajectory, parse_messages
         global _stat_rollout_metrics, clean_traj_groups, get_all_prompt_ids, RolloutWorker
-        from aura.aura.trainer.rollout.rollout_worker import (
+        from aura.trainer.rollout.rollout_worker import (
             get_least_common_multiple,
             generate_dummy_trajectory,
             parse_messages,
@@ -184,9 +184,9 @@ class TestRolloutWorkerUtils(unittest.TestCase):
             {"prompt_id": "2", "content": "traj3"}
         ]
         # Use patch to mock the behavior of clean_traj_groups function
-        with patch('aura.aura.trainer.rollout.rollout_worker.clean_traj_groups') as mock_clean_traj_groups:
+        with patch('aura.trainer.rollout.rollout_worker.clean_traj_groups') as mock_clean_traj_groups:
             # Import the original function
-            from aura.aura.trainer.rollout.rollout_worker import clean_traj_groups
+            from aura.trainer.rollout.rollout_worker import clean_traj_groups
             # Call the original function
             clean_traj_groups(traj_groups, all_prompt_ids, trajectories)
             # Verify if the function is called correctly
@@ -214,7 +214,7 @@ class TestRolloutWorkerUtils(unittest.TestCase):
         ]
 
         # Import the original function
-        from aura.aura.trainer.rollout.rollout_worker import clean_traj_groups
+        from aura.trainer.rollout.rollout_worker import clean_traj_groups
         # Call the function
         clean_traj_groups(traj_groups, all_prompt_ids, trajectories)
 

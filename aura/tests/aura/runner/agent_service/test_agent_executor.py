@@ -70,7 +70,7 @@ def _build_fake_rllm_engine_wrapper_module(wrapper_cls):
     This function creates a fake module with that class.
     """
     fake_mod = types.ModuleType(
-        "aura.aura.runner.agent_engine_wrapper.rllm.rllm_engine_wrapper"
+        "aura.runner.agent_engine_wrapper.rllm.rllm_engine_wrapper"
     )
     fake_mod.RLLMEngineWrapper = wrapper_cls
     return fake_mod
@@ -80,7 +80,7 @@ def _reload_agent_executor_module():
     """
     Reload the agent_executor module after fakes are installed.
     """
-    mod_name = "aura.aura.runner.agent_service.agent_executor"
+    mod_name = "aura.runner.agent_service.agent_executor"
     if mod_name in sys.modules:
         del sys.modules[mod_name]
     return importlib.import_module(mod_name)
@@ -141,7 +141,7 @@ class TestAgentExecutor(unittest.IsolatedAsyncioTestCase):
         self.rllm_patch = patch.dict(
             sys.modules,
             {
-                "aura.aura.runner.agent_engine_wrapper.rllm.rllm_engine_wrapper": fake_rllm_mod
+                "aura.runner.agent_engine_wrapper.rllm.rllm_engine_wrapper": fake_rllm_mod
             },
         )
         self.rllm_patch.start()
@@ -152,7 +152,7 @@ class TestAgentExecutor(unittest.IsolatedAsyncioTestCase):
         self.AgentExecutor = agent_executor_mod.AgentExecutor
 
         # import these after reload to avoid old bindings
-        from aura.aura.runner.agent_engine_wrapper.base_engine_wrapper import AgentTask, Trajectory
+        from aura.runner.agent_engine_wrapper.base_engine_wrapper import AgentTask, Trajectory
         self.AgentTask = AgentTask
         self.Trajectory = Trajectory
 
@@ -292,13 +292,13 @@ class TestAgentExecutor(unittest.IsolatedAsyncioTestCase):
         ray.get.return_value = {"episode_data": "test_data"}
 
         with patch(
-            "aura.aura.memory.episode.backend.json_episode_store.JsonEpisodeStore"
+            "aura.memory.episode.backend.json_episode_store.JsonEpisodeStore"
         ) as mock_store_cls:
 
             mock_store = MagicMock()
             mock_store_cls.return_value = mock_store
 
-            with patch("aura.aura.runner.agent_service.agent_executor.logger"):
+            with patch("aura.runner.agent_service.agent_executor.logger"):
                 results = []
                 async for item in self.executor.stream_generate_trajectory(mock_task):
                     results.append(item)
@@ -327,7 +327,7 @@ class TestAgentExecutor(unittest.IsolatedAsyncioTestCase):
             side_effect=mock_generate_trajectory
         )
 
-        with patch("aura.aura.runner.agent_service.agent_executor.logger"):
+        with patch("aura.runner.agent_service.agent_executor.logger"):
             with self.assertRaises(RuntimeError) as ctx:
                 async for _ in self.executor.stream_generate_trajectory(mock_task):
                     pass
@@ -355,13 +355,13 @@ class TestAgentExecutor(unittest.IsolatedAsyncioTestCase):
         ray.get.return_value = {"episode_data": "test_data"}
 
         with patch(
-            "aura.aura.memory.episode.backend.json_episode_store.JsonEpisodeStore"
+            "aura.memory.episode.backend.json_episode_store.JsonEpisodeStore"
         ) as mock_store_cls:
 
             mock_store = MagicMock()
             mock_store_cls.return_value = mock_store
 
-            with patch("aura.aura.runner.agent_service.agent_executor.logger"):
+            with patch("aura.runner.agent_service.agent_executor.logger"):
                 results = []
                 async for item in self.executor.stream_generate_trajectory(mock_task):
                     results.append(item)
@@ -393,13 +393,13 @@ class TestAgentExecutor(unittest.IsolatedAsyncioTestCase):
         ray.get.return_value = {"episode_data": "test_data"}
 
         with patch(
-            "aura.aura.memory.episode.backend.json_episode_store.JsonEpisodeStore"
+            "aura.memory.episode.backend.json_episode_store.JsonEpisodeStore"
         ) as mock_store_cls:
 
             mock_store = MagicMock()
             mock_store_cls.return_value = mock_store
 
-            with patch("aura.aura.runner.agent_service.agent_executor.logger"):
+            with patch("aura.runner.agent_service.agent_executor.logger"):
                 async for _ in self.executor.stream_generate_trajectory(mock_task):
                     pass
 

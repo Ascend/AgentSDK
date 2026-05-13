@@ -17,9 +17,9 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-from aura.aura.data_manager.infer_data import InferDataManager
-from aura.aura.data_manager.mindspeed_rl_data import MindSpeedRLDataManager
-from aura.aura.data_manager.verl_data import VerlDataManager
+from aura.data_manager.infer_data import InferDataManager
+from aura.data_manager.mindspeed_rl_data import MindSpeedRLDataManager
+from aura.data_manager.verl_data import VerlDataManager
 
 
 class DataManagerRegistry:

@@ -17,7 +17,7 @@
 import os
 import pytest
 
-from aura.aura.base.utils.globals import (
+from aura.base.utils.globals import (
     GCP_PROJECT_ID,
     GCP_LOCATION,
     GEMINI_MODEL,

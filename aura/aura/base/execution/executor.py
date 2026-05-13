@@ -19,8 +19,8 @@ import functools
 import inspect
 from typing import AsyncIterator, Callable, Any, Optional
 
-from aura.aura.base.log.loggers import Loggers
-from aura.aura.base.resources.resources import ResourceSet
+from aura.base.log.loggers import Loggers
+from aura.base.resources.resources import ResourceSet
 
 logger = Loggers(__name__).get_logger()
 

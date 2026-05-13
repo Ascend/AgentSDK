@@ -79,7 +79,7 @@ agent_instances: []
 #        max_prompt_length: 8192
 #        max_model_len: 8192
 #        n_parallel_agents: 8
-#        agent_class: aura.agents.math_agent.tool_agent.ToolAgent
+#        agent_class: agents.math_agent.tool_agent.ToolAgent
 #        agent_args:
 #          tools: ["python"]
 #          parser_name: "qwen"
@@ -88,10 +88,10 @@ agent_instances: []
 #              When you provide the final answer,
 #              ensure that it is wrapped in the LaTeX syntax: \boxed{final_answer}.
 #              For example, if the answer is 42, you should return: \boxed{42}.
-#        env_class: aura.agents.math_agent.environment.tool_env.ToolEnvironment
+#        env_class: agents.math_agent.environment.tool_env.ToolEnvironment
 #        env_args:
 #          tools: ["python"]
-##          reward_fn: aura.agents.math_agent.reward.reward_fn.math_reward_fn
+##          reward_fn: agents.math_agent.reward.reward_fn.math_reward_fn
 #      infer_service:
 #        name: Qwen3-30B-A3B # 依赖的 INFER 预置服务名称
 #        # 以下参数为 LLM 相关参数（兼容 OpenAI 格式）

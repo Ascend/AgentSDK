@@ -48,14 +48,14 @@ class TestTrainRouter:
         cls.module_patcher = patch.dict(
             sys.modules,
             {
-                "aura.aura.base.log.loggers": cls.mock_loggers_module,
-                "aura.aura.trainer.train_manager": cls.mock_train_manager_module,
+                "aura.base.log.loggers": cls.mock_loggers_module,
+                "aura.trainer.train_manager": cls.mock_train_manager_module,
             },
         )
         cls.module_patcher.start()
 
         # Import inside patched scope
-        from aura.aura.trainer.train_router import TrainRouter
+        from aura.trainer.train_router import TrainRouter
         cls.TrainRouter = TrainRouter
 
     @classmethod
@@ -76,10 +76,10 @@ class TestTrainRouter:
         """
         Provide runtime dependency mocks for TrainRouter.
         """
-        with patch("aura.aura.trainer.train_router.logger") as mock_logger, \
-             patch("aura.aura.trainer.train_router.random") as mock_random, \
-             patch("aura.aura.trainer.train_router.Loggers") as mock_loggers, \
-             patch("aura.aura.trainer.train_manager.get_or_create_train_manager") as mock_get_manager:
+        with patch("aura.trainer.train_router.logger") as mock_logger, \
+             patch("aura.trainer.train_router.random") as mock_random, \
+             patch("aura.trainer.train_router.Loggers") as mock_loggers, \
+             patch("aura.trainer.train_manager.get_or_create_train_manager") as mock_get_manager:
 
             yield {
                 "logger": mock_logger,

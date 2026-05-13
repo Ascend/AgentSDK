@@ -22,8 +22,8 @@ from typing import Any, Dict, List, Optional
 import torch
 import vllm.distributed.parallel_state as ps
 
-from aura.third_party.rl.mindspeed_rl.models.rollout.vllm_engine import VLLMInferEngine
-from aura.third_party.rl.mindspeed_rl.utils.loggers import Loggers
+from third_party.rl.mindspeed_rl.models.rollout.vllm_engine import VLLMInferEngine
+from third_party.rl.mindspeed_rl.utils.loggers import Loggers
 
 logger = Loggers(
     name="vllm_engine_inference",

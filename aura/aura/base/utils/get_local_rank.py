@@ -19,7 +19,7 @@ import os
 
 import ray
 
-from aura.aura.base.log.loggers import Loggers
+from aura.base.log.loggers import Loggers
 
 
 def get_local_rank(logger_name=None) -> int:

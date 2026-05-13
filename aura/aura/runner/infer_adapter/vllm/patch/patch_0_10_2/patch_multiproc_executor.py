@@ -23,7 +23,7 @@ from vllm.utils import get_mp_context
 from vllm.v1.executor.multiproc_executor import MultiprocExecutor, WorkerProc
 from loguru import logger
 
-from aura.aura.runner.infer_adapter.vllm.patch.comm.vllm_execute_stat import vllm_output_statics
+from aura.runner.infer_adapter.vllm.patch.comm.vllm_execute_stat import vllm_output_statics
 
 origin_worker_proc_init = WorkerProc.__init__
 

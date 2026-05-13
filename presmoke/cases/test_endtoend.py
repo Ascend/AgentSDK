@@ -26,7 +26,7 @@ class Test01ImportModule(SystemTestBase):
     def test_import_agentic_rl(self):
         """Importing agentic_rl module should succeed"""
         try:
-            import aura.aura
+            import aura
             self.assertTrue(True)
         except ImportError as e:
             self.fail(f"Failed to import agentic_rl: {e}")

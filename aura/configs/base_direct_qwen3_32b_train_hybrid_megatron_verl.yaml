@@ -101,7 +101,7 @@ verl_conf:
       enforce_eager: False
       temperature: 1.0
       agent:
-        agent_loop_manager_class: aura.aura.trainer.train_adapter.verl.hybrid.agent_loop_manager.HybridAgentLoopManager
+        agent_loop_manager_class: aura.trainer.train_adapter.verl.hybrid.agent_loop_manager.HybridAgentLoopManager
     ref:
       log_prob_micro_batch_size_per_gpu: 1
       log_prob_max_token_len_per_gpu: 40000

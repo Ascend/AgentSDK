@@ -39,8 +39,8 @@ mock_fastapi.File = MagicMock()
 
 sys.modules['fastapi'] = mock_fastapi
 
-from aura.aura.controllers.rollout_controller.rollout_server import RolloutServer
-from aura.aura.controllers.utils.http_status import HTTP_ERROR_400
+from aura.controllers.rollout_controller.rollout_server import RolloutServer
+from aura.controllers.utils.http_status import HTTP_ERROR_400
 
 
 # Create a module-level event loop for all tests
@@ -106,7 +106,7 @@ class TestRolloutServer:
 
         server = RolloutServer(mock_queue, mock_weight_manager)
 
-        with patch('aura.aura.controllers.rollout_controller.rollout_server.torch.load') as mock_load:
+        with patch('aura.controllers.rollout_controller.rollout_server.torch.load') as mock_load:
             mock_load.return_value = {"batch": "data"}
 
             result = run_async(server.receive_batch(mock_file))
@@ -118,7 +118,7 @@ class TestRolloutServer:
 
     def test_receive_batch_invalid_file(self):
         """Test receive_batch method with invalid file."""
-        from aura.aura.controllers.rollout_controller.rollout_server import HTTPException
+        from aura.controllers.rollout_controller.rollout_server import HTTPException
         
         mock_queue = MagicMock()
         mock_queue.add_queue = AsyncMock()
@@ -129,7 +129,7 @@ class TestRolloutServer:
 
         server = RolloutServer(mock_queue, mock_weight_manager)
 
-        with patch('aura.aura.controllers.rollout_controller.rollout_server.torch.load') as mock_load:
+        with patch('aura.controllers.rollout_controller.rollout_server.torch.load') as mock_load:
             mock_load.side_effect = RuntimeError("Invalid file format")
 
             with pytest.raises(HTTPException) as exc_info:

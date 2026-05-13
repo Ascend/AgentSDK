@@ -18,7 +18,7 @@ import os
 import pytest
 import unittest.mock as mock
 
-from aura.aura.base.utils.load_object_by_path import load_object_by_path
+from aura.base.utils.load_object_by_path import load_object_by_path
 
 
 class TestLoadObjectByPath:
@@ -46,14 +46,14 @@ class TestLoadObjectByPath:
     def test_load_project_function(self):
         """Test loading a function from the project."""
         # Test loading load_object_by_path function itself
-        loaded_func = load_object_by_path("aura.aura.base.utils.load_object_by_path.load_object_by_path")
+        loaded_func = load_object_by_path("aura.base.utils.load_object_by_path.load_object_by_path")
         assert loaded_func is not None
         assert loaded_func is load_object_by_path
 
     def test_load_project_constant(self):
         """Test loading a constant from the project."""
         # Test loading constant from globals.py
-        gcp_project_id = load_object_by_path("aura.aura.base.utils.globals.GCP_PROJECT_ID")
+        gcp_project_id = load_object_by_path("aura.base.utils.globals.GCP_PROJECT_ID")
         assert gcp_project_id == "cloud-llm-test"
 
     def test_invalid_path_format(self):

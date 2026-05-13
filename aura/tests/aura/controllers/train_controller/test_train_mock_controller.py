@@ -53,13 +53,13 @@ with patch.dict('sys.modules', {
     'ray': MagicMock(),
     'requests': MagicMock(),
     'fastapi': MagicMock(),
-    'aura.aura.base.log.loggers': mock_loggers_module,
-    'aura.aura.controllers.train_controller.train_controller': mock_train_controller_module,
-    'aura.aura.controllers.utils.controller_config': MagicMock(),
-    'aura.aura.controllers.utils.http_status': MagicMock(),
-    'aura.aura.controllers.utils.utils': MagicMock(),
+    'aura.base.log.loggers': mock_loggers_module,
+    'aura.controllers.train_controller.train_controller': mock_train_controller_module,
+    'aura.controllers.utils.controller_config': MagicMock(),
+    'aura.controllers.utils.http_status': MagicMock(),
+    'aura.controllers.utils.utils': MagicMock(),
 }):
-    from aura.aura.controllers.train_controller.train_mock_controller import TrainMockController
+    from aura.controllers.train_controller.train_mock_controller import TrainMockController
 
 
 class TestTrainMockController(unittest.TestCase):

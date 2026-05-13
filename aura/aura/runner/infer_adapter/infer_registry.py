@@ -17,9 +17,9 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-from aura.aura.base.utils.globals import is_pd_separate
-from aura.aura.runner.infer_adapter.vllm.vllm_async_server import AsyncVLLMServer
-from aura.aura.runner.infer_adapter.vllm.vllm_async_server_pd import AsyncVLLMServerPDSep
+from aura.base.utils.globals import is_pd_separate
+from aura.runner.infer_adapter.vllm.vllm_async_server import AsyncVLLMServer
+from aura.runner.infer_adapter.vllm.vllm_async_server_pd import AsyncVLLMServerPDSep
 
 class InferBackendRegistry:
     def __init__(self):
