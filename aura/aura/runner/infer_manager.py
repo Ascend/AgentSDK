@@ -27,10 +27,10 @@ import ray
 from omegaconf import OmegaConf
 
 # Internal imports
-from aura.aura.base.execution.executor_manager import ExecutorManager
-from aura.aura.base.log.loggers import Loggers
-from aura.aura.runner.infer_service.infer_executor import InferExecutor
-from aura.aura.runner.infer_service.infer_pd_executor import InferPDSepExecutor
+from aura.base.execution.executor_manager import ExecutorManager
+from aura.base.log.loggers import Loggers
+from aura.runner.infer_service.infer_executor import InferExecutor
+from aura.runner.infer_service.infer_pd_executor import InferPDSepExecutor
 
 logger = Loggers(__name__).get_logger()
 
@@ -38,7 +38,7 @@ logger = Loggers(__name__).get_logger()
 class InferManager(ExecutorManager):
     async def setup(self, *args, **kwargs) -> None:
         try:
-            from aura.aura.base.conf.conf import AgenticRLConf
+            from aura.base.conf.conf import AgenticRLConf
             conf = AgenticRLConf.load_config()
             conf_kwargs = OmegaConf.to_container(conf)
 

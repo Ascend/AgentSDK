@@ -38,12 +38,12 @@ def create_mock_client():
 @pytest.fixture(autouse=True, scope="function")
 def mock_dependencies(monkeypatch):
     """Mock all external dependencies for VLLMProxyInferServer tests."""
-    monkeypatch.delitem(sys.modules, "aura.aura.runner.infer_service.infer_server.vllm_proxy_infer_server", raising=False)
+    monkeypatch.delitem(sys.modules, "aura.runner.infer_service.infer_server.vllm_proxy_infer_server", raising=False)
 
     with (
-        patch("aura.aura.runner.infer_service.infer_server.vllm_proxy_infer_server.logger") as mock_logger,
-        patch("aura.aura.runner.infer_service.infer_server.vllm_proxy_infer_server.AsyncOpenAI") as mock_async_openai,
-        patch("aura.aura.runner.infer_service.infer_server.vllm_proxy_infer_server.requests") as mock_requests,
+        patch("aura.runner.infer_service.infer_server.vllm_proxy_infer_server.logger") as mock_logger,
+        patch("aura.runner.infer_service.infer_server.vllm_proxy_infer_server.AsyncOpenAI") as mock_async_openai,
+        patch("aura.runner.infer_service.infer_server.vllm_proxy_infer_server.requests") as mock_requests,
     ):
         mock_client = create_mock_client()
         mock_async_openai.return_value = mock_client
@@ -61,7 +61,7 @@ class TestVLLMProxyInferServer:
 
     def setup_method(self):
         """Setup method to import VLLMProxyInferServer before each test."""
-        from aura.aura.runner.infer_service.infer_server.vllm_proxy_infer_server import VLLMProxyInferServer
+        from aura.runner.infer_service.infer_server.vllm_proxy_infer_server import VLLMProxyInferServer
         self.VLLMProxyInferServer = VLLMProxyInferServer
 
     def test_init_single_server(self, mock_dependencies):

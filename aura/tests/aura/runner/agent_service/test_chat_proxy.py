@@ -42,7 +42,7 @@ def _build_fake_torch_modules():
 
 def _build_fake_loggers_module():
     """Create a fake loggers module that provides Loggers class."""
-    fake_loggers_mod = types.ModuleType("aura.aura.base.log.loggers")
+    fake_loggers_mod = types.ModuleType("aura.base.log.loggers")
 
     class FakeLoggers:
         def __init__(self, *args, **kwargs):
@@ -60,7 +60,7 @@ class TestChatProxy(unittest.IsolatedAsyncioTestCase):
 
     def setUp(self):
         # Clear module cache to force a clean reload for each test
-        module_path = "aura.aura.runner.agent_service.chat_proxy"
+        module_path = "aura.runner.agent_service.chat_proxy"
         if module_path in sys.modules:
             del sys.modules[module_path]
 
@@ -69,13 +69,13 @@ class TestChatProxy(unittest.IsolatedAsyncioTestCase):
         fake_loggers_mod = _build_fake_loggers_module()
         mock_modules = {
             "ray": MagicMock(),
-            "aura.aura.base.log.loggers": fake_loggers_mod,
+            "aura.base.log.loggers": fake_loggers_mod,
             **fake_torch_mods,
         }
 
         # Import the module under test with mocked dependencies
         with patch.dict(sys.modules, mock_modules):
-            import aura.aura.runner.agent_service.chat_proxy as mod
+            import aura.runner.agent_service.chat_proxy as mod
             self.chat_proxy = importlib.reload(mod)
 
         # Remove from sys.modules to avoid cross-test pollution

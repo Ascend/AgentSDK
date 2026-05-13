@@ -24,9 +24,9 @@ from mindspeed_rl import RayGRPOTrainer, Metric
 from mindspeed_rl.trainer.utils.transfer_dock import put_prompts_experience
 from mindspeed_rl.utils.pad_process import remove_padding_tensor_dict_to_dict
 
-from aura.aura.base.log.loggers import Loggers
-from aura.aura.trainer.train_adapter.mindspeed_rl import patch
-from aura.aura.data_manager.data_transform import padding_dict_to_tensor_dict_fast
+from aura.base.log.loggers import Loggers
+from aura.trainer.train_adapter.mindspeed_rl import patch
+from aura.data_manager.data_transform import padding_dict_to_tensor_dict_fast
 
 log = Loggers(__name__)
 logger = log.get_logger()

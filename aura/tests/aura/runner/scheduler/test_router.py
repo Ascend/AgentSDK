@@ -27,7 +27,7 @@ class TestRepeatInterleave:
 
     def test_repeat_interleave_torch(self):
         import torch
-        from aura.aura.runner.scheduler.router import _repeat_interleave
+        from aura.runner.scheduler.router import _repeat_interleave
 
         tensor = torch.tensor([1, 2, 3])
         result = _repeat_interleave(tensor, 2)
@@ -35,7 +35,7 @@ class TestRepeatInterleave:
         assert torch.equal(result, expected)
 
     def test_repeat_interleave_numpy(self):
-        from aura.aura.runner.scheduler.router import _repeat_interleave
+        from aura.runner.scheduler.router import _repeat_interleave
 
         arr = np.array([1, 2, 3])
         result = _repeat_interleave(arr, 2)
@@ -67,12 +67,12 @@ class TestPollCompletionsOpenaiStream:
         monkeypatch.setitem(sys.modules, "openai", mock_openai)
         monkeypatch.setitem(sys.modules, "openai.types", mock_types)
         monkeypatch.setitem(sys.modules, "openai.types.chat", mock_types.chat)
-        monkeypatch.setitem(sys.modules, "aura.aura.runner.scheduler.req_scheduler", mock_scheduler)
-        monkeypatch.setitem(sys.modules, "aura.aura.base.misc.misc", mock_misc)
-        monkeypatch.setitem(sys.modules, "aura.aura.base.utils.globals", mock_globals)
-        monkeypatch.delitem(sys.modules, "aura.aura.runner.scheduler.router", raising=False)
+        monkeypatch.setitem(sys.modules, "aura.runner.scheduler.req_scheduler", mock_scheduler)
+        monkeypatch.setitem(sys.modules, "aura.base.misc.misc", mock_misc)
+        monkeypatch.setitem(sys.modules, "aura.base.utils.globals", mock_globals)
+        monkeypatch.delitem(sys.modules, "aura.runner.scheduler.router", raising=False)
 
-        from aura.aura.runner.scheduler.router import poll_completions_openai_stream
+        from aura.runner.scheduler.router import poll_completions_openai_stream
 
         self.poll_completions_openai_stream = poll_completions_openai_stream
 
@@ -103,7 +103,7 @@ class TestPollCompletionsOpenaiStream:
         mock_client.chat.completions.create = AsyncMock(return_value=mock_stream())
 
         with patch('openai.AsyncOpenAI', return_value=mock_client):
-            with patch('aura.aura.runner.scheduler.router.logger'):
+            with patch('aura.runner.scheduler.router.logger'):
                 result = await self.poll_completions_openai_stream(
                     address="192.168.1.1:8080-0",
                     prompt=[{"role": "user", "content": "test"}],
@@ -129,7 +129,7 @@ class TestPollCompletionsOpenaiStream:
         stream_queue = asyncio.Queue()
 
         with patch('openai.AsyncOpenAI', return_value=mock_client):
-            with patch('aura.aura.runner.scheduler.router.logger'):
+            with patch('aura.runner.scheduler.router.logger'):
                 result = await self.poll_completions_openai_stream(
                     address="192.168.1.1:8080-0",
                     prompt=[{"role": "user", "content": "test"}],
@@ -155,7 +155,7 @@ class TestPollCompletionsOpenaiStream:
         mock_client.chat.completions.create = AsyncMock(return_value=mock_stream())
 
         with patch('openai.AsyncOpenAI', return_value=mock_client):
-            with patch('aura.aura.runner.scheduler.router.logger'):
+            with patch('aura.runner.scheduler.router.logger'):
                 result = await self.poll_completions_openai_stream(
                     address="192.168.1.1:8080-0",
                     prompt=[{"role": "user", "content": "test"}],
@@ -180,7 +180,7 @@ class TestPollCompletionsOpenaiStream:
         mock_client.chat.completions.create = AsyncMock(return_value=mock_stream())
 
         with patch('openai.AsyncOpenAI', return_value=mock_client):
-            with patch('aura.aura.runner.scheduler.router.logger'):
+            with patch('aura.runner.scheduler.router.logger'):
                 result = await self.poll_completions_openai_stream(
                     address="192.168.1.1:8080-0",
                     prompt=[{"role": "user", "content": "test"}],
@@ -210,12 +210,12 @@ class TestPollCompletionsOpenai:
         mock_globals.is_pd_separate = MagicMock(return_value=False)
 
         monkeypatch.setitem(sys.modules, "openai", mock_openai)
-        monkeypatch.setitem(sys.modules, "aura.aura.runner.scheduler.req_scheduler", mock_scheduler)
-        monkeypatch.setitem(sys.modules, "aura.aura.base.misc.misc", mock_misc)
-        monkeypatch.setitem(sys.modules, "aura.aura.base.utils.globals", mock_globals)
-        monkeypatch.delitem(sys.modules, "aura.aura.runner.scheduler.router", raising=False)
+        monkeypatch.setitem(sys.modules, "aura.runner.scheduler.req_scheduler", mock_scheduler)
+        monkeypatch.setitem(sys.modules, "aura.base.misc.misc", mock_misc)
+        monkeypatch.setitem(sys.modules, "aura.base.utils.globals", mock_globals)
+        monkeypatch.delitem(sys.modules, "aura.runner.scheduler.router", raising=False)
 
-        from aura.aura.runner.scheduler.router import poll_completions_openai
+        from aura.runner.scheduler.router import poll_completions_openai
 
         self.poll_completions_openai = poll_completions_openai
 
@@ -239,7 +239,7 @@ class TestPollCompletionsOpenai:
         mock_client.completions.create = AsyncMock(return_value=mock_response)
 
         with patch('openai.AsyncOpenAI', return_value=mock_client):
-            with patch('aura.aura.runner.scheduler.router.logger'):
+            with patch('aura.runner.scheduler.router.logger'):
                 result = await self.poll_completions_openai(
                     dp_address="192.168.1.1:8080-0",
                     prompt="test prompt",
@@ -263,7 +263,7 @@ class TestPollCompletionsOpenai:
         mock_client.completions.create = AsyncMock(return_value=mock_response)
 
         with patch('openai.AsyncOpenAI', return_value=mock_client):
-            with patch('aura.aura.runner.scheduler.router.logger'):
+            with patch('aura.runner.scheduler.router.logger'):
                 result = await self.poll_completions_openai(
                     dp_address="192.168.1.1:8080-0",
                     prompt="test prompt",
@@ -288,12 +288,12 @@ class TestRouter:
         mock_globals.is_pd_separate = MagicMock(return_value=False)
 
         monkeypatch.setitem(sys.modules, "openai", mock_openai)
-        monkeypatch.setitem(sys.modules, "aura.aura.runner.scheduler.req_scheduler", mock_scheduler)
-        monkeypatch.setitem(sys.modules, "aura.aura.base.misc.misc", mock_misc)
-        monkeypatch.setitem(sys.modules, "aura.aura.base.utils.globals", mock_globals)
-        monkeypatch.delitem(sys.modules, "aura.aura.runner.scheduler.router", raising=False)
+        monkeypatch.setitem(sys.modules, "aura.runner.scheduler.req_scheduler", mock_scheduler)
+        monkeypatch.setitem(sys.modules, "aura.base.misc.misc", mock_misc)
+        monkeypatch.setitem(sys.modules, "aura.base.utils.globals", mock_globals)
+        monkeypatch.delitem(sys.modules, "aura.runner.scheduler.router", raising=False)
 
-        from aura.aura.runner.scheduler.router import Router
+        from aura.runner.scheduler.router import Router
 
         self.Router = Router
 
@@ -337,8 +337,8 @@ class TestRouter:
         mock_client.completions.create = AsyncMock(return_value=mock_response)
 
         with patch('openai.AsyncOpenAI', return_value=mock_client):
-            with patch('aura.aura.runner.scheduler.router.logger'):
-                with patch('aura.aura.runner.scheduler.router.poll_completions_openai', AsyncMock(return_value={"message": "test"})):
+            with patch('aura.runner.scheduler.router.logger'):
+                with patch('aura.runner.scheduler.router.poll_completions_openai', AsyncMock(return_value={"message": "test"})):
                     result = await self.router.chat(
                         prompt="test prompt",
                         application_id="app-1",
@@ -383,12 +383,12 @@ class TestRouterPDSep:
         mock_globals.is_pd_separate = MagicMock(return_value=True)
 
         monkeypatch.setitem(sys.modules, "openai", mock_openai)
-        monkeypatch.setitem(sys.modules, "aura.aura.runner.scheduler.req_scheduler", mock_scheduler)
-        monkeypatch.setitem(sys.modules, "aura.aura.base.misc.misc", mock_misc)
-        monkeypatch.setitem(sys.modules, "aura.aura.base.utils.globals", mock_globals)
-        monkeypatch.delitem(sys.modules, "aura.aura.runner.scheduler.router", raising=False)
+        monkeypatch.setitem(sys.modules, "aura.runner.scheduler.req_scheduler", mock_scheduler)
+        monkeypatch.setitem(sys.modules, "aura.base.misc.misc", mock_misc)
+        monkeypatch.setitem(sys.modules, "aura.base.utils.globals", mock_globals)
+        monkeypatch.delitem(sys.modules, "aura.runner.scheduler.router", raising=False)
 
-        from aura.aura.runner.scheduler.router import RouterPDSep
+        from aura.runner.scheduler.router import RouterPDSep
 
         self.RouterPDSep = RouterPDSep
 
@@ -441,8 +441,8 @@ class TestRouterPDSep:
         mock_response = MagicMock()
         mock_response.kv_transfer_params = {"key": "value"}
 
-        with patch('aura.aura.runner.scheduler.router.poll_completions_openai', AsyncMock(return_value=mock_response)):
-            with patch('aura.aura.runner.scheduler.router.logger'):
+        with patch('aura.runner.scheduler.router.poll_completions_openai', AsyncMock(return_value=mock_response)):
+            with patch('aura.runner.scheduler.router.logger'):
                 result = await self.router_pd.chat_with_prefill(
                     prompt="test prompt",
                     application_id="app-1",
@@ -481,11 +481,11 @@ class TestRouterPDSep:
                 mock_decode_content.append(f"chunk{i}")
                 yield chunk
 
-        with patch('aura.aura.runner.scheduler.router.poll_completions_openai', AsyncMock(return_value=mock_prefill_response)):
-            with patch('aura.aura.runner.scheduler.router.poll_completions_openai_stream') as mock_stream:
+        with patch('aura.runner.scheduler.router.poll_completions_openai', AsyncMock(return_value=mock_prefill_response)):
+            with patch('aura.runner.scheduler.router.poll_completions_openai_stream') as mock_stream:
                 mock_stream.return_value = mock_decode_stream()
 
-                with patch('aura.aura.runner.scheduler.router.logger'):
+                with patch('aura.runner.scheduler.router.logger'):
                     result = await self.router_pd.chat(
                         prompt="test prompt",
                         application_id="app-1",
@@ -497,8 +497,8 @@ class TestRouterPDSep:
 
     @pytest.mark.asyncio
     async def test_chat_prefill_failed(self, mock_dependencies):
-        with patch('aura.aura.runner.scheduler.router.poll_completions_openai', AsyncMock(return_value=None)):
-            with patch('aura.aura.runner.scheduler.router.logger'):
+        with patch('aura.runner.scheduler.router.poll_completions_openai', AsyncMock(return_value=None)):
+            with patch('aura.runner.scheduler.router.logger'):
                 result = await self.router_pd.chat(
                     prompt="test prompt",
                     application_id="app-1",
@@ -521,12 +521,12 @@ class TestRouterCreate:
         mock_globals.is_pd_separate = MagicMock(return_value=False)
 
         monkeypatch.setitem(sys.modules, "openai", mock_openai)
-        monkeypatch.setitem(sys.modules, "aura.aura.runner.scheduler.req_scheduler", mock_scheduler)
-        monkeypatch.setitem(sys.modules, "aura.aura.base.misc.misc", mock_misc)
-        monkeypatch.setitem(sys.modules, "aura.aura.base.utils.globals", mock_globals)
-        monkeypatch.delitem(sys.modules, "aura.aura.runner.scheduler.router", raising=False)
+        monkeypatch.setitem(sys.modules, "aura.runner.scheduler.req_scheduler", mock_scheduler)
+        monkeypatch.setitem(sys.modules, "aura.base.misc.misc", mock_misc)
+        monkeypatch.setitem(sys.modules, "aura.base.utils.globals", mock_globals)
+        monkeypatch.delitem(sys.modules, "aura.runner.scheduler.router", raising=False)
 
-        from aura.aura.runner.scheduler.router import Router
+        from aura.runner.scheduler.router import Router
 
         self.Router = Router
         self.Router._router = None

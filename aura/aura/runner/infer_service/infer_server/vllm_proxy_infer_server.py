@@ -28,8 +28,8 @@ import requests
 from openai import AsyncOpenAI
 
 # Internal imports
-from aura.aura.base.log.loggers import Loggers
-from aura.aura.runner.infer_service.base_infer_server import BaseInferServer
+from aura.base.log.loggers import Loggers
+from aura.runner.infer_service.base_infer_server import BaseInferServer
 
 logger = Loggers(__name__).get_logger()
 

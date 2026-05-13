@@ -17,7 +17,7 @@
 import pytest
 import unittest.mock as mock
 
-from aura.aura.base.utils.templates import (
+from aura.base.utils.templates import (
     Role,
     infer_max_len,
     Template,
@@ -28,7 +28,7 @@ from aura.aura.base.utils.templates import (
     register_custom_template,
     _format_custom_template
 )
-from aura.aura.base.utils.formatter import (
+from aura.base.utils.formatter import (
     StringFormatter,
     ToolFormatter
 )
@@ -629,13 +629,13 @@ class TestLlama2Template(TestTemplate):
 class TestTemplateRegistry:
     def setup_method(self):
         """Set up by clearing templates registry before each test."""
-        from aura.aura.base.utils.templates import templates
+        from aura.base.utils.templates import templates
         self.original_templates = templates.copy()
         templates.clear()
     
     def teardown_method(self):
         """Restore original templates after each test."""
-        from aura.aura.base.utils.templates import templates
+        from aura.base.utils.templates import templates
         templates.clear()
         templates.update(self.original_templates)
     
@@ -836,24 +836,24 @@ class TestTemplateRegistry:
         assert template is not None
         
         # Test with None name (should return placeholder)
-        with mock.patch("aura.aura.base.utils.templates.register_custom_template", return_value=None):
+        with mock.patch("aura.base.utils.templates.register_custom_template", return_value=None):
             _register_template(name="empty", format_user=StringFormatter(slots=["{{content}}"]))
             template = get_model_template(None, "dummy_path")
             assert template is not None
         
         # Test with non-existing template (should raise error)
-        with mock.patch("aura.aura.base.utils.templates.register_custom_template", side_effect=ValueError("Template non_existing does not exist.")):
+        with mock.patch("aura.base.utils.templates.register_custom_template", side_effect=ValueError("Template non_existing does not exist.")):
             with pytest.raises(ValueError):
                 get_model_template("non_existing", "/dummy/path")
         
         # Test with register_custom_template returning a new name
-        with mock.patch("aura.aura.base.utils.templates.register_custom_template", return_value="new_template_name"):
+        with mock.patch("aura.base.utils.templates.register_custom_template", return_value="new_template_name"):
             _register_template(name="new_template_name")
             template = get_model_template("original_name", "/path/to/template.json")
             assert template is not None
         
         # Test with register_custom_template returning existing name
-        with mock.patch("aura.aura.base.utils.templates.register_custom_template", return_value="test_template"):
+        with mock.patch("aura.base.utils.templates.register_custom_template", return_value="test_template"):
             template = get_model_template("custom_template", "/path/to/template.json")
             assert template is not None
             assert template == get_templates()["test_template"]
@@ -987,7 +987,7 @@ class TestTemplateRegistry:
         mock_open.return_value.__enter__.return_value = mock_file
         
         # Test registering template with all formatters
-        with mock.patch("aura.aura.base.utils.templates._register_template") as mock_register:
+        with mock.patch("aura.base.utils.templates._register_template") as mock_register:
             result = register_custom_template("formatter_test", "/path/to/template.json")
             assert result == "formatter_test"
             mock_register.assert_called_once()
@@ -1031,7 +1031,7 @@ class TestTemplateRegistry:
         mock_file = mock.Mock()
         mock_open.return_value.__enter__.return_value = mock_file
         
-        with mock.patch("aura.aura.base.utils.templates._register_template") as mock_register:
+        with mock.patch("aura.base.utils.templates._register_template") as mock_register:
             result = register_custom_template("list_system_test", "/path/to/template.json")
             assert result == "list_system_test"
             
@@ -1045,7 +1045,7 @@ class TestTemplateRegistry:
             "default_system": ["System part 1", 123, "System part 2"]
         }]
         
-        with mock.patch("aura.aura.base.utils.templates._register_template") as mock_register:
+        with mock.patch("aura.base.utils.templates._register_template") as mock_register:
             result = register_custom_template("mixed_system_test", "/path/to/template.json")
             assert result == "mixed_system_test"
             
@@ -1071,7 +1071,7 @@ class TestTemplateRegistry:
         mock_file = mock.Mock()
         mock_open.return_value.__enter__.return_value = mock_file
         
-        with mock.patch("aura.aura.base.utils.templates._register_template") as mock_register:
+        with mock.patch("aura.base.utils.templates._register_template") as mock_register:
             result = register_custom_template("empty_config_test", "/path/to/template.json")
             assert result == "empty_config_test"
             mock_register.assert_called_once()
@@ -1105,7 +1105,7 @@ class TestTemplateRegistry:
         mock_file = mock.Mock()
         mock_open.return_value.__enter__.return_value = mock_file
         
-        with mock.patch("aura.aura.base.utils.templates._register_template") as mock_register:
+        with mock.patch("aura.base.utils.templates._register_template") as mock_register:
             result = register_custom_template("formatter_none_test", "/path/to/template.json")
             assert result == "formatter_none_test"
             mock_register.assert_called_once()
@@ -1135,7 +1135,7 @@ class TestTemplateRegistry:
         mock_file = mock.Mock()
         mock_open.return_value.__enter__.return_value = mock_file
         
-        with mock.patch("aura.aura.base.utils.templates._register_template") as mock_register:
+        with mock.patch("aura.base.utils.templates._register_template") as mock_register:
             result = register_custom_template("default_system_list_test", "/path/to/template.json")
             assert result == "default_system_list_test"
             mock_register.assert_called_once()
@@ -1150,7 +1150,7 @@ class TestTemplateRegistry:
             "default_system": ["Line 1", 123, "Line 3"]
         }]
         
-        with mock.patch("aura.aura.base.utils.templates._register_template") as mock_register:
+        with mock.patch("aura.base.utils.templates._register_template") as mock_register:
             result = register_custom_template("default_system_mixed_test", "/path/to/template.json")
             assert result == "default_system_mixed_test"
             mock_register.assert_called_once()
@@ -1161,7 +1161,7 @@ class TestTemplateRegistry:
     
     @mock.patch("builtins.open")
     @mock.patch("json.load")
-    @mock.patch("aura.aura.base.utils.templates._register_template")
+    @mock.patch("aura.base.utils.templates._register_template")
     def test_register_custom_template(self, mock_register, mock_json_load, mock_open):
         """Test register_custom_template function."""
         # Mock json file content

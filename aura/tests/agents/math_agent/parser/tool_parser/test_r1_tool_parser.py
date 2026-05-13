@@ -31,7 +31,7 @@ class TestR1ToolParserDetailed:
 
     def test_parse_with_multiline_json(self, mock_dependencies):
         """Test parsing with multiline JSON arguments."""
-        from aura.agents.math_agent.parser.tool_parser.r1_tool_parser import R1ToolParser
+        from agents.math_agent.parser.tool_parser.r1_tool_parser import R1ToolParser
         
         parser = R1ToolParser()
         text = '''<｜tool▁call▁begin｜>function<｜tool▁sep｜>python
@@ -50,7 +50,7 @@ class TestR1ToolParserDetailed:
 
     def test_parse_with_special_characters(self, mock_dependencies):
         """Test parsing with special characters in arguments."""
-        from aura.agents.math_agent.parser.tool_parser.r1_tool_parser import R1ToolParser
+        from agents.math_agent.parser.tool_parser.r1_tool_parser import R1ToolParser
         
         parser = R1ToolParser()
         text = '''<｜tool▁call▁begin｜>function<｜tool▁sep｜>search
@@ -66,7 +66,7 @@ class TestR1ToolParserDetailed:
 
     def test_parse_with_empty_arguments(self, mock_dependencies):
         """Test parsing with empty arguments."""
-        from aura.agents.math_agent.parser.tool_parser.r1_tool_parser import R1ToolParser
+        from agents.math_agent.parser.tool_parser.r1_tool_parser import R1ToolParser
         
         parser = R1ToolParser()
         text = '''<｜tool▁call▁begin｜>function<｜tool▁sep｜>finish
@@ -83,7 +83,7 @@ class TestR1ToolParserDetailed:
 
     def test_parse_multiple_tool_calls(self, mock_dependencies):
         """Test parsing multiple tool calls."""
-        from aura.agents.math_agent.parser.tool_parser.r1_tool_parser import R1ToolParser
+        from agents.math_agent.parser.tool_parser.r1_tool_parser import R1ToolParser
         
         parser = R1ToolParser()
         text = '''<｜tool▁call▁begin｜>function<｜tool▁sep｜>python
@@ -104,7 +104,7 @@ class TestR1ToolParserDetailed:
 
     def test_parse_with_unicode(self, mock_dependencies):
         """Test parsing with unicode characters."""
-        from aura.agents.math_agent.parser.tool_parser.r1_tool_parser import R1ToolParser
+        from agents.math_agent.parser.tool_parser.r1_tool_parser import R1ToolParser
         
         parser = R1ToolParser()
         text = '''<｜tool▁call▁begin｜>function<｜tool▁sep｜>translate
@@ -120,7 +120,7 @@ class TestR1ToolParserDetailed:
 
     def test_parse_mixed_content(self, mock_dependencies):
         """Test parsing text with mixed content."""
-        from aura.agents.math_agent.parser.tool_parser.r1_tool_parser import R1ToolParser
+        from agents.math_agent.parser.tool_parser.r1_tool_parser import R1ToolParser
         
         parser = R1ToolParser()
         text = '''Let me think about this problem.
@@ -139,7 +139,7 @@ The answer is 42.'''
 
     def test_parse_without_json_block_marker(self, mock_dependencies):
         """Test parsing without proper JSON block marker."""
-        from aura.agents.math_agent.parser.tool_parser.r1_tool_parser import R1ToolParser
+        from agents.math_agent.parser.tool_parser.r1_tool_parser import R1ToolParser
         
         parser = R1ToolParser()
         text = '''<｜tool▁call▁begin｜>function<｜tool▁sep｜>python
@@ -152,7 +152,7 @@ The answer is 42.'''
 
     def test_parse_r1_tool_calls_malformed_json(self, mock_dependencies):
         """Test parse_r1_tool_calls with malformed JSON."""
-        from aura.agents.math_agent.parser.tool_parser.r1_tool_parser import R1ToolParser
+        from agents.math_agent.parser.tool_parser.r1_tool_parser import R1ToolParser
         
         parser = R1ToolParser()
         text = '''<｜tool▁call▁begin｜>function<｜tool▁sep｜>python
@@ -167,7 +167,7 @@ The answer is 42.'''
 
     def test_parse_r1_tool_calls_missing_function_prefix(self, mock_dependencies):
         """Test parse_r1_tool_calls with missing function prefix."""
-        from aura.agents.math_agent.parser.tool_parser.r1_tool_parser import R1ToolParser
+        from agents.math_agent.parser.tool_parser.r1_tool_parser import R1ToolParser
         
         parser = R1ToolParser()
         text = '''<｜tool▁call▁begin｜>python
@@ -182,7 +182,7 @@ The answer is 42.'''
 
     def test_get_tool_prompt_format(self, mock_dependencies):
         """Test get_tool_prompt output format."""
-        from aura.agents.math_agent.parser.tool_parser.r1_tool_parser import R1ToolParser
+        from agents.math_agent.parser.tool_parser.r1_tool_parser import R1ToolParser
         
         parser = R1ToolParser()
         tools_schema = '[{"type": "function", "function": {"name": "python"}}]'
@@ -195,7 +195,7 @@ The answer is 42.'''
 
     def test_parse_with_nested_json(self, mock_dependencies):
         """Test parsing with nested JSON arguments."""
-        from aura.agents.math_agent.parser.tool_parser.r1_tool_parser import R1ToolParser
+        from agents.math_agent.parser.tool_parser.r1_tool_parser import R1ToolParser
         
         parser = R1ToolParser()
         text = '''<｜tool▁call▁begin｜>function<｜tool▁sep｜>python
@@ -212,7 +212,7 @@ The answer is 42.'''
 
     def test_parse_with_function_name_on_newline(self, mock_dependencies):
         """Test parsing with function name on same line as separator."""
-        from aura.agents.math_agent.parser.tool_parser.r1_tool_parser import R1ToolParser
+        from agents.math_agent.parser.tool_parser.r1_tool_parser import R1ToolParser
         
         parser = R1ToolParser()
         text = '''<｜tool▁call▁begin｜>function<｜tool▁sep｜>python

@@ -28,9 +28,9 @@ from typing import Optional
 import aiohttp
 
 # Internal imports
-from aura.aura.base.log.loggers import Loggers
-from aura.aura.controllers.utils.utils import DEFAULT_URL_METHOD
-from aura.aura.runner.scheduler.workload import WorkLoadManger, start_workload_update
+from aura.base.log.loggers import Loggers
+from aura.controllers.utils.utils import DEFAULT_URL_METHOD
+from aura.runner.scheduler.workload import WorkLoadManger, start_workload_update
 
 logger = Loggers(__name__).get_logger()
 

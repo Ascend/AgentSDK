@@ -18,13 +18,13 @@ from typing import Any, Optional, Tuple
 
 import ray
 
-import aura.third_party.rl
+import third_party.rl
 from mindspeed_rl.datasets.build_dataset import build_train_valid_test_datasets
 from mindspeed_rl.datasets.prompt_dataset import PromptDataset
 from mindspeed_rl.datasets.dataloader import PromptDataLoader
 
-from aura.aura.trainer.train_adapter.mindspeed_rl.utils.data_loader_validate import build_validate_test_dataloader
-from aura.aura.base.log.loggers import Loggers
+from aura.trainer.train_adapter.mindspeed_rl.utils.data_loader_validate import build_validate_test_dataloader
+from aura.base.log.loggers import Loggers
 
 logger = Loggers(__name__).get_logger()
 

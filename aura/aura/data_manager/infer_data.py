@@ -19,8 +19,8 @@
 
 from collections import deque
 
-from aura.aura.base.log.loggers import Loggers
-from aura.aura.controllers.rollout_controller.rollout_client import RolloutClient
+from aura.base.log.loggers import Loggers
+from aura.controllers.rollout_controller.rollout_client import RolloutClient
 
 logger = Loggers(__name__).get_logger()
 

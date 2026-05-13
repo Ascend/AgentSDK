@@ -49,7 +49,7 @@ class TestMCPTool:
 
     def test_mcp_tool_init(self, mock_dependencies):
         """Test MCPTool initialization."""
-        from aura.agents.math_agent.environment.tools.mcp_tool import MCPTool
+        from agents.math_agent.environment.tools.mcp_tool import MCPTool
         
         mock_session = MagicMock()
         tool_schema = {"type": "object", "properties": {"query": {"type": "string"}}}
@@ -67,7 +67,7 @@ class TestMCPTool:
 
     def test_mcp_tool_json_property(self, mock_dependencies):
         """Test MCPTool json property."""
-        from aura.agents.math_agent.environment.tools.mcp_tool import MCPTool
+        from agents.math_agent.environment.tools.mcp_tool import MCPTool
         
         mock_session = MagicMock()
         tool_schema = {"type": "object", "properties": {"query": {"type": "string"}}}
@@ -89,7 +89,7 @@ class TestMCPTool:
     @pytest.mark.asyncio
     async def test_async_forward_success(self, mock_dependencies):
         """Test MCPTool async_forward with successful call."""
-        from aura.agents.math_agent.environment.tools.mcp_tool import MCPTool
+        from agents.math_agent.environment.tools.mcp_tool import MCPTool
         
         mock_session = AsyncMock()
         mock_result = MagicMock()
@@ -114,7 +114,7 @@ class TestMCPTool:
     @pytest.mark.asyncio
     async def test_async_forward_with_list_content(self, mock_dependencies):
         """Test MCPTool async_forward with list content."""
-        from aura.agents.math_agent.environment.tools.mcp_tool import MCPTool
+        from agents.math_agent.environment.tools.mcp_tool import MCPTool
         
         mock_session = AsyncMock()
         mock_result = MagicMock()
@@ -139,7 +139,7 @@ class TestMCPTool:
     @pytest.mark.asyncio
     async def test_async_forward_with_str_content(self, mock_dependencies):
         """Test MCPTool async_forward with string content."""
-        from aura.agents.math_agent.environment.tools.mcp_tool import MCPTool
+        from agents.math_agent.environment.tools.mcp_tool import MCPTool
         
         mock_session = AsyncMock()
         mock_result = MagicMock()
@@ -162,7 +162,7 @@ class TestMCPTool:
     @pytest.mark.asyncio
     async def test_async_forward_with_error(self, mock_dependencies):
         """Test MCPTool async_forward with error."""
-        from aura.agents.math_agent.environment.tools.mcp_tool import MCPTool
+        from agents.math_agent.environment.tools.mcp_tool import MCPTool
         
         mock_session = AsyncMock()
         mock_session.call_tool = AsyncMock(side_effect=Exception("Connection error"))
@@ -184,7 +184,7 @@ class TestMCPTool:
     @pytest.mark.asyncio
     async def test_async_forward_with_no_content_attr(self, mock_dependencies):
         """Test MCPTool async_forward when result has no content attribute."""
-        from aura.agents.math_agent.environment.tools.mcp_tool import MCPTool
+        from agents.math_agent.environment.tools.mcp_tool import MCPTool
         
         mock_session = AsyncMock()
         mock_result = "plain string result"

@@ -19,7 +19,7 @@ import random
 
 import torch
 
-from aura.aura.controllers.train_controller.train_controller import TrainController, logger
+from aura.controllers.train_controller.train_controller import TrainController, logger
 
 
 class TrainMockController(TrainController):

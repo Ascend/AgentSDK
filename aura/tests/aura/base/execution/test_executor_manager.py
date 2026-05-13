@@ -23,9 +23,9 @@ import asyncio
 import pytest
 from unittest.mock import patch, MagicMock, AsyncMock
 
-from aura.aura.base.execution.executor_manager import ExecutorItem, ExecutorInstance, ExecutorManager
-from aura.aura.base.execution.executor import Executor
-from aura.aura.base.resources.resources import ResourceSet
+from aura.base.execution.executor_manager import ExecutorItem, ExecutorInstance, ExecutorManager
+from aura.base.execution.executor import Executor
+from aura.base.resources.resources import ResourceSet
 
 # Import ActorHandle type
 try:
@@ -200,9 +200,9 @@ class TestExecutorManager:
         # Stop the patcher
         self.patcher.stop()
 
-    @patch('aura.aura.base.execution.executor_manager.ray')
-    @patch('aura.aura.base.execution.executor_manager.ExecutorItem')
-    @patch('aura.aura.base.execution.executor_manager.create_resource_set')
+    @patch('aura.base.execution.executor_manager.ray')
+    @patch('aura.base.execution.executor_manager.ExecutorItem')
+    @patch('aura.base.execution.executor_manager.create_resource_set')
     @pytest.mark.asyncio
     async def test_create_executor(self, mock_create_resource_set, mock_executor_item, mock_ray):
         """
@@ -261,9 +261,9 @@ class TestExecutorManager:
         assert executor_item.ref == mock_actor_handle
         assert executor_item.resource_set == self.mock_resource_set
 
-    @patch('aura.aura.base.execution.executor_manager.ray')
-    @patch('aura.aura.base.execution.executor_manager.ExecutorItem')
-    @patch('aura.aura.base.execution.executor_manager.create_resource_set')
+    @patch('aura.base.execution.executor_manager.ray')
+    @patch('aura.base.execution.executor_manager.ExecutorItem')
+    @patch('aura.base.execution.executor_manager.create_resource_set')
     @patch('ray.util.scheduling_strategies.PlacementGroupSchedulingStrategy')
     @pytest.mark.asyncio
     async def test_create_executor_with_resource_set_ref(self, mock_pgss, mock_create_resource_set, mock_executor_item, mock_ray):
@@ -311,9 +311,9 @@ class TestExecutorManager:
         # Verify ray options were set correctly
         mock_actor_cls.options.assert_called_once()
 
-    @patch('aura.aura.base.execution.executor_manager.ray')
-    @patch('aura.aura.base.execution.executor_manager.ExecutorItem')
-    @patch('aura.aura.base.execution.executor_manager.create_resource_set')
+    @patch('aura.base.execution.executor_manager.ray')
+    @patch('aura.base.execution.executor_manager.ExecutorItem')
+    @patch('aura.base.execution.executor_manager.create_resource_set')
     @pytest.mark.asyncio
     async def test_remove_executor(self, mock_create_resource_set, mock_executor_item, mock_ray):
         """
@@ -363,8 +363,8 @@ class TestExecutorManager:
         # Verify ray.kill was called
         mock_ray.kill.assert_called_once_with(mock_actor_handle)
 
-    @patch('aura.aura.base.execution.executor_manager.ExecutorManager._create_executor')
-    @patch('aura.aura.base.execution.executor_manager.ExecutorInstance')
+    @patch('aura.base.execution.executor_manager.ExecutorManager._create_executor')
+    @patch('aura.base.execution.executor_manager.ExecutorInstance')
     @pytest.mark.asyncio
     async def test_create_instance(self, mock_executor_instance, mock_create_executor):
         """
@@ -426,8 +426,8 @@ class TestExecutorManager:
         assert instance.executor_kwargs == {"param1": "value1"}
         assert len(instance.executor_list) == 2
 
-    @patch('aura.aura.base.execution.executor_manager.ExecutorManager._create_executor')
-    @patch('aura.aura.base.execution.executor_manager.ExecutorInstance')
+    @patch('aura.base.execution.executor_manager.ExecutorManager._create_executor')
+    @patch('aura.base.execution.executor_manager.ExecutorInstance')
     @pytest.mark.asyncio
     async def test_create_instance_already_exists(self, mock_executor_instance, mock_create_executor):
         """
@@ -469,8 +469,8 @@ class TestExecutorManager:
                 resource_info=["resource1"]
             )
 
-    @patch('aura.aura.base.execution.executor_manager.ExecutorManager._create_executor')
-    @patch('aura.aura.base.execution.executor_manager.ExecutorInstance')
+    @patch('aura.base.execution.executor_manager.ExecutorManager._create_executor')
+    @patch('aura.base.execution.executor_manager.ExecutorInstance')
     @pytest.mark.asyncio
     async def test_get_instance(self, mock_executor_instance, mock_create_executor):
         """
@@ -521,9 +521,9 @@ class TestExecutorManager:
         with pytest.raises(ValueError):
             await manager.get_instance("non_existent_instance")
 
-    @patch('aura.aura.base.execution.executor_manager.ExecutorManager._remove_executor')
-    @patch('aura.aura.base.execution.executor_manager.ExecutorManager._create_executor')
-    @patch('aura.aura.base.execution.executor_manager.ExecutorInstance')
+    @patch('aura.base.execution.executor_manager.ExecutorManager._remove_executor')
+    @patch('aura.base.execution.executor_manager.ExecutorManager._create_executor')
+    @patch('aura.base.execution.executor_manager.ExecutorInstance')
     @pytest.mark.asyncio
     async def test_remove_instance(self, mock_executor_instance, mock_create_executor, mock_remove_executor):
         # Setup mocks
@@ -561,7 +561,7 @@ class TestExecutorManager:
         # Verify _remove_executor was called twice
         assert mock_remove_executor.call_count == 2
 
-    @patch('aura.aura.base.execution.executor_manager.ExecutorManager._remove_executor')
+    @patch('aura.base.execution.executor_manager.ExecutorManager._remove_executor')
     @pytest.mark.asyncio
     async def test_remove_instance_not_found(self, mock_remove_executor):
         """
@@ -576,9 +576,9 @@ class TestExecutorManager:
         # Verify _remove_executor was not called
         mock_remove_executor.assert_not_called()
 
-    @patch('aura.aura.base.execution.executor_manager.ExecutorManager.remove_instance')
-    @patch('aura.aura.base.execution.executor_manager.ExecutorManager._create_executor')
-    @patch('aura.aura.base.execution.executor_manager.ExecutorInstance')
+    @patch('aura.base.execution.executor_manager.ExecutorManager.remove_instance')
+    @patch('aura.base.execution.executor_manager.ExecutorManager._create_executor')
+    @patch('aura.base.execution.executor_manager.ExecutorInstance')
     @pytest.mark.asyncio
     async def test_finalize(self, mock_executor_instance, mock_create_executor, mock_remove_instance):
         """

@@ -4,7 +4,7 @@
 
 import pytest
 
-from aura.aura.runner.agent_engine_wrapper.rllm.patch.tool_agent import (
+from aura.runner.agent_engine_wrapper.rllm.patch.tool_agent import (
     _format_observation_as_messages_patch,
 )
 

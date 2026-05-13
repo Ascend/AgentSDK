@@ -24,10 +24,10 @@ from mindspeed_rl import Metric
 from mindspeed_rl.trainer.utils import compute_grpo_data_metrics
 from mindspeed_rl.utils.utils import metrics_post_processing, compute_tps, metrics_sort
 
-from aura.aura.controllers.train_controller.train_controller import TrainController
-from aura.aura.trainer.train_adapter.mindspeed_rl.utils.trainer_utils import CommonGRPOTrainer
-from aura.aura.data_manager.data_transform import padding_dict_to_tensor_dict
-from aura.aura.base.log.loggers import Loggers
+from aura.controllers.train_controller.train_controller import TrainController
+from aura.trainer.train_adapter.mindspeed_rl.utils.trainer_utils import CommonGRPOTrainer
+from aura.data_manager.data_transform import padding_dict_to_tensor_dict
+from aura.base.log.loggers import Loggers
 
 logger = Loggers(__name__).get_logger()
 

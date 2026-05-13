@@ -31,8 +31,8 @@ from google.cloud.aiplatform_v1beta1.types.content import SafetySetting
 from sentence_transformers import SentenceTransformer, util
 from vertexai.generative_models import GenerationConfig, GenerativeModel, HarmBlockThreshold, HarmCategory
 
-from aura.aura.base.log.loggers import Loggers
-from aura.aura.base.utils.globals import GCP_LOCATION, GCP_PROJECT_ID, GEMINI_MODEL, OAI_RM_MODEL
+from aura.base.log.loggers import Loggers
+from aura.base.utils.globals import GCP_LOCATION, GCP_PROJECT_ID, GEMINI_MODEL, OAI_RM_MODEL
 
 logger = Loggers(__name__).get_logger()
 

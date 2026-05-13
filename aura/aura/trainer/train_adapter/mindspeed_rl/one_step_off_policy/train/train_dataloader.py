@@ -22,8 +22,8 @@ from torch.utils.data import DataLoader
 
 from mindspeed_rl.datasets.build_dataset import build_train_valid_test_datasets
 
-from aura.aura.trainer.train_adapter.mindspeed_rl.one_step_off_policy.train.train_dataset import TrainDataset
-from aura.aura.base.log.loggers import Loggers
+from aura.trainer.train_adapter.mindspeed_rl.one_step_off_policy.train.train_dataset import TrainDataset
+from aura.base.log.loggers import Loggers
 
 logger = Loggers(__name__).get_logger()
 

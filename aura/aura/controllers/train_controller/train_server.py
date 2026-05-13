@@ -25,9 +25,9 @@ import torch
 from fastapi import UploadFile, File, Form, APIRouter
 from starlette.responses import Response
 
-from aura.aura.base.log.loggers import Loggers
-from aura.aura.controllers.train_controller.train_queue import TrainQueue
-from aura.aura.controllers.utils.msg_handler import deserialize_and_split
+from aura.base.log.loggers import Loggers
+from aura.controllers.train_controller.train_queue import TrainQueue
+from aura.controllers.utils.msg_handler import deserialize_and_split
 
 DEFAULT_CHUNK = 1 << 19  # 512 kb
 DEFAULT_BATCH_SIZE = 1

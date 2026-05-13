@@ -41,11 +41,11 @@ with patch.dict('sys.modules', {
     'torch': mock_torch,
     'ray': mock_ray,
     'requests': mock_requests,
-    'aura.aura.base.log.loggers': mock_loggers_module,
-    'aura.aura.controllers.utils.utils': mock_utils_module,
+    'aura.base.log.loggers': mock_loggers_module,
+    'aura.controllers.utils.utils': mock_utils_module,
 }):
-    from aura.aura.controllers.utils.sync_http import sync_send
-    import aura.aura.controllers.utils.sync_http as _sync_http_mod
+    from aura.controllers.utils.sync_http import sync_send
+    import aura.controllers.utils.sync_http as _sync_http_mod
 
 
 class TestSyncSend(unittest.TestCase):

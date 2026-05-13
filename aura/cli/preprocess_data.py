@@ -23,14 +23,14 @@ from pathlib import Path
 
 import hydra
 
-from aura.third_party.rl.mindspeed_rl.mindspeed_rl.config_cls.data_handler_config import DataHandlerConfig
-from aura.third_party.rl.mindspeed_rl.mindspeed_rl.config_cls.validate_config import validate_data_handler_config
-from aura.third_party.rl.mindspeed_rl.mindspeed_rl.datasets.indexed_dataset import IndexedDatasetBuilder
-from aura.third_party.rl.mindspeed_rl.mindspeed_rl.datasets.preprocess_data import merge_datasets, build_splitter, \
+from third_party.rl.mindspeed_rl.mindspeed_rl.config_cls.data_handler_config import DataHandlerConfig
+from third_party.rl.mindspeed_rl.mindspeed_rl.config_cls.validate_config import validate_data_handler_config
+from third_party.rl.mindspeed_rl.mindspeed_rl.datasets.indexed_dataset import IndexedDatasetBuilder
+from third_party.rl.mindspeed_rl.mindspeed_rl.datasets.preprocess_data import merge_datasets, build_splitter, \
     cut_range_to_subs, handle_subset
-from aura.third_party.rl.mindspeed_rl.mindspeed_rl.utils.tokenizer import get_tokenizer
-from aura.third_party.rl.mindspeed_rl.mindspeed_rl.datasets.data_handler import build_dataset, get_dataset_handler
-from aura.third_party.rl.mindspeed_rl.mindspeed_rl.utils.loggers import Loggers
+from third_party.rl.mindspeed_rl.mindspeed_rl.utils.tokenizer import get_tokenizer
+from third_party.rl.mindspeed_rl.mindspeed_rl.datasets.data_handler import build_dataset, get_dataset_handler
+from third_party.rl.mindspeed_rl.mindspeed_rl.utils.loggers import Loggers
 
 logger = Loggers(name="process_data")
 cur_file_dir = Path(__file__).absolute().parent

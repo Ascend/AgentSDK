@@ -22,7 +22,7 @@ import os
 import unittest
 from unittest.mock import patch
 
-from aura.aura.controllers.utils.controller_config import ControllerConfig
+from aura.controllers.utils.controller_config import ControllerConfig
 
 
 class TestControllerConfig(unittest.TestCase):

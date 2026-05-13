@@ -58,7 +58,7 @@ class TestSQLiteEpisodeStore:
 
     def test_initialization(self):
         """Test SQLiteEpisodeStore initialization."""
-        from aura.aura.memory.episode.backend.sqlite_episode_store import SQLiteEpisodeStore
+        from aura.memory.episode.backend.sqlite_episode_store import SQLiteEpisodeStore
         
         with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as f:
             temp_db = f.name
@@ -73,7 +73,7 @@ class TestSQLiteEpisodeStore:
 
     def test_init_db_creates_tables(self):
         """Test that _init_db creates necessary tables."""
-        from aura.aura.memory.episode.backend.sqlite_episode_store import SQLiteEpisodeStore
+        from aura.memory.episode.backend.sqlite_episode_store import SQLiteEpisodeStore
         
         with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as f:
             temp_db = f.name
@@ -99,7 +99,7 @@ class TestSQLiteEpisodeStore:
 
     def test_store_episode(self):
         """Test storing an episode."""
-        from aura.aura.memory.episode.backend.sqlite_episode_store import SQLiteEpisodeStore
+        from aura.memory.episode.backend.sqlite_episode_store import SQLiteEpisodeStore
         
         with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as f:
             temp_db = f.name
@@ -133,7 +133,7 @@ class TestSQLiteEpisodeStore:
 
     def test_get_episodes_empty_result(self):
         """Test retrieving episodes when no results."""
-        from aura.aura.memory.episode.backend.sqlite_episode_store import SQLiteEpisodeStore
+        from aura.memory.episode.backend.sqlite_episode_store import SQLiteEpisodeStore
         
         with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as f:
             temp_db = f.name
@@ -141,7 +141,7 @@ class TestSQLiteEpisodeStore:
         try:
             store = SQLiteEpisodeStore(db_path=temp_db)
             
-            with patch("aura.aura.memory.episode.backend.sqlite_episode_store.Episode", MockEpisode):
+            with patch("aura.memory.episode.backend.sqlite_episode_store.Episode", MockEpisode):
                 episodes = store.get_episodes("workflow-nonexistent")
             
             assert len(episodes) == 0
@@ -152,7 +152,7 @@ class TestSQLiteEpisodeStore:
 
     def test_get_statistics_zero_episodes(self):
         """Test getting statistics when no episodes."""
-        from aura.aura.memory.episode.backend.sqlite_episode_store import SQLiteEpisodeStore
+        from aura.memory.episode.backend.sqlite_episode_store import SQLiteEpisodeStore
         
         with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as f:
             temp_db = f.name
@@ -170,7 +170,7 @@ class TestSQLiteEpisodeStore:
 
     def test_close(self):
         """Test closing database connection."""
-        from aura.aura.memory.episode.backend.sqlite_episode_store import SQLiteEpisodeStore
+        from aura.memory.episode.backend.sqlite_episode_store import SQLiteEpisodeStore
         
         with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as f:
             temp_db = f.name
@@ -186,7 +186,7 @@ class TestSQLiteEpisodeStore:
 
     def test_store_episode_with_null_task(self):
         """Test storing an episode with null task."""
-        from aura.aura.memory.episode.backend.sqlite_episode_store import SQLiteEpisodeStore
+        from aura.memory.episode.backend.sqlite_episode_store import SQLiteEpisodeStore
         
         with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as f:
             temp_db = f.name
@@ -214,7 +214,7 @@ class TestSQLiteEpisodeStore:
 
     def test_store_episode_with_complex_trajectories(self):
         """Test storing an episode with complex trajectories."""
-        from aura.aura.memory.episode.backend.sqlite_episode_store import SQLiteEpisodeStore
+        from aura.memory.episode.backend.sqlite_episode_store import SQLiteEpisodeStore
         
         with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as f:
             temp_db = f.name
@@ -255,7 +255,7 @@ class TestSQLiteEpisodeStore:
 
     def test_multiple_store_operations(self):
         """Test multiple store operations."""
-        from aura.aura.memory.episode.backend.sqlite_episode_store import SQLiteEpisodeStore
+        from aura.memory.episode.backend.sqlite_episode_store import SQLiteEpisodeStore
         
         with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as f:
             temp_db = f.name
@@ -283,7 +283,7 @@ class TestSQLiteEpisodeStore:
 
     def test_get_statistics_with_data(self):
         """Test getting statistics with actual data."""
-        from aura.aura.memory.episode.backend.sqlite_episode_store import SQLiteEpisodeStore
+        from aura.memory.episode.backend.sqlite_episode_store import SQLiteEpisodeStore
         
         with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as f:
             temp_db = f.name

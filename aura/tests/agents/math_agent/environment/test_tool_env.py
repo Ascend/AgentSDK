@@ -37,7 +37,7 @@ def mock_dependencies(mock_ray_dependencies, mock_aura_dependencies, mock_rllm_d
     with (
         patch("rllm.tools.multi_tool.MultiTool", return_value=mock_multi_tool_instance),
         patch("rllm.tools.tool_base.Tool", MagicMock()),
-        patch("aura.agents.math_agent.reward.reward_fn", return_value=mock_reward_output),
+        patch("agents.math_agent.reward.reward_fn", return_value=mock_reward_output),
     ):
         yield {
             "multi_tool": mock_multi_tool_instance,
@@ -51,7 +51,7 @@ class TestToolEnvironment:
 
     def test_init_with_tools(self, mock_dependencies):
         """Test ToolEnvironment initialization with tools."""
-        from aura.agents.math_agent.environment.tool_env import ToolEnvironment
+        from agents.math_agent.environment.tool_env import ToolEnvironment
         
         env = ToolEnvironment(tools=["python"])
         
@@ -60,7 +60,7 @@ class TestToolEnvironment:
 
     def test_init_with_tool_map(self, mock_dependencies):
         """Test ToolEnvironment initialization with tool_map."""
-        from aura.agents.math_agent.environment.tool_env import ToolEnvironment
+        from agents.math_agent.environment.tool_env import ToolEnvironment
         
         mock_tool_class = MagicMock()
         env = ToolEnvironment(tool_map={"custom_tool": mock_tool_class})
@@ -69,7 +69,7 @@ class TestToolEnvironment:
 
     def test_init_with_task(self, mock_dependencies):
         """Test ToolEnvironment initialization with task."""
-        from aura.agents.math_agent.environment.tool_env import ToolEnvironment
+        from agents.math_agent.environment.tool_env import ToolEnvironment
         
         task = {"question": "What is 2+2?"}
         env = ToolEnvironment(task=task, tools=["python"])
@@ -78,7 +78,7 @@ class TestToolEnvironment:
 
     def test_init_with_custom_max_steps(self, mock_dependencies):
         """Test ToolEnvironment initialization with custom max_steps."""
-        from aura.agents.math_agent.environment.tool_env import ToolEnvironment
+        from agents.math_agent.environment.tool_env import ToolEnvironment
         
         env = ToolEnvironment(tools=["python"], max_steps=5)
         
@@ -86,7 +86,7 @@ class TestToolEnvironment:
 
     def test_init_raises_error_when_both_tools_and_tool_map(self, mock_dependencies):
         """Test ToolEnvironment raises error when both tools and tool_map provided."""
-        from aura.agents.math_agent.environment.tool_env import ToolEnvironment
+        from agents.math_agent.environment.tool_env import ToolEnvironment
         
         mock_tool_class = MagicMock()
         
@@ -95,7 +95,7 @@ class TestToolEnvironment:
 
     def test_reset(self, mock_dependencies):
         """Test ToolEnvironment reset method."""
-        from aura.agents.math_agent.environment.tool_env import ToolEnvironment
+        from agents.math_agent.environment.tool_env import ToolEnvironment
         
         task = {"question": "test question"}
         env = ToolEnvironment(task=task, tools=["python"])
@@ -108,7 +108,7 @@ class TestToolEnvironment:
 
     def test_step_with_finish_action(self, mock_dependencies):
         """Test ToolEnvironment step with finish action."""
-        from aura.agents.math_agent.environment.tool_env import ToolEnvironment
+        from agents.math_agent.environment.tool_env import ToolEnvironment
         
         task = {"question": "test"}
         env = ToolEnvironment(task=task, tools=["python"], reward_fn=mock_dependencies["reward_fn"])
@@ -121,7 +121,7 @@ class TestToolEnvironment:
 
     def test_step_with_tool_call(self, mock_dependencies):
         """Test ToolEnvironment step with tool call."""
-        from aura.agents.math_agent.environment.tool_env import ToolEnvironment
+        from agents.math_agent.environment.tool_env import ToolEnvironment
         
         task = {"question": "test"}
         env = ToolEnvironment(task=task, tools=["python"])
@@ -135,7 +135,7 @@ class TestToolEnvironment:
 
     def test_step_with_string_action(self, mock_dependencies):
         """Test ToolEnvironment step with string action."""
-        from aura.agents.math_agent.environment.tool_env import ToolEnvironment
+        from agents.math_agent.environment.tool_env import ToolEnvironment
         
         task = {"question": "test"}
         env = ToolEnvironment(task=task, tools=["python"], reward_fn=mock_dependencies["reward_fn"])
@@ -147,7 +147,7 @@ class TestToolEnvironment:
 
     def test_step_with_dict_action(self, mock_dependencies):
         """Test ToolEnvironment step with dict action."""
-        from aura.agents.math_agent.environment.tool_env import ToolEnvironment
+        from agents.math_agent.environment.tool_env import ToolEnvironment
         
         task = {"question": "test"}
         env = ToolEnvironment(task=task, tools=["python"])
@@ -159,7 +159,7 @@ class TestToolEnvironment:
 
     def test_step_max_steps_reached(self, mock_dependencies):
         """Test ToolEnvironment step when max_steps reached."""
-        from aura.agents.math_agent.environment.tool_env import ToolEnvironment
+        from agents.math_agent.environment.tool_env import ToolEnvironment
         
         task = {"question": "test"}
         env = ToolEnvironment(task=task, tools=["python"], max_steps=2)
@@ -172,7 +172,7 @@ class TestToolEnvironment:
 
     def test_from_dict(self, mock_dependencies):
         """Test ToolEnvironment from_dict static method."""
-        from aura.agents.math_agent.environment.tool_env import ToolEnvironment
+        from agents.math_agent.environment.tool_env import ToolEnvironment
         
         env_args = {
             "tools": ["python"],
@@ -186,7 +186,7 @@ class TestToolEnvironment:
 
     def test_from_dict_with_tool_map(self, mock_dependencies):
         """Test ToolEnvironment from_dict with tool_map."""
-        from aura.agents.math_agent.environment.tool_env import ToolEnvironment
+        from agents.math_agent.environment.tool_env import ToolEnvironment
         
         mock_tool_class = MagicMock()
         env_args = {
@@ -200,7 +200,7 @@ class TestToolEnvironment:
 
     def test_execute_tool_calls(self, mock_dependencies):
         """Test _execute_tool_calls method."""
-        from aura.agents.math_agent.environment.tool_env import ToolEnvironment
+        from agents.math_agent.environment.tool_env import ToolEnvironment
         
         env = ToolEnvironment(tools=["python"])
         
@@ -214,7 +214,7 @@ class TestToolEnvironment:
 
     def test_execute_tool_calls_with_string_args(self, mock_dependencies):
         """Test _execute_tool_calls with string arguments."""
-        from aura.agents.math_agent.environment.tool_env import ToolEnvironment
+        from agents.math_agent.environment.tool_env import ToolEnvironment
         
         env = ToolEnvironment(tools=["python"])
         
@@ -228,7 +228,7 @@ class TestToolEnvironment:
 
     def test_execute_tool_calls_with_dict_args(self, mock_dependencies):
         """Test _execute_tool_calls with dict arguments."""
-        from aura.agents.math_agent.environment.tool_env import ToolEnvironment
+        from agents.math_agent.environment.tool_env import ToolEnvironment
         
         env = ToolEnvironment(tools=["python"])
         
@@ -242,7 +242,7 @@ class TestToolEnvironment:
 
     def test_step_increments_step_count(self, mock_dependencies):
         """Test that step increments step_count."""
-        from aura.agents.math_agent.environment.tool_env import ToolEnvironment
+        from agents.math_agent.environment.tool_env import ToolEnvironment
         
         env = ToolEnvironment(tools=["python"])
         initial_count = env.step_count

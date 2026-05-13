@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from aura.aura.runner.agent_engine_wrapper.rllm.msg_handler import (
+from aura.runner.agent_engine_wrapper.rllm.msg_handler import (
     convert_messages_to_tokens_and_masks,
     get_recent_assistant_user_messages,
 )

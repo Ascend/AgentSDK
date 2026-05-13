@@ -22,7 +22,7 @@ from unittest.mock import MagicMock
 import torch
 
 # Import test objects
-from aura.aura.trainer.rollout.rollout_dataset import optimized_preprocess_input, optimized_put_prompt_experience
+from aura.trainer.rollout.rollout_dataset import optimized_preprocess_input, optimized_put_prompt_experience
 
 
 class TestRolloutDataset(unittest.TestCase):

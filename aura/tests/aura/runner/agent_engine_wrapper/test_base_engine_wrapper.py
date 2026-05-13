@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from aura.aura.runner.agent_engine_wrapper.base_engine_wrapper import (
+from aura.runner.agent_engine_wrapper.base_engine_wrapper import (
     AgentTask,
     BaseEngineWrapper,
     Trajectory,

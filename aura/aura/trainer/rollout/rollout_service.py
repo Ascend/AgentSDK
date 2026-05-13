@@ -20,8 +20,8 @@
 
 import ray
 
-from aura.aura.base.log.loggers import Loggers
-from aura.aura.trainer.rollout.rollout_worker import RolloutWorker
+from aura.base.log.loggers import Loggers
+from aura.trainer.rollout.rollout_worker import RolloutWorker
 
 logger = Loggers(__name__).get_logger()
 
@@ -68,12 +68,12 @@ def start_async_rollout_worker(
 
     # All inference processes have started, starting controller
     model_name = list(config.get('model').keys())[0]
-    from aura.aura.controllers.rollout_controller.rollout_controller import RolloutController
+    from aura.controllers.rollout_controller.rollout_controller import RolloutController
     controller = RolloutController(actor_config, generate_config, model_name)
     # Notify training side that inference is ready to receive inference data
     controller.send_ready_to_train()
 
-    from aura.aura.trainer.rollout.rollouter import OneStepOffRollouter
+    from aura.trainer.rollout.rollouter import OneStepOffRollouter
     executor = OneStepOffRollouter(
         controller,
         rollout_worker,

@@ -38,8 +38,8 @@ class MockRewardInput:
 def mock_dependencies(mock_ray_dependencies, mock_aura_dependencies, mock_rllm_dependencies):
     """Mock all external dependencies for search_reward tests."""
     with (
-        patch("aura.agents.math_agent.reward.search_reward.RewardOutput", MockRewardOutput),
-        patch("aura.agents.math_agent.reward.search_reward.RewardInput", MockRewardInput),
+        patch("agents.math_agent.reward.search_reward.RewardOutput", MockRewardOutput),
+        patch("agents.math_agent.reward.search_reward.RewardInput", MockRewardInput),
     ):
         yield {}
 
@@ -49,8 +49,8 @@ class TestRewardSearchFn:
 
     def test_init(self, mock_dependencies):
         """Test RewardSearchFn initialization."""
-        from aura.agents.math_agent.reward.search_reward import RewardSearchFn
-        from aura.agents.math_agent.reward.reward_types import RewardConfig
+        from agents.math_agent.reward.search_reward import RewardSearchFn
+        from agents.math_agent.reward.reward_types import RewardConfig
         
         config = RewardConfig()
         fn = RewardSearchFn(config)
@@ -59,8 +59,8 @@ class TestRewardSearchFn:
 
     def test_normalize_answer_lowercase(self, mock_dependencies):
         """Test normalize_answer converts to lowercase."""
-        from aura.agents.math_agent.reward.search_reward import RewardSearchFn
-        from aura.agents.math_agent.reward.reward_types import RewardConfig
+        from agents.math_agent.reward.search_reward import RewardSearchFn
+        from agents.math_agent.reward.reward_types import RewardConfig
         
         fn = RewardSearchFn(RewardConfig())
         result = fn.normalize_answer("HELLO World")
@@ -69,8 +69,8 @@ class TestRewardSearchFn:
 
     def test_normalize_answer_removes_articles(self, mock_dependencies):
         """Test normalize_answer removes articles."""
-        from aura.agents.math_agent.reward.search_reward import RewardSearchFn
-        from aura.agents.math_agent.reward.reward_types import RewardConfig
+        from agents.math_agent.reward.search_reward import RewardSearchFn
+        from agents.math_agent.reward.reward_types import RewardConfig
         
         fn = RewardSearchFn(RewardConfig())
         result = fn.normalize_answer("the quick brown fox")
@@ -79,8 +79,8 @@ class TestRewardSearchFn:
 
     def test_normalize_answer_removes_punctuation(self, mock_dependencies):
         """Test normalize_answer removes punctuation."""
-        from aura.agents.math_agent.reward.search_reward import RewardSearchFn
-        from aura.agents.math_agent.reward.reward_types import RewardConfig
+        from agents.math_agent.reward.search_reward import RewardSearchFn
+        from agents.math_agent.reward.reward_types import RewardConfig
         
         fn = RewardSearchFn(RewardConfig())
         result = fn.normalize_answer("hello, world!")
@@ -90,8 +90,8 @@ class TestRewardSearchFn:
 
     def test_normalize_answer_fixes_whitespace(self, mock_dependencies):
         """Test normalize_answer fixes whitespace."""
-        from aura.agents.math_agent.reward.search_reward import RewardSearchFn
-        from aura.agents.math_agent.reward.reward_types import RewardConfig
+        from agents.math_agent.reward.search_reward import RewardSearchFn
+        from agents.math_agent.reward.reward_types import RewardConfig
         
         fn = RewardSearchFn(RewardConfig())
         result = fn.normalize_answer("hello    world")
@@ -100,8 +100,8 @@ class TestRewardSearchFn:
 
     def test_f1_score_perfect_match(self, mock_dependencies):
         """Test f1_score with perfect match."""
-        from aura.agents.math_agent.reward.search_reward import RewardSearchFn
-        from aura.agents.math_agent.reward.reward_types import RewardConfig
+        from agents.math_agent.reward.search_reward import RewardSearchFn
+        from agents.math_agent.reward.reward_types import RewardConfig
         
         fn = RewardSearchFn(RewardConfig())
         f1, precision, recall = fn.f1_score("Paris", "Paris")
@@ -112,8 +112,8 @@ class TestRewardSearchFn:
 
     def test_f1_score_partial_match(self, mock_dependencies):
         """Test f1_score with partial match."""
-        from aura.agents.math_agent.reward.search_reward import RewardSearchFn
-        from aura.agents.math_agent.reward.reward_types import RewardConfig
+        from agents.math_agent.reward.search_reward import RewardSearchFn
+        from agents.math_agent.reward.reward_types import RewardConfig
         
         fn = RewardSearchFn(RewardConfig())
         f1, precision, recall = fn.f1_score("Paris France", "Paris")
@@ -122,8 +122,8 @@ class TestRewardSearchFn:
 
     def test_f1_score_no_match(self, mock_dependencies):
         """Test f1_score with no match."""
-        from aura.agents.math_agent.reward.search_reward import RewardSearchFn
-        from aura.agents.math_agent.reward.reward_types import RewardConfig
+        from agents.math_agent.reward.search_reward import RewardSearchFn
+        from agents.math_agent.reward.reward_types import RewardConfig
         
         fn = RewardSearchFn(RewardConfig())
         f1, precision, recall = fn.f1_score("London", "Paris")
@@ -134,8 +134,8 @@ class TestRewardSearchFn:
 
     def test_f1_score_with_yes_no(self, mock_dependencies):
         """Test f1_score with yes/no answers."""
-        from aura.agents.math_agent.reward.search_reward import RewardSearchFn
-        from aura.agents.math_agent.reward.reward_types import RewardConfig
+        from agents.math_agent.reward.search_reward import RewardSearchFn
+        from agents.math_agent.reward.reward_types import RewardConfig
         
         fn = RewardSearchFn(RewardConfig())
         f1, _, _ = fn.f1_score("yes", "no")
@@ -144,8 +144,8 @@ class TestRewardSearchFn:
 
     def test_exact_match_score_true(self, mock_dependencies):
         """Test exact_match_score with matching answers."""
-        from aura.agents.math_agent.reward.search_reward import RewardSearchFn
-        from aura.agents.math_agent.reward.reward_types import RewardConfig
+        from agents.math_agent.reward.search_reward import RewardSearchFn
+        from agents.math_agent.reward.reward_types import RewardConfig
         
         fn = RewardSearchFn(RewardConfig())
         result = fn.exact_match_score("Paris", "Paris")
@@ -154,8 +154,8 @@ class TestRewardSearchFn:
 
     def test_exact_match_score_false(self, mock_dependencies):
         """Test exact_match_score with non-matching answers."""
-        from aura.agents.math_agent.reward.search_reward import RewardSearchFn
-        from aura.agents.math_agent.reward.reward_types import RewardConfig
+        from agents.math_agent.reward.search_reward import RewardSearchFn
+        from agents.math_agent.reward.reward_types import RewardConfig
         
         fn = RewardSearchFn(RewardConfig())
         result = fn.exact_match_score("Paris", "London")
@@ -164,8 +164,8 @@ class TestRewardSearchFn:
 
     def test_exact_match_score_case_insensitive(self, mock_dependencies):
         """Test exact_match_score is case insensitive."""
-        from aura.agents.math_agent.reward.search_reward import RewardSearchFn
-        from aura.agents.math_agent.reward.reward_types import RewardConfig
+        from agents.math_agent.reward.search_reward import RewardSearchFn
+        from agents.math_agent.reward.reward_types import RewardConfig
         
         fn = RewardSearchFn(RewardConfig())
         result = fn.exact_match_score("PARIS", "paris")
@@ -174,8 +174,8 @@ class TestRewardSearchFn:
 
     def test_extract_answer_from_response_boxed(self, mock_dependencies):
         """Test extract_answer_from_response with boxed content."""
-        from aura.agents.math_agent.reward.search_reward import RewardSearchFn
-        from aura.agents.math_agent.reward.reward_types import RewardConfig
+        from agents.math_agent.reward.search_reward import RewardSearchFn
+        from agents.math_agent.reward.reward_types import RewardConfig
         
         fn = RewardSearchFn(RewardConfig())
         result = fn.extract_answer_from_response("The answer is \\boxed{Paris}")
@@ -184,8 +184,8 @@ class TestRewardSearchFn:
 
     def test_extract_answer_from_response_bold(self, mock_dependencies):
         """Test extract_answer_from_response with bold content."""
-        from aura.agents.math_agent.reward.search_reward import RewardSearchFn
-        from aura.agents.math_agent.reward.reward_types import RewardConfig
+        from agents.math_agent.reward.search_reward import RewardSearchFn
+        from agents.math_agent.reward.reward_types import RewardConfig
         
         fn = RewardSearchFn(RewardConfig())
         result = fn.extract_answer_from_response("The answer is **Paris**")
@@ -194,8 +194,8 @@ class TestRewardSearchFn:
 
     def test_extract_answer_from_response_plain_text(self, mock_dependencies):
         """Test extract_answer_from_response with plain text."""
-        from aura.agents.math_agent.reward.search_reward import RewardSearchFn
-        from aura.agents.math_agent.reward.reward_types import RewardConfig
+        from agents.math_agent.reward.search_reward import RewardSearchFn
+        from agents.math_agent.reward.reward_types import RewardConfig
         
         fn = RewardSearchFn(RewardConfig())
         result = fn.extract_answer_from_response("The capital is Paris.")
@@ -205,8 +205,8 @@ class TestRewardSearchFn:
 
     def test_extract_answer_from_response_empty(self, mock_dependencies):
         """Test extract_answer_from_response with empty string."""
-        from aura.agents.math_agent.reward.search_reward import RewardSearchFn
-        from aura.agents.math_agent.reward.reward_types import RewardConfig
+        from agents.math_agent.reward.search_reward import RewardSearchFn
+        from agents.math_agent.reward.reward_types import RewardConfig
         
         fn = RewardSearchFn(RewardConfig())
         result = fn.extract_answer_from_response("")
@@ -215,8 +215,8 @@ class TestRewardSearchFn:
 
     def test_extract_answer_removes_thinking_tags(self, mock_dependencies):
         """Test extract_answer_from_response removes thinking tags."""
-        from aura.agents.math_agent.reward.search_reward import RewardSearchFn
-        from aura.agents.math_agent.reward.reward_types import RewardConfig
+        from agents.math_agent.reward.search_reward import RewardSearchFn
+        from agents.math_agent.reward.reward_types import RewardConfig
         
         fn = RewardSearchFn(RewardConfig())
         result = fn.extract_answer_from_response("Let me think... The answer is Paris.")
@@ -225,8 +225,8 @@ class TestRewardSearchFn:
 
     def test_evaluate_answer_single_ground_truth(self, mock_dependencies):
         """Test evaluate_answer with single ground truth."""
-        from aura.agents.math_agent.reward.search_reward import RewardSearchFn
-        from aura.agents.math_agent.reward.reward_types import RewardConfig
+        from agents.math_agent.reward.search_reward import RewardSearchFn
+        from agents.math_agent.reward.reward_types import RewardConfig
         
         fn = RewardSearchFn(RewardConfig())
         is_correct, f1, metadata = fn.evaluate_answer("Paris", "Paris")
@@ -236,8 +236,8 @@ class TestRewardSearchFn:
 
     def test_evaluate_answer_multiple_ground_truths(self, mock_dependencies):
         """Test evaluate_answer with multiple ground truths."""
-        from aura.agents.math_agent.reward.search_reward import RewardSearchFn
-        from aura.agents.math_agent.reward.reward_types import RewardConfig
+        from agents.math_agent.reward.search_reward import RewardSearchFn
+        from agents.math_agent.reward.reward_types import RewardConfig
         
         fn = RewardSearchFn(RewardConfig())
         is_correct, f1, metadata = fn.evaluate_answer("Paris", ["Paris", "paris"])
@@ -246,8 +246,8 @@ class TestRewardSearchFn:
 
     def test_evaluate_answer_no_match(self, mock_dependencies):
         """Test evaluate_answer with no match."""
-        from aura.agents.math_agent.reward.search_reward import RewardSearchFn
-        from aura.agents.math_agent.reward.reward_types import RewardConfig
+        from agents.math_agent.reward.search_reward import RewardSearchFn
+        from agents.math_agent.reward.reward_types import RewardConfig
         
         fn = RewardSearchFn(RewardConfig())
         is_correct, f1, metadata = fn.evaluate_answer("London", "Paris")
@@ -257,8 +257,8 @@ class TestRewardSearchFn:
 
     def test_call_with_correct_answer(self, mock_dependencies):
         """Test __call__ with correct answer."""
-        from aura.agents.math_agent.reward.search_reward import RewardSearchFn
-        from aura.agents.math_agent.reward.reward_types import RewardConfig, RewardInput
+        from agents.math_agent.reward.search_reward import RewardSearchFn
+        from agents.math_agent.reward.reward_types import RewardConfig, RewardInput
         
         fn = RewardSearchFn(RewardConfig())
         
@@ -273,8 +273,8 @@ class TestRewardSearchFn:
 
     def test_call_with_incorrect_answer(self, mock_dependencies):
         """Test __call__ with incorrect answer."""
-        from aura.agents.math_agent.reward.search_reward import RewardSearchFn
-        from aura.agents.math_agent.reward.reward_types import RewardConfig, RewardInput
+        from agents.math_agent.reward.search_reward import RewardSearchFn
+        from agents.math_agent.reward.reward_types import RewardConfig, RewardInput
         
         fn = RewardSearchFn(RewardConfig())
         

@@ -33,14 +33,14 @@ import ray
 import torch
 from transformers import AutoTokenizer
 
-from aura.aura.base.log.loggers import Loggers
-from aura.aura.base.misc.misc import app_stats
-from aura.aura.base.utils.globals import ROLLOUT_WEIGHTS_PREFIX
-from aura.aura.controllers.rollout_controller.rollout_queue import get_rollout_queue_actor
-from aura.aura.controllers.utils.utils import DEFAULT_SLEEP_TIME
-from aura.aura.data_manager.data_manager import DataManager
-from aura.aura.runner.agent_router import AgentRouter
-from aura.aura.runner.infer_adapter.async_server import AsyncServerManager, AsyncServerProxyManager
+from aura.base.log.loggers import Loggers
+from aura.base.misc.misc import app_stats
+from aura.base.utils.globals import ROLLOUT_WEIGHTS_PREFIX
+from aura.controllers.rollout_controller.rollout_queue import get_rollout_queue_actor
+from aura.controllers.utils.utils import DEFAULT_SLEEP_TIME
+from aura.data_manager.data_manager import DataManager
+from aura.runner.agent_router import AgentRouter
+from aura.runner.infer_adapter.async_server import AsyncServerManager, AsyncServerProxyManager
 
 logger = Loggers(__name__).get_logger()
 
@@ -347,7 +347,7 @@ class RolloutWorker:
         return tasks, indexes, start_time
 
     async def get_agents(self, tasks):
-        from aura.aura.runner.agent_engine_wrapper.base_engine_wrapper import AgentTask
+        from aura.runner.agent_engine_wrapper.base_engine_wrapper import AgentTask
         agent_tasks = [
             AgentTask(
                 task_id=str(task["id"]),
@@ -713,7 +713,7 @@ class RolloutWorker:
             max_samples: Maximum number of samples to visualize
             mask_key: mask key
         """
-        from aura.aura.base.misc.misc import colorful_print
+        from aura.base.misc.misc import colorful_print
 
         # Get the relevant tensors
         prompts = tensor_batch["prompts"]

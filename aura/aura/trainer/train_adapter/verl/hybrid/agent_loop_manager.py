@@ -25,9 +25,9 @@ import numpy as np
 import torch
 from omegaconf import DictConfig
 
-from aura.aura.base.log.loggers import Loggers
-from aura.aura.runner.agent_engine_wrapper.base_engine_wrapper import AgentTask
-from aura.aura.runner.infer_router import InferRouter
+from aura.base.log.loggers import Loggers
+from aura.runner.agent_engine_wrapper.base_engine_wrapper import AgentTask
+from aura.runner.infer_router import InferRouter
 from verl import DataProto
 from verl.experimental.agent_loop import AgentLoopManager
 from verl.utils import hf_tokenizer
@@ -122,7 +122,7 @@ async def generate_trajectory(agent_task: AgentTask) -> dict:
     Returns:
         Dictionary containing trajectory data (tokens, rewards, etc.).
     """
-    from aura.aura.runner.agent_router import AgentRouter
+    from aura.runner.agent_router import AgentRouter
 
     router = await AgentRouter.create()
     trajectory = await router.generate_trajectory(agent_task, mode='Token')

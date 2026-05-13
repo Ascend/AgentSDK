@@ -26,12 +26,12 @@ import aiohttp
 import ray
 import torch
 
-from aura.aura.base.log.loggers import Loggers
-from aura.aura.controllers.utils.async_http import async_send_batch
-from aura.aura.controllers.utils.http_status import HTTP_OK_200
-from aura.aura.controllers.utils.sync_http import sync_send
-from aura.aura.controllers.utils.utils import DEFAULT_URL_METHOD
-from aura.aura.controllers.utils.utils import (
+from aura.base.log.loggers import Loggers
+from aura.controllers.utils.async_http import async_send_batch
+from aura.controllers.utils.http_status import HTTP_OK_200
+from aura.controllers.utils.sync_http import sync_send
+from aura.controllers.utils.utils import DEFAULT_URL_METHOD
+from aura.controllers.utils.utils import (
     post_with_url,
     DEFAULT_RETRY_COUNT,
     DEFAULT_BACKOFF_FACTOR,

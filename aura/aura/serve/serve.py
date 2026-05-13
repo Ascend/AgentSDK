@@ -23,7 +23,7 @@ import asyncio
 from fastapi import FastAPI
 from ray import serve
 
-from aura.aura.serve.router import router
+from aura.serve.router import router
 
 app = FastAPI()
 app.include_router(router)

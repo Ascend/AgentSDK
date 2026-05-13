@@ -23,18 +23,18 @@ from vllm_ascend.patch import worker
 
 # patch_utils should be the first import, because it will be used by other
 # patch files.
-from aura.aura.runner.infer_adapter.vllm.patch.patch_0_10_2 import patch_worker_v1
-from aura.aura.runner.infer_adapter.vllm.patch.patch_0_10_2 import patch_camem
-from aura.aura.runner.infer_adapter.vllm.patch.patch_0_10_2 import patch_schedule_config
-from aura.aura.runner.infer_adapter.vllm.patch.patch_0_10_2 import patch_model_runner_v1
-from aura.aura.runner.infer_adapter.vllm.patch.patch_0_10_2 import patch_qwen3_moe
-from aura.aura.runner.infer_adapter.vllm.patch.patch_0_10_2 import patch_scheduler
-from aura.aura.runner.infer_adapter.vllm.patch.patch_0_10_2 import patch_attention_mask
-from aura.aura.runner.infer_adapter.vllm.patch.patch_0_10_2 import patch_attention_v1
-from aura.aura.runner.infer_adapter.vllm.patch.patch_0_10_2 import patch_vllm_qwen3_moe
-from aura.aura.runner.infer_adapter.vllm.patch.patch_0_10_2 import patch_serving_completion
-from aura.aura.runner.infer_adapter.vllm.patch.patch_0_10_2 import patch_acl_graph
-from aura.aura.runner.infer_adapter.vllm.patch.patch_0_10_2 import patch_base
-from aura.aura.runner.infer_adapter.vllm.patch.patch_0_10_2 import patch_llmdatadist_c_mgr_connector
-from aura.aura.runner.infer_adapter.vllm.patch.patch_0_10_2 import patch_multiproc_executor
-from aura.aura.runner.infer_adapter.vllm.patch.patch_0_10_2 import patch_abstract
+from aura.runner.infer_adapter.vllm.patch.patch_0_10_2 import patch_worker_v1
+from aura.runner.infer_adapter.vllm.patch.patch_0_10_2 import patch_camem
+from aura.runner.infer_adapter.vllm.patch.patch_0_10_2 import patch_schedule_config
+from aura.runner.infer_adapter.vllm.patch.patch_0_10_2 import patch_model_runner_v1
+from aura.runner.infer_adapter.vllm.patch.patch_0_10_2 import patch_qwen3_moe
+from aura.runner.infer_adapter.vllm.patch.patch_0_10_2 import patch_scheduler
+from aura.runner.infer_adapter.vllm.patch.patch_0_10_2 import patch_attention_mask
+from aura.runner.infer_adapter.vllm.patch.patch_0_10_2 import patch_attention_v1
+from aura.runner.infer_adapter.vllm.patch.patch_0_10_2 import patch_vllm_qwen3_moe
+from aura.runner.infer_adapter.vllm.patch.patch_0_10_2 import patch_serving_completion
+from aura.runner.infer_adapter.vllm.patch.patch_0_10_2 import patch_acl_graph
+from aura.runner.infer_adapter.vllm.patch.patch_0_10_2 import patch_base
+from aura.runner.infer_adapter.vllm.patch.patch_0_10_2 import patch_llmdatadist_c_mgr_connector
+from aura.runner.infer_adapter.vllm.patch.patch_0_10_2 import patch_multiproc_executor
+from aura.runner.infer_adapter.vllm.patch.patch_0_10_2 import patch_abstract

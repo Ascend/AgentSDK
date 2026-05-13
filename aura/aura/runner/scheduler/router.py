@@ -30,10 +30,10 @@ from openai.types.chat import ChatCompletionChunk
 from openai.types.completion import Completion
 
 # Internal imports
-from aura.aura.base.log.loggers import Loggers
-from aura.aura.base.misc.misc import app_stats
-from aura.aura.base.utils.globals import is_pd_separate
-from aura.aura.runner.scheduler.req_scheduler import SchedulerFactory
+from aura.base.log.loggers import Loggers
+from aura.base.misc.misc import app_stats
+from aura.base.utils.globals import is_pd_separate
+from aura.runner.scheduler.req_scheduler import SchedulerFactory
 
 logger = Loggers(__name__).get_logger()
 

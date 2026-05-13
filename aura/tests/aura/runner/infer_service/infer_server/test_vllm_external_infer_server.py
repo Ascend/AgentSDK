@@ -51,14 +51,14 @@ def create_mock_async_vllm_server():
 @pytest.fixture(autouse=True, scope="function")
 def mock_dependencies(monkeypatch):
     """Mock all external dependencies for VLLMExternalInferServer tests."""
-    monkeypatch.setitem(sys.modules, "aura.aura.base.utils.run_env", MagicMock())
-    monkeypatch.setitem(sys.modules, "aura.aura.runner.infer_adapter.vllm.vllm_async_server", MagicMock())
+    monkeypatch.setitem(sys.modules, "aura.base.utils.run_env", MagicMock())
+    monkeypatch.setitem(sys.modules, "aura.runner.infer_adapter.vllm.vllm_async_server", MagicMock())
 
-    monkeypatch.delitem(sys.modules, "aura.aura.runner.infer_service.infer_server.vllm_external_infer_server", raising=False)
+    monkeypatch.delitem(sys.modules, "aura.runner.infer_service.infer_server.vllm_external_infer_server", raising=False)
 
     with (
-        patch("aura.aura.runner.infer_service.infer_server.vllm_external_infer_server.logger") as mock_logger,
-        patch("aura.aura.base.utils.run_env.get_vllm_version") as mock_get_vllm_version,
+        patch("aura.runner.infer_service.infer_server.vllm_external_infer_server.logger") as mock_logger,
+        patch("aura.base.utils.run_env.get_vllm_version") as mock_get_vllm_version,
     ):
         mock_get_vllm_version.return_value = "0.4.0"
 
@@ -66,7 +66,7 @@ def mock_dependencies(monkeypatch):
 
         mock_vllm_module = MagicMock()
         mock_vllm_module.AsyncVLLMServer = MockAsyncVLLMServer
-        monkeypatch.setitem(sys.modules, "aura.aura.runner.infer_adapter.vllm.vllm_async_server", mock_vllm_module)
+        monkeypatch.setitem(sys.modules, "aura.runner.infer_adapter.vllm.vllm_async_server", mock_vllm_module)
 
         yield {
             "logger": mock_logger,
@@ -81,7 +81,7 @@ class TestVLLMExternalInferServer:
 
     def setup_method(self):
         """Setup method to import VLLMExternalInferServer before each test."""
-        from aura.aura.runner.infer_service.infer_server.vllm_external_infer_server import VLLMExternalInferServer
+        from aura.runner.infer_service.infer_server.vllm_external_infer_server import VLLMExternalInferServer
         self.VLLMExternalInferServer = VLLMExternalInferServer
 
     @pytest.mark.asyncio

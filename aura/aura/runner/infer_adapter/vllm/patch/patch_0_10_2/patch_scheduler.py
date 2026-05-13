@@ -32,7 +32,7 @@ from vllm.v1.request import Request, RequestStatus
 from vllm.v1.structured_output import StructuredOutputManager
 from vllm.v1.core.sched.scheduler import Scheduler
 
-from aura.aura.runner.infer_adapter.vllm.patch.comm.scheduler_stat import RequestStats
+from aura.runner.infer_adapter.vllm.patch.comm.scheduler_stat import RequestStats
 
 
 original_scheduler_init = Scheduler.__init__

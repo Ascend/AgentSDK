@@ -69,7 +69,7 @@ class _RuntimeContext:
 @pytest.fixture
 def async_server_mod(monkeypatch):
     """
-    Import aura.aura.runner.infer_adapter.async_server
+    Import aura.runner.infer_adapter.async_server
     with all external dependencies (ray, fastapi, uvicorn, etc.) mocked.
     """
     # ---- ray module stub ----
@@ -148,7 +148,7 @@ def async_server_mod(monkeypatch):
     starlette_req_mod.Request = Request
 
     # ---- logger stub ----
-    loggers_mod = ModuleType("aura.aura.base.log.loggers")
+    loggers_mod = ModuleType("aura.base.log.loggers")
 
     class Loggers:
         def __init__(self, *_args, **_kwargs):
@@ -160,18 +160,18 @@ def async_server_mod(monkeypatch):
     loggers_mod.Loggers = Loggers
 
     # ---- work_mode stub ----
-    work_mode_mod = ModuleType("aura.aura.base.utils.work_mode")
+    work_mode_mod = ModuleType("aura.base.utils.work_mode")
     work_mode_mod.get_work_mode = MagicMock(return_value="separate")
 
     # ---- globals stub ----
-    globals_mod = ModuleType("aura.aura.base.utils.globals")
+    globals_mod = ModuleType("aura.base.utils.globals")
     globals_mod.is_pd_separate = MagicMock(return_value=False)
 
     # ---- InferRouter stub ----
-    infer_router_mod = ModuleType("aura.aura.runner.infer_router")
+    infer_router_mod = ModuleType("aura.runner.infer_router")
 
     # ---- InferRegistry stub ----
-    infer_registry_mod = ModuleType("aura.aura.runner.infer_adapter.infer_registry")
+    infer_registry_mod = ModuleType("aura.runner.infer_adapter.infer_registry")
     infer_registry_mod.async_server_class = MagicMock()
 
     class InferRouter:
@@ -192,16 +192,16 @@ def async_server_mod(monkeypatch):
         "fastapi": fastapi_mod,
         "uvicorn": uvicorn_mod,
         "starlette.requests": starlette_req_mod,
-        "aura.aura.base.log.loggers": loggers_mod,
-        "aura.aura.base.utils.work_mode": work_mode_mod,
-        "aura.aura.base.utils.globals": globals_mod,
-        "aura.aura.runner.infer_router": infer_router_mod,
-        "aura.aura.runner.infer_adapter.infer_registry": infer_registry_mod,
+        "aura.base.log.loggers": loggers_mod,
+        "aura.base.utils.work_mode": work_mode_mod,
+        "aura.base.utils.globals": globals_mod,
+        "aura.runner.infer_router": infer_router_mod,
+        "aura.runner.infer_adapter.infer_registry": infer_registry_mod,
     }
 
     mod = _import_after_mocking(
         monkeypatch,
-        "aura.aura.runner.infer_adapter.async_server",
+        "aura.runner.infer_adapter.async_server",
         preinstall,
     )
     mod._infer_registry_mod = infer_registry_mod
@@ -277,7 +277,7 @@ class TestAsyncServerBase:
 class TestHelperFunctions:
     """Test _get_free_port and _write_ranktable_on_node."""
 
-    @patch("aura.aura.runner.infer_adapter.async_server.socket.socket")
+    @patch("aura.runner.infer_adapter.async_server.socket.socket")
     def test_get_free_port(self, mock_socket, async_server_mod):
         """_get_free_port should bind to port 0 and return the assigned port."""
         sock_obj = MagicMock()

@@ -23,19 +23,19 @@ class TestParserRegistry:
 
     def test_parser_registry_has_r1(self):
         """Test that PARSER_REGISTRY has r1 parser."""
-        from aura.agents.math_agent.parser import PARSER_REGISTRY
+        from agents.math_agent.parser import PARSER_REGISTRY
         
         assert "r1" in PARSER_REGISTRY
 
     def test_parser_registry_has_qwen(self):
         """Test that PARSER_REGISTRY has qwen parser."""
-        from aura.agents.math_agent.parser import PARSER_REGISTRY
+        from agents.math_agent.parser import PARSER_REGISTRY
         
         assert "qwen" in PARSER_REGISTRY
 
     def test_get_tool_parser_r1(self):
         """Test get_tool_parser returns R1ToolParser for r1."""
-        from aura.agents.math_agent.parser import get_tool_parser, R1ToolParser
+        from agents.math_agent.parser import get_tool_parser, R1ToolParser
         
         result = get_tool_parser("r1")
         
@@ -43,7 +43,7 @@ class TestParserRegistry:
 
     def test_get_tool_parser_qwen(self):
         """Test get_tool_parser returns QwenToolParser for qwen."""
-        from aura.agents.math_agent.parser import get_tool_parser, QwenToolParser
+        from agents.math_agent.parser import get_tool_parser, QwenToolParser
         
         result = get_tool_parser("qwen")
         
@@ -51,7 +51,7 @@ class TestParserRegistry:
 
     def test_get_tool_parser_invalid(self):
         """Test get_tool_parser raises error for invalid parser name."""
-        from aura.agents.math_agent.parser import get_tool_parser
+        from agents.math_agent.parser import get_tool_parser
         
         with pytest.raises(ValueError):
             get_tool_parser("invalid_parser")
@@ -62,7 +62,7 @@ class TestQwenToolParser:
 
     def test_init(self):
         """Test QwenToolParser initialization."""
-        from aura.agents.math_agent.parser.tool_parser.qwen_tool_parser import QwenToolParser
+        from agents.math_agent.parser.tool_parser.qwen_tool_parser import QwenToolParser
         
         parser = QwenToolParser()
         
@@ -73,7 +73,7 @@ class TestQwenToolParser:
 
     def test_parse_single_tool_call(self):
         """Test parsing single tool call."""
-        from aura.agents.math_agent.parser.tool_parser.qwen_tool_parser import QwenToolParser
+        from agents.math_agent.parser.tool_parser.qwen_tool_parser import QwenToolParser
         
         parser = QwenToolParser()
         text = f'Let me solve this.{parser.tool_call_begin}{{"name": "python", "arguments": {{"code": "print(1)"}}}}{parser.tool_call_end}'
@@ -86,7 +86,7 @@ class TestQwenToolParser:
 
     def test_parse_multiple_tool_calls(self):
         """Test parsing multiple tool calls."""
-        from aura.agents.math_agent.parser.tool_parser.qwen_tool_parser import QwenToolParser
+        from agents.math_agent.parser.tool_parser.qwen_tool_parser import QwenToolParser
         
         parser = QwenToolParser()
         text = f'{parser.tool_call_begin}{{"name": "python", "arguments": {{"code": "a"}}}}{parser.tool_call_end}{parser.tool_call_begin}{{"name": "calculator", "arguments": {{"expr": "1+1"}}}}{parser.tool_call_end}'
@@ -99,7 +99,7 @@ class TestQwenToolParser:
 
     def test_parse_no_tool_calls(self):
         """Test parsing text without tool calls."""
-        from aura.agents.math_agent.parser.tool_parser.qwen_tool_parser import QwenToolParser
+        from agents.math_agent.parser.tool_parser.qwen_tool_parser import QwenToolParser
         
         parser = QwenToolParser()
         text = "This is just regular text without tool calls."
@@ -110,7 +110,7 @@ class TestQwenToolParser:
 
     def test_parse_incomplete_tool_call(self):
         """Test parsing incomplete tool call."""
-        from aura.agents.math_agent.parser.tool_parser.qwen_tool_parser import QwenToolParser
+        from agents.math_agent.parser.tool_parser.qwen_tool_parser import QwenToolParser
         
         parser = QwenToolParser()
         begin = parser.tool_call_begin
@@ -122,7 +122,7 @@ class TestQwenToolParser:
 
     def test_parse_invalid_json(self):
         """Test parsing with invalid JSON."""
-        from aura.agents.math_agent.parser.tool_parser.qwen_tool_parser import QwenToolParser
+        from agents.math_agent.parser.tool_parser.qwen_tool_parser import QwenToolParser
         
         parser = QwenToolParser()
         text = f'{parser.tool_call_begin}{{invalid json}}{parser.tool_call_end}'
@@ -133,7 +133,7 @@ class TestQwenToolParser:
 
     def test_get_tool_prompt(self):
         """Test get_tool_prompt method."""
-        from aura.agents.math_agent.parser.tool_parser.qwen_tool_parser import QwenToolParser
+        from agents.math_agent.parser.tool_parser.qwen_tool_parser import QwenToolParser
         
         parser = QwenToolParser()
         tools_schema = '{"name": "python"}'
@@ -146,7 +146,7 @@ class TestQwenToolParser:
 
     def test_parse_qwen_tool_calls(self):
         """Test parse_qwen_tool_calls method."""
-        from aura.agents.math_agent.parser.tool_parser.qwen_tool_parser import QwenToolParser
+        from agents.math_agent.parser.tool_parser.qwen_tool_parser import QwenToolParser
         
         parser = QwenToolParser()
         text = f'{parser.tool_call_begin}{{"name": "test", "arguments": {{"a": 1}}}}{parser.tool_call_end}'
@@ -163,7 +163,7 @@ class TestR1ToolParser:
 
     def test_init(self):
         """Test R1ToolParser initialization."""
-        from aura.agents.math_agent.parser.tool_parser.r1_tool_parser import R1ToolParser
+        from agents.math_agent.parser.tool_parser.r1_tool_parser import R1ToolParser
         
         parser = R1ToolParser()
         
@@ -175,7 +175,7 @@ class TestR1ToolParser:
 
     def test_parse_single_tool_call(self):
         """Test parsing single R1 tool call."""
-        from aura.agents.math_agent.parser.tool_parser.r1_tool_parser import R1ToolParser
+        from agents.math_agent.parser.tool_parser.r1_tool_parser import R1ToolParser
         
         parser = R1ToolParser()
         text = '''<｜tool▁call▁begin｜>function<｜tool▁sep｜>python
@@ -192,7 +192,7 @@ class TestR1ToolParser:
 
     def test_parse_no_tool_calls(self):
         """Test parsing text without R1 tool calls."""
-        from aura.agents.math_agent.parser.tool_parser.r1_tool_parser import R1ToolParser
+        from agents.math_agent.parser.tool_parser.r1_tool_parser import R1ToolParser
         
         parser = R1ToolParser()
         text = "This is regular text without tool calls."
@@ -203,7 +203,7 @@ class TestR1ToolParser:
 
     def test_parse_incomplete_tool_call(self):
         """Test parsing incomplete R1 tool call."""
-        from aura.agents.math_agent.parser.tool_parser.r1_tool_parser import R1ToolParser
+        from agents.math_agent.parser.tool_parser.r1_tool_parser import R1ToolParser
         
         parser = R1ToolParser()
         text = "<｜tool▁call▁begin｜>function<｜tool▁sep｜>python"
@@ -214,7 +214,7 @@ class TestR1ToolParser:
 
     def test_get_tool_prompt(self):
         """Test get_tool_prompt method."""
-        from aura.agents.math_agent.parser.tool_parser.r1_tool_parser import R1ToolParser
+        from agents.math_agent.parser.tool_parser.r1_tool_parser import R1ToolParser
         
         parser = R1ToolParser()
         tools_schema = '{"name": "python"}'
@@ -227,7 +227,7 @@ class TestR1ToolParser:
 
     def test_parse_r1_tool_calls_with_json_block(self):
         """Test parse_r1_tool_calls with JSON block."""
-        from aura.agents.math_agent.parser.tool_parser.r1_tool_parser import R1ToolParser
+        from agents.math_agent.parser.tool_parser.r1_tool_parser import R1ToolParser
         
         parser = R1ToolParser()
         text = '''<｜tool▁call▁begin｜>function<｜tool▁sep｜>calculator
@@ -244,7 +244,7 @@ class TestR1ToolParser:
 
     def test_parse_r1_tool_calls_missing_json(self):
         """Test parse_r1_tool_calls when JSON block is missing."""
-        from aura.agents.math_agent.parser.tool_parser.r1_tool_parser import R1ToolParser
+        from agents.math_agent.parser.tool_parser.r1_tool_parser import R1ToolParser
         
         parser = R1ToolParser()
         text = "<｜tool▁call▁begin｜>function<｜tool▁sep｜>python<｜tool▁call▁end｜>"

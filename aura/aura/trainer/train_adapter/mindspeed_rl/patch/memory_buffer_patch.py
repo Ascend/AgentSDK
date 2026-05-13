@@ -19,8 +19,8 @@ from typing import Dict, Optional
 import torch
 
 from mindspeed_rl.workers.resharding.memory_buffer import build_memory_buffer, MemoryBuffer, calc_padded_numel
-from aura.aura.runner.infer_adapter.vllm.extension.custom_worker_extensions import resolve_device
-from aura.aura.base.log.loggers import Loggers
+from aura.runner.infer_adapter.vllm.extension.custom_worker_extensions import resolve_device
+from aura.base.log.loggers import Loggers
 
 logger = Loggers(__name__).get_logger()
 

@@ -59,7 +59,7 @@ def _install_fake_deps():
     fake_modules["transformers"] = transformers_mod
 
     # tokenizer.get_tokenizer
-    tokenizer_mod = safe_get_fake("aura.aura.base.utils.tokenizer")
+    tokenizer_mod = safe_get_fake("aura.base.utils.tokenizer")
     def fake_get_tokenizer(*args, **kwargs):
         tok = MagicMock()
         tok.tokenizer = MagicMock()
@@ -67,17 +67,17 @@ def _install_fake_deps():
         tok.tokenizer.eos_token_id = 2
         return tok
     tokenizer_mod.get_tokenizer = fake_get_tokenizer
-    fake_modules["aura.aura.base.utils.tokenizer"] = tokenizer_mod
+    fake_modules["aura.base.utils.tokenizer"] = tokenizer_mod
 
     # get_local_rank
-    get_local_rank_mod = safe_get_fake("aura.aura.base.utils.get_local_rank")
+    get_local_rank_mod = safe_get_fake("aura.base.utils.get_local_rank")
     def fake_get_local_rank(*args, **kwargs):
         return 0
     get_local_rank_mod.get_local_rank = fake_get_local_rank
-    fake_modules["aura.aura.base.utils.get_local_rank"] = get_local_rank_mod
+    fake_modules["aura.base.utils.get_local_rank"] = get_local_rank_mod
 
     # logger
-    loggers_mod = safe_get_fake("aura.aura.base.log.loggers")
+    loggers_mod = safe_get_fake("aura.base.log.loggers")
     class FakeLoggers:
         def __init__(self, *args, **kwargs):
             pass
@@ -88,10 +88,10 @@ def _install_fake_deps():
             logger.error = MagicMock()
             return logger
     loggers_mod.Loggers = FakeLoggers
-    fake_modules["aura.aura.base.log.loggers"] = loggers_mod
+    fake_modules["aura.base.log.loggers"] = loggers_mod
 
     # BaseInferEngine
-    base_engine_mod = safe_get_fake("aura.aura.runner.infer_adapter.vllm.base_inference_engine")
+    base_engine_mod = safe_get_fake("aura.runner.infer_adapter.vllm.base_inference_engine")
     class FakeBaseInferEngine:
         def __init__(self, *args, **kwargs):
             self.tokenizer_name_or_path = kwargs.get("tokenizer_name_or_path", "/fake_model")
@@ -106,7 +106,7 @@ def _install_fake_deps():
             self.infer_expert_parallel_size = kwargs.get("infer_expert_parallel_size", 1)
             self.train_context_parallel_size = kwargs.get("train_context_parallel_size", 1)
     base_engine_mod.BaseInferEngine = FakeBaseInferEngine
-    fake_modules["aura.aura.runner.infer_adapter.vllm.base_inference_engine"] = base_engine_mod
+    fake_modules["aura.runner.infer_adapter.vllm.base_inference_engine"] = base_engine_mod
 
     # vllm.worker.worker_base
     worker_base_mod = safe_get_fake("vllm.worker.worker_base")
@@ -192,32 +192,32 @@ def _install_fake_deps():
     fake_modules["vllm_ascend.patch"] = vllm_ascend_patch
 
     # parallel_state
-    parallel_state_mod = _fake_module("aura.aura.runner.infer_adapter.vllm.vllm_parallel_state")
+    parallel_state_mod = _fake_module("aura.runner.infer_adapter.vllm.vllm_parallel_state")
     parallel_state_mod.initialize_parallel_state = MagicMock()
-    fake_modules["aura.aura.runner.infer_adapter.vllm.vllm_parallel_state"] = parallel_state_mod
+    fake_modules["aura.runner.infer_adapter.vllm.vllm_parallel_state"] = parallel_state_mod
 
     # megatron weight loaders
-    megatron_loader_mod = safe_get_fake("aura.aura.base.weight_loaders.megatron_weight_loaders")
+    megatron_loader_mod = safe_get_fake("aura.base.weight_loaders.megatron_weight_loaders")
     class FakeInferParallelConfig:
         def __init__(self, *args, **kwargs):
             self.args = args
     megatron_loader_mod.InferParallelConfig = FakeInferParallelConfig
-    fake_modules["aura.aura.base.weight_loaders.megatron_weight_loaders"] = megatron_loader_mod
+    fake_modules["aura.base.weight_loaders.megatron_weight_loaders"] = megatron_loader_mod
 
-    vllm_weight_loader_mod = safe_get_fake("aura.aura.runner.infer_adapter.vllm.vllm_megatron_weight_loaders")
+    vllm_weight_loader_mod = safe_get_fake("aura.runner.infer_adapter.vllm.vllm_megatron_weight_loaders")
     class FakeVllmMegatronWeightLoaders:
         def __init__(self):
             self.load_megatron_weights = MagicMock()
             self.update_megatron_weight_loader = MagicMock()
     vllm_weight_loader_mod.VllmMegatronWeightLoaders = FakeVllmMegatronWeightLoaders
-    fake_modules["aura.aura.runner.infer_adapter.vllm.vllm_megatron_weight_loaders"] = vllm_weight_loader_mod
+    fake_modules["aura.runner.infer_adapter.vllm.vllm_megatron_weight_loaders"] = vllm_weight_loader_mod
 
     return fake_modules
 
 
 def _reload_target_module():
     """Reload the module under test after fakes are installed."""
-    mod_name = "aura.aura.runner.infer_adapter.vllm.vllm_worker"
+    mod_name = "aura.runner.infer_adapter.vllm.vllm_worker"
     if mod_name in sys.modules:
         del sys.modules[mod_name]
     return importlib.import_module(mod_name)
@@ -296,7 +296,7 @@ class TestAsyncVLLMInferEngine(unittest.TestCase):
         engine = self.AsyncVLLMInferEngine(enable_sleep_mode=True, tokenizer_name_or_path="/fake_model", train_tensor_parallel_size=2)
         all_kwargs = [{"vllm_config": MagicMock()}]
         engine.init_worker(all_kwargs)
-        init_ps = sys.modules["aura.aura.runner.infer_adapter.vllm.vllm_parallel_state"].initialize_parallel_state
+        init_ps = sys.modules["aura.runner.infer_adapter.vllm.vllm_parallel_state"].initialize_parallel_state
         init_ps.assert_called_once()
 
     def test_init_worker_megatron_load_format_calls_update_loader(self):
@@ -458,7 +458,7 @@ class TestAsyncVLLMInferEngine(unittest.TestCase):
 
     def test_print_memory_condition_false(self):
         """print_memory should not log when condition is False."""
-        with patch("aura.aura.runner.infer_adapter.vllm.vllm_worker.logger") as mock_logger:
+        with patch("aura.runner.infer_adapter.vllm.vllm_worker.logger") as mock_logger:
             self.print_memory("test", condition=False)
             mock_logger.info.assert_not_called()
 
@@ -468,7 +468,7 @@ class TestAsyncVLLMInferEngine(unittest.TestCase):
                                             train_tensor_parallel_size=None)
         all_kwargs = [{"vllm_config": MagicMock()}]
         engine.init_worker(all_kwargs)
-        init_ps = sys.modules["aura.aura.runner.infer_adapter.vllm.vllm_parallel_state"].initialize_parallel_state
+        init_ps = sys.modules["aura.runner.infer_adapter.vllm.vllm_parallel_state"].initialize_parallel_state
         init_ps.assert_not_called()
 
     def test_free_cache_engine_full_coverage(self):

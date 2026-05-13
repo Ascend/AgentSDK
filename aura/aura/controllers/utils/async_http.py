@@ -27,9 +27,9 @@ from typing import Any, Dict
 import aiohttp
 import torch
 
-from aura.aura.base.log.loggers import Loggers
-from aura.aura.controllers.utils.http_status import HTTP_OK_200
-from aura.aura.controllers.utils.utils import DEFAULT_RETRY_COUNT, MIN_BACKOFF_FACTOR
+from aura.base.log.loggers import Loggers
+from aura.controllers.utils.http_status import HTTP_OK_200
+from aura.controllers.utils.utils import DEFAULT_RETRY_COUNT, MIN_BACKOFF_FACTOR
 
 logger = Loggers(__name__).get_logger()
 

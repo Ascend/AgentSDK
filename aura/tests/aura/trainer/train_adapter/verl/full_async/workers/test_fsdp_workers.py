@@ -71,7 +71,7 @@ with patch.dict('sys.modules', {
     'verl.single_controller.base.decorator': mock_verl
 }):
     # Now we can safely import the class under test
-    from aura.aura.trainer.train_adapter.verl.full_async.workers.fsdp_workers import FsdpDetachActorWorker
+    from aura.trainer.train_adapter.verl.full_async.workers.fsdp_workers import FsdpDetachActorWorker
 
 # Since the module under test dynamically imports safetensors.torch inside methods, we need to ensure this mock is valid throughout all tests
 # Assign mock_safetensors.save_file to a global variable to ensure all test methods can use it

@@ -23,8 +23,8 @@ import random
 import time
 from typing import Optional
 
-from aura.aura.memory.episode.episode import Episode
-from aura.aura.memory.episode.episode_store import EpisodeStore
+from aura.memory.episode.episode import Episode
+from aura.memory.episode.episode_store import EpisodeStore
 
 logger = logging.getLogger(__name__)
 

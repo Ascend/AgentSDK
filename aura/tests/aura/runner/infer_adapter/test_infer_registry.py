@@ -33,8 +33,8 @@ MOCK_MODULES = [
     "vllm.entrypoints.openai.serving_chat", "vllm.entrypoints.openai.serving_completion",
     "vllm.entrypoints.openai.serving_models", "vllm.v1.engine.async_llm",
     "vllm.v1.executor.abstract", "vllm.config", "vllm.executor",
-    "aura.aura.base.log.loggers", "aura.aura.runner.infer_adapter.async_server",
-    "aura.aura.runner.scheduler.workload", "aura.aura.runner.scheduler.load_stat",
+    "aura.base.log.loggers", "aura.runner.infer_adapter.async_server",
+    "aura.runner.scheduler.workload", "aura.runner.scheduler.load_stat",
 ]
 
 
@@ -48,7 +48,7 @@ def _reload_infer_registry_module():
     Reload the infer_registry module after fake modules are installed,
     ensuring all imports use the mocks.
     """
-    mod_name = "aura.aura.runner.infer_adapter.infer_registry"
+    mod_name = "aura.runner.infer_adapter.infer_registry"
     if mod_name in sys.modules:
         del sys.modules[mod_name]
     return importlib.import_module(mod_name)

@@ -17,4 +17,4 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-import aura.aura.runner.infer_adapter.vllm.patch
+import aura.runner.infer_adapter.vllm.patch

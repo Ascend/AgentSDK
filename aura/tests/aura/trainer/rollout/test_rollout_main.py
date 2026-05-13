@@ -81,7 +81,7 @@ class TestRolloutMain(unittest.TestCase):
         
         # Import test object
         global start_rollout
-        from aura.aura.trainer.rollout.rollout_main import start_rollout
+        from aura.trainer.rollout.rollout_main import start_rollout
     
     def tearDown(self):
         """Clean up test environment"""
@@ -99,8 +99,8 @@ class TestRolloutMain(unittest.TestCase):
         # Clean up global variables
         if 'start_rollout' in globals():
             del globals()['start_rollout']
-    @mock.patch('aura.aura.trainer.rollout.rollout_main.RolloutWorker')
-    @mock.patch('aura.aura.trainer.rollout.rollout_main.logger')
+    @mock.patch('aura.trainer.rollout.rollout_main.RolloutWorker')
+    @mock.patch('aura.trainer.rollout.rollout_main.logger')
     def test_start_rollout(self, mock_logger, mock_rollout_worker):
         # Prepare test data
         mock_cluster_mode = "test_cluster_mode"
@@ -155,8 +155,8 @@ class TestRolloutMain(unittest.TestCase):
         mock_one_step_off_rollouter.return_value = mock_one_step_off_rollouter_instance
         
         # Set the mock
-        import aura.aura.trainer.rollout.rollouter
-        aura.aura.trainer.rollout.rollouter.OneStepOffRollouter = mock_one_step_off_rollouter
+        import aura.trainer.rollout.rollouter
+        aura.trainer.rollout.rollouter.OneStepOffRollouter = mock_one_step_off_rollouter
         
         # Mock RolloutController
         mock_rollout_controller = mock.Mock()
@@ -164,8 +164,8 @@ class TestRolloutMain(unittest.TestCase):
         mock_rollout_controller.return_value = mock_rollout_controller_instance
         
         # Set the mock
-        import aura.aura.controllers.rollout_controller.rollout_controller
-        aura.aura.controllers.rollout_controller.rollout_controller.RolloutController = mock_rollout_controller
+        import aura.controllers.rollout_controller.rollout_controller
+        aura.controllers.rollout_controller.rollout_controller.RolloutController = mock_rollout_controller
         
         # Mock RolloutWorker
         mock_rollout_worker_instance = mock.Mock()

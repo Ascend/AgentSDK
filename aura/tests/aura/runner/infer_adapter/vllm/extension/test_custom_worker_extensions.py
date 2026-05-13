@@ -257,7 +257,7 @@ def _build_fake_modules():
     fake_safetensors.torch = fake_safetensors_torch
 
     fake_stat_mod = types.ModuleType(
-        "aura.aura.runner.infer_adapter.vllm.patch.comm.vllm_execute_stat"
+        "aura.runner.infer_adapter.vllm.patch.comm.vllm_execute_stat"
     )
     fake_stat_obj = MagicMock(name="vllm_output_statics")
     fake_stat_obj.write_stats_tofile = MagicMock()
@@ -282,7 +282,7 @@ def _build_fake_modules():
         "acl.rt": fake_acl_rt,
         "safetensors": fake_safetensors,
         "safetensors.torch": fake_safetensors_torch,
-        "aura.aura.runner.infer_adapter.vllm.patch.comm.vllm_execute_stat": fake_stat_mod,
+        "aura.runner.infer_adapter.vllm.patch.comm.vllm_execute_stat": fake_stat_mod,
         "verl": fake_verl,
         "verl.utils": fake_verl_utils,
         "verl.utils.device": fake_verl_utils_device,
@@ -293,7 +293,7 @@ def _build_fake_modules():
 
 def _import_target_module():
     """Reload and import the target module under test."""
-    mod_name = "aura.aura.runner.infer_adapter.vllm.extension.custom_worker_extensions"
+    mod_name = "aura.runner.infer_adapter.vllm.extension.custom_worker_extensions"
     if mod_name in sys.modules:
         del sys.modules[mod_name]
     return importlib.import_module(mod_name)
@@ -597,7 +597,7 @@ class TestCustomWorkerExtensions(unittest.TestCase):
         obj = self.target_mod.CustomWorkerExtensions()
 
         fake_stat_obj = sys.modules[
-            "aura.aura.runner.infer_adapter.vllm.patch.comm.vllm_execute_stat"
+            "aura.runner.infer_adapter.vllm.patch.comm.vllm_execute_stat"
         ].vllm_output_statics
 
         obj.vllm_statistics()

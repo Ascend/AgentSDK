@@ -80,17 +80,17 @@ with patch.dict('sys.modules', {
     'torch': mock_torch,
     'torch.distributed': mock_torch.distributed,
     'fastapi': mock_fastapi,
-    'aura.aura.base.log.loggers': mock_loggers_module,
-    'aura.aura.base.utils.http_server': mock_http_server_module,
-    'aura.aura.controllers.train_controller.dispatch_actor': mock_dispatch_actor_module,
-    'aura.aura.controllers.train_controller.train_server': mock_train_server_module,
-    'aura.aura.controllers.train_controller.train_weight_updater': mock_weight_updater_module,
-    'aura.aura.controllers.utils.controller_config': mock_controller_config_module,
-    'aura.aura.controllers.utils.http_status': mock_http_status_module,
-    'aura.aura.controllers.utils.utils': mock_utils_module,
+    'aura.base.log.loggers': mock_loggers_module,
+    'aura.base.utils.http_server': mock_http_server_module,
+    'aura.controllers.train_controller.dispatch_actor': mock_dispatch_actor_module,
+    'aura.controllers.train_controller.train_server': mock_train_server_module,
+    'aura.controllers.train_controller.train_weight_updater': mock_weight_updater_module,
+    'aura.controllers.utils.controller_config': mock_controller_config_module,
+    'aura.controllers.utils.http_status': mock_http_status_module,
+    'aura.controllers.utils.utils': mock_utils_module,
 }):
-    from aura.aura.controllers.train_controller.train_controller import TrainController
-    import aura.aura.controllers.train_controller.train_controller as _train_controller_mod
+    from aura.controllers.train_controller.train_controller import TrainController
+    import aura.controllers.train_controller.train_controller as _train_controller_mod
 
 
 class TestTrainController(unittest.TestCase):

@@ -9,7 +9,7 @@
 # -------------------------------------------------------------------------
 
 
-from aura.aura.base.weight_loaders.megatron_weight_loaders import BaseMegatronWeightLoader
+from aura.base.weight_loaders.megatron_weight_loaders import BaseMegatronWeightLoader
 
 
 class VllmMegatronWeightLoaders(BaseMegatronWeightLoader):

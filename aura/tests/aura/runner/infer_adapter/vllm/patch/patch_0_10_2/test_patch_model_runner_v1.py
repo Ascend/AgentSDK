@@ -200,8 +200,8 @@ class TestPatchModelRunnerV1(unittest.TestCase):
             'vllm_ascend.worker.mtp_proposer_v1': cls.mock_vllm_ascend_mtp_proposer,
             'vllm_ascend.worker.eagle_proposer_v1': cls.mock_vllm_ascend_eagle_proposer,
             'vllm_ascend.worker.model_runner_v1': cls.mock_vllm_ascend_model_runner,
-            'aura.aura.runner.infer_adapter.vllm.patch.comm.vllm_execute_stat': cls.mock_vllm_execute_stat,
-            'aura.aura.runner.infer_adapter.vllm.patch.comm.npu_model_profiling': cls.mock_npu_model_profiling,
+            'aura.runner.infer_adapter.vllm.patch.comm.vllm_execute_stat': cls.mock_vllm_execute_stat,
+            'aura.runner.infer_adapter.vllm.patch.comm.npu_model_profiling': cls.mock_npu_model_profiling,
             'datetime': cls.mock_datetime,
         })
         cls.modules_patcher.start()

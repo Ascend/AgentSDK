@@ -134,7 +134,7 @@ class TestHybridTrainMain:
             "verl.utils.config": mock_config,
             "verl.utils.hf_processor": mock_hf_processor,
             "verl.utils.hf_tokenizer": mock_hf_tokenizer,
-            "aura.aura.trainer.train_adapter.verl.hybrid.ray_trainer": MagicMock(
+            "aura.trainer.train_adapter.verl.hybrid.ray_trainer": MagicMock(
                 HybridTrainer=MagicMock(return_value=mock_hybrid_trainer)
             ),
         }
@@ -143,7 +143,7 @@ class TestHybridTrainMain:
         self.module_patcher.start()
 
         # Import the module under test inside patched context
-        import aura.aura.trainer.train_adapter.verl.hybrid.train_main as tm
+        import aura.trainer.train_adapter.verl.hybrid.train_main as tm
         importlib.reload(tm)
 
         self.HybridTaskRunner = tm.HybridTaskRunner

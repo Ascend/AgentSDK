@@ -22,7 +22,7 @@ import os
 import pytest
 from unittest.mock import patch
 
-from aura.aura.base.conf.conf import AgenticRLConf
+from aura.base.conf.conf import AgenticRLConf
 
 
 class TestAgenticRLConf:
@@ -48,7 +48,7 @@ class TestAgenticRLConf:
             del os.environ[AgenticRLConf.CONF_ENV]
 
     @pytest.mark.parametrize("conf_input", [None, ""])
-    @patch('aura.aura.base.conf.conf.logger')
+    @patch('aura.base.conf.conf.logger')
     def test_load_config_with_empty_inputs(self, mock_logger, conf_input):
         """
         Test with None input and empty string input.
@@ -61,7 +61,7 @@ class TestAgenticRLConf:
         assert dict(conf) == {}
         mock_logger.warning.assert_called_once()
 
-    @patch('aura.aura.base.conf.conf.logger')
+    @patch('aura.base.conf.conf.logger')
     def test_load_config_with_valid_conf_string(self, mock_logger):
         """
         Test with valid configuration string that includes both whitelisted and non-whitelisted keys.
@@ -95,7 +95,7 @@ class TestAgenticRLConf:
         assert conf.serve_conf.port == 8080
         mock_logger.debug.assert_called_once()
 
-    @patch('aura.aura.base.conf.conf.logger')
+    @patch('aura.base.conf.conf.logger')
     def test_load_config_with_all_whitelisted_keys(self, mock_logger):
         """
         Test with all whitelisted keys included in the configuration.
@@ -113,7 +113,7 @@ class TestAgenticRLConf:
         assert set(conf.keys()) == AgenticRLConf.WHITELIST_KEYS
         mock_logger.debug.assert_called_once()
 
-    @patch('aura.aura.base.conf.conf.logger')
+    @patch('aura.base.conf.conf.logger')
     def test_load_config_with_env_variable(self, mock_logger):
         """
         Test loading configuration from environment variable.
@@ -129,7 +129,7 @@ class TestAgenticRLConf:
         assert conf.agentic_ai.model == "env_model"
         mock_logger.debug.assert_called_once()
 
-    @patch('aura.aura.base.conf.conf.logger')
+    @patch('aura.base.conf.conf.logger')
     def test_load_config_with_nested_configurations(self, mock_logger):
         """
         Test with deeply nested configurations to ensure dot notation works at all levels.

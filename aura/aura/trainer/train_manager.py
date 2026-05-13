@@ -17,9 +17,9 @@
 import ray
 from omegaconf import OmegaConf
 
-from aura.aura.base.execution.executor_manager import ExecutorManager
-from aura.aura.base.log.loggers import Loggers
-from aura.aura.trainer.train_executor import TrainExecutor
+from aura.base.execution.executor_manager import ExecutorManager
+from aura.base.log.loggers import Loggers
+from aura.trainer.train_executor import TrainExecutor
 
 logger = Loggers(__name__).get_logger()
 
@@ -39,7 +39,7 @@ class TrainManager(ExecutorManager):
         """
         try:
             # Lazy import to avoid circular dependency at module level
-            from aura.aura.base.conf.conf import AgenticRLConf
+            from aura.base.conf.conf import AgenticRLConf
 
             conf = AgenticRLConf.load_config()
             for instance_conf in conf.train_instances:

@@ -48,7 +48,7 @@ from verl.utils.debug import marked_timer
 from verl.utils.metric import reduce_metrics
 from verl.utils.rollout_skip import RolloutSkip
 
-from aura.aura.base.log.loggers import Loggers
+from aura.base.log.loggers import Loggers
 
 class HybridTrainer(RayPPOTrainer):
     """PPO trainer extended with hybrid agent-loop rollout and precision-aware batch handling."""

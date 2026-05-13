@@ -18,8 +18,8 @@
 # -------------------------------------------------------------------------
 
 
-from aura.aura.base.execution.executor import public_api, Executor
-from aura.aura.base.log.loggers import Loggers
+from aura.base.execution.executor import public_api, Executor
+from aura.base.log.loggers import Loggers
 
 logger = Loggers(__name__).get_logger()
 
@@ -29,16 +29,16 @@ class InferExecutor(Executor):
         super().__init__(*args, **kwargs)
 
         if engine == "vllm_ray":
-            from aura.aura.runner.infer_service.infer_server.vllm_ray_infer_server import VLLMRayInferServer
+            from aura.runner.infer_service.infer_server.vllm_ray_infer_server import VLLMRayInferServer
             self.engine = VLLMRayInferServer(**engine_kwargs)
         elif engine == "vllm_mp":
-            from aura.aura.runner.infer_service.infer_server.vllm_mp_infer_server import VLLMMPInferServer
+            from aura.runner.infer_service.infer_server.vllm_mp_infer_server import VLLMMPInferServer
             self.engine = VLLMMPInferServer(**engine_kwargs)
         elif engine == "vllm_external":
-            from aura.aura.runner.infer_service.infer_server.vllm_external_infer_server import VLLMExternalInferServer
+            from aura.runner.infer_service.infer_server.vllm_external_infer_server import VLLMExternalInferServer
             self.engine = VLLMExternalInferServer(**engine_kwargs)
         elif engine == "vllm_proxy":
-            from aura.aura.runner.infer_service.infer_server.vllm_proxy_infer_server import VLLMProxyInferServer
+            from aura.runner.infer_service.infer_server.vllm_proxy_infer_server import VLLMProxyInferServer
             self.engine = VLLMProxyInferServer(**engine_kwargs)
         else:
             raise ValueError(f"{engine} is not supported.")

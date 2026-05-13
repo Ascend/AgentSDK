@@ -25,10 +25,10 @@ from mindspeed_rl.utils.pad_process import (
     remove_padding_and_split_to_list
 )
 
-from aura.aura.base.log.loggers import Loggers
-from aura.aura.trainer.rollout.rollout_worker import RolloutWorker
-from aura.aura.trainer.train_adapter.mindspeed_rl.hybrid_policy.hybrid_trainer import AgentGRPOTrainer
-from aura.aura.trainer.train_adapter.mindspeed_rl.utils.prepare_train import prepare_train
+from aura.base.log.loggers import Loggers
+from aura.trainer.rollout.rollout_worker import RolloutWorker
+from aura.trainer.train_adapter.mindspeed_rl.hybrid_policy.hybrid_trainer import AgentGRPOTrainer
+from aura.trainer.train_adapter.mindspeed_rl.utils.prepare_train import prepare_train
 
 logger = Loggers(__name__).get_logger()
 

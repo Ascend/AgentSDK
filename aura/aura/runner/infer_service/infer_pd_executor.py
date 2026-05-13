@@ -27,9 +27,9 @@ import ray
 from ray.util.scheduling_strategies import NodeAffinitySchedulingStrategy
 
 # Internal imports
-from aura.aura.base.execution.executor import public_api, Executor 
-from aura.aura.base.log.loggers import Loggers
-from aura.aura.runner.infer_service.infer_executor import InferExecutor
+from aura.base.execution.executor import public_api, Executor 
+from aura.base.log.loggers import Loggers
+from aura.runner.infer_service.infer_executor import InferExecutor
 
 logger = Loggers(__name__).get_logger()
 
@@ -187,7 +187,7 @@ class InferPDSepExecutor(Executor):
     # Resource allocation, kept for now
     # allocate resources for P/D instances
     def alloc_resources(self):
-        from aura.aura.base.conf.conf import AgenticRLConf
+        from aura.base.conf.conf import AgenticRLConf
         conf = AgenticRLConf.load_config()
         num_npus_per_node = 8 if os.getenv("ASCEND_PLATFORM", "A2") == "A2" else 16
         node_info = self.get_node_info()

@@ -25,8 +25,8 @@ import asyncio
 from typing import Dict, AsyncGenerator, List, Optional
 
 # Internal imports
-from aura.aura.base.log.loggers import Loggers
-from aura.aura.runner.scheduler.req_scheduler import SchedulerFactory
+from aura.base.log.loggers import Loggers
+from aura.runner.scheduler.req_scheduler import SchedulerFactory
 
 logger = Loggers(__name__).get_logger()
 
@@ -46,7 +46,7 @@ class InferRouter:
     @classmethod
     async def create(cls) -> "InferRouter":
         if cls._router is None:
-            from aura.aura.runner.infer_manager import get_or_create_infer_manager
+            from aura.runner.infer_manager import get_or_create_infer_manager
             infer_manager = await get_or_create_infer_manager()
             cls._router = InferRouter(infer_manager)
         return cls._router

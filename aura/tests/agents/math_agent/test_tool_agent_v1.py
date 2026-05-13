@@ -77,13 +77,13 @@ def mock_dependencies(mock_ray_dependencies, mock_aura_dependencies, mock_rllm_d
     mock_multi_tool.json = [{"type": "function", "function": {"name": "test_tool"}}]
 
     with (
-        patch("aura.aura.runner.agent_engine_wrapper.base.agent.base_agent.Trajectory", MockTrajectory),
-        patch("aura.aura.runner.agent_engine_wrapper.base.agent.base_agent.Step", MockStep),
-        patch("aura.aura.runner.agent_engine_wrapper.base.agent.base_agent.Action", MockAction),
-        patch("aura.aura.runner.agent_engine_wrapper.base.agent.base_agent.BaseAgent", object),
-        patch("aura.agents.math_agent.tool_agent.MultiTool") as mock_multi_tool_cls,
-        patch("aura.agents.math_agent.tool_agent.get_tool_parser") as mock_get_parser,
-        patch("aura.agents.math_agent.tool_agent.TOOL_SYSTEM_PROMPT", "default prompt"),
+        patch("aura.runner.agent_engine_wrapper.base.agent.base_agent.Trajectory", MockTrajectory),
+        patch("aura.runner.agent_engine_wrapper.base.agent.base_agent.Step", MockStep),
+        patch("aura.runner.agent_engine_wrapper.base.agent.base_agent.Action", MockAction),
+        patch("aura.runner.agent_engine_wrapper.base.agent.base_agent.BaseAgent", object),
+        patch("agents.math_agent.tool_agent.MultiTool") as mock_multi_tool_cls,
+        patch("agents.math_agent.tool_agent.get_tool_parser") as mock_get_parser,
+        patch("agents.math_agent.tool_agent.TOOL_SYSTEM_PROMPT", "default prompt"),
     ):
         mock_multi_tool_cls.return_value = mock_multi_tool
         mock_get_parser.return_value = lambda: mock_tool_parser
@@ -99,7 +99,7 @@ class TestToolAgent:
 
     def test_init_with_tools(self, mock_dependencies):
         """Test ToolAgent initialization with tools list."""
-        from aura.agents.math_agent.tool_agent import ToolAgent
+        from agents.math_agent.tool_agent import ToolAgent
         
         agent = ToolAgent.__new__(ToolAgent)
         agent.system_prompt = "test prompt"
@@ -114,7 +114,7 @@ class TestToolAgent:
 
     def test_init_with_tool_map(self, mock_dependencies):
         """Test ToolAgent initialization with tool_map."""
-        from aura.agents.math_agent.tool_agent import ToolAgent
+        from agents.math_agent.tool_agent import ToolAgent
         
         agent = ToolAgent.__new__(ToolAgent)
         agent.system_prompt = "test prompt"
@@ -128,7 +128,7 @@ class TestToolAgent:
 
     def test_reset(self, mock_dependencies):
         """Test ToolAgent reset method."""
-        from aura.agents.math_agent.tool_agent import ToolAgent
+        from agents.math_agent.tool_agent import ToolAgent
         
         agent = ToolAgent.__new__(ToolAgent)
         agent.system_prompt = "test prompt"
@@ -145,7 +145,7 @@ class TestToolAgent:
 
     def test_chat_completions_property(self, mock_dependencies):
         """Test chat_completions property returns messages."""
-        from aura.agents.math_agent.tool_agent import ToolAgent
+        from agents.math_agent.tool_agent import ToolAgent
         
         agent = ToolAgent.__new__(ToolAgent)
         agent.messages = [
@@ -160,7 +160,7 @@ class TestToolAgent:
 
     def test_trajectory_property(self, mock_dependencies):
         """Test trajectory property returns trajectory."""
-        from aura.agents.math_agent.tool_agent import ToolAgent
+        from agents.math_agent.tool_agent import ToolAgent
         
         agent = ToolAgent.__new__(ToolAgent)
         agent._trajectory = MockTrajectory()
@@ -172,7 +172,7 @@ class TestToolAgent:
 
     def test_format_observation_as_messages_dict_with_task(self, mock_dependencies):
         """Test _format_observation_as_messages with dict containing task."""
-        from aura.agents.math_agent.tool_agent import ToolAgent
+        from agents.math_agent.tool_agent import ToolAgent
         
         agent = ToolAgent.__new__(ToolAgent)
         obs = {"task": {"problem": "test problem"}}
@@ -185,7 +185,7 @@ class TestToolAgent:
 
     def test_format_observation_as_messages_dict_with_question(self, mock_dependencies):
         """Test _format_observation_as_messages with dict containing question."""
-        from aura.agents.math_agent.tool_agent import ToolAgent
+        from agents.math_agent.tool_agent import ToolAgent
         
         agent = ToolAgent.__new__(ToolAgent)
         obs = {"task": {"question": "test question"}}
@@ -198,7 +198,7 @@ class TestToolAgent:
 
     def test_format_observation_as_messages_dict_with_problem(self, mock_dependencies):
         """Test _format_observation_as_messages with dict containing problem."""
-        from aura.agents.math_agent.tool_agent import ToolAgent
+        from agents.math_agent.tool_agent import ToolAgent
         
         agent = ToolAgent.__new__(ToolAgent)
         obs = {"problem": "direct problem"}
@@ -211,7 +211,7 @@ class TestToolAgent:
 
     def test_format_observation_as_messages_dict_with_tool_outputs(self, mock_dependencies):
         """Test _format_observation_as_messages with tool outputs."""
-        from aura.agents.math_agent.tool_agent import ToolAgent
+        from agents.math_agent.tool_agent import ToolAgent
         
         agent = ToolAgent.__new__(ToolAgent)
         obs = {"tool_outputs": {"call_1": "result 1", "call_2": "result 2"}}
@@ -224,7 +224,7 @@ class TestToolAgent:
 
     def test_format_observation_as_messages_string(self, mock_dependencies):
         """Test _format_observation_as_messages with string."""
-        from aura.agents.math_agent.tool_agent import ToolAgent
+        from agents.math_agent.tool_agent import ToolAgent
         
         agent = ToolAgent.__new__(ToolAgent)
         obs = "simple string observation"
@@ -237,7 +237,7 @@ class TestToolAgent:
 
     def test_update_from_env(self, mock_dependencies):
         """Test update_from_env method."""
-        from aura.agents.math_agent.tool_agent import ToolAgent
+        from agents.math_agent.tool_agent import ToolAgent
         
         agent = ToolAgent.__new__(ToolAgent)
         agent.messages = [{"role": "system", "content": "system"}]
@@ -251,7 +251,7 @@ class TestToolAgent:
 
     def test_update_from_model_with_tool_calls(self, mock_dependencies):
         """Test update_from_model with tool calls in response."""
-        from aura.agents.math_agent.tool_agent import ToolAgent
+        from agents.math_agent.tool_agent import ToolAgent
         
         mock_tool_call = MockToolCall(name="python", arguments={"code": "print(1)"})
         mock_dependencies["tool_parser"].parse.return_value = [mock_tool_call]
@@ -271,7 +271,7 @@ class TestToolAgent:
 
     def test_update_from_model_without_tool_calls(self, mock_dependencies):
         """Test update_from_model without tool calls."""
-        from aura.agents.math_agent.tool_agent import ToolAgent
+        from agents.math_agent.tool_agent import ToolAgent
         
         mock_dependencies["tool_parser"].parse.return_value = []
         
@@ -289,7 +289,7 @@ class TestToolAgent:
 
     def test_init_with_both_tools_and_tool_map_raises_error(self, mock_dependencies):
         """Test that providing both tools and tool_map raises ValueError."""
-        from aura.agents.math_agent.tool_agent import ToolAgent
+        from agents.math_agent.tool_agent import ToolAgent
         
         with pytest.raises(ValueError, match="Cannot specify both 'tools' and 'tool_map' parameters"):
             agent = ToolAgent(
@@ -301,7 +301,7 @@ class TestToolAgent:
 
     def test_init_with_neither_tools_nor_tool_map(self, mock_dependencies):
         """Test initialization with neither tools nor tool_map."""
-        from aura.agents.math_agent.tool_agent import ToolAgent
+        from agents.math_agent.tool_agent import ToolAgent
         
         agent = ToolAgent(
             system_prompt="test",
@@ -314,7 +314,7 @@ class TestToolAgent:
 
     def test_format_observation_as_messages_empty_observation(self, mock_dependencies):
         """Test _format_observation_as_messages with empty observation."""
-        from aura.agents.math_agent.tool_agent import ToolAgent
+        from agents.math_agent.tool_agent import ToolAgent
         
         agent = ToolAgent.__new__(ToolAgent)
         
@@ -329,7 +329,7 @@ class TestToolAgent:
 
     def test_format_observation_as_messages_other_type(self, mock_dependencies):
         """Test _format_observation_as_messages with other object types."""
-        from aura.agents.math_agent.tool_agent import ToolAgent
+        from agents.math_agent.tool_agent import ToolAgent
         
         agent = ToolAgent.__new__(ToolAgent)
         
@@ -346,7 +346,7 @@ class TestToolAgent:
 
     def test_update_from_env_with_tool_outputs_observation(self, mock_dependencies):
         """Test update_from_env with tool outputs in observation."""
-        from aura.agents.math_agent.tool_agent import ToolAgent
+        from agents.math_agent.tool_agent import ToolAgent
         
         agent = ToolAgent.__new__(ToolAgent)
         agent.messages = [{"role": "system", "content": "system"}]
@@ -368,7 +368,7 @@ class TestToolAgent:
 
     def test_update_from_model_with_parse_exception(self, mock_dependencies):
         """Test update_from_model when parser raises exception."""
-        from aura.agents.math_agent.tool_agent import ToolAgent
+        from agents.math_agent.tool_agent import ToolAgent
         
         mock_dependencies["tool_parser"].parse.side_effect = Exception("Parse error")
         
@@ -389,7 +389,7 @@ class TestToolAgent:
 
     def test_update_from_model_with_tool_calls_dict_arguments(self, mock_dependencies):
         """Test update_from_model with tool calls that have dict arguments."""
-        from aura.agents.math_agent.tool_agent import ToolAgent
+        from agents.math_agent.tool_agent import ToolAgent
         
         mock_tool_call = MockToolCall(
             name="calculator",
@@ -412,7 +412,7 @@ class TestToolAgent:
 
     def test_update_from_model_preserves_existing_string_arguments(self, mock_dependencies):
         """Test update_from_model doesn't modify already string arguments."""
-        from aura.agents.math_agent.tool_agent import ToolAgent
+        from agents.math_agent.tool_agent import ToolAgent
         
         # Create a mock tool call with string arguments
         mock_tool_call = MockToolCall(
@@ -435,7 +435,7 @@ class TestToolAgent:
 
     def test_reset_clears_all_state(self, mock_dependencies):
         """Test reset completely clears agent state."""
-        from aura.agents.math_agent.tool_agent import ToolAgent
+        from agents.math_agent.tool_agent import ToolAgent
         
         agent = ToolAgent.__new__(ToolAgent)
         agent.system_prompt = "test prompt"
@@ -459,7 +459,7 @@ class TestToolAgent:
 
     def test_multiple_update_from_env_calls(self, mock_dependencies):
         """Test multiple sequential update_from_env calls."""
-        from aura.agents.math_agent.tool_agent import ToolAgent
+        from agents.math_agent.tool_agent import ToolAgent
         
         agent = ToolAgent.__new__(ToolAgent)
         agent.messages = [{"role": "system", "content": "system"}]
@@ -477,7 +477,7 @@ class TestToolAgent:
 
     def test_trajectory_stores_correct_step_info(self, mock_dependencies):
         """Test that trajectory stores correct step information."""
-        from aura.agents.math_agent.tool_agent import ToolAgent
+        from agents.math_agent.tool_agent import ToolAgent
         
         mock_tool_call = MockToolCall(name="python", arguments={"code": "print(1)"})
         mock_dependencies["tool_parser"].parse.return_value = [mock_tool_call]
@@ -503,7 +503,7 @@ class TestMCPToolAgent:
 
     def test_mcp_tool_agent_init(self, mock_dependencies):
         """Test MCPToolAgent initialization."""
-        from aura.agents.math_agent.tool_agent import MCPToolAgent
+        from agents.math_agent.tool_agent import MCPToolAgent
         
         mock_mcp_tool = MagicMock()
         mock_mcp_tool.json = {"type": "function", "function": {"name": "mcp_tool"}}
@@ -521,7 +521,7 @@ class TestMCPToolAgent:
     
     def test_mcp_tool_agent_reset(self, mock_dependencies):
         """Test MCPToolAgent reset method."""
-        from aura.agents.math_agent.tool_agent import MCPToolAgent
+        from agents.math_agent.tool_agent import MCPToolAgent
         
         mock_mcp_tool = MagicMock()
         mock_mcp_tool.json = {"type": "function", "function": {"name": "mcp_tool"}}
@@ -543,7 +543,7 @@ class TestMCPToolAgent:
 
     def test_mcp_tool_agent_chat_completions(self, mock_dependencies):
         """Test MCPToolAgent chat_completions property."""
-        from aura.agents.math_agent.tool_agent import MCPToolAgent
+        from agents.math_agent.tool_agent import MCPToolAgent
         
         agent = MCPToolAgent.__new__(MCPToolAgent)
         agent.messages = [
@@ -556,7 +556,7 @@ class TestMCPToolAgent:
 
     def test_mcp_tool_agent_trajectory(self, mock_dependencies):
         """Test MCPToolAgent trajectory property."""
-        from aura.agents.math_agent.tool_agent import MCPToolAgent
+        from agents.math_agent.tool_agent import MCPToolAgent
         
         agent = MCPToolAgent.__new__(MCPToolAgent)
         agent._trajectory = MockTrajectory()
@@ -567,7 +567,7 @@ class TestMCPToolAgent:
 
     def test_mcp_tool_agent_update_from_env(self, mock_dependencies):
         """Test MCPToolAgent update_from_env method."""
-        from aura.agents.math_agent.tool_agent import MCPToolAgent
+        from agents.math_agent.tool_agent import MCPToolAgent
         
         agent = MCPToolAgent.__new__(MCPToolAgent)
         agent.messages = [{"role": "system", "content": "system"}]
@@ -585,7 +585,7 @@ class TestToolAgentIntegration:
     
     def test_full_conversation_flow(self, mock_dependencies):
         """Test complete conversation flow with multiple turns."""
-        from aura.agents.math_agent.tool_agent import ToolAgent
+        from agents.math_agent.tool_agent import ToolAgent
         
         # Setup agent
         agent = ToolAgent.__new__(ToolAgent)
@@ -617,7 +617,7 @@ class TestToolAgentIntegration:
         
     def test_error_recovery_in_conversation(self, mock_dependencies):
         """Test agent recovery from parsing errors."""
-        from aura.agents.math_agent.tool_agent import ToolAgent
+        from agents.math_agent.tool_agent import ToolAgent
         
         agent = ToolAgent.__new__(ToolAgent)
         agent.system_prompt = "You are a helpful assistant"

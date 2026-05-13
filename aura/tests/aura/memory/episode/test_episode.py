@@ -87,7 +87,7 @@ class MockTrajectory:
 def mock_dependencies(mock_ray, mock_requests, mock_aiohttp, mock_pydantic, mock_torch, mock_fastapi, mock_sse_starlette):
     """Mock all external dependencies for episode tests."""
     with (
-        patch("aura.aura.memory.episode.episode.Trajectory", MockTrajectory),
+        patch("aura.memory.episode.episode.Trajectory", MockTrajectory),
     ):
         yield {}
 
@@ -97,7 +97,7 @@ class TestTerminationReason:
 
     def test_termination_reason_values(self, mock_dependencies):
         """Test that TerminationReason enum has expected values."""
-        from aura.aura.memory.episode.episode import TerminationReason
+        from aura.memory.episode.episode import TerminationReason
         
         assert TerminationReason.MAX_PROMPT_LENGTH_EXCEEDED.value == "max_prompt_length_exceeded"
         assert TerminationReason.MAX_RESPONSE_LENGTH_EXCEEDED.value == "max_response_length_exceeded"
@@ -107,7 +107,7 @@ class TestTerminationReason:
 
     def test_termination_reason_enum_count(self, mock_dependencies):
         """Test that TerminationReason has correct number of values."""
-        from aura.aura.memory.episode.episode import TerminationReason
+        from aura.memory.episode.episode import TerminationReason
         
         assert len(list(TerminationReason)) == 5
 
@@ -117,7 +117,7 @@ class TestEpisode:
 
     def test_episode_initialization(self, mock_dependencies):
         """Test Episode initialization with default values."""
-        from aura.aura.memory.episode.episode import Episode
+        from aura.memory.episode.episode import Episode
         
         episode = Episode(episode_id="test-episode-123")
         
@@ -128,7 +128,7 @@ class TestEpisode:
 
     def test_episode_initialization_without_id(self, mock_dependencies):
         """Test Episode initialization without episode_id."""
-        from aura.aura.memory.episode.episode import Episode
+        from aura.memory.episode.episode import Episode
         
         episode = Episode()
         
@@ -139,7 +139,7 @@ class TestEpisode:
 
     def test_set_task(self, mock_dependencies):
         """Test setting task for an episode."""
-        from aura.aura.memory.episode.episode import Episode
+        from aura.memory.episode.episode import Episode
         
         episode = Episode(episode_id="test-episode-456")
         task = {"problem": "solve x + 1 = 2", "ground_truth": "x = 1"}
@@ -150,7 +150,7 @@ class TestEpisode:
 
     def test_set_termination_reason(self, mock_dependencies):
         """Test setting termination reason for an episode."""
-        from aura.aura.memory.episode.episode import Episode, TerminationReason
+        from aura.memory.episode.episode import Episode, TerminationReason
         
         episode = Episode(episode_id="test-episode-789")
         
@@ -160,7 +160,7 @@ class TestEpisode:
 
     def test_add_trajectory(self, mock_dependencies):
         """Test adding a trajectory to an episode."""
-        from aura.aura.memory.episode.episode import Episode
+        from aura.memory.episode.episode import Episode
         
         episode = Episode(episode_id="test-episode-101")
         trajectory = MockTrajectory(task="test task")
@@ -172,7 +172,7 @@ class TestEpisode:
 
     def test_add_multiple_trajectories(self, mock_dependencies):
         """Test adding multiple trajectories to an episode."""
-        from aura.aura.memory.episode.episode import Episode
+        from aura.memory.episode.episode import Episode
         
         episode = Episode(episode_id="test-episode-102")
         trajectory1 = MockTrajectory(task="task 1")
@@ -190,7 +190,7 @@ class TestEpisode:
 
     def test_get_trajectory_by_agent_name(self, mock_dependencies):
         """Test retrieving trajectories by agent name."""
-        from aura.aura.memory.episode.episode import Episode
+        from aura.memory.episode.episode import Episode
         
         episode = Episode(episode_id="test-episode-103")
         trajectory1 = MockTrajectory(task="task 1")
@@ -214,7 +214,7 @@ class TestEpisode:
 
     def test_remove_trajectory_by_agent_name(self, mock_dependencies):
         """Test removing trajectories by agent name."""
-        from aura.aura.memory.episode.episode import Episode
+        from aura.memory.episode.episode import Episode
         
         episode = Episode(episode_id="test-episode-104")
         trajectory1 = MockTrajectory(task="task 1")
@@ -232,7 +232,7 @@ class TestEpisode:
 
     def test_remove_trajectory_nonexistent_agent(self, mock_dependencies):
         """Test removing trajectories for non-existent agent."""
-        from aura.aura.memory.episode.episode import Episode
+        from aura.memory.episode.episode import Episode
         
         episode = Episode(episode_id="test-episode-105")
         trajectory1 = MockTrajectory(task="task 1")
@@ -245,7 +245,7 @@ class TestEpisode:
 
     def test_to_dict(self, mock_dependencies):
         """Test converting episode to dictionary."""
-        from aura.aura.memory.episode.episode import Episode, TerminationReason
+        from aura.memory.episode.episode import Episode, TerminationReason
         
         episode = Episode(episode_id="test-episode-106")
         episode.set_task({"problem": "test problem"})
@@ -265,7 +265,7 @@ class TestEpisode:
 
     def test_to_dict_empty_episode(self, mock_dependencies):
         """Test converting empty episode to dictionary."""
-        from aura.aura.memory.episode.episode import Episode
+        from aura.memory.episode.episode import Episode
         
         episode = Episode(episode_id="test-episode-107")
         result = episode.to_dict()
@@ -277,7 +277,7 @@ class TestEpisode:
 
     def test_episode_with_complex_task(self, mock_dependencies):
         """Test episode with complex task structure."""
-        from aura.aura.memory.episode.episode import Episode
+        from aura.memory.episode.episode import Episode
         
         episode = Episode(episode_id="test-episode-108")
         complex_task = {
@@ -297,7 +297,7 @@ class TestEpisode:
 
     def test_episode_with_multiple_termination_reasons(self, mock_dependencies):
         """Test setting different termination reasons."""
-        from aura.aura.memory.episode.episode import Episode, TerminationReason
+        from aura.memory.episode.episode import Episode, TerminationReason
         
         episode = Episode(episode_id="test-episode-109")
         

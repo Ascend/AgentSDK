@@ -15,8 +15,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # -------------------------------------------------------------------------
-from aura.agents.math_agent.parser.tool_parser.qwen_tool_parser import QwenToolParser
-from aura.agents.math_agent.parser.tool_parser.r1_tool_parser import R1ToolParser
+from agents.math_agent.parser.tool_parser.qwen_tool_parser import QwenToolParser
+from agents.math_agent.parser.tool_parser.r1_tool_parser import R1ToolParser
 from rllm.parser.tool_parser.tool_parser_base import ToolParser
 
 PARSER_REGISTRY = {

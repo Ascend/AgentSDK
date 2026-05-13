@@ -30,7 +30,7 @@ mock_torch = MagicMock()
 with patch.dict('sys.modules', {
     'torch': mock_torch,
 }):
-    from aura.aura.data_manager.field_mapper import FieldMapper
+    from aura.data_manager.field_mapper import FieldMapper
 
 
 class TestConvertBatch(unittest.TestCase):

@@ -23,8 +23,8 @@ from vllm.v1.metrics.stats import IterationStats, SchedulerStats
 from vllm.v1.spec_decode.metrics import SpecDecodingLogging, SpecDecodingProm
 
 # Internal imports
-from aura.aura.base.log.loggers import Loggers
-from aura.aura.runner.scheduler.workload import InstanceWorkLoad
+from aura.base.log.loggers import Loggers
+from aura.runner.scheduler.workload import InstanceWorkLoad
 
 logger = Loggers(__name__).get_logger()
 

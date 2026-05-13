@@ -25,7 +25,7 @@ from unittest import mock
 # Add the project root to sys.path to ensure imports work correctly
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../..')))
 
-from aura.aura.base.misc.misc import (
+from aura.base.misc.misc import (
     colorful_print,
     colorful_warning,
     get_image,
@@ -479,7 +479,7 @@ class TestAppStats(unittest.TestCase):
         req_id = AppStats.get_request_id("test_app_id", 5)
         self.assertEqual(req_id, "cmpl-test_app_id--5-0")
 
-    @mock.patch('aura.aura.base.misc.misc.AppStats.enabled', True)
+    @mock.patch('aura.base.misc.misc.AppStats.enabled', True)
     def test_stat_route(self):
         """Test AppStats.stat_route method."""
         app_stats = AppStats()
@@ -495,7 +495,7 @@ class TestAppStats(unittest.TestCase):
         self.assertIn("127.0.0.1:8001", app_stats.dp_stats)
         self.assertIn("cmpl-test_req_id_2-0", app_stats.dp_stats["127.0.0.1:8001"].reqs)
 
-    @mock.patch('aura.aura.base.misc.misc.AppStats.enabled', True)
+    @mock.patch('aura.base.misc.misc.AppStats.enabled', True)
     def test_stat_vllm_step(self):
         """Test AppStats.stat_vllm_step method."""
         app_stats = AppStats()
@@ -508,7 +508,7 @@ class TestAppStats(unittest.TestCase):
         app_stats.stat_vllm_step("test_app_id", 6, 3.0, 5.0)
         self.assertIn("cmpl-test_app_id--6-0", app_stats.appid_stats["test_app_id"].req_stats)
 
-    @mock.patch('aura.aura.base.misc.misc.AppStats.enabled', True)
+    @mock.patch('aura.base.misc.misc.AppStats.enabled', True)
     def test_stat_env_step(self):
         """Test AppStats.stat_env_step method."""
         app_stats = AppStats()
@@ -521,7 +521,7 @@ class TestAppStats(unittest.TestCase):
         app_stats.stat_env_step("test_app_id_2", 1, 0.0, 1.0, "success")
         self.assertIn("test_app_id_2", app_stats.appid_stats)
 
-    @mock.patch('aura.aura.base.misc.misc.AppStats.enabled', True)
+    @mock.patch('aura.base.misc.misc.AppStats.enabled', True)
     def test_stat_env_state(self):
         """Test AppStats.stat_env_state method."""
         app_stats = AppStats()
@@ -535,7 +535,7 @@ class TestAppStats(unittest.TestCase):
         req_stat = app_stats.appid_stats["test_app_id"].req_stats["cmpl-test_app_id--5-0"]
         self.assertEqual(req_stat.terminal_reason, "timeout")
 
-    @mock.patch('aura.aura.base.misc.misc.AppStats.enabled', True)
+    @mock.patch('aura.base.misc.misc.AppStats.enabled', True)
     def test_stat_trajectory(self):
         """Test AppStats.stat_trajectory method."""
         app_stats = AppStats()
@@ -548,7 +548,7 @@ class TestAppStats(unittest.TestCase):
         app_stats.stat_trajectory("test_app_id", "updated_trajectory_id")
         self.assertEqual(app_stats.appid_stats["test_app_id"].trajectory_id, "updated_trajectory_id")
     
-    @mock.patch('aura.aura.base.misc.misc.AppStats.enabled', False)
+    @mock.patch('aura.base.misc.misc.AppStats.enabled', False)
     def test_disabled_stats(self):
         """Test that no stats are collected when AppStats.enabled is False."""
         app_stats = AppStats()
@@ -571,7 +571,7 @@ class TestAppStats(unittest.TestCase):
         self.assertEqual(app_stats.appid_stats, {})
         self.assertEqual(app_stats.dp_stats, {})
 
-    @mock.patch('aura.aura.base.misc.misc.AppStats.enabled', True)
+    @mock.patch('aura.base.misc.misc.AppStats.enabled', True)
     @mock.patch('os.makedirs')
     @mock.patch('builtins.open', new_callable=mock.mock_open)
     @mock.patch('json.dumps')
@@ -602,7 +602,7 @@ class TestAppStats(unittest.TestCase):
             self.assertEqual(app_stats.appid_stats, {})
             self.assertEqual(app_stats.dp_stats, {})
     
-    @mock.patch('aura.aura.base.misc.misc.AppStats.enabled', True)
+    @mock.patch('aura.base.misc.misc.AppStats.enabled', True)
     @mock.patch('os.makedirs')
     @mock.patch('builtins.open', new_callable=mock.mock_open)
     @mock.patch('json.dumps')
@@ -630,7 +630,7 @@ class TestAppStats(unittest.TestCase):
             self.assertEqual(app_stats.appid_stats, {})
             self.assertEqual(app_stats.dp_stats, {})
     
-    @mock.patch('aura.aura.base.misc.misc.AppStats.enabled', False)
+    @mock.patch('aura.base.misc.misc.AppStats.enabled', False)
     @mock.patch('os.makedirs')
     @mock.patch('builtins.open', new_callable=mock.mock_open)
     def test_print_disabled(self, mock_open, mock_makedirs):
@@ -650,7 +650,7 @@ class TestAppStats(unittest.TestCase):
     def test_enabled_env_variable(self):
         """Test AppStats.enabled property with environment variable."""
         import importlib
-        from aura.aura.base.misc import misc
+        from aura.base.misc import misc
         
         # Test with GTS_STATS_ENABLE=0
         os.environ['GTS_STATS_ENABLE'] = "0"
@@ -683,9 +683,9 @@ class TestAppStatsGlobalInstance(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures."""
         # Import the module once and keep a reference
-        import aura.aura.base.misc.misc
+        import aura.base.misc.misc
         import importlib
-        self.misc_module = aura.aura.base.misc.misc
+        self.misc_module = aura.base.misc.misc
         # Reload to ensure clean state
         importlib.reload(self.misc_module)
         # Save original instance

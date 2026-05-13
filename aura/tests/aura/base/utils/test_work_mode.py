@@ -19,7 +19,7 @@
 import os
 import pytest
 
-from aura.aura.base.utils.work_mode import set_work_mode, get_work_mode
+from aura.base.utils.work_mode import set_work_mode, get_work_mode
 
 
 class TestSetWorkMode:

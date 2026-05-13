@@ -24,8 +24,8 @@ from threading import Lock
 import ray
 from transformers import AutoConfig
 
-from aura.aura.base.log.loggers import Loggers
-from aura.aura.base.utils.globals import ROLLOUT_WEIGHTS_PREFIX
+from aura.base.log.loggers import Loggers
+from aura.base.utils.globals import ROLLOUT_WEIGHTS_PREFIX
 
 MAX_RETAIN_WEIGHTS_VERSION = 2
 PATH_ITER_PATTERN = r"iter_(\d+)"

@@ -86,6 +86,7 @@ function run_test() {
   export LD_PRELOAD=$LD_PRELOAD:/opt/buildtools/python-3.11.4/lib/python3.11/site-packages/sklearn/utils/../../scikit_learn.libs/libgomp-947d5fa1.so.1.0.0
 #  export PYTHONPATH=$PYTHONPATH:$ALL_THIRD_PYTHONPATH
 
+  cd aura
   echo ""
   echo "[INFO] >>>>>>>>>>> start running tests >>>>>>>>>>>"
   python3 -m pytest \
@@ -97,7 +98,7 @@ function run_test() {
     --html=script/coverage/final.html \
     --self-contained-html \
     --cov-branch \
-    -vs aura/tests/
+    -vs tests/
   echo "[INFO] >>>>>>>>>>> finish running tests >>>>>>>>>>>"
   echo ""
 

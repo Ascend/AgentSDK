@@ -19,7 +19,7 @@ import gc
 
 from mindspeed_rl.utils.utils import mstx_timer_decorator
 
-from aura.aura.base.log.loggers import Loggers
+from aura.base.log.loggers import Loggers
 
 logger = Loggers(__name__).get_logger()
 

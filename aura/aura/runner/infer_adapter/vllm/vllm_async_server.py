@@ -48,10 +48,10 @@ from vllm.v1.engine.async_llm import AsyncLLM
 from vllm.v1.executor.abstract import Executor
 
 # Internal imports
-from aura.aura.base.log.loggers import Loggers
-from aura.aura.runner.infer_adapter.async_server import AsyncServerBase
-from aura.aura.runner.scheduler.workload import InstanceWorkLoad
-from aura.aura.runner.scheduler.load_stat import WorkloadStatLogger, vllm_log_stats_periodically
+from aura.base.log.loggers import Loggers
+from aura.runner.infer_adapter.async_server import AsyncServerBase
+from aura.runner.scheduler.workload import InstanceWorkLoad
+from aura.runner.scheduler.load_stat import WorkloadStatLogger, vllm_log_stats_periodically
 
 _R = TypeVar("_R", default=Any)
 logger = Loggers("vllm_server").get_logger()
@@ -249,7 +249,7 @@ class AsyncVLLMServer(AsyncServerBase):
             hf_overrides={"max_position_embeddings": max_model_len},
             compilation_config=CompilationConfig(cudagraph_capture_sizes=cudagraph_capture_sizes),
             additional_config=additional_config,
-            worker_extension_cls="aura.aura.runner.infer_adapter.vllm.extension.custom_worker_extensions.CustomWorkerExtensions"
+            worker_extension_cls="aura.runner.infer_adapter.vllm.extension.custom_worker_extensions.CustomWorkerExtensions"
         )
         # init async llm engine
         self.ins_workload = InstanceWorkLoad(dp_size=dp_size)

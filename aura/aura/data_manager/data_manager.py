@@ -17,7 +17,7 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-from aura.aura.data_manager.data_registry import data_manager_class
+from aura.data_manager.data_registry import data_manager_class
 
 
 class DataManager:

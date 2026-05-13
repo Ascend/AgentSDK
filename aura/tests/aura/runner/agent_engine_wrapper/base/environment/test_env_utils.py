@@ -6,8 +6,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from aura.aura.runner.agent_engine_wrapper.base.agent.base_agent import Step, Trajectory
-from aura.aura.runner.agent_engine_wrapper.base.environment.env_utils import (
+from aura.runner.agent_engine_wrapper.base.agent.base_agent import Step, Trajectory
+from aura.runner.agent_engine_wrapper.base.environment.env_utils import (
     compute_mc_return,
     compute_trajectory_reward,
     compute_trajectory_reward_raw,

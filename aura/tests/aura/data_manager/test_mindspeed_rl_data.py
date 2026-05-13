@@ -44,12 +44,12 @@ with patch.dict(sys.modules, {
     'torch': mock_torch,
     'torch.distributed': mock_torch.distributed,
     'requests': mock_requests,
-    'aura.aura.base.log.loggers': mock_loggers_module,
-    'aura.aura.data_manager.data_transform': mock_data_transform_module,
-    'aura.aura.controllers.utils.utils': mock_controller_utils_module,
+    'aura.base.log.loggers': mock_loggers_module,
+    'aura.data_manager.data_transform': mock_data_transform_module,
+    'aura.controllers.utils.utils': mock_controller_utils_module,
 }):
-    from aura.aura.data_manager.mindspeed_rl_data import MindSpeedRLDataManager
-    import aura.aura.data_manager.mindspeed_rl_data as _msrl_data_mod
+    from aura.data_manager.mindspeed_rl_data import MindSpeedRLDataManager
+    import aura.data_manager.mindspeed_rl_data as _msrl_data_mod
 
 
 class TestMindSpeedRLDataManager(unittest.TestCase):

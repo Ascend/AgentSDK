@@ -5,8 +5,8 @@ import random
 import traceback
 from typing import AsyncGenerator, List
 
-from aura.aura.base.log.loggers import Loggers
-from aura.aura.runner.agent_engine_wrapper.base_engine_wrapper import AgentTask, Trajectory
+from aura.base.log.loggers import Loggers
+from aura.runner.agent_engine_wrapper.base_engine_wrapper import AgentTask, Trajectory
 
 logger = Loggers(__name__).get_logger()
 
@@ -20,7 +20,7 @@ class AgentRouter:
     @classmethod
     async def create(cls) -> "AgentRouter":
         if cls._router is None:
-            from aura.aura.runner.agent_manager import get_or_create_agent_manager
+            from aura.runner.agent_manager import get_or_create_agent_manager
             infer_manager = await get_or_create_agent_manager()
             cls._router = AgentRouter(infer_manager)
         return cls._router

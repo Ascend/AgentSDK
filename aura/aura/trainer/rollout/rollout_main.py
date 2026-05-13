@@ -20,8 +20,8 @@
 
 import ray
 
-from aura.aura.base.log.loggers import Loggers
-from aura.aura.trainer.rollout.rollout_worker import RolloutWorker
+from aura.base.log.loggers import Loggers
+from aura.trainer.rollout.rollout_worker import RolloutWorker
 
 logger = Loggers(__name__).get_logger()
 
@@ -74,7 +74,7 @@ def start_rollout(
     # Rollouter Controller
     # All inference processes have started, starting controller
     model_name = infer_service
-    from aura.aura.controllers.rollout_controller.rollout_controller import RolloutController
+    from aura.controllers.rollout_controller.rollout_controller import RolloutController
     controller = RolloutController(
                 weight_save_dir=rollout_config.weight_save_dir,
                 tokenizer_name_or_path=rollout_config.tokenizer_name_or_path,
@@ -88,7 +88,7 @@ def start_rollout(
     # Notify training side that inference is ready to receive inference data
     controller.send_ready_to_train()
 
-    from aura.aura.trainer.rollout.rollouter import OneStepOffRollouter
+    from aura.trainer.rollout.rollouter import OneStepOffRollouter
     executor = OneStepOffRollouter(
         controller,
         rollout_worker,

@@ -16,7 +16,7 @@
 # 
 from typing import Callable, Optional, Tuple
 
-from aura.aura.base.log.loggers import Loggers
+from aura.base.log.loggers import Loggers
 
 logger = Loggers(__name__).get_logger()
 
@@ -64,13 +64,13 @@ class TrainRegistry:
 registry = TrainRegistry()
 
 try:
-    from aura.aura.trainer.rollout.rollout_main import start_rollout
-    from aura.aura.trainer.train_adapter.mindspeed_rl.hybrid_policy.train_service import train as hybrid_train
-    from aura.aura.trainer.train_adapter.mindspeed_rl.one_step_off_policy.train.train_service import dummy_train
-    from aura.aura.trainer.train_adapter.mindspeed_rl.one_step_off_policy.train.train_service import \
+    from aura.trainer.rollout.rollout_main import start_rollout
+    from aura.trainer.train_adapter.mindspeed_rl.hybrid_policy.train_service import train as hybrid_train
+    from aura.trainer.train_adapter.mindspeed_rl.one_step_off_policy.train.train_service import dummy_train
+    from aura.trainer.train_adapter.mindspeed_rl.one_step_off_policy.train.train_service import \
         train as one_step_off_train
-    from aura.aura.trainer.train_adapter.verl.full_async.train_main import start_train as verl_full_async_train
-    from aura.aura.trainer.train_adapter.verl.hybrid.train_main import start_train as verl_hybrid_train
+    from aura.trainer.train_adapter.verl.full_async.train_main import start_train as verl_full_async_train
+    from aura.trainer.train_adapter.verl.hybrid.train_main import start_train as verl_hybrid_train
 
     registry.register("mindspeed_rl", "hybrid", start_rollout, hybrid_train)
     registry.register("mindspeed_rl", "one_step_off", start_rollout, one_step_off_train)
@@ -81,7 +81,7 @@ except ImportError:
     logger.warning("verl/mindspeed_rl hybrid train is not available, skipping registration.")
 
 try:
-    from aura.aura.trainer.train_adapter.omni_rl.hybrid.train_main import start_train as omni_rl_hybrid_train
+    from aura.trainer.train_adapter.omni_rl.hybrid.train_main import start_train as omni_rl_hybrid_train
 
     registry.register("omni_rl", "hybrid", None, omni_rl_hybrid_train)
 except ImportError:

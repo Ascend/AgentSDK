@@ -22,7 +22,7 @@ from vllm_ascend.patch import worker
 
 # patch_utils should be the first import, because it will be used by other
 # patch files.
-from aura.aura.runner.infer_adapter.vllm.patch.patch_0_9_1 import patch_worker_v1
-from aura.aura.runner.infer_adapter.vllm.patch.patch_0_9_1 import patch_camem
-from aura.aura.runner.infer_adapter.vllm.patch.patch_0_9_1 import patch_attention
-from aura.aura.runner.infer_adapter.vllm.patch.patch_0_9_1 import patch_attention_v1
+from aura.runner.infer_adapter.vllm.patch.patch_0_9_1 import patch_worker_v1
+from aura.runner.infer_adapter.vllm.patch.patch_0_9_1 import patch_camem
+from aura.runner.infer_adapter.vllm.patch.patch_0_9_1 import patch_attention
+from aura.runner.infer_adapter.vllm.patch.patch_0_9_1 import patch_attention_v1

@@ -22,7 +22,7 @@ from typing import Any
 
 import ray
 
-from aura.aura.runner.agent_engine_wrapper.base.agent.base_agent import Trajectory
+from aura.runner.agent_engine_wrapper.base.agent.base_agent import Trajectory
 
 
 class TerminationReason(Enum):

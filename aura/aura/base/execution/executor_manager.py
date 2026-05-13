@@ -22,9 +22,9 @@ import ray
 from pydantic import BaseModel, ConfigDict
 from ray.actor import ActorHandle
 
-from aura.aura.base.execution.executor import Executor
-from aura.aura.base.log.loggers import Loggers
-from aura.aura.base.resources.resources import ResourceSet, create_resource_set
+from aura.base.execution.executor import Executor
+from aura.base.log.loggers import Loggers
+from aura.base.resources.resources import ResourceSet, create_resource_set
 
 logger = Loggers(__name__).get_logger()
 

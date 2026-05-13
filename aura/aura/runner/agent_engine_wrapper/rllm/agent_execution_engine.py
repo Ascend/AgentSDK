@@ -29,16 +29,16 @@ from concurrent.futures import ThreadPoolExecutor
 
 import torch
 
-import aura.aura.runner.agent_engine_wrapper.rllm.patch
-from aura.aura.base.log.loggers import Loggers
-from aura.aura.base.misc.misc import app_stats, colorful_print
-from aura.aura.base.utils.utils import strftime
-from aura.aura.runner.agent_engine_wrapper.base.agent.base_agent import Action, BaseAgent, Trajectory
-from aura.aura.runner.agent_engine_wrapper.base.environment.base_env import BaseEnv
-from aura.aura.runner.agent_engine_wrapper.base.environment.env_utils import compute_mc_return, compute_trajectory_reward
-from aura.aura.runner.agent_engine_wrapper.base.parser.chat_template import ChatTemplateParser
-from aura.aura.runner.agent_engine_wrapper.base_engine_wrapper import AgentTask
-from aura.aura.runner.agent_engine_wrapper.rllm.msg_handler import (
+import aura.runner.agent_engine_wrapper.rllm.patch
+from aura.base.log.loggers import Loggers
+from aura.base.misc.misc import app_stats, colorful_print
+from aura.base.utils.utils import strftime
+from aura.runner.agent_engine_wrapper.base.agent.base_agent import Action, BaseAgent, Trajectory
+from aura.runner.agent_engine_wrapper.base.environment.base_env import BaseEnv
+from aura.runner.agent_engine_wrapper.base.environment.env_utils import compute_mc_return, compute_trajectory_reward
+from aura.runner.agent_engine_wrapper.base.parser.chat_template import ChatTemplateParser
+from aura.runner.agent_engine_wrapper.base_engine_wrapper import AgentTask
+from aura.runner.agent_engine_wrapper.rllm.msg_handler import (
     convert_messages_to_tokens_and_masks,
     get_recent_assistant_user_messages,
 )
@@ -161,7 +161,7 @@ class AgentExecutionEngine:
             return
         logger.info(f"create router, addresses: {addresses}")
         self.server_addresses = addresses
-        from aura.aura.runner.scheduler.router import Router
+        from aura.runner.scheduler.router import Router
         self.router = Router.create(
             tokenizer_name_or_path=self.tokenizer_name_or_path,
             tokenizer=self.tokenizer,

@@ -21,8 +21,8 @@ See the Mulan PSL v2 for more details.
 import pytest
 from unittest.mock import MagicMock
 
-from aura.aura.base.execution.executor import public_api, Executor
-from aura.aura.base.resources.resources import ResourceSet
+from aura.base.execution.executor import public_api, Executor
+from aura.base.resources.resources import ResourceSet
 
 
 class TestPublicApi:

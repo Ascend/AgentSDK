@@ -20,7 +20,7 @@ from dataclasses import dataclass
 
 import ray
 
-from aura.aura.base.log.loggers import Loggers
+from aura.base.log.loggers import Loggers
 
 
 @dataclass

@@ -24,14 +24,14 @@ class TestAgentsMapping:
 
     def test_agents_mapping_structure(self):
         """Test AGENTS_MAPPING has expected structure."""
-        from aura.agents.agents_mapping import AGENTS_MAPPING
+        from agents.agents_mapping import AGENTS_MAPPING
         
         assert isinstance(AGENTS_MAPPING, list)
         assert len(AGENTS_MAPPING) > 0
 
     def test_agents_mapping_math_agent_exists(self):
         """Test that math agent exists in mapping."""
-        from aura.agents.agents_mapping import AGENTS_MAPPING
+        from agents.agents_mapping import AGENTS_MAPPING
         
         math_agent = None
         for agent in AGENTS_MAPPING:
@@ -47,7 +47,7 @@ class TestAgentsMapping:
 
     def test_agents_mapping_math_agent_config(self):
         """Test math agent configuration."""
-        from aura.agents.agents_mapping import AGENTS_MAPPING
+        from agents.agents_mapping import AGENTS_MAPPING
         
         math_agent = None
         for agent in AGENTS_MAPPING:
@@ -64,7 +64,7 @@ class TestAgentsMapping:
 
     def test_get_agent_by_name_found(self):
         """Test get_agent_by_name returns agent when found."""
-        from aura.agents.agents_mapping import get_agent_by_name
+        from agents.agents_mapping import get_agent_by_name
         
         result = get_agent_by_name("math")
         
@@ -73,7 +73,7 @@ class TestAgentsMapping:
 
     def test_get_agent_by_name_not_found(self):
         """Test get_agent_by_name returns None when not found."""
-        from aura.agents.agents_mapping import get_agent_by_name
+        from agents.agents_mapping import get_agent_by_name
         
         result = get_agent_by_name("nonexistent_agent")
         
@@ -81,7 +81,7 @@ class TestAgentsMapping:
 
     def test_get_agent_by_name_empty_string(self):
         """Test get_agent_by_name with empty string."""
-        from aura.agents.agents_mapping import get_agent_by_name
+        from agents.agents_mapping import get_agent_by_name
         
         result = get_agent_by_name("")
         
@@ -89,7 +89,7 @@ class TestAgentsMapping:
 
     def test_agents_mapping_has_compute_trajectory_reward_fn(self):
         """Test that math agent has compute_trajectory_reward_fn."""
-        from aura.agents.agents_mapping import AGENTS_MAPPING
+        from agents.agents_mapping import AGENTS_MAPPING
         
         math_agent = None
         for agent in AGENTS_MAPPING:

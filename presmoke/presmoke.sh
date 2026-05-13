@@ -36,7 +36,7 @@ fi
 
 pip install mlflow -i https://mirrors.aliyun.com/pypi/simple
 pip install ray==2.53.0 -i https://mirrors.aliyun.com/pypi/simple --timeout 1000
-export PYTHONPATH="$PROJECT_ROOT":$PYTHONPATH
+export PYTHONPATH="$PROJECT_ROOT/aura":$PYTHONPATH
 
 # Run all test cases (Test 1-10)
 echo "" | tee -a "$LOG_FILE"

@@ -48,12 +48,12 @@ with patch.dict('sys.modules', {
     'aiohttp': mock_aiohttp,
     'ray': mock_ray,
     'requests': mock_requests,
-    'aura.aura.base.log.loggers': mock_loggers_module,
-    'aura.aura.controllers.utils.http_status': mock_http_status,
-    'aura.aura.controllers.utils.utils': mock_utils_module,
+    'aura.base.log.loggers': mock_loggers_module,
+    'aura.controllers.utils.http_status': mock_http_status,
+    'aura.controllers.utils.utils': mock_utils_module,
 }):
-    from aura.aura.controllers.utils.async_http import _dumps, client_post, async_send_batch
-    import aura.aura.controllers.utils.async_http as _async_http_mod
+    from aura.controllers.utils.async_http import _dumps, client_post, async_send_batch
+    import aura.controllers.utils.async_http as _async_http_mod
 
 
 class TestDumps(unittest.TestCase):

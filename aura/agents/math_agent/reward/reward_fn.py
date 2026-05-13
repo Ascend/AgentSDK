@@ -17,10 +17,10 @@
 # -------------------------------------------------------------------------
 from typing import Protocol, runtime_checkable
 
-from aura.agents.math_agent.reward.code_reward import RewardCodeFn
-from aura.agents.math_agent.reward.math_reward import RewardMathFn
-from aura.agents.math_agent.reward.reward_types import RewardConfig, RewardInput, RewardOutput
-from aura.agents.math_agent.reward.search_reward import RewardSearchFn
+from agents.math_agent.reward.code_reward import RewardCodeFn
+from agents.math_agent.reward.math_reward import RewardMathFn
+from agents.math_agent.reward.reward_types import RewardConfig, RewardInput, RewardOutput
+from agents.math_agent.reward.search_reward import RewardSearchFn
 
 
 @runtime_checkable

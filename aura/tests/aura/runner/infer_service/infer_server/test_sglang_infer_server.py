@@ -19,7 +19,7 @@ import asyncio
 import pytest
 from unittest.mock import patch, MagicMock
 
-from aura.aura.runner.infer_service.infer_server.sglang_infer_server import SGLangInferServer
+from aura.runner.infer_service.infer_server.sglang_infer_server import SGLangInferServer
 
 
 class TestSGLangInferServer:
@@ -42,19 +42,19 @@ class TestSGLangInferServer:
         assert result is None
     
     @pytest.mark.asyncio
-    @patch('aura.aura.runner.infer_service.base_infer_server.logger')
+    @patch('aura.runner.infer_service.base_infer_server.logger')
     async def test_launch_server(self, mock_logger):
         await self.server.launch_server()
         mock_logger.info.assert_called_once_with("BaseInferServer launch")
     
     @pytest.mark.asyncio
-    @patch('aura.aura.runner.infer_service.base_infer_server.logger')
+    @patch('aura.runner.infer_service.base_infer_server.logger')
     async def test_wake_up(self, mock_logger):
         await self.server.wake_up()
         mock_logger.info.assert_called_once_with("BaseInferServer wake_up")
     
     @pytest.mark.asyncio
-    @patch('aura.aura.runner.infer_service.base_infer_server.logger')
+    @patch('aura.runner.infer_service.base_infer_server.logger')
     async def test_sleep(self, mock_logger):
         await self.server.sleep()
         mock_logger.info.assert_called_once_with("BaseInferServer sleep")

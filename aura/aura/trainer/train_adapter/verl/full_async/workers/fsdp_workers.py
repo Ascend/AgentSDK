@@ -30,7 +30,7 @@ from torch.distributed.fsdp import (
 from recipe.fully_async_policy.fsdp_workers import DetachActorWorker
 from verl.single_controller.base.decorator import Dispatch, register
 
-from aura.aura.base.log.loggers import Loggers
+from aura.base.log.loggers import Loggers
 
 logger = Loggers(__name__).get_logger()
 

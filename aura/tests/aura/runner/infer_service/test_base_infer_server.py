@@ -23,14 +23,14 @@ from unittest.mock import patch, MagicMock
 @pytest.fixture(autouse=True, scope="function")
 def mock_dependencies():
     """Mock all external dependencies for base_infer_server tests."""
-    with patch("aura.aura.runner.infer_service.base_infer_server.logger") as mock_logger:
+    with patch("aura.runner.infer_service.base_infer_server.logger") as mock_logger:
         yield {
             "logger": mock_logger,
         }
 
 class TestBaseInferServer:
     def setup_method(self):
-        from aura.aura.runner.infer_service.base_infer_server import BaseInferServer
+        from aura.runner.infer_service.base_infer_server import BaseInferServer
         self.server = BaseInferServer()
 
     @pytest.mark.asyncio

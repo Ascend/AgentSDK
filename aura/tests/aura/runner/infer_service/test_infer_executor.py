@@ -38,21 +38,21 @@ def create_mock_engine():
 def mock_dependencies(monkeypatch):
     """Mock all external dependencies for infer_executor tests."""
     # Mock the modules in sys.modules
-    monkeypatch.setitem(sys.modules, "aura.aura.runner.infer_service.infer_server.vllm_ray_infer_server", MagicMock())
-    monkeypatch.setitem(sys.modules, "aura.aura.runner.infer_service.infer_server.vllm_mp_infer_server", MagicMock())
-    monkeypatch.setitem(sys.modules, "aura.aura.runner.infer_service.infer_server.vllm_external_infer_server", MagicMock())
-    monkeypatch.setitem(sys.modules, "aura.aura.runner.infer_service.infer_server.vllm_proxy_infer_server", MagicMock())
+    monkeypatch.setitem(sys.modules, "aura.runner.infer_service.infer_server.vllm_ray_infer_server", MagicMock())
+    monkeypatch.setitem(sys.modules, "aura.runner.infer_service.infer_server.vllm_mp_infer_server", MagicMock())
+    monkeypatch.setitem(sys.modules, "aura.runner.infer_service.infer_server.vllm_external_infer_server", MagicMock())
+    monkeypatch.setitem(sys.modules, "aura.runner.infer_service.infer_server.vllm_proxy_infer_server", MagicMock())
 
     # Delete the infer_executor module if it's already imported
-    monkeypatch.delitem(sys.modules, "aura.aura.runner.infer_service.infer_executor", raising=False)
+    monkeypatch.delitem(sys.modules, "aura.runner.infer_service.infer_executor", raising=False)
 
     # Now patch the classes and logger
     with (
-        patch("aura.aura.runner.infer_service.infer_executor.logger") as mock_logger,
-        patch("aura.aura.runner.infer_service.infer_server.vllm_ray_infer_server.VLLMRayInferServer") as mock_vllm_ray,
-        patch("aura.aura.runner.infer_service.infer_server.vllm_mp_infer_server.VLLMMPInferServer") as mock_vllm_mp,
-        patch("aura.aura.runner.infer_service.infer_server.vllm_external_infer_server.VLLMExternalInferServer") as mock_vllm_external,
-        patch("aura.aura.runner.infer_service.infer_server.vllm_proxy_infer_server.VLLMProxyInferServer") as mock_vllm_proxy,
+        patch("aura.runner.infer_service.infer_executor.logger") as mock_logger,
+        patch("aura.runner.infer_service.infer_server.vllm_ray_infer_server.VLLMRayInferServer") as mock_vllm_ray,
+        patch("aura.runner.infer_service.infer_server.vllm_mp_infer_server.VLLMMPInferServer") as mock_vllm_mp,
+        patch("aura.runner.infer_service.infer_server.vllm_external_infer_server.VLLMExternalInferServer") as mock_vllm_external,
+        patch("aura.runner.infer_service.infer_server.vllm_proxy_infer_server.VLLMProxyInferServer") as mock_vllm_proxy,
     ):
         mock_engine = create_mock_engine()
 
@@ -76,7 +76,7 @@ class TestInferExecutor:
 
     def setup_method(self):
         """Setup method to import InferExecutor before each test."""
-        from aura.aura.runner.infer_service.infer_executor import InferExecutor
+        from aura.runner.infer_service.infer_executor import InferExecutor
         self.InferExecutor = InferExecutor
 
     @pytest.mark.parametrize("engine_name, mock_key", [

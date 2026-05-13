@@ -1,2 +1,2 @@
 # -*- coding: utf-8 -*-
-import aura.aura.runner.infer_adapter.vllm
+import aura.runner.infer_adapter.vllm

@@ -20,7 +20,7 @@
 
 from typing import Dict, Union, Callable, Optional, Tuple, Any
 
-from aura.aura.base.log.loggers import Loggers
+from aura.base.log.loggers import Loggers
 
 logger = Loggers(__name__).get_logger()
 

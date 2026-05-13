@@ -17,7 +17,7 @@
 # -------------------------------------------------------------------------
 
 import unittest
-from aura.aura.runner.infer_adapter.vllm.base_inference_engine import BaseInferEngine
+from aura.runner.infer_adapter.vllm.base_inference_engine import BaseInferEngine
 
 
 # -----------------------------

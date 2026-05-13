@@ -27,7 +27,7 @@ from rllm.rewards.math_utils.utils import extract_answer, grade_answer_mathd, gr
 from rllm.system_prompts import ORM_PROMPT
 from rllm.utils import call_gemini_llm, call_oai_rm_llm
 
-from aura.agents.math_agent.reward.reward_types import RewardConfig, RewardOutput, RewardType
+from agents.math_agent.reward.reward_types import RewardConfig, RewardOutput, RewardType
 
 logger = logging.getLogger(__name__)
 

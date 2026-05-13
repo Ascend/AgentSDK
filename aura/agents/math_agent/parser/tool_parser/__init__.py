@@ -15,8 +15,8 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
-from aura.agents.math_agent.parser.tool_parser.qwen_tool_parser import QwenToolParser
-from aura.agents.math_agent.parser.tool_parser.r1_tool_parser import R1ToolParser
+from agents.math_agent.parser.tool_parser.qwen_tool_parser import QwenToolParser
+from agents.math_agent.parser.tool_parser.r1_tool_parser import R1ToolParser
 from rllm.parser.tool_parser.tool_parser_base import ToolParser
 
 __all__ = ["R1ToolParser", "QwenToolParser", "ToolParser"]

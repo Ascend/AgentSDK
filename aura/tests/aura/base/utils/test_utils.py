@@ -70,11 +70,11 @@ sys_modules_patch.start()
 import re
 # Patch the utils module to use the correct re module
 import importlib
-if importlib.util.find_spec('aura.aura.base.utils.utils') is not None:
-    import aura.aura.base.utils.utils
-    aura.aura.base.utils.utils.re = re
+if importlib.util.find_spec('aura.base.utils.utils') is not None:
+    import aura.base.utils.utils
+    aura.base.utils.utils.re = re
 
-from aura.aura.base.utils.utils import (
+from aura.base.utils.utils import (
     compute_pass_at_k,
     call_oai_rm_llm,
     strftime,
@@ -104,7 +104,7 @@ class TestComputePassAtK:
             mock_results.append(mock_trajectory)
         
         # Mock logger.info
-        with mock.patch("aura.aura.base.utils.utils.logger.info") as mock_info:
+        with mock.patch("aura.base.utils.utils.logger.info") as mock_info:
             compute_pass_at_k(mock_results)
             
             # Check that logger was called
@@ -121,7 +121,7 @@ class TestComputePassAtK:
             mock_results.append(mock_trajectory)
         
         # Mock logger.info
-        with mock.patch("aura.aura.base.utils.utils.logger.info") as mock_info:
+        with mock.patch("aura.base.utils.utils.logger.info") as mock_info:
             compute_pass_at_k(mock_results)
             
             # Check that logger was called
@@ -130,7 +130,7 @@ class TestComputePassAtK:
     def test_compute_pass_at_k_no_results(self):
         """Test compute_pass_at_k with no results."""
         # Mock logger.info
-        with mock.patch("aura.aura.base.utils.utils.logger.info") as mock_info:
+        with mock.patch("aura.base.utils.utils.logger.info") as mock_info:
             # Instead of passing empty list, pass a list with one mock trajectory
             mock_trajectory = mock.MagicMock()
             mock_trajectory.task = "test_problem"
@@ -159,7 +159,7 @@ class TestCallOaiRmLlm:
         self.mock_openai.OpenAI.return_value = self.mock_client
         
         # Patch the openai module directly in the utils module
-        self.mock_patch = mock.patch("aura.aura.base.utils.utils.openai", self.mock_openai)
+        self.mock_patch = mock.patch("aura.base.utils.utils.openai", self.mock_openai)
         self.mock_patch.start()
     
     def teardown_method(self):
@@ -252,7 +252,7 @@ class TestCallGeminiLlm:
         """Set up mocks for each test."""
         # Mock the entire call_gemini_llm function to prevent any actual execution
         self.mock_call_gemini_patch = mock.patch(
-            "aura.aura.base.utils.utils.call_gemini_llm",
+            "aura.base.utils.utils.call_gemini_llm",
             return_value=["Test response"]
         )
         self.mock_call_gemini = self.mock_call_gemini_patch.start()
@@ -266,7 +266,7 @@ class TestCallGeminiLlm:
         prompt = "Test prompt"
         system_prompt = "Test system prompt"
         
-        from aura.aura.base.utils.utils import call_gemini_llm
+        from aura.base.utils.utils import call_gemini_llm
         result = call_gemini_llm(prompt, system_prompt)
         
         # Check result
@@ -275,7 +275,7 @@ class TestCallGeminiLlm:
     def test_call_gemini_llm_multiple_responses(self):
         """Test call_gemini_llm with multiple responses."""
         # Update the mock return value
-        from aura.aura.base.utils.utils import call_gemini_llm
+        from aura.base.utils.utils import call_gemini_llm
         call_gemini_llm.return_value = ["Response 1", "Response 2"]
         
         result = call_gemini_llm("prompt", "system_prompt", n=2)
@@ -285,7 +285,7 @@ class TestCallGeminiLlm:
     def test_call_gemini_llm_rate_limit(self):
         """Test call_gemini_llm with rate limit error."""
         # Update the mock return value
-        from aura.aura.base.utils.utils import call_gemini_llm
+        from aura.base.utils.utils import call_gemini_llm
         call_gemini_llm.return_value = ["Test response"]
         
         # Mock time.sleep to avoid actual delay
@@ -298,7 +298,7 @@ class TestCallGeminiLlm:
     def test_call_gemini_llm_access_error(self):
         """Test call_gemini_llm with access error."""
         # Update the mock to raise NotImplementedError
-        from aura.aura.base.utils.utils import call_gemini_llm
+        from aura.base.utils.utils import call_gemini_llm
         call_gemini_llm.side_effect = NotImplementedError()
         
         with pytest.raises(NotImplementedError):
@@ -307,7 +307,7 @@ class TestCallGeminiLlm:
     def test_call_gemini_llm_other_exception(self):
         """Test call_gemini_llm with other exception."""
         # Update the mock return value
-        from aura.aura.base.utils.utils import call_gemini_llm
+        from aura.base.utils.utils import call_gemini_llm
         call_gemini_llm.return_value = []
         
         result = call_gemini_llm("prompt", "system_prompt")
@@ -318,11 +318,11 @@ class TestCallGeminiLlm:
     def test_call_gemini_llm_response_error(self):
         """Test call_gemini_llm with error extracting response."""
         # Update the mock return value
-        from aura.aura.base.utils.utils import call_gemini_llm
+        from aura.base.utils.utils import call_gemini_llm
         call_gemini_llm.return_value = []
         
         # Mock logger.error
-        with mock.patch("aura.aura.base.utils.utils.logger.error") as mock_error:
+        with mock.patch("aura.base.utils.utils.logger.error") as mock_error:
             result = call_gemini_llm("prompt", "system_prompt")
             
             # Check result
@@ -336,7 +336,7 @@ class TestRAG:
         """Set up mocks for each test."""
         # Mock the entire RAG class to prevent any actual execution
         self.mock_rag_patch = mock.patch(
-            "aura.aura.base.utils.utils.RAG",
+            "aura.base.utils.utils.RAG",
             autospec=True
         )
         self.mock_rag_class = self.mock_rag_patch.start()
@@ -360,7 +360,7 @@ class TestRAG:
         docs = ["doc1", "doc2", "doc3"]
         model = "test-model"
         
-        from aura.aura.base.utils.utils import RAG
+        from aura.base.utils.utils import RAG
         rag = RAG(docs, model=model)
         
         # Check that RAG was initialized with correct parameters
@@ -370,7 +370,7 @@ class TestRAG:
         """Test RAG top_k method."""
         docs = ["doc1", "doc2", "doc3"]
         
-        from aura.aura.base.utils.utils import RAG
+        from aura.base.utils.utils import RAG
         rag = RAG(docs)
         
         # Call top_k
@@ -397,7 +397,7 @@ class TestRAG:
             {"score": 1.0, "text": "doc1", "idx": 0}
         ]
         
-        from aura.aura.base.utils.utils import RAG
+        from aura.base.utils.utils import RAG
         rag = RAG(docs)
         
         # Call top_k with default k
@@ -487,7 +487,7 @@ class TestGetCurrentNodeIp:
         mock_socket.__enter__.return_value = mock_socket
 
         with mock.patch("socket.socket", return_value=mock_socket):
-            with mock.patch("aura.aura.base.utils.utils._get_ip_by_ifname", return_value="192.168.1.100") as mock_get_ip_by_ifname:
+            with mock.patch("aura.base.utils.utils._get_ip_by_ifname", return_value="192.168.1.100") as mock_get_ip_by_ifname:
                 result = get_current_node_ip()
 
                 assert result == "192.168.1.100"
@@ -502,7 +502,7 @@ class TestGetCurrentNodeIp:
         mock_socket.__enter__.return_value = mock_socket
 
         with mock.patch("socket.socket", return_value=mock_socket):
-            with mock.patch("aura.aura.base.utils.utils._get_ip_by_ifname", return_value=None):
+            with mock.patch("aura.base.utils.utils._get_ip_by_ifname", return_value=None):
                 with mock.patch("socket.gethostname", return_value="test-host"):
                     with mock.patch("socket.getaddrinfo", return_value=[
                         (socket.AF_INET, socket.SOCK_STREAM, 0, "", ("192.168.1.100", 0)),
@@ -521,7 +521,7 @@ class TestGetCurrentNodeIp:
         mock_socket.__enter__.return_value = mock_socket
 
         with mock.patch("socket.socket", return_value=mock_socket):
-            with mock.patch("aura.aura.base.utils.utils._get_ip_by_ifname", return_value=None):
+            with mock.patch("aura.base.utils.utils._get_ip_by_ifname", return_value=None):
                 with mock.patch("socket.gethostname", return_value="test-host"):
                     with mock.patch("socket.getaddrinfo", return_value=[
                         (socket.AF_INET6, socket.SOCK_STREAM, 0, "", ("::1", 0, 0, 0))
@@ -539,7 +539,7 @@ class TestGetClusterInfo:
         # Mock dist.is_initialized to return True
         with mock.patch("torch.distributed.is_initialized", return_value=True):
             with mock.patch("torch.distributed.get_world_size", return_value=2):
-                with mock.patch("aura.aura.base.utils.utils.get_current_node_ip", return_value="192.168.1.100"):
+                with mock.patch("aura.base.utils.utils.get_current_node_ip", return_value="192.168.1.100"):
                     with mock.patch("torch.distributed.all_gather_object") as mock_all_gather:
                         # Mock the all_gather_object to set the ip_list
                         def mock_all_gather_impl(output_tensor_list, input_object):

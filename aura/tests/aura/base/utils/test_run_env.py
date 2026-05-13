@@ -28,9 +28,9 @@ mock_config_cls.ExtendedGenerateConfig = mock_extended_generate_config_class
 
 # Insert mock module into sys.modules
 import sys
-sys.modules["aura.aura.trainer.train_adapter.mindspeed_rl.config_cls"] = mock_config_cls
+sys.modules["aura.trainer.train_adapter.mindspeed_rl.config_cls"] = mock_config_cls
 
-from aura.aura.base.utils.run_env import (
+from aura.base.utils.run_env import (
     CURRENT_PATH,
     ROOT_PATH,
     THIRD_PARTY_PATH,
@@ -112,9 +112,9 @@ class TestRunEnv:
         # Verify return value
         assert runtime_env == mock_yaml_content
 
-    @mock.patch("aura.aura.base.utils.run_env.load_runtime_env")
-    @mock.patch("aura.aura.base.utils.run_env.logger")
-    @mock.patch("aura.aura.base.utils.run_env.ExtendedGenerateConfig")
+    @mock.patch("aura.base.utils.run_env.load_runtime_env")
+    @mock.patch("aura.base.utils.run_env.logger")
+    @mock.patch("aura.base.utils.run_env.ExtendedGenerateConfig")
     def test_get_runtime_env_task_queue_disabled(self, mock_extended_config, mock_logger, mock_load_runtime_env):
         """Test get_runtime_env when TASK_QUEUE_ENABLE should be changed to 1."""
         # Mock runtime_env
@@ -150,9 +150,9 @@ class TestRunEnv:
         # Verify result
         assert result["env_vars"]["TASK_QUEUE_ENABLE"] == "1"
 
-    @mock.patch("aura.aura.base.utils.run_env.load_runtime_env")
-    @mock.patch("aura.aura.base.utils.run_env.logger")
-    @mock.patch("aura.aura.base.utils.run_env.ExtendedGenerateConfig")
+    @mock.patch("aura.base.utils.run_env.load_runtime_env")
+    @mock.patch("aura.base.utils.run_env.logger")
+    @mock.patch("aura.base.utils.run_env.ExtendedGenerateConfig")
     def test_get_runtime_env_task_queue_unchanged(self, mock_extended_config, mock_logger, mock_load_runtime_env):
         """Test get_runtime_env when TASK_QUEUE_ENABLE should remain unchanged."""
         # Mock runtime_env
@@ -181,9 +181,9 @@ class TestRunEnv:
         # Verify result
         assert result["env_vars"]["TASK_QUEUE_ENABLE"] == "2"
 
-    @mock.patch("aura.aura.base.utils.run_env.load_runtime_env")
-    @mock.patch("aura.aura.base.utils.run_env.logger")
-    @mock.patch("aura.aura.base.utils.run_env.ExtendedGenerateConfig")
+    @mock.patch("aura.base.utils.run_env.load_runtime_env")
+    @mock.patch("aura.base.utils.run_env.logger")
+    @mock.patch("aura.base.utils.run_env.ExtendedGenerateConfig")
     def test_get_runtime_env_sleep_mode_error(self, mock_extended_config, mock_logger, mock_load_runtime_env):
         """Test get_runtime_env when enable_sleep_mode is false but enforce_eager is also false."""
         # Mock runtime_env
@@ -209,7 +209,7 @@ class TestRunEnv:
         # Verify exception message contains expected content
         assert "exceptions must derive from BaseException" in str(excinfo.value)
 
-    @mock.patch("aura.aura.base.utils.run_env.load_runtime_env")
+    @mock.patch("aura.base.utils.run_env.load_runtime_env")
     def test_get_vllm_version(self, mock_load_runtime_env):
         """Test get_vllm_version function."""
         # Mock runtime_env

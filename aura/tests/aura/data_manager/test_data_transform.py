@@ -49,7 +49,7 @@ with patch.dict('sys.modules', {
     'mindspeed_rl.utils': mock_mindspeed_rl.utils,
     'mindspeed_rl.utils.utils': mock_mindspeed_rl.utils.utils,
 }):
-    from aura.aura.data_manager.data_transform import (
+    from aura.data_manager.data_transform import (
         padding_dict_to_tensor_dict,
         padding_dict_to_tensor_dict_fast,
     )

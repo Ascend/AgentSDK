@@ -84,14 +84,14 @@ class TestRolloutService(unittest.TestCase):
         mock_put_prompts_experience = MagicMock()
         
         # Import module
-        import aura.aura.trainer.rollout.rollout_service
+        import aura.trainer.rollout.rollout_service
         
         # Use patch to mock dependencies
-        with patch('aura.aura.trainer.rollout.rollout_service.ray') as mock_ray:
-            with patch('aura.aura.trainer.rollout.rollout_service.RolloutWorker') as mock_rollout_worker:
+        with patch('aura.trainer.rollout.rollout_service.ray') as mock_ray:
+            with patch('aura.trainer.rollout.rollout_service.RolloutWorker') as mock_rollout_worker:
                 with patch('ray.util.scheduling_strategies.NodeAffinitySchedulingStrategy') as mock_node_affinity:
-                    with patch('aura.aura.controllers.rollout_controller.rollout_controller.RolloutController') as mock_rollout_controller:
-                        with patch('aura.aura.trainer.rollout.rollouter.OneStepOffRollouter') as mock_one_step_off_rollouter:
+                    with patch('aura.controllers.rollout_controller.rollout_controller.RolloutController') as mock_rollout_controller:
+                        with patch('aura.trainer.rollout.rollouter.OneStepOffRollouter') as mock_one_step_off_rollouter:
                             # Configure mock objects' behavior
                             mock_ray.get_runtime_context.return_value.node_id = "test_node_id"
                             mock_rollout_worker_instance = MagicMock()
@@ -106,7 +106,7 @@ class TestRolloutService(unittest.TestCase):
                             
                             # Get original function (without ray.remote decorator)
                             import types
-                            original_function = aura.aura.trainer.rollout.rollout_service.start_async_rollout_worker._function
+                            original_function = aura.trainer.rollout.rollout_service.start_async_rollout_worker._function
                             
                             # Call original function directly
                             original_function(
@@ -164,14 +164,14 @@ class TestRolloutService(unittest.TestCase):
         mock_put_prompts_experience = MagicMock()
         
         # Import module
-        import aura.aura.trainer.rollout.rollout_service
+        import aura.trainer.rollout.rollout_service
         
         # Use patch to mock dependencies
-        with patch('aura.aura.trainer.rollout.rollout_service.ray') as mock_ray:
-            with patch('aura.aura.trainer.rollout.rollout_service.RolloutWorker') as mock_rollout_worker:
+        with patch('aura.trainer.rollout.rollout_service.ray') as mock_ray:
+            with patch('aura.trainer.rollout.rollout_service.RolloutWorker') as mock_rollout_worker:
                 with patch('ray.util.scheduling_strategies.NodeAffinitySchedulingStrategy') as mock_node_affinity:
-                    with patch('aura.aura.controllers.rollout_controller.rollout_controller.RolloutController') as mock_rollout_controller:
-                        with patch('aura.aura.trainer.rollout.rollouter.OneStepOffRollouter') as mock_one_step_off_rollouter:
+                    with patch('aura.controllers.rollout_controller.rollout_controller.RolloutController') as mock_rollout_controller:
+                        with patch('aura.trainer.rollout.rollouter.OneStepOffRollouter') as mock_one_step_off_rollouter:
                             # Configure mock objects' behavior
                             mock_ray.get_runtime_context.return_value.node_id = "test_node_id"
                             mock_rollout_worker_instance = MagicMock()
@@ -186,7 +186,7 @@ class TestRolloutService(unittest.TestCase):
                             
                             # Get original function (without ray.remote decorator)
                             import types
-                            original_function = aura.aura.trainer.rollout.rollout_service.start_async_rollout_worker._function
+                            original_function = aura.trainer.rollout.rollout_service.start_async_rollout_worker._function
                             
                             # Call original function directly
                             original_function(

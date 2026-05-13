@@ -34,8 +34,8 @@ import requests
 from openai import AsyncOpenAI
 
 # Internal imports
-from aura.aura.base.log.loggers import Loggers
-from aura.aura.runner.infer_service.base_infer_server import BaseInferServer
+from aura.base.log.loggers import Loggers
+from aura.runner.infer_service.base_infer_server import BaseInferServer
 
 logger = Loggers(__name__).get_logger()
 
@@ -149,7 +149,7 @@ def start_slave(index, master_addr, kwargs):
     model = kwargs.pop('model')
     kwargs['data_parallel_address'] = master_addr
     kwargs['data_parallel_start_rank'] = index * kwargs['data_parallel_size_local']
-    kwargs["worker_extension_cls"] = ("aura.aura.runner.infer_adapter.vllm." 
+    kwargs["worker_extension_cls"] = ("aura.runner.infer_adapter.vllm." 
                                       "extension.custom_worker_extensions.CustomWorkerExtensions")
 
     # ================= Simulate complete command line arguments list =================
@@ -166,7 +166,7 @@ def start_master(master_addr, kwargs):
     # ================= Modify special variables and addresses =================
     model = kwargs.pop('model')
     kwargs['data_parallel_address'] = master_addr
-    kwargs["worker_extension_cls"] = ("aura.aura.runner.infer_adapter.vllm." 
+    kwargs["worker_extension_cls"] = ("aura.runner.infer_adapter.vllm." 
                                       "extension.custom_worker_extensions.CustomWorkerExtensions")
 
     # ================= Simulate complete command line arguments list =================

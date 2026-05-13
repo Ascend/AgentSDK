@@ -11,8 +11,8 @@ from verl.trainer.ppo.reward import load_reward_manager
 from verl.trainer.ppo.utils import need_critic, need_reference_policy
 from verl.utils.config import validate_config
 
-from aura.aura.trainer.train_adapter.verl.hybrid.ray_trainer import HybridTrainer
-from aura.aura.base.log.loggers import Loggers
+from aura.trainer.train_adapter.verl.hybrid.ray_trainer import HybridTrainer
+from aura.base.log.loggers import Loggers
 
 logger = Loggers(__name__).get_logger()
 

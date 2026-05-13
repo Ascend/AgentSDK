@@ -35,9 +35,9 @@ def _build_fake_modules():
     fake_modules["openai"] = types.ModuleType("openai")
 
     # Mock internal utility functions
-    fake_utils = types.ModuleType("aura.aura.base.utils.utils")
+    fake_utils = types.ModuleType("aura.base.utils.utils")
     fake_utils.get_cluster_info = lambda: ["10.0.0.1", "10.0.0.2", "10.0.0.3", "10.0.0.4"]
-    fake_modules["aura.aura.base.utils.utils"] = fake_utils
+    fake_modules["aura.base.utils.utils"] = fake_utils
 
     # Mock vLLM environment variables
     fake_envs = types.ModuleType("vllm.envs")
@@ -94,7 +94,7 @@ def _build_fake_modules():
 # ============================================================
 
 class BaseVllmTest(unittest.TestCase):
-    MOD_PATH = "aura.aura.runner.infer_adapter.vllm.vllm_parallel_state"
+    MOD_PATH = "aura.runner.infer_adapter.vllm.vllm_parallel_state"
 
     def setUp(self):
         """Install fake modules and reload the module under test."""

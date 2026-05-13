@@ -28,9 +28,9 @@ from mindspeed_rl import RayGRPOTrainer, Metric
 from mindspeed_rl.trainer.utils import compute_grpo_data_metrics
 from mindspeed_rl.utils.utils import compute_tps, metrics_post_processing, metrics_sort
 
-from aura.aura.base.log.loggers import Loggers
-from aura.aura.trainer.train_adapter.mindspeed_rl import patch
-from aura.aura.trainer.train_adapter.mindspeed_rl.utils.trainer_utils import CommonGRPOTrainer
+from aura.base.log.loggers import Loggers
+from aura.trainer.train_adapter.mindspeed_rl import patch
+from aura.trainer.train_adapter.mindspeed_rl.utils.trainer_utils import CommonGRPOTrainer
 
 log = Loggers(__name__)
 logger = log.get_logger()

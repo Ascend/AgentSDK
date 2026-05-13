@@ -28,14 +28,14 @@ import requests
 import torch
 from fastapi import FastAPI
 
-from aura.aura.base.log.loggers import Loggers
-from aura.aura.base.utils.http_server import start_server
-from aura.aura.controllers.train_controller.dispatch_actor import DispatchActor
-from aura.aura.controllers.train_controller.train_server import TrainServer
-from aura.aura.controllers.train_controller.train_weight_updater import WeightUpdateActor
-from aura.aura.controllers.utils.controller_config import ControllerConfig
-from aura.aura.controllers.utils.http_status import HTTP_OK_200
-from aura.aura.controllers.utils.utils import (
+from aura.base.log.loggers import Loggers
+from aura.base.utils.http_server import start_server
+from aura.controllers.train_controller.dispatch_actor import DispatchActor
+from aura.controllers.train_controller.train_server import TrainServer
+from aura.controllers.train_controller.train_weight_updater import WeightUpdateActor
+from aura.controllers.utils.controller_config import ControllerConfig
+from aura.controllers.utils.http_status import HTTP_OK_200
+from aura.controllers.utils.utils import (
     create_actor, DEFAULT_SLEEP_TIME,
     MAX_CPUS, MAX_TIMEOUT, DEFAULT_URL_METHOD)
 

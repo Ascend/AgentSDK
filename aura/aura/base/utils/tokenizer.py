@@ -23,7 +23,7 @@ from typing import Any, Dict, Optional
 
 import numpy
 
-from aura.aura.base.log.loggers import Loggers
+from aura.base.log.loggers import Loggers
 from .templates import get_model_template
 
 os.environ['TOKENIZERS_PARALLELISM'] = "true"

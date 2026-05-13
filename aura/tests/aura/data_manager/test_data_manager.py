@@ -75,17 +75,17 @@ with patch.dict(sys.modules, {
     'mindspeed_rl': mock_mindspeed_rl,
     'mindspeed_rl.utils': mock_mindspeed_rl_utils,
     'mindspeed_rl.utils.utils': mock_mindspeed_rl_utils_utils,
-    'aura.aura.base.log.loggers': mock_loggers_module,
-    'aura.aura.base.utils.utils': mock_base_utils_module,
-    'aura.aura.controllers.rollout_controller.rollout_queue': mock_rollout_queue_module,
-    'aura.aura.controllers.rollout_controller.rollout_client': mock_rollout_client_module,
-    'aura.aura.controllers.utils.controller_config': mock_controller_config_module,
-    'aura.aura.controllers.utils.http_status': mock_http_status_module,
-    'aura.aura.controllers.utils.utils': mock_controller_utils_module,
-    'aura.aura.data_manager.data_transform': mock_data_transform_module,
+    'aura.base.log.loggers': mock_loggers_module,
+    'aura.base.utils.utils': mock_base_utils_module,
+    'aura.controllers.rollout_controller.rollout_queue': mock_rollout_queue_module,
+    'aura.controllers.rollout_controller.rollout_client': mock_rollout_client_module,
+    'aura.controllers.utils.controller_config': mock_controller_config_module,
+    'aura.controllers.utils.http_status': mock_http_status_module,
+    'aura.controllers.utils.utils': mock_controller_utils_module,
+    'aura.data_manager.data_transform': mock_data_transform_module,
 }):
-    from aura.aura.data_manager.data_manager import DataManager
-    import aura.aura.data_manager.data_manager as _data_manager_mod
+    from aura.data_manager.data_manager import DataManager
+    import aura.data_manager.data_manager as _data_manager_mod
 
 
 class TestDataManager(unittest.TestCase):

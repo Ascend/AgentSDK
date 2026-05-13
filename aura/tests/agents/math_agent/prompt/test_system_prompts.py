@@ -24,7 +24,7 @@ class TestSystemPrompts:
 
     def test_system_miniwob_prompt_exists(self):
         """Test SYSTEM_MINIWOB_PROMPT exists."""
-        from aura.agents.math_agent.prompt.system_prompts import SYSTEM_MINIWOB_PROMPT
+        from agents.math_agent.prompt.system_prompts import SYSTEM_MINIWOB_PROMPT
         
         assert SYSTEM_MINIWOB_PROMPT is not None
         assert isinstance(SYSTEM_MINIWOB_PROMPT, str)
@@ -32,7 +32,7 @@ class TestSystemPrompts:
 
     def test_system_miniwob_prompt_contains_key_elements(self):
         """Test SYSTEM_MINIWOB_PROMPT contains key elements."""
-        from aura.agents.math_agent.prompt.system_prompts import SYSTEM_MINIWOB_PROMPT
+        from agents.math_agent.prompt.system_prompts import SYSTEM_MINIWOB_PROMPT
         
         assert "Action" in SYSTEM_MINIWOB_PROMPT
         assert "Observation" in SYSTEM_MINIWOB_PROMPT
@@ -40,21 +40,21 @@ class TestSystemPrompts:
 
     def test_system_miniwob_prompt_without_thought_exists(self):
         """Test SYSTEM_MINIWOB_PROMPT_WITHOUT_THOUGHT exists."""
-        from aura.agents.math_agent.prompt.system_prompts import SYSTEM_MINIWOB_PROMPT_WITHOUT_THOUGHT
+        from agents.math_agent.prompt.system_prompts import SYSTEM_MINIWOB_PROMPT_WITHOUT_THOUGHT
         
         assert SYSTEM_MINIWOB_PROMPT_WITHOUT_THOUGHT is not None
         assert isinstance(SYSTEM_MINIWOB_PROMPT_WITHOUT_THOUGHT, str)
 
     def test_system_miniwob_prompt_without_thought_format(self):
         """Test SYSTEM_MINIWOB_PROMPT_WITHOUT_THOUGHT format."""
-        from aura.agents.math_agent.prompt.system_prompts import SYSTEM_MINIWOB_PROMPT_WITHOUT_THOUGHT
+        from agents.math_agent.prompt.system_prompts import SYSTEM_MINIWOB_PROMPT_WITHOUT_THOUGHT
         
         assert "Action:" in SYSTEM_MINIWOB_PROMPT_WITHOUT_THOUGHT
         assert "Thought:" not in SYSTEM_MINIWOB_PROMPT_WITHOUT_THOUGHT
 
     def test_system_webarena_prompt_exists(self):
         """Test SYSTEM_WEBARENA_PROMPT exists."""
-        from aura.agents.math_agent.prompt.system_prompts import SYSTEM_WEBARENA_PROMPT
+        from agents.math_agent.prompt.system_prompts import SYSTEM_WEBARENA_PROMPT
         
         assert SYSTEM_WEBARENA_PROMPT is not None
         assert isinstance(SYSTEM_WEBARENA_PROMPT, str)
@@ -62,7 +62,7 @@ class TestSystemPrompts:
 
     def test_system_webarena_prompt_contains_actions(self):
         """Test SYSTEM_WEBARENA_PROMPT contains action types."""
-        from aura.agents.math_agent.prompt.system_prompts import SYSTEM_WEBARENA_PROMPT
+        from agents.math_agent.prompt.system_prompts import SYSTEM_WEBARENA_PROMPT
         
         assert "Click" in SYSTEM_WEBARENA_PROMPT
         assert "Type" in SYSTEM_WEBARENA_PROMPT
@@ -73,35 +73,35 @@ class TestSystemPrompts:
 
     def test_swe_system_prompt_fn_call_exists(self):
         """Test SWE_SYSTEM_PROMPT_FN_CALL exists."""
-        from aura.agents.math_agent.prompt.system_prompts import SWE_SYSTEM_PROMPT_FN_CALL
+        from agents.math_agent.prompt.system_prompts import SWE_SYSTEM_PROMPT_FN_CALL
         
         assert SWE_SYSTEM_PROMPT_FN_CALL is not None
         assert isinstance(SWE_SYSTEM_PROMPT_FN_CALL, str)
 
     def test_swe_system_prompt_fn_call_content(self):
         """Test SWE_SYSTEM_PROMPT_FN_CALL content."""
-        from aura.agents.math_agent.prompt.system_prompts import SWE_SYSTEM_PROMPT_FN_CALL
+        from agents.math_agent.prompt.system_prompts import SWE_SYSTEM_PROMPT_FN_CALL
         
         assert "programming agent" in SWE_SYSTEM_PROMPT_FN_CALL.lower()
         assert "github" in SWE_SYSTEM_PROMPT_FN_CALL.lower()
 
     def test_swe_system_prompt_exists(self):
         """Test SWE_SYSTEM_PROMPT exists."""
-        from aura.agents.math_agent.prompt.system_prompts import SWE_SYSTEM_PROMPT
+        from agents.math_agent.prompt.system_prompts import SWE_SYSTEM_PROMPT
         
         assert SWE_SYSTEM_PROMPT is not None
         assert isinstance(SWE_SYSTEM_PROMPT, str)
 
     def test_swe_system_prompt_contains_function_info(self):
         """Test SWE_SYSTEM_PROMPT contains function information."""
-        from aura.agents.math_agent.prompt.system_prompts import SWE_SYSTEM_PROMPT
+        from agents.math_agent.prompt.system_prompts import SWE_SYSTEM_PROMPT
         
         assert "function" in SWE_SYSTEM_PROMPT.lower()
         assert "file_editor" in SWE_SYSTEM_PROMPT.lower()
 
     def test_prompts_are_not_empty(self):
         """Test all prompts are non-empty strings."""
-        from aura.agents.math_agent.prompt.system_prompts import (
+        from agents.math_agent.prompt.system_prompts import (
             SYSTEM_MINIWOB_PROMPT,
             SYSTEM_MINIWOB_PROMPT_WITHOUT_THOUGHT,
             SYSTEM_WEBARENA_PROMPT,
@@ -123,7 +123,7 @@ class TestSystemPrompts:
 
     def test_miniwob_prompts_difference(self):
         """Test that MINIWOB prompts with and without thought are different."""
-        from aura.agents.math_agent.prompt.system_prompts import (
+        from agents.math_agent.prompt.system_prompts import (
             SYSTEM_MINIWOB_PROMPT,
             SYSTEM_MINIWOB_PROMPT_WITHOUT_THOUGHT,
         )
@@ -132,6 +132,6 @@ class TestSystemPrompts:
 
     def test_webarena_prompt_contains_guidelines(self):
         """Test SYSTEM_WEBARENA_PROMPT contains guidelines."""
-        from aura.agents.math_agent.prompt.system_prompts import SYSTEM_WEBARENA_PROMPT
+        from agents.math_agent.prompt.system_prompts import SYSTEM_WEBARENA_PROMPT
         
         assert "Guidelines" in SYSTEM_WEBARENA_PROMPT or "guidelines" in SYSTEM_WEBARENA_PROMPT.lower()

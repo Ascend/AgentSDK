@@ -22,7 +22,7 @@ from unittest.mock import patch
 from collections import deque
 import threading
 
-from aura.aura.controllers.rollout_controller.rollout_queue import (
+from aura.controllers.rollout_controller.rollout_queue import (
     RolloutQueueActor,
     get_rollout_queue_actor,
 )
@@ -248,7 +248,7 @@ class TestRolloutQueueActor:
 class TestGetRolloutQueueActor:
     """Test cases for get_rollout_queue_actor function."""
 
-    @patch('aura.aura.controllers.rollout_controller.rollout_queue.ray.get_actor')
+    @patch('aura.controllers.rollout_controller.rollout_queue.ray.get_actor')
     def test_get_rollout_queue_actor(self, mock_get_actor):
         """Test get_rollout_queue_actor function."""
         mock_actor = MagicMock()

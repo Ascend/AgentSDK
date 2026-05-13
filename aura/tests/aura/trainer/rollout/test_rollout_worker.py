@@ -72,7 +72,7 @@ class TestRolloutWorkerUtils(unittest.TestCase):
         # Import test objects
         global get_least_common_multiple, generate_dummy_trajectory, parse_messages
         global _stat_rollout_metrics, clean_traj_groups, get_all_prompt_ids, RolloutWorker
-        from aura.aura.trainer.rollout.rollout_worker import (
+        from aura.trainer.rollout.rollout_worker import (
             get_least_common_multiple,
             generate_dummy_trajectory,
             parse_messages,
@@ -115,16 +115,16 @@ class TestRolloutWorker(TestRolloutWorkerUtils):
         super().setUp()
         
         # Use patch to mock external dependencies
-        self.patcher_tokenizer = patch('aura.aura.trainer.rollout.rollout_worker.AutoTokenizer')
-        self.patcher_data_manager = patch('aura.aura.trainer.rollout.rollout_worker.DataManager')
-        self.patcher_os = patch('aura.aura.trainer.rollout.rollout_worker.os')
-        self.patcher_time = patch('aura.aura.trainer.rollout.rollout_worker.time')
-        self.patcher_async_server_proxy_manager = patch('aura.aura.trainer.rollout.rollout_worker.AsyncServerProxyManager')
-        self.patcher_async_server_manager = patch('aura.aura.trainer.rollout.rollout_worker.AsyncServerManager')
-        self.patcher_agent_router = patch('aura.aura.trainer.rollout.rollout_worker.AgentRouter')
-        self.patcher_get_rollout_queue_actor = patch('aura.aura.trainer.rollout.rollout_worker.get_rollout_queue_actor')
-        self.patcher_gc = patch('aura.aura.trainer.rollout.rollout_worker.gc')
-        self.patcher_torch = patch('aura.aura.trainer.rollout.rollout_worker.torch')
+        self.patcher_tokenizer = patch('aura.trainer.rollout.rollout_worker.AutoTokenizer')
+        self.patcher_data_manager = patch('aura.trainer.rollout.rollout_worker.DataManager')
+        self.patcher_os = patch('aura.trainer.rollout.rollout_worker.os')
+        self.patcher_time = patch('aura.trainer.rollout.rollout_worker.time')
+        self.patcher_async_server_proxy_manager = patch('aura.trainer.rollout.rollout_worker.AsyncServerProxyManager')
+        self.patcher_async_server_manager = patch('aura.trainer.rollout.rollout_worker.AsyncServerManager')
+        self.patcher_agent_router = patch('aura.trainer.rollout.rollout_worker.AgentRouter')
+        self.patcher_get_rollout_queue_actor = patch('aura.trainer.rollout.rollout_worker.get_rollout_queue_actor')
+        self.patcher_gc = patch('aura.trainer.rollout.rollout_worker.gc')
+        self.patcher_torch = patch('aura.trainer.rollout.rollout_worker.torch')
 
         # Start patches to mock external dependencies
         self.mock_tokenizer = self.patcher_tokenizer.start()
@@ -464,7 +464,7 @@ class TestRolloutWorker(TestRolloutWorkerUtils):
         }
 
         # Mock colorful_print to avoid actual console output
-        with patch('aura.aura.base.misc.misc.colorful_print') as mock_colorful_print:
+        with patch('aura.base.misc.misc.colorful_print') as mock_colorful_print:
             # Call the method
             self.rollout_worker.visualize_trajectory(tensor_batch)
 
@@ -482,7 +482,7 @@ class TestRolloutWorker(TestRolloutWorkerUtils):
         }
 
         # Mock colorful_print to avoid actual console output
-        with patch('aura.aura.base.misc.misc.colorful_print') as mock_colorful_print:
+        with patch('aura.base.misc.misc.colorful_print') as mock_colorful_print:
             # Call the method with max_samples=2
             self.rollout_worker.visualize_trajectory(tensor_batch, max_samples=2)
 
@@ -585,7 +585,7 @@ class TestRolloutWorker(TestRolloutWorkerUtils):
         self.rollout_worker.current_weights_version = 0
 
         # Mock time.sleep
-        with patch('aura.aura.trainer.rollout.rollout_worker.time.sleep') as mock_sleep:
+        with patch('aura.trainer.rollout.rollout_worker.time.sleep') as mock_sleep:
             # Define a side_effect function to execute mocked methods when called
             def mock_wait_available_version(wait_timeout):
                 mock_sleep(0.1)  # Mock call to sleep
@@ -763,7 +763,7 @@ class TestRolloutWorker(TestRolloutWorkerUtils):
         self.rollout_worker.rollout_weight_manager.update_max_version.remote.return_value = None
 
         # Mock _wait_available_version method to return UNAVAILABLE_WEIGHT_VERSION
-        from aura.aura.trainer.rollout.rollout_worker import UNAVAILABLE_WEIGHT_VERSION
+        from aura.trainer.rollout.rollout_worker import UNAVAILABLE_WEIGHT_VERSION
         self.rollout_worker._wait_available_version = MagicMock(return_value=UNAVAILABLE_WEIGHT_VERSION)
 
         # Call the method
@@ -911,16 +911,16 @@ class TestRolloutWorker(TestRolloutWorkerUtils):
         self.rollout_worker.current_weights_version = 0
 
         # Mock time.sleep, time.time, and ray.get
-        with patch('aura.aura.trainer.rollout.rollout_worker.time.sleep') as mock_sleep:
-            with patch('aura.aura.trainer.rollout.rollout_worker.time.time') as mock_time:
-                with patch('aura.aura.trainer.rollout.rollout_worker.ray.get') as mock_ray_get:
+        with patch('aura.trainer.rollout.rollout_worker.time.sleep') as mock_sleep:
+            with patch('aura.trainer.rollout.rollout_worker.time.time') as mock_time:
+                with patch('aura.trainer.rollout.rollout_worker.ray.get') as mock_ray_get:
                     # Configure mock_ray_get to return 0
                     mock_ray_get.return_value = 0
                     # Configure mock_time to return values that cause timeout       
                     mock_time.side_effect = [0, 5, 11]  # Start time 0, then 5 (before timeout), then 11 (timeout)
 
                     # Call the method with timeout=10
-                    from aura.aura.trainer.rollout.rollout_worker import UNAVAILABLE_WEIGHT_VERSION
+                    from aura.trainer.rollout.rollout_worker import UNAVAILABLE_WEIGHT_VERSION
                     weights_version = self.rollout_worker._wait_available_version(wait_timeout=10)
 
                     # Verify results

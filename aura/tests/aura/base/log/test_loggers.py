@@ -20,7 +20,7 @@ import os
 import unittest
 from unittest import mock
 
-from aura.aura.base.log.loggers import generate_iteration_msg, handle_msg, Loggers
+from aura.base.log.loggers import generate_iteration_msg, handle_msg, Loggers
 
 
 class TestLoggers(unittest.TestCase):
@@ -79,7 +79,7 @@ class TestLoggers(unittest.TestCase):
         iteration = 1
         steps = 10
         expected = "iteration: 1 / 10 |  test message"
-        with mock.patch('aura.aura.base.log.loggers.generate_iteration_msg', return_value=expected) as mock_generate:
+        with mock.patch('aura.base.log.loggers.generate_iteration_msg', return_value=expected) as mock_generate:
             result = handle_msg(msg, iteration, steps)
             mock_generate.assert_called_once_with(msg, iteration, steps)
             self.assertEqual(result, expected)

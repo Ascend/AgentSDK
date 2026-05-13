@@ -67,21 +67,21 @@ class TestTrainExecutor:
             "ray.util": cls.mock_ray.util,
             "ray.util.scheduling_strategies": cls.mock_ray.util.scheduling_strategies,
             "omegaconf": MagicMock(OmegaConf=cls.mock_omega),
-            "aura.aura.base.execution.executor": cls.mock_executor_module,
-            "aura.aura.base.log.loggers": mock_loggers_module,
-            "aura.aura.trainer.rollout.rollout_main": MagicMock(),
-            "aura.aura.trainer.train_adapter.mindspeed_rl.hybrid_policy.train_service": MagicMock(),
-            "aura.aura.trainer.train_adapter.mindspeed_rl.one_step_off_policy.train.train_service": MagicMock(),
-            "aura.aura.trainer.train_adapter.verl.full_async.train_main": MagicMock(),
-            "aura.aura.trainer.train_adapter.verl.hybrid.train_main": MagicMock(),
-            "aura.aura.trainer.train_adapter.omni_rl.hybrid.train_main": MagicMock(),
+            "aura.base.execution.executor": cls.mock_executor_module,
+            "aura.base.log.loggers": mock_loggers_module,
+            "aura.trainer.rollout.rollout_main": MagicMock(),
+            "aura.trainer.train_adapter.mindspeed_rl.hybrid_policy.train_service": MagicMock(),
+            "aura.trainer.train_adapter.mindspeed_rl.one_step_off_policy.train.train_service": MagicMock(),
+            "aura.trainer.train_adapter.verl.full_async.train_main": MagicMock(),
+            "aura.trainer.train_adapter.verl.hybrid.train_main": MagicMock(),
+            "aura.trainer.train_adapter.omni_rl.hybrid.train_main": MagicMock(),
         }
         cls.patcher = patch.dict(sys.modules, patch_dict)
         cls.patcher.start()
 
         # Import target module inside patched context
-        from aura.aura.trainer.train_executor import TrainExecutor
-        from aura.aura.trainer.train_register import registry
+        from aura.trainer.train_executor import TrainExecutor
+        from aura.trainer.train_register import registry
         cls.TrainExecutor = TrainExecutor
         cls.registry = registry
 

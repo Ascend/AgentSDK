@@ -30,7 +30,7 @@ def mock_smolagents():
         sm.ToolCallingAgent = mock_tool_calling_agent
         sm.tool = mock_tool
 
-        from aura.aura.runner.agent_engine_wrapper.smolagent.smolagent_wrapper import SmolAgentWrapper
+        from aura.runner.agent_engine_wrapper.smolagent.smolagent_wrapper import SmolAgentWrapper
         yield SmolAgentWrapper, mock_litellm
 
 
@@ -153,7 +153,7 @@ class TestGenerateAgentTrajectoriesAsync:
         wrapper.agents = [mock_agent]
 
         with patch(
-            "aura.aura.runner.agent_engine_wrapper.smolagent.smolagent_wrapper.RunResult",
+            "aura.runner.agent_engine_wrapper.smolagent.smolagent_wrapper.RunResult",
             type(mock_run_result),
         ):
             tasks = [{"problem": "hello"}]

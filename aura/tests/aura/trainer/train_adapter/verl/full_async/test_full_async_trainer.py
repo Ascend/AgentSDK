@@ -108,7 +108,7 @@ with patch.dict('sys.modules', {
     'verl.utils.debug': mock_verl.utils.debug,
 }):
     # Now we can safely import the class under test
-    from aura.aura.trainer.train_adapter.verl.full_async.full_async_trainer import FullyAsyncTrainer
+    from aura.trainer.train_adapter.verl.full_async.full_async_trainer import FullyAsyncTrainer
 
 
 class TestFullyAsyncTrainer(unittest.TestCase):

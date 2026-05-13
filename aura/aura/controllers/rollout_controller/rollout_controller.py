@@ -22,15 +22,15 @@ import time
 import ray
 from fastapi import FastAPI
 
-from aura.aura.base.log.loggers import Loggers
-from aura.aura.base.utils.globals import ROLLOUT_WEIGHTS_PREFIX
-from aura.aura.base.utils.http_server import start_server
-from aura.aura.controllers.rollout_controller.rollout_client import RolloutClient
-from aura.aura.controllers.rollout_controller.rollout_queue import RolloutQueueActor
-from aura.aura.controllers.rollout_controller.rollout_server import RolloutServer
-from aura.aura.controllers.rollout_controller.rollout_weight_manager import RolloutWeightManager
-from aura.aura.controllers.utils.controller_config import ControllerConfig
-from aura.aura.controllers.utils.utils import create_actor, MAX_CONCURRENCY, DEFAULT_CPUS
+from aura.base.log.loggers import Loggers
+from aura.base.utils.globals import ROLLOUT_WEIGHTS_PREFIX
+from aura.base.utils.http_server import start_server
+from aura.controllers.rollout_controller.rollout_client import RolloutClient
+from aura.controllers.rollout_controller.rollout_queue import RolloutQueueActor
+from aura.controllers.rollout_controller.rollout_server import RolloutServer
+from aura.controllers.rollout_controller.rollout_weight_manager import RolloutWeightManager
+from aura.controllers.utils.controller_config import ControllerConfig
+from aura.controllers.utils.utils import create_actor, MAX_CONCURRENCY, DEFAULT_CPUS
 
 logger = Loggers(__name__).get_logger()
 

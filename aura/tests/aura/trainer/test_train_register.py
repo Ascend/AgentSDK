@@ -43,18 +43,18 @@ class TestTrainRegistry:
         self.mock_logger = MagicMock()
         mock_loggers_module.Loggers.return_value.get_logger.return_value = self.mock_logger
         self.mocked_modules = {
-            "aura.aura.base.log.loggers": mock_loggers_module,
-            "aura.aura.trainer.rollout.rollout_main": MagicMock(),
-            "aura.aura.trainer.train_adapter.mindspeed_rl.hybrid_policy.train_service": MagicMock(),
-            "aura.aura.trainer.train_adapter.mindspeed_rl.one_step_off_policy.train.train_service": MagicMock(),
-            "aura.aura.trainer.train_adapter.verl.full_async.train_main": MagicMock(),
-            "aura.aura.trainer.train_adapter.verl.hybrid.train_main": MagicMock(),
-            "aura.aura.trainer.train_adapter.omni_rl.hybrid.train_main": MagicMock(),
+            "aura.base.log.loggers": mock_loggers_module,
+            "aura.trainer.rollout.rollout_main": MagicMock(),
+            "aura.trainer.train_adapter.mindspeed_rl.hybrid_policy.train_service": MagicMock(),
+            "aura.trainer.train_adapter.mindspeed_rl.one_step_off_policy.train.train_service": MagicMock(),
+            "aura.trainer.train_adapter.verl.full_async.train_main": MagicMock(),
+            "aura.trainer.train_adapter.verl.hybrid.train_main": MagicMock(),
+            "aura.trainer.train_adapter.omni_rl.hybrid.train_main": MagicMock(),
         }
         self.module_patcher = patch.dict(sys.modules, self.mocked_modules)
         self.module_patcher.start()
 
-        import aura.aura.trainer.train_register as train_register
+        import aura.trainer.train_register as train_register
         importlib.reload(train_register)
         self.train_register = train_register
 
@@ -122,8 +122,8 @@ class TestTrainRegistry:
     @pytest.mark.parametrize(
         "failed_modules,expected_messages",
         [
-            (["aura.aura.trainer.rollout.rollout_main"], ["verl/mindspeed_rl hybrid train is not available"]),
-            (["aura.aura.trainer.train_adapter.omni_rl.hybrid.train_main"], ["omni_rl hybrid train is not available"]),
+            (["aura.trainer.rollout.rollout_main"], ["verl/mindspeed_rl hybrid train is not available"]),
+            (["aura.trainer.train_adapter.omni_rl.hybrid.train_main"], ["omni_rl hybrid train is not available"]),
         ],
     )
     def test_import_error_handling(self, failed_modules, expected_messages):

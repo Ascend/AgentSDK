@@ -88,7 +88,7 @@ class TestPatchMultiprocExecutor(unittest.TestCase):
             'vllm.distributed.device_communicators.shm_broadcast': cls.mock_shm_broadcast,
             'vllm.v1.executor.multiproc_executor': cls.mock_multiproc_executor,
             'loguru': cls.mock_loguru,
-            'aura.aura.runner.infer_adapter.vllm.patch.comm.vllm_execute_stat': cls.mock_vllm_execute_stat,
+            'aura.runner.infer_adapter.vllm.patch.comm.vllm_execute_stat': cls.mock_vllm_execute_stat,
         })
         cls.modules_patcher.start()
 

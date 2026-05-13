@@ -65,12 +65,12 @@ agent_instances:
         max_prompt_length: 8192
         max_model_len: 8192
         n_parallel_agents: 8
-        agent_class: aura.agents.dtn_agent.dtn_agent.DTNAgent
+        agent_class: agents.dtn_agent.dtn_agent.DTNAgent
         agent_args:
           parser_name: dtn
-        env_class: aura.agents.dtn_agent.environment.dtn_env.DTNEnvironment
+        env_class: agents.dtn_agent.environment.dtn_env.DTNEnvironment
         env_args:
-          reward_fn: aura.agents.dtn_agent.reward.reward_fn.dtn_reward_fn
+          reward_fn: agents.dtn_agent.reward.reward_fn.dtn_reward_fn
           tool_url: http://10.44.101.61:5005/rca/train/
       infer_service:
         name: Qwen2.5-7B-Instruct # 依赖的 INFER 服务名称

@@ -39,7 +39,7 @@ with patch.dict('sys.modules', {
     'verl.utils.device': MagicMock(get_nccl_backend=mock_get_nccl_backend)
 }):
     # Now we can safely import the class under test
-    from aura.aura.trainer.train_adapter.verl.full_async.param_sync import ParameterSynchronizer
+    from aura.trainer.train_adapter.verl.full_async.param_sync import ParameterSynchronizer
 
 class TestParameterSynchronizer(unittest.TestCase):
     def setUp(self):

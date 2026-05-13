@@ -153,7 +153,7 @@ def _reload_target_module():
     Reload the module under test after fakes are installed.
     Returns the reloaded module.
     """
-    mod_name = "aura.aura.runner.infer_adapter.vllm.vllm_megatron_weight_loaders"
+    mod_name = "aura.runner.infer_adapter.vllm.vllm_megatron_weight_loaders"
     if mod_name in sys.modules:
         del sys.modules[mod_name]
     return importlib.import_module(mod_name)
@@ -169,7 +169,7 @@ class TestVllmMegatronWeightLoaders(unittest.TestCase):
         """
         Constructor should call register_model_loader for each known model architecture.
         """
-        from aura.aura.base.weight_loaders.megatron_weight_loaders import BaseMegatronWeightLoader
+        from aura.base.weight_loaders.megatron_weight_loaders import BaseMegatronWeightLoader
 
         with patch.object(BaseMegatronWeightLoader, "register_model_loader") as mock_register:
             mod = _reload_target_module()
@@ -205,7 +205,7 @@ class TestVllmMegatronWeightLoaders(unittest.TestCase):
         update_megatron_weight_loader should assign BaseMegatronWeightLoader.parallel_weight_loader
         to the weight_loader attribute of each vLLM layer class.
         """
-        from aura.aura.base.weight_loaders.megatron_weight_loaders import BaseMegatronWeightLoader
+        from aura.base.weight_loaders.megatron_weight_loaders import BaseMegatronWeightLoader
 
         mod = _reload_target_module()
         loader = mod.VllmMegatronWeightLoaders()

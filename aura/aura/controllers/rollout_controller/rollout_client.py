@@ -22,12 +22,12 @@ import ray
 import requests
 import torch
 
-from aura.aura.base.log.loggers import Loggers
-from aura.aura.base.utils.utils import singleton
-from aura.aura.controllers.rollout_controller.rollout_queue import get_rollout_queue_actor
-from aura.aura.controllers.utils.controller_config import ControllerConfig
-from aura.aura.controllers.utils.http_status import HTTP_OK_200
-from aura.aura.controllers.utils.utils import DEFAULT_SLEEP_TIME, READ_TIMEOUT, DEFAULT_URL_METHOD
+from aura.base.log.loggers import Loggers
+from aura.base.utils.utils import singleton
+from aura.controllers.rollout_controller.rollout_queue import get_rollout_queue_actor
+from aura.controllers.utils.controller_config import ControllerConfig
+from aura.controllers.utils.http_status import HTTP_OK_200
+from aura.controllers.utils.utils import DEFAULT_SLEEP_TIME, READ_TIMEOUT, DEFAULT_URL_METHOD
 
 logger = Loggers(__name__).get_logger()
 

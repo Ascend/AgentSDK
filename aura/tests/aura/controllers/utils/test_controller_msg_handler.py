@@ -30,7 +30,7 @@ mock_torch = MagicMock()
 with patch.dict('sys.modules', {
     'torch': mock_torch,
 }):
-    from aura.aura.controllers.utils.msg_handler import (
+    from aura.controllers.utils.msg_handler import (
         is_seq_like,
         _find_key,
         _len0,

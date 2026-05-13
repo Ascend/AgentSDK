@@ -22,7 +22,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from smolagents import CodeAgent, LiteLLMModel, ToolCallingAgent, tool
 from smolagents.agents import RunResult
 
-from aura.aura.runner.agent_engine_wrapper.base_engine_wrapper import BaseEngineWrapper
+from aura.runner.agent_engine_wrapper.base_engine_wrapper import BaseEngineWrapper
 
 
 class SmolAgentWrapper(BaseEngineWrapper):
