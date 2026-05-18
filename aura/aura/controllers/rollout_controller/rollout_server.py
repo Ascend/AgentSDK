@@ -33,6 +33,7 @@ class RolloutServer:
         self.rollout_queue = rollout_queue
         self.rollout_weight_manager = rollout_weight_manager
         self.is_shutdown = False
+        self.already_quit = False
 
         self.logger = Loggers(__name__).get_logger()
 
@@ -42,6 +43,7 @@ class RolloutServer:
         self.router.post("/send_batch")(self.receive_batch)
         self.router.post("/notify_weights_update")(self.handle_weights_update)
         self.router.post("/shutdown")(self.shutdown)
+        self.router.post("/is_quit")(self.is_quit)
 
     async def unlock(self):
         self.running = True
@@ -79,5 +81,8 @@ class RolloutServer:
     async def shutdown(self):
         await self.rollout_queue.shutdown.remote()
         self.is_shutdown = True
-        logger.info(f"Rollout Server shutdown")
+        logger.info("Rollout Server shutdown")
         return {"Status": "ok"}
+
+    async def is_quit(self):
+        return {"Status": "true" if self.already_quit else "false"}

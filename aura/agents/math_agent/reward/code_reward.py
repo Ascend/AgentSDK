@@ -19,6 +19,7 @@
 This module contains the RewardCode class, which evaluates code datasets answers
 and assigns rewards based on their correctness on unit tests.
 """
+
 import ast
 import json
 import logging
@@ -86,7 +87,13 @@ def clean_code_main_block(code: str) -> str:
     return "\n".join(filtered_lines)
 
 
-def check_correctness(tests: list[dict[str, str]] | dict[str, list[str]], code: str, test_fn, timeout_per_test: int = 12, max_tests: int = 15) -> tuple[bool, dict[str, Any]]:
+def check_correctness(
+    tests: list[dict[str, str]] | dict[str, list[str]],
+    code: str,
+    test_fn,
+    timeout_per_test: int = 12,
+    max_tests: int = 15,
+) -> tuple[bool, dict[str, Any]]:
     """
     Check if generated code passes all test cases within a timeout period.
 
@@ -117,7 +124,9 @@ def check_correctness(tests: list[dict[str, str]] | dict[str, list[str]], code: 
         total_tests = len(list_tests)
         if total_tests > max_tests:
             # Sort indices by test input length and take the max_tests longest ones
-            selected_indices = sorted(range(total_tests), key=lambda i: len(list_tests[i]["input"]), reverse=True)[:max_tests]
+            selected_indices = sorted(range(total_tests), key=lambda i: len(list_tests[i]["input"]), reverse=True)[
+                :max_tests
+            ]
             tests = [list_tests[i] for i in selected_indices]
         num_tests = len(tests)
     else:
@@ -125,9 +134,14 @@ def check_correctness(tests: list[dict[str, str]] | dict[str, list[str]], code: 
         total_tests = len(dict_tests["inputs"])
         if total_tests > max_tests:
             # Select the tests with the longest input length.
-            selected_indices = sorted(range(total_tests), key=lambda i: len(dict_tests["inputs"][i]), reverse=True)[:max_tests]
+            selected_indices = sorted(range(total_tests), key=lambda i: len(dict_tests["inputs"][i]), reverse=True)[
+                :max_tests
+            ]
             # Create a new dict with only the selected test cases
-            selected_tests: dict[str, list[str]] = {"inputs": [dict_tests["inputs"][i] for i in selected_indices], "outputs": [dict_tests["outputs"][i] for i in selected_indices]}
+            selected_tests: dict[str, list[str]] = {
+                "inputs": [dict_tests["inputs"][i] for i in selected_indices],
+                "outputs": [dict_tests["outputs"][i] for i in selected_indices],
+            }
             tests = selected_tests
         num_tests = len(tests["inputs"])
 
@@ -139,7 +153,12 @@ def check_correctness(tests: list[dict[str, str]] | dict[str, list[str]], code: 
         process.kill()
     test_results_list = list(test_results)
 
-    detailed_results: dict[str, Any] = {"all_passed": False, "test_results": [], "total_tests": num_tests, "passed_tests": 0}
+    detailed_results: dict[str, Any] = {
+        "all_passed": False,
+        "test_results": [],
+        "total_tests": num_tests,
+        "passed_tests": 0,
+    }
 
     if len(test_results_list) == 0:
         return False, detailed_results
@@ -153,7 +172,9 @@ def check_correctness(tests: list[dict[str, str]] | dict[str, list[str]], code: 
         if not isinstance(tests, list):
             raise ValueError(f"tests must be a list when original_tests is a list, got {type(tests)}")
         for i, (test, result) in enumerate(zip(tests, passed_results, strict=False)):
-            test_results_list_typed.append({"input": test.get("input", ""), "expected": test.get("output", ""), "passed": result})
+            test_results_list_typed.append(
+                {"input": test.get("input", ""), "expected": test.get("output", ""), "passed": result}
+            )
     else:
         if not isinstance(tests, dict):
             raise ValueError(f"tests must be a dict when original_tests is not a list, got {type(tests)}")
@@ -179,7 +200,9 @@ def postprocess_lcb_sample(sample):
         metadata = sample[0].get("metadata", {})
         fn_name = metadata.get("func_name", None)
         if fn_name is None:
-            raise ValueError(f"Function name is not found, check if your LCB data is preprocessed correctly: {metadata}\nSample: {sample}")
+            raise ValueError(
+                f"Function name is not found, check if your LCB data is preprocessed correctly: {metadata}\nSample: {sample}"
+            )
         # Fill in the blank
         sample_dict["fn_name"] = fn_name
 
@@ -229,7 +252,8 @@ def _temp_run(sample, generation, debug, result, metadata_list, timeout):
 def lcb_check_correctness_v2(sample, generation, timeout=6, debug=False):
     """Check correctness of code generation with a global timeout.
     The global timeout is to catch some extreme/rare cases not handled by the timeouts
-    inside `run_test`"""
+    inside `run_test`
+    """
     if len(sample) < 1:
         raise ValueError("Sample must contain at least one test case")
     sample = postprocess_lcb_sample(sample)
@@ -254,7 +278,10 @@ def lcb_check_correctness_v2(sample, generation, timeout=6, debug=False):
         # consider that all tests failed
         result.extend([[-1 for i in range(len(in_outs["inputs"]))]])
         detailed_results["total_tests"] = len(in_outs["inputs"])
-        detailed_results["test_results"] = [{"input": inp, "expected": out, "passed": False, "error": "global timeout"} for inp, out in zip(in_outs["inputs"], in_outs["outputs"], strict=False)]
+        detailed_results["test_results"] = [
+            {"input": inp, "expected": out, "passed": False, "error": "global timeout"}
+            for inp, out in zip(in_outs["inputs"], in_outs["outputs"], strict=False)
+        ]
         if debug:
             logger.debug("global timeout")
         return False, detailed_results
@@ -265,7 +292,17 @@ def lcb_check_correctness_v2(sample, generation, timeout=6, debug=False):
     # Create detailed test results
     in_outs = json.loads(sample["input_output"])
     detailed_results["total_tests"] = len(result[0])
-    detailed_results["test_results"] = [{"input": inp, "expected": out, "passed": res == True, "error": metadata_list[0].get("error", None), "error_message": metadata_list[0].get("error_message", None), "output": metadata_list[0].get("output", None)} for inp, out, res in zip(in_outs["inputs"], in_outs["outputs"], result[0], strict=False)]
+    detailed_results["test_results"] = [
+        {
+            "input": inp,
+            "expected": out,
+            "passed": res == True,
+            "error": metadata_list[0].get("error", None),
+            "error_message": metadata_list[0].get("error_message", None),
+            "output": metadata_list[0].get("output", None),
+        }
+        for inp, out, res in zip(in_outs["inputs"], in_outs["outputs"], result[0], strict=False)
+    ]
     detailed_results["passed_tests"] = sum(1 for r in result[0] if r == True)
     detailed_results["all_passed"] = all(r == True for r in result[0])
 
@@ -317,7 +354,12 @@ def kodcode_check_correctness(test: str, code: str, timeout_per_test: int = 5) -
     code = clean_code_main_block(code)
 
     succ, output = kod_code_exec(code, test, timeout_per_test * num_tests)
-    detailed_results = {"all_passed": succ, "output": output, "total_tests": num_tests, "test_results": [{"passed": succ, "output": output}]}
+    detailed_results = {
+        "all_passed": succ,
+        "output": output,
+        "total_tests": num_tests,
+        "test_results": [{"passed": succ, "output": output}],
+    }
 
     if not succ:
         logger.warning(f"Error in code execution: {output}")
@@ -344,7 +386,12 @@ def humanevalplus_check_correctness(test: str, code: str, timeout_per_test: int 
     num_test_cases = get_num_test_cases(test)
     succ, output = humanevalplus_run_test(code, test, timeout_per_test * num_test_cases)
 
-    detailed_results = {"all_passed": succ, "output": output, "total_tests": num_test_cases, "test_results": [{"passed": succ, "output": output}]}
+    detailed_results = {
+        "all_passed": succ,
+        "output": output,
+        "total_tests": num_test_cases,
+        "test_results": [{"passed": succ, "output": output}],
+    }
 
     if not succ:
         logger.warning(f"Error in code execution: {output}")
@@ -384,7 +431,9 @@ def taco_to_lcb_format(tests):
     return test_cases
 
 
-def codetool_check_correctness(tests: Any, code: str, codetool: CodeTool, is_taco_format=True, timeout=30) -> tuple[bool, dict[str, Any]]:
+def codetool_check_correctness(
+    tests: Any, code: str, codetool: CodeTool, is_taco_format=True, timeout=30
+) -> tuple[bool, dict[str, Any]]:
     from rllm.tools.utils import call_based_test_code_wrapper, stdin_test_code_wrapper
 
     fn_name = None
@@ -403,12 +452,20 @@ def codetool_check_correctness(tests: Any, code: str, codetool: CodeTool, is_tac
 
     tool_response = codetool(code=test_wrapped_code, timeout=timeout)
 
-    detailed_results = {"all_passed": not tool_response.error, "output": tool_response.output, "error": tool_response.error, "test_results": []}
+    detailed_results = {
+        "all_passed": not tool_response.error,
+        "output": tool_response.output,
+        "error": tool_response.error,
+        "test_results": [],
+    }
 
     # Try to extract individual test results if possible
     if isinstance(new_tests, list):
         detailed_results["total_tests"] = len(new_tests)
-        detailed_results["test_results"] = [{"input": test.get("input", ""), "expected": test.get("output", ""), "passed": not tool_response.error} for test in new_tests]
+        detailed_results["test_results"] = [
+            {"input": test.get("input", ""), "expected": test.get("output", ""), "passed": not tool_response.error}
+            for test in new_tests
+        ]
 
     if tool_response.error:
         logger.warning(f"Error in code execution: {tool_response.error}")
@@ -444,11 +501,19 @@ class RewardCodeFn:
 
         if tests is None:
             logger.warning("No tests found in task_info")
-            return RewardOutput(reward=self.config.format_error_reward, is_correct=False, metadata={"error": "No tests found in task_info"})
+            return RewardOutput(
+                reward=self.config.format_error_reward,
+                is_correct=False,
+                metadata={"error": "No tests found in task_info"},
+            )
 
         model_code = extract_code_from_model(model_response)
         if model_code is None:
-            return RewardOutput(reward=self.config.format_error_reward, is_correct=False, metadata={"error": "No code found in model response"})
+            return RewardOutput(
+                reward=self.config.format_error_reward,
+                is_correct=False,
+                metadata={"error": "No code found in model response"},
+            )
 
         if self.config.use_together_code_interpreter:
             codetool = TogetherCodeTool()
@@ -514,7 +579,7 @@ def rllm_reward_fn_code(data_source: str, llm_solution: str, ground_truth: dict,
     '''
 
         print(f"test the code_forces")
-        # tests = [ { "input": "3 30\\n2 2 1", "output": "5" }, { "input": "3 10\\n3 2 1", "output": "5" } ]
+        # tests = [ { "input": "3 30\n2 2 1", "output": "5" }, { "input": "3 10\n3 2 1", "output": "5" } ]
         metadata = {
              "tests": tests,
         }
@@ -524,7 +589,12 @@ def rllm_reward_fn_code(data_source: str, llm_solution: str, ground_truth: dict,
     reward_fn = RewardCodeFn(reward_config)
 
     # Convert to new format
-    task_info = {"problem": None, "problem_type": RewardType.CODE, "data_source": data_source, "ground_truth": ground_truth}
+    task_info = {
+        "problem": None,
+        "problem_type": RewardType.CODE,
+        "data_source": data_source,
+        "ground_truth": ground_truth,
+    }
 
     reward_response = reward_fn(task_info, llm_solution)
     return reward_response

@@ -16,7 +16,6 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 import asyncio
-import os
 from collections import deque
 from dataclasses import dataclass
 from threading import Lock
@@ -31,12 +30,7 @@ from aura.controllers.utils.async_http import async_send_batch
 from aura.controllers.utils.http_status import HTTP_OK_200
 from aura.controllers.utils.sync_http import sync_send
 from aura.controllers.utils.utils import DEFAULT_URL_METHOD
-from aura.controllers.utils.utils import (
-    post_with_url,
-    DEFAULT_RETRY_COUNT,
-    DEFAULT_BACKOFF_FACTOR,
-    MIN_BACKOFF_FACTOR
-)
+from aura.controllers.utils.utils import post_with_url, DEFAULT_RETRY_COUNT, DEFAULT_BACKOFF_FACTOR, MIN_BACKOFF_FACTOR
 
 
 @dataclass
@@ -50,18 +44,17 @@ class _ExportTracker:
 @ray.remote
 class DispatchActor:
     def __init__(
-            self,
-            n_samples_per_prompt,
-            validate_num_samples,
-            global_batch_size,
-            train_iters,
-            data_loader,
-            initialize_train_dataloader,
-            consumed_train_samples,
-            data_optimized,
-            rollout_server_addr,
+        self,
+        n_samples_per_prompt,
+        validate_num_samples,
+        global_batch_size,
+        train_iters,
+        data_loader,
+        initialize_train_dataloader,
+        consumed_train_samples,
+        data_optimized,
+        rollout_server_addr,
     ):
-        os.environ['ASCEND_RT_VISIBLE_DEVICES'] = '0'
         self.logger = Loggers(__name__).get_logger()
         self.failed_groups = deque()
 
@@ -79,24 +72,34 @@ class DispatchActor:
         self.total_prompts_for_training = self.global_batch_size * train_iters
 
         self.train_data_iters, _, _ = initialize_train_dataloader(
-            data_loader, validate_num_samples, consumed_train_samples)
+            data_loader, validate_num_samples, consumed_train_samples
+        )
         self.data_optimized = data_optimized
         self.rollout_server_addr = rollout_server_addr
 
-    async def _unlock_rollout_unit_remote(self, retry: int = DEFAULT_RETRY_COUNT,
-                                          backoff: float = DEFAULT_BACKOFF_FACTOR):
-        self.logger.info(f">>> enable rollout unit remote")
+        self.data_iter_end = False
+
+    def data_iter_finished(self):
+        return self.data_iter_end
+
+    async def _unlock_rollout_unit_remote(
+        self, retry: int = DEFAULT_RETRY_COUNT, backoff: float = DEFAULT_BACKOFF_FACTOR
+    ):
+        self.logger.info(">>> enable rollout unit remote")
         url = f"{DEFAULT_URL_METHOD}://{self.rollout_server_addr}/rollout/unlock"
         # post_with_url is sync; run in thread so we don't block the event loop
         return await asyncio.to_thread(post_with_url, url, retry, backoff)
 
     # Start the rollout unit to receive the request
-    async def unlock_rollout_unit(self, ):
+    async def unlock_rollout_unit(
+        self,
+    ):
         return await self._unlock_rollout_unit_remote()
 
-    async def _lock_rollout_unit_remote(self, retry: int = DEFAULT_RETRY_COUNT,
-                                        backoff: float = DEFAULT_BACKOFF_FACTOR):
-        self.logger.info(f">>> blocking rollout Unit remote")
+    async def _lock_rollout_unit_remote(
+        self, retry: int = DEFAULT_RETRY_COUNT, backoff: float = DEFAULT_BACKOFF_FACTOR
+    ):
+        self.logger.info(">>> blocking rollout Unit remote")
         url = f"{DEFAULT_URL_METHOD}://{self.rollout_server_addr}/rollout/lock"
         return await asyncio.to_thread(post_with_url, url, retry, backoff)
 
@@ -104,9 +107,10 @@ class DispatchActor:
     async def lock_rollout_unit(self):
         return await self._lock_rollout_unit_remote()
 
-    async def _shutdown_rollout_unit_remote(self, retry: int = DEFAULT_RETRY_COUNT,
-                                            backoff: float = DEFAULT_BACKOFF_FACTOR):
-        self.logger.info(f">>> shutdown rollout Unit remote")
+    async def _shutdown_rollout_unit_remote(
+        self, retry: int = DEFAULT_RETRY_COUNT, backoff: float = DEFAULT_BACKOFF_FACTOR
+    ):
+        self.logger.info(">>> shutdown rollout Unit remote")
         url = f"{DEFAULT_URL_METHOD}://{self.rollout_server_addr}/rollout/shutdown"
         return await asyncio.to_thread(post_with_url, url, retry, backoff)
 
@@ -126,7 +130,8 @@ class DispatchActor:
         try:
             batch = next(self.train_data_iters)
         except StopIteration:
-            self.logger.warning(f">>> rollout data iter end")
+            self.logger.warning(">>> rollout data iter end")
+            self.data_iter_end = True
         return batch
 
     def _get_batch_groups_remote(self, n_groups):
@@ -177,6 +182,11 @@ class DispatchActor:
     async def shutdown(self):
         await self.shutdown_rollout_unit()
 
+    async def rollout_already_quit(self):
+        self.logger.info(">>> judge rollout unit is already quit")
+        url = f"{DEFAULT_URL_METHOD}://{self.rollout_server_addr}/rollout/is_quit"
+        return await asyncio.to_thread(post_with_url, url, DEFAULT_RETRY_COUNT, DEFAULT_BACKOFF_FACTOR)
+
     def set_rollout_unit_ready(self):
         self.rollout_unit_ready = True
 
@@ -193,8 +203,7 @@ class DispatchActor:
         self.logger.info(f"all shards for {weight_save_dir} are written, notifying rollout unit remote")
         tasks = []
         url = f"{DEFAULT_URL_METHOD}://{self.rollout_server_addr}/rollout/notify_weights_update"
-        tasks.append(asyncio.to_thread(sync_send, weight_save_dir, url,
-                                       DEFAULT_RETRY_COUNT, MIN_BACKOFF_FACTOR))
+        tasks.append(asyncio.to_thread(sync_send, weight_save_dir, url, DEFAULT_RETRY_COUNT, MIN_BACKOFF_FACTOR))
         await asyncio.gather(*tasks)
 
     async def notify_weights_update(self, weight_save_dir: str):

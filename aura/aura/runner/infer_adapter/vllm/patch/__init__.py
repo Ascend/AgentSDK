@@ -21,6 +21,10 @@ import os
 
 version = os.getenv("VLLM_VERSION")
 
+# Note: 0.10.2 and 0.9.1 both use the built-in vllm mode, requiring the path to be called in the code
+# From 0.11.0 and 0.13.0 onwards, it was changed to the external vllm mode,
+# and the script will copy the path to the installed vllm/vllm-ascend patch directory
+
 if version and version in "0.10.2":
     import aura.runner.infer_adapter.vllm.patch.patch_0_10_2
 elif version and version in "0.9.1":

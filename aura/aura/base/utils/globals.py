@@ -43,17 +43,6 @@ REPORT_DIR = "../.."
 
 ROLLOUT_WEIGHTS_PREFIX = "/rollout"
 
-TRAIN_CLUSTER = "train"
-ROLLOUT_CLUSTER = "rollout"
-
-
-def set_cluster_mode(mode):
-    os.environ["CLUSTER_MODE"] = mode
-
-
-def get_cluster_mode():
-    return os.environ["CLUSTER_MODE"]
-
 
 def is_pd_separate():
     return bool(int(os.getenv("USE_PD", "0")))

@@ -25,16 +25,13 @@ import re
 import time
 import traceback
 import uuid
-from concurrent.futures import ThreadPoolExecutor
 
 import torch
 
-import aura.runner.agent_engine_wrapper.rllm.patch
 from aura.base.log.loggers import Loggers
 from aura.base.misc.misc import app_stats, colorful_print
 from aura.base.utils.utils import strftime
 from aura.runner.agent_engine_wrapper.base.agent.base_agent import Action, BaseAgent, Trajectory
-from aura.runner.agent_engine_wrapper.base.environment.base_env import BaseEnv
 from aura.runner.agent_engine_wrapper.base.environment.env_utils import compute_mc_return, compute_trajectory_reward
 from aura.runner.agent_engine_wrapper.base.parser.chat_template import ChatTemplateParser
 from aura.runner.agent_engine_wrapper.base_engine_wrapper import AgentTask
@@ -114,8 +111,9 @@ class AgentExecutionEngine:
         self.agent_args = agent_args
         self.env_class = env_class
         self.env_args = env_args
-        self.compute_trajectory_reward_fn = compute_trajectory_reward_fn \
-            if compute_trajectory_reward_fn is not None else compute_trajectory_reward
+        self.compute_trajectory_reward_fn = (
+            compute_trajectory_reward_fn if compute_trajectory_reward_fn is not None else compute_trajectory_reward
+        )
 
         self.agents = [None for _ in range(n_parallel_agents)]
         self.envs = [None for _ in range(n_parallel_agents)]
@@ -129,6 +127,7 @@ class AgentExecutionEngine:
             if not env_class.is_multithread_safe():
                 raise TypeError("Environment must be multi-thread safe for async engine")
         self.sampling_params = kwargs.get("sampling_params", {})
+        self.token_in_token_out = kwargs.get("token_in_token_out", False)
 
         self.tokenizer_name_or_path = tokenizer_name_or_path
         self.server_addresses = None
@@ -140,8 +139,7 @@ class AgentExecutionEngine:
 
         if chat_parser is None:
             self.chat_parser = ChatTemplateParser.get_parser(
-                self.tokenizer,
-                disable_thinking=kwargs.get("disable_thinking", False)
+                self.tokenizer, disable_thinking=kwargs.get("disable_thinking", False)
             )
         else:
             self.chat_parser = chat_parser
@@ -156,17 +154,23 @@ class AgentExecutionEngine:
         self.application_ids: dict[str, str] = {}
 
     def init_router(self, addresses):
-        logger.info(f"addresses: {addresses}, router: {self.router}")
-        if addresses is None or addresses == [None] or self.router is not None:
+        logger.debug(f"addresses: {addresses}, router: {self.router}")
+        if addresses is None or addresses == [None]:
             return
-        logger.info(f"create router, addresses: {addresses}")
+        if self.router is not None:
+            self.router.update_address(addresses)
+            logger.debug(f"router update_address, addresses: {addresses}")
+            return
+        logger.info(f"create router, addresses: {addresses} token_in_token_out={self.token_in_token_out}")
         self.server_addresses = addresses
         from aura.runner.scheduler.router import Router
+
         self.router = Router.create(
             tokenizer_name_or_path=self.tokenizer_name_or_path,
             tokenizer=self.tokenizer,
             addresses=self.server_addresses,
-            model_name=self.sampling_params.get("model_name", {})
+            token_in_token_out=self.token_in_token_out,
+            model_name=self.sampling_params.get("model_name", {}),
         )
 
     def init_episode(self, episode):
@@ -180,7 +184,7 @@ class AgentExecutionEngine:
         self.router.reset()
         self.stop = False
 
-    async def get_model_response(self, prompt, application_id, stream_queue=None, **kwargs):
+    async def get_model_response(self, prompt, application_id, stream_queue=None, server_handles=None, **kwargs):
         """
         Compute model response asynchronously based on the engine type.
 
@@ -198,7 +202,45 @@ class AgentExecutionEngine:
         Raises:
             NotImplementedError: If the engine type is not supported
         """
-        return await self._get_router_async(prompt, application_id, stream_queue=stream_queue, **kwargs)
+        if server_handles is not None:
+            from verl.experimental.agent_loop.agent_loop import AsyncLLMServerManager
+
+            logger.info(f"use internal vLLM server handles: {server_handles}")
+            server_manager = AsyncLLMServerManager({}, server_handles=server_handles)
+            default_kwargs = dict(
+                n=1,
+                request_id=application_id,
+            )
+
+            merged_kwargs = {**default_kwargs, **self.sampling_params, **kwargs}
+            logger.info(f"default simpling: {self.sampling_params}")
+            logger.info(f"kwargs: {kwargs}")
+            logger.info(f"default merged_kwargs: {merged_kwargs}")
+
+            sample_params = {
+                "n": merged_kwargs["n"],
+                "top_p": merged_kwargs["top_p"],
+                "temperature": merged_kwargs["temperature"],
+                "max_tokens": merged_kwargs["max_tokens"],
+                "logprobs": 1,
+            }
+
+            token_output = await server_manager.generate(
+                request_id=application_id, prompt_ids=prompt, sampling_params=sample_params
+            )
+
+            completion_text = self.tokenizer.decode(token_output.token_ids, skip_special_tokens=True)
+
+            http_response = {
+                "message": completion_text,
+                "logprobs": token_output.log_probs,
+                "response_tokens": token_output.token_ids,
+                "prompt_tokens": prompt,
+            }
+
+            return http_response
+        else:
+            return await self._get_router_async(prompt, application_id, stream_queue=stream_queue, **kwargs)
 
     def update_envs_and_agents(self, envs, agents, iteration, sample_id):
         """
@@ -211,7 +253,9 @@ class AgentExecutionEngine:
             agents: List of agents to use
         """
         if len(agents) != len(envs):
-            raise ValueError(f"Number of agents must equal to number of environments but received, {len(agents)} and {len(envs)}")
+            raise ValueError(
+                f"Number of agents must equal to number of environments but received, {len(agents)} and {len(envs)}"
+            )
         self.envs = envs
         for idx, env in enumerate(envs):
             env.idx = idx
@@ -272,7 +316,9 @@ class AgentExecutionEngine:
             return
         await self.router.cancel_request(application_id)
 
-    async def run_agent_trajectory_async(self, idx, application_id, seed=0, stream_queue=None, mode="Text", **kwargs):
+    async def run_agent_trajectory_async(
+        self, idx, application_id, seed=0, stream_queue=None, mode="Text", server_handles=None, **kwargs
+    ):
         """Run a single agent's trajectory asynchronously"""
         agent = self.agent_dict[idx] if isinstance(idx, str) else self.agents[idx]
         env = self.env_dict[idx] if isinstance(idx, str) else self.envs[idx]
@@ -283,7 +329,6 @@ class AgentExecutionEngine:
         response_tokens = []
         response_masks = []
         logprobs_list = []
-        vllm_prompt_tokens = []
         total_time = 0.0
         reward_time = None
         llm_time = 0.0
@@ -294,6 +339,8 @@ class AgentExecutionEngine:
 
         llm_step_times = []
         env_step_times = []
+        llm_step_input_lengths = []
+        llm_step_output_lengths = []
 
         loop = asyncio.get_event_loop()
         observation, info = await loop.run_in_executor(self.executor, env.reset)
@@ -313,7 +360,7 @@ class AgentExecutionEngine:
             hash_obj = hashlib.sha256(original_prompt.encode('utf-8'))
             id_32 = hash_obj.hexdigest()[:32]
         else:
-            logger.warning(f"The user content is missing; only the system content is provided.")
+            logger.warning("The user content is missing; only the system content is provided.")
             id_32 = DEFAULT_DATA_ID
 
         prompt_tokens, _ = convert_messages_to_tokens_and_masks(
@@ -321,7 +368,7 @@ class AgentExecutionEngine:
             tokenizer=self.tokenizer,
             parser=self.chat_parser,
             contains_first_msg=True,
-            contains_generation_msg=True
+            contains_generation_msg=True,
         )
         prompt_token_len = len(prompt_tokens)
         if prompt_token_len > self.max_prompt_length:
@@ -340,32 +387,33 @@ class AgentExecutionEngine:
                 logger.warning(f"trajectory canceled, appID:{application_id}, step_idx:{step_idx}")
                 return None
 
+            assistant_msg_tokens = []
+            assistant_msg_masks = []
+            single_turn_logprobs = []
+            # Get action from agent
             prompt_messages = agent.chat_completions.copy()
 
             if self.simplify_think_content:
-                assistant_indices = [
-                    i
-                    for i, item in enumerate(prompt_messages)
-                    if item.get("role") == "assistant"
-                ]
+                assistant_indices = [i for i, item in enumerate(prompt_messages) if item.get("role") == "assistant"]
                 if assistant_indices:
                     for idx in assistant_indices:
                         content = '<think>' + prompt_messages[idx]["content"]
                         modified_content = re.sub(
-                            r'\<think>.*?\</think>',
-                            '<think>思考过程省略</think>',
-                            content,
-                            flags=re.DOTALL
+                            r'\<think>.*?\</think>', '<think>思考过程省略</think>', content, flags=re.DOTALL
                         )
                         prompt_messages[idx]["content"] = modified_content
 
-            curr_step_prompt_length = len(self.tokenizer.encode(
-                self.chat_parser.parse(prompt_messages, add_generation_prompt=True, is_first_msg=True),
-                add_special_tokens=False
-            ))
+            curr_step_prompt_length = len(
+                self.tokenizer.encode(
+                    self.chat_parser.parse(prompt_messages, add_generation_prompt=True, is_first_msg=True),
+                    add_special_tokens=False,
+                )
+            )
 
             if not self.enforce_max_prompt_length:
                 max_tokens = max_model_len - curr_step_prompt_length
+                if max_tokens <= 0:
+                    max_tokens = 128
                 logger.info(
                     f"appID:{application_id}, step_idx:{step_idx}, max_model_len:{max_model_len},"
                     f" history_response_token_len:{response_token_len}, "
@@ -374,11 +422,7 @@ class AgentExecutionEngine:
             else:
                 max_tokens = max_tokens_old
 
-                prompt_str = self.chat_parser.parse(
-                    prompt_messages,
-                    add_generation_prompt=True,
-                    is_first_msg=True
-                )
+                prompt_str = self.chat_parser.parse(prompt_messages, add_generation_prompt=True, is_first_msg=True)
                 prompt_len = len(self.tokenizer.encode(prompt_str, add_special_tokens=False))
                 if prompt_len > self.max_prompt_length:
                     termination_reason = "PROMPT_TRUNCATION"
@@ -393,84 +437,34 @@ class AgentExecutionEngine:
             kwargs["step_idx"] = step_idx
 
             start_time = time.time()
+            if self.token_in_token_out:
+                prompt_for_vllm = prompt_tokens if step_idx == 0 else prompt_tokens + response_tokens
+                llm_step_input_lengths.append(len(prompt_for_vllm))
+                try:
+                    http_response = await self.get_model_response(
+                        prompt_for_vllm,
+                        application_id,
+                        stream_queue=stream_queue,
+                        server_handles=server_handles,
+                        **kwargs,
+                    )
+                except Exception as e:
+                    logger.error(f"appID: {application_id} get_model_response exception! e: {e}")
+                    return None
+                if step_idx == 0:
+                    prompt_tokens = http_response["prompt_tokens"]
+                    prompt_token_len = len(prompt_tokens)
 
-            prompt_for_vllm = prompt_tokens if step_idx == 0 else vllm_prompt_tokens + response_tokens
-            try:
-                http_response = await self.get_model_response(
-                    prompt_for_vllm,
-                    application_id,
-                    stream_queue=stream_queue,
-                    **kwargs
+                response = http_response["message"]
+                assistant_msg_tokens = http_response["response_tokens"]
+                assistant_msg_masks = [1] * len(assistant_msg_tokens)
+
+                single_turn_logprobs = http_response["logprobs"]
+                llm_step_output_lengths.append(len(assistant_msg_tokens))
+            else:
+                response = await self.get_model_response(
+                    prompt_messages, application_id, stream_queue=stream_queue, **kwargs
                 )
-            except Exception as exp:
-                traceback.print_exc()
-                logger.error(f"run trajectory failed, error: {exp}")
-                logprobs_list = [0]
-                prompt_id = application_id.split('-', 1)[0]
-                trajectory: Trajectory = agent.trajectory
-                token_result = {
-                    "prompt_tokens": torch.tensor(prompt_tokens, dtype=torch.long),
-                    "response_tokens": torch.tensor([1], dtype=torch.long),
-                    "response_masks": torch.tensor([0], dtype=torch.long),
-                    "logprobs": logprobs_list,
-                    "trajectory_reward": 0,
-                    "idx": env.idx,
-                    "prompt_id": prompt_id,
-                    "chat_completions": agent.chat_completions,
-                    "trajectory": trajectory.to_info_dict(),
-                    "metrics": {
-                        "steps": 1,
-                        "reward_time": 0,
-                        "env_time": 0,
-                        "llm_time": 0,
-                        "total_time": 0,
-                        "toolcall_reward": 0,
-                        "res_reward": 0,
-                        "env_step_times": 0,
-                        "llm_step_times": 0
-                    },
-                }
-                return token_result
-
-            if step_idx == 0:
-                vllm_prompt_tokens = http_response["prompt_tokens"]
-                prompt_token_len = len(vllm_prompt_tokens)
-
-            response = http_response["message"]
-            if "!!!!!!" in response:
-                logger.error(f"run trajectory failed, ========!!!!!, error: {response}")
-                logprobs_list = [0]
-                prompt_id = application_id.split('-', 1)[0]
-                trajectory: Trajectory = agent.trajectory
-                token_result = {
-                    "prompt_tokens": torch.tensor(prompt_tokens, dtype=torch.long),
-                    "response_tokens": torch.tensor([1], dtype=torch.long),
-                    "response_masks": torch.tensor([0], dtype=torch.long),
-                    "logprobs": logprobs_list,
-                    "trajectory_reward": 0,
-                    "idx": env.idx,
-                    "prompt_id": prompt_id,
-                    "chat_completions": agent.chat_completions,
-                    "trajectory": trajectory.to_info_dict(),
-                    "metrics": {
-                        "steps": 1,
-                        "reward_time": 0,
-                        "env_time": 0,
-                        "llm_time": 0,
-                        "total_time": 0,
-                        "toolcall_reward": 0,
-                        "res_reward": 0,
-                        "env_step_times": 0,
-                        "llm_step_times": 0
-                    },
-                }
-                return token_result
-
-            vllm_response_tokens = http_response["response_tokens"]
-            vllm_response_masks = [1] * len(vllm_response_tokens)
-
-            single_turn_logprobs = http_response["logprobs"]
-
             if self.stop or response is None:
                 logger.warning(f"trajectory canceled, appID:{application_id}, step_idx:{step_idx}")
                 return None
@@ -488,48 +482,40 @@ class AgentExecutionEngine:
             app_stats.stat_vllm_step(application_id, step_idx, start_time, start_time + delta_time)
 
             prompt_response_pair = {
-                "prompt": self.chat_parser.parse(
-                    prompt_messages,
-                    add_generation_prompt=True,
-                    is_first_msg=True
-                ),
+                "prompt": self.chat_parser.parse(prompt_messages, add_generation_prompt=True, is_first_msg=True),
                 "response": response,
-                "prompt_ids": http_response["prompt_tokens"],
-                "completion_ids": http_response["response_tokens"],
-                "logprobs": single_turn_logprobs,
             }
+            if self.token_in_token_out:
+                prompt_response_pair["prompt_ids"] = http_response["prompt_tokens"]
+                prompt_response_pair["completion_ids"] = http_response["response_tokens"]
+                prompt_response_pair["logprobs"] = single_turn_logprobs
             episode_steps.append(prompt_response_pair)
 
             if stream_queue:
-                stream_queue.put_nowait({
-                    "event": "run_item_stream_event",
-                    "data": {
-                        "name": 'message_output_created',
-                        "item": response,
-                        "type": "run_item_stream_event"
+                stream_queue.put_nowait(
+                    {
+                        "event": "run_item_stream_event",
+                        "data": {"name": 'message_output_created', "item": response, "type": "run_item_stream_event"},
                     }
-                })
+                )
 
             action: Action = agent.update_from_model(response)
             action = action.action
 
             if stream_queue:
-                stream_queue.put_nowait({
-                    "event": "run_item_stream_event",
-                    "data": {
-                        "name": 'tool_called',
-                        "item": str(action),
-                        "type": "run_item_stream_event"
+                stream_queue.put_nowait(
+                    {
+                        "event": "run_item_stream_event",
+                        "data": {"name": 'tool_called', "item": str(action), "type": "run_item_stream_event"},
                     }
-                })
+                )
 
             start_time = time.time()
 
             logger.info(f"call tool step: {step_idx} start ...")
             try:
                 next_observation, reward, done, info = await asyncio.wait_for(
-                    loop.run_in_executor(self.executor, env.step, action),
-                    timeout=self.tool_timeout
+                    loop.run_in_executor(self.executor, env.step, action), timeout=self.tool_timeout
                 )
             except asyncio.TimeoutError:
                 termination_reason = "ENV_TIMEOUT"
@@ -538,28 +524,22 @@ class AgentExecutionEngine:
                         f"Warning: Trajectory {application_id} completed due to: {termination_reason} "
                         f"before able to perform 1 complete action. "
                         f"This might cause unexpected behavior. Consider increasing trajectory timeout limit.\n",
-                        "red"
+                        "red",
                     )
                 reward = 0
                 done = True
                 info = {}
-                next_observation = {
-                    "tool_outputs": {
-                        "tool_timeout_call_id": f"timeout for tool call: {action}"
-                    }
-                }
+                next_observation = {"tool_outputs": {"tool_timeout_call_id": f"timeout for tool call: {action}"}}
 
             logger.info(f"call tool step: {step_idx} end ...")
 
             if stream_queue:
-                stream_queue.put_nowait({
-                    "event": "run_item_stream_event",
-                    "data": {
-                        "name": 'tool_output',
-                        "item": next_observation,
-                        "type": "run_item_stream_event"
+                stream_queue.put_nowait(
+                    {
+                        "event": "run_item_stream_event",
+                        "data": {"name": 'tool_output', "item": next_observation, "type": "run_item_stream_event"},
                     }
-                })
+                )
 
             delta_time = time.time() - start_time
             env_step_times.append(delta_time)
@@ -591,53 +571,80 @@ class AgentExecutionEngine:
             assistant_message, env_messages = get_recent_assistant_user_messages(chat_completions_messages)
 
             if assistant_message is None and mode == "Token":
-                raise RuntimeError("Assistant messages is none when accumulating token trajectories which should be conversations. This should not happen.")
+                raise RuntimeError(
+                    "Assistant messages is none when accumulating token trajectories which should be conversations. This should not happen."
+                )
             if env_messages is None and mode == "Token":
-                raise RuntimeError("Environment messages is none when accumulating token trajectories which should be conversations. This should not happen.")
+                raise RuntimeError(
+                    "Environment messages is none when accumulating token trajectories which should be conversations. This should not happen."
+                )
             env_msg_tokens, env_msg_masks = [], []
+            if assistant_message and not self.token_in_token_out:
+                assistant_msg_tokens, assistant_msg_masks = convert_messages_to_tokens_and_masks(
+                    [assistant_message],
+                    tokenizer=self.tokenizer,
+                    parser=self.chat_parser,
+                    contains_first_msg=False,
+                    contains_generation_msg=False,
+                )
             if env_messages:
                 env_msg_tokens, env_msg_masks = convert_messages_to_tokens_and_masks(
                     env_messages,
                     tokenizer=self.tokenizer,
                     parser=self.chat_parser,
                     contains_first_msg=False,
-                    contains_generation_msg=True
+                    contains_generation_msg=True,
                 )
 
             logger.info(
                 f"trajectory performance status, appID:{application_id}, step_idx:{step_idx}, "
                 f"prompt_length:{curr_step_prompt_length}, "
-                f"response_length:{len(vllm_response_tokens)}, env_length:{len(env_msg_tokens)}"
+                f"response_length:{len(assistant_msg_tokens)}, env_length:{len(env_msg_tokens)}"
             )
 
-            response_token_len += len(vllm_response_tokens) + len(env_msg_tokens)
-
-            curr_step_prompt_length = len(self.tokenizer.encode(
-                self.chat_parser.parse(
-                    agent.chat_completions,
-                    add_generation_prompt=True,
-                    is_first_msg=True
-                ),
-                add_special_tokens=False
-            ))
-            trajectory_token_length = prompt_token_len + response_token_len
-            if (not self.enforce_max_prompt_length and
-                    (curr_step_prompt_length >= max_model_len or trajectory_token_length >= max_model_len)):
-                truncation_length = max_model_len - trajectory_token_length
-                single_turn_logprobs += [0] * len(env_msg_tokens)
-
+            # Update response token length
+            response_token_len += len(assistant_msg_tokens) + len(env_msg_tokens)
+            # Reached maximum number of tokens for the trajectory
+            curr_step_prompt_length = len(
+                self.tokenizer.encode(
+                    self.chat_parser.parse(agent.chat_completions, add_generation_prompt=True, is_first_msg=True),
+                    add_special_tokens=False,
+                )
+            )
+            logger.info(
+                f"trajectory performance status, prompt truncation judge, "
+                f"appID:{application_id}, step_idx:{step_idx}, "
+                f"current step_prompt_length: {curr_step_prompt_length}, "
+                f"max_model_len: {max_model_len}"
+            )
+            if not self.enforce_max_prompt_length and curr_step_prompt_length >= max_model_len:
+                logger.info(
+                    f"exceed max_model_len, current step_prompt_length: {curr_step_prompt_length}, "
+                    f"max_model_len: {max_model_len}"
+                )
+                # Truncation length
+                truncation_length = max_model_len - curr_step_prompt_length
+                # Truncate the response and masks
                 if truncation_length < 0:
-                    truncated_response_tokens = (vllm_response_tokens + env_msg_tokens)[:truncation_length]
-                    truncated_response_masks = (vllm_response_masks + env_msg_masks)[:truncation_length]
+                    truncated_response_tokens = (assistant_msg_tokens + env_msg_tokens)[:truncation_length]
+                    truncated_response_masks = (assistant_msg_masks + env_msg_masks)[:truncation_length]
                     truncated_response_logprobs = single_turn_logprobs[:truncation_length]
                 else:
-                    truncated_response_tokens = vllm_response_tokens + env_msg_tokens
-                    truncated_response_masks = vllm_response_masks + env_msg_masks
+                    # Edge case where the response is exactly the max response length.
+                    truncated_response_tokens = assistant_msg_tokens + env_msg_tokens
+                    truncated_response_masks = assistant_msg_masks + env_msg_masks
                     truncated_response_logprobs = single_turn_logprobs
-
+                # Update token collections
                 response_tokens.extend(truncated_response_tokens)
                 response_masks.extend(truncated_response_masks)
                 logprobs_list.extend(truncated_response_logprobs)
+
+                logger.info(
+                    f"truncated response tokens, appID:{application_id}, step_idx:{step_idx}, "
+                    f"truncation_length:{truncation_length}, "
+                    f"truncated_response_tokens len: {len(truncated_response_tokens)}, "
+                    f"response_tokens len: {len(response_tokens)}"
+                )
 
                 cur_step = agent.get_current_state()
                 if curr_step_prompt_length - len(env_msg_tokens) > max_model_len:
@@ -647,8 +654,9 @@ class AgentExecutionEngine:
                 termination_reason = "TRUNCATION"
                 break
 
-            response_tokens.extend(vllm_response_tokens)
-            response_masks.extend(vllm_response_masks)
+            # Update the token version of trajectory
+            response_tokens.extend(assistant_msg_tokens)
+            response_masks.extend(assistant_msg_masks)
             logprobs_list.extend(single_turn_logprobs)
             observation = next_observation
 
@@ -673,8 +681,11 @@ class AgentExecutionEngine:
         app_stats.stat_env_state(application_id, step_idx_last, termination_reason)
         masked_out = False
         if self.overlong_filter:
-            if (termination_reason == "TRUNCATION" or
-                    termination_reason == "MAX_STEPS" or termination_reason == "TIMEOUT"):
+            if (
+                termination_reason == "TRUNCATION"
+                or termination_reason == "MAX_STEPS"
+                or termination_reason == "TIMEOUT"
+            ):
                 response_masks = [0] * len(response_masks)
                 masked_out = True
 
@@ -711,8 +722,17 @@ class AgentExecutionEngine:
         trajectory.sample_id = env.sample_id
         trajectory.application_id = application_id
         trajectory.trajectory_id = (
-                trajectory.data_id + "-" + trajectory.training_id + "-" + str(trajectory.epoch_id)
-                + "-" + str(trajectory.iteration_id) + "-" + str(trajectory.sample_id) + "-" + "0"
+            trajectory.data_id
+            + "-"
+            + trajectory.training_id
+            + "-"
+            + str(trajectory.epoch_id)
+            + "-"
+            + str(trajectory.iteration_id)
+            + "-"
+            + str(trajectory.sample_id)
+            + "-"
+            + "0"
         )
         app_stats.stat_trajectory(application_id, trajectory.trajectory_id)
         trajectory.termination_reason = termination_reason if termination_reason is not None else ""
@@ -730,23 +750,24 @@ class AgentExecutionEngine:
         trajectory.prompt_id = prompt_id
         logger.info(
             f"trajectory performance status, appID:{application_id}, total_llm_time:{llm_time}, "
-            f"llm_step_times:{llm_step_times}, total_env_time:{env_time}, env_step_times:{env_step_times},"
-            f" total_prompt_tokens:{len(prompt_tokens)}, total_response_tokens:{len(response_tokens)}"
+            f"llm_step_times:{llm_step_times}, llm_step_input_lengths: {llm_step_input_lengths}, "
+            f"llm_step_output_lengths: {llm_step_output_lengths}, total_env_time:{env_time}, "
+            f"env_step_times:{env_step_times}, total_prompt_tokens:{len(prompt_tokens)}, "
+            f"total_response_tokens:{len(response_tokens)}"
         )
         trajectory.task = env.task
 
         if mode == "Text":
             return trajectory
         elif mode == "Token":
-            prompt_tokens, response_tokens, response_masks, is_valid_trajectory = self.assemble_steps(episode_steps, masked_out)
-            logger.info(f"tool call reward: {trajectory.toolcall_reward}")
-            logger.info(f"res reward: {trajectory.res_reward}")
-            logger.info(f"final reward: {trajectory.reward}")
+            logger.info(
+                f"trajectory reward, appID: {application_id}, tool call reward: {trajectory.toolcall_reward},"
+                f"res reward: {trajectory.res_reward}, final reward: {trajectory.reward}"
+            )
             token_result = {
-                "prompt_tokens": torch.tensor(vllm_prompt_tokens, dtype=torch.long),
+                "prompt_tokens": torch.tensor(prompt_tokens, dtype=torch.long),
                 "response_tokens": torch.tensor(response_tokens, dtype=torch.long),
                 "response_masks": torch.tensor(response_masks, dtype=torch.long),
-                "logprobs": logprobs_list,
                 "trajectory_reward": trajectory.reward,
                 "idx": env.idx,
                 "prompt_id": trajectory.prompt_id,
@@ -770,9 +791,11 @@ class AgentExecutionEngine:
                     # env step performance in the trajectory
                     "env_step_times": env_step_times,
                     # llm step performance in the trajectory
-                    "llm_step_times": llm_step_times
+                    "llm_step_times": llm_step_times,
                 },
             }
+            if self.token_in_token_out:
+                token_result["logprobs"] = torch.tensor(logprobs_list)
             return token_result
         elif mode == "Conversation":
             return agent.chat_completions
@@ -786,7 +809,9 @@ class AgentExecutionEngine:
             }
             return steps_result
 
-    async def trajectory_generator(self, task, stream_queue=None, reset_seed=0, mode="Text", **kwargs):
+    async def trajectory_generator(
+        self, task, stream_queue=None, reset_seed=0, mode="Text", server_handles=None, **kwargs
+    ):
         if not all(env.is_multithread_safe() for env in self.env_dict.values()):
             raise TypeError("All environments must be multithread safe for async engine")
 
@@ -801,6 +826,7 @@ class AgentExecutionEngine:
                     seed=reset_seed,
                     mode=mode,
                     stream_queue=stream_queue,
+                    server_handles=server_handles,
                     **kwargs,
                 )
             except Exception as exp:
@@ -847,7 +873,7 @@ class AgentExecutionEngine:
 
         async def sem_wrapper(task_id, task):
             nonlocal completed
-            async with (semaphore):
+            async with semaphore:
                 index = await index_queue.get()
                 try:
                     self.envs[index] = self.env_class.from_dict({**task, **self.env_args})
@@ -868,89 +894,6 @@ class AgentExecutionEngine:
         all_trajectories = {task_id: trajectory for task_id, trajectory in results}
         ordered_trajectories = [all_trajectories[i] for i in range(len(all_trajectories))]
         return ordered_trajectories
-
-    def assemble_steps(self, steps: list[dict], masked_out: bool):
-        """
-        Transform step-by-step results into trajectory format for training.
-        The assemble is aggresive, if steps is not cumulative, the response_masks is set to all 0s.
-
-        Each step_result contains:
-        - steps: List of {"prompt": str, "response": str, "prompt_ids": list, "completion_ids": list}
-
-        For training, we need to assemble the full conversation sequence where:
-        - prompt_tokens: Initial prompt (first step's prompt_ids)
-        - response_tokens: All subsequent conversation (completion_ids + next step's prompt_ids)
-        - response_masks: Mask indicating which tokens contribute to loss (only completion_ids)
-        """
-        initial_prompt_ids = steps[0]["prompt_ids"]
-        accumulated_sequence = initial_prompt_ids.copy()
-        response_tokens = []
-        response_masks = []
-        log_probs = []
-        is_valid_trajectory = True
-
-        for i, step in enumerate(steps):
-            current_prompt_ids = step["prompt_ids"]
-            current_completion_ids = step["completion_ids"]
-            current_log_probs = step["logprobs"]
-
-            if i == 0:
-                response_tokens.extend(current_completion_ids)
-                response_masks.extend([1] * len(current_completion_ids))
-                log_probs.extend(current_log_probs)
-                accumulated_sequence.extend(current_completion_ids)
-            else:
-                if current_prompt_ids[: len(accumulated_sequence)] != accumulated_sequence:
-                    prefix = current_prompt_ids[: len(accumulated_sequence)]
-                    diff_pos = None
-                    for i, (expected, actual) in enumerate(zip(accumulated_sequence, prefix, strict=False)):
-                        if expected != actual:
-                            diff_pos = i
-                            break
-
-                    if diff_pos is not None:
-                        logger.warning(
-                            f"When assemble steps, detect the trajectory not accumulative at position "
-                            f"{diff_pos}. Expected: {accumulated_sequence[diff_pos : diff_pos + 5]}, "
-                            f"Got: {prefix[diff_pos : diff_pos + 5]}. Setting response_masks to all 0s. "
-                            f"This is likely due to retokenization."
-                        )
-                    else:
-                        logger.warning(
-                            f"When assemble steps, detect length mismatch. Expected length: "
-                            f"{len(accumulated_sequence)}, Got length: {len(prefix)}. "
-                            f"Setting response_masks to all 0s."
-                        )
-
-                    is_valid_trajectory = False
-                    if not is_valid_trajectory:
-                        raise Exception("Detected invalid trajectory. Abort.")
-                    break
-
-                response_tokens.extend(
-                    current_prompt_ids[len(accumulated_sequence) :] + current_completion_ids
-                )
-                response_masks.extend(
-                    [0] * (len(current_prompt_ids) - len(accumulated_sequence))
-                    + [1] * len(current_completion_ids)
-                )
-                log_probs.extend(
-                    [0] * (len(current_prompt_ids) - len(accumulated_sequence))
-                    + [1] * len(current_completion_ids)
-                )
-                accumulated_sequence = current_prompt_ids + current_completion_ids
-
-        if len(response_masks) != len(response_tokens):
-            raise Exception(f"response_masks length ({len(response_masks)}) does not match response_tokens length ({len(response_tokens)})")
-
-        prompt_tokens = torch.tensor(initial_prompt_ids, dtype=torch.long)
-        response_tokens = torch.tensor(response_tokens, dtype=torch.long)
-        response_masks = torch.tensor(response_masks, dtype=torch.long)
-
-        if masked_out:
-            response_masks = [0] * len(response_masks)
-
-        return prompt_tokens, response_tokens, response_masks, is_valid_trajectory
 
 
 class AsyncAgentExecutionEngine(AgentExecutionEngine):

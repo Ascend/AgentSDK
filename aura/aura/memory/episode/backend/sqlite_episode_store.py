@@ -29,7 +29,7 @@ class SQLiteEpisodeStore(EpisodeStore):
 
     def __init__(self, db_path: str):
         """Initialize SQLite episode store.
-        
+
         Args:
             db_path: Path to the SQLite database file
         """
@@ -100,10 +100,13 @@ class SQLiteEpisodeStore(EpisodeStore):
         cursor = self.conn.cursor()
 
         # Insert workflow if it doesn't exist
-        cursor.execute("""
+        cursor.execute(
+            """
                        INSERT
                        OR IGNORE INTO workflows (id) VALUES (?)
-                       """, (workflow_id,))
+                       """,
+            (workflow_id,),
+        )
 
         # Serialize trajectories to JSON
         trajectories_json = {}
@@ -111,18 +114,21 @@ class SQLiteEpisodeStore(EpisodeStore):
             trajectories_json[name] = trajectory.to_dict()
 
         # Insert episode
-        cursor.execute("""
-            INSERT OR REPLACE INTO episodes 
+        cursor.execute(
+            """
+            INSERT OR REPLACE INTO episodes
             (id, workflow_id, task_data, is_correct, termination_reason, trajectories_data)
             VALUES (?, ?, ?, ?, ?, ?)
-        """, (
-            episode.id,
-            workflow_id,
-            json.dumps(episode.task) if episode.task else None,
-            episode.is_correct,
-            episode.termination_reason.value if episode.termination_reason else None,
-            json.dumps(trajectories_json)
-        ))
+        """,
+            (
+                episode.id,
+                workflow_id,
+                json.dumps(episode.task) if episode.task else None,
+                episode.is_correct,
+                episode.termination_reason.value if episode.termination_reason else None,
+                json.dumps(trajectories_json),
+            ),
+        )
 
         self.conn.commit()
 
@@ -134,7 +140,7 @@ class SQLiteEpisodeStore(EpisodeStore):
                 SELECT id, task_data, is_correct, termination_reason, trajectories_data
                 FROM episodes
                 WHERE workflow_id = ?
-                ORDER BY created_at DESC \
+                ORDER BY created_at DESC
                 """
 
         if limit:
@@ -157,7 +163,7 @@ class SQLiteEpisodeStore(EpisodeStore):
                 id=episode_id,
                 task=task,
                 is_correct=bool(is_correct),
-                trajectories={}  # Simplified - would need proper trajectory reconstruction
+                trajectories={},  # Simplified - would need proper trajectory reconstruction
             )
 
             # Set termination reason if available
@@ -173,12 +179,15 @@ class SQLiteEpisodeStore(EpisodeStore):
         cursor = self.conn.cursor()
 
         if workflow_id:
-            cursor.execute("""
+            cursor.execute(
+                """
                            SELECT COUNT(*)                                        as total_episodes,
                                   SUM(CASE WHEN is_correct = 1 THEN 1 ELSE 0 END) as correct_episodes
                            FROM episodes
                            WHERE workflow_id = ?
-                           """, (workflow_id,))
+                           """,
+                (workflow_id,),
+            )
         else:
             cursor.execute("""
                            SELECT COUNT(*)                                        as total_episodes,
@@ -189,11 +198,7 @@ class SQLiteEpisodeStore(EpisodeStore):
         total, correct = cursor.fetchone()
         accuracy = (correct / total) if total > 0 else 0.0
 
-        return {
-            "total_episodes": total,
-            "correct_episodes": correct,
-            "accuracy": accuracy
-        }
+        return {"total_episodes": total, "correct_episodes": correct, "accuracy": accuracy}
 
     def close(self) -> None:
         """Close the database connection."""

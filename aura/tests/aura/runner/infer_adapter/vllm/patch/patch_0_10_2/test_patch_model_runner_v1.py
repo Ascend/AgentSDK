@@ -51,8 +51,10 @@ class TestPatchModelRunnerV1(unittest.TestCase):
             if len(args) == 1 and callable(args[0]):
                 return args[0]
             else:
+
                 def decorator(func):
                     return func
+
                 return decorator
 
         cls.mock_torch.inference_mode = mock_inference_mode
@@ -85,6 +87,8 @@ class TestPatchModelRunnerV1(unittest.TestCase):
         cls.mock_vllm_utils.cdiv.return_value = 1
 
         cls.mock_vllm_sequence = MagicMock()
+
+        cls.mock_vllm_v1 = MagicMock()
 
         cls.mock_vllm_outputs = MagicMock()
         cls.mock_vllm_outputs.EMPTY_MODEL_RUNNER_OUTPUT = MagicMock()
@@ -177,33 +181,37 @@ class TestPatchModelRunnerV1(unittest.TestCase):
         cls.mock_profile_execution.capture_async.return_value = MagicMock()
         cls.mock_profile_execution.pop_captured_sync.return_value = {}
 
-        cls.modules_patcher = patch.dict('sys.modules', {
-            'torch': cls.mock_torch,
-            'torch._dynamo': cls.mock_torch._dynamo,
-            'torch._dynamo.cache_size': cls.mock_torch._dynamo.cache_size,
-            'torch.distributed': cls.mock_torch.distributed,
-            'numpy': cls.mock_numpy,
-            'vllm': cls.mock_vllm,
-            'vllm.config': cls.mock_vllm_config_module,
-            'vllm.distributed.parallel_state': cls.mock_parallel_state,
-            'vllm.utils': cls.mock_vllm_utils,
-            'vllm.sequence': cls.mock_vllm_sequence,
-            'vllm.v1.outputs': cls.mock_vllm_outputs,
-            'vllm.v1.worker.kv_connector_model_runner_mixin': cls.mock_vllm_kv_connector,
-            'vllm.distributed.kv_transfer': cls.mock_vllm_kv_transfer,
-            'vllm.forward_context': cls.mock_vllm_forward_context,
-            'vllm.logger': cls.mock_vllm_logger,
-            'vllm_ascend': cls.mock_vllm_ascend,
-            'vllm_ascend.utils': cls.mock_vllm_ascend_utils,
-            'vllm_ascend.ascend_forward_context': cls.mock_vllm_ascend_forward_context,
-            'vllm_ascend.attention.attention_v1': cls.mock_vllm_ascend_attention,
-            'vllm_ascend.worker.mtp_proposer_v1': cls.mock_vllm_ascend_mtp_proposer,
-            'vllm_ascend.worker.eagle_proposer_v1': cls.mock_vllm_ascend_eagle_proposer,
-            'vllm_ascend.worker.model_runner_v1': cls.mock_vllm_ascend_model_runner,
-            'aura.runner.infer_adapter.vllm.patch.comm.vllm_execute_stat': cls.mock_vllm_execute_stat,
-            'aura.runner.infer_adapter.vllm.patch.comm.npu_model_profiling': cls.mock_npu_model_profiling,
-            'datetime': cls.mock_datetime,
-        })
+        cls.modules_patcher = patch.dict(
+            'sys.modules',
+            {
+                'torch': cls.mock_torch,
+                'torch._dynamo': cls.mock_torch._dynamo,
+                'torch._dynamo.cache_size': cls.mock_torch._dynamo.cache_size,
+                'torch.distributed': cls.mock_torch.distributed,
+                'numpy': cls.mock_numpy,
+                'vllm': cls.mock_vllm,
+                'vllm.config': cls.mock_vllm_config_module,
+                'vllm.distributed.parallel_state': cls.mock_parallel_state,
+                'vllm.utils': cls.mock_vllm_utils,
+                'vllm.sequence': cls.mock_vllm_sequence,
+                'vllm.v1': cls.mock_vllm_v1,
+                'vllm.v1.outputs': cls.mock_vllm_outputs,
+                'vllm.v1.worker.kv_connector_model_runner_mixin': cls.mock_vllm_kv_connector,
+                'vllm.distributed.kv_transfer': cls.mock_vllm_kv_transfer,
+                'vllm.forward_context': cls.mock_vllm_forward_context,
+                'vllm.logger': cls.mock_vllm_logger,
+                'vllm_ascend': cls.mock_vllm_ascend,
+                'vllm_ascend.utils': cls.mock_vllm_ascend_utils,
+                'vllm_ascend.ascend_forward_context': cls.mock_vllm_ascend_forward_context,
+                'vllm_ascend.attention.attention_v1': cls.mock_vllm_ascend_attention,
+                'vllm_ascend.worker.mtp_proposer_v1': cls.mock_vllm_ascend_mtp_proposer,
+                'vllm_ascend.worker.eagle_proposer_v1': cls.mock_vllm_ascend_eagle_proposer,
+                'vllm_ascend.worker.model_runner_v1': cls.mock_vllm_ascend_model_runner,
+                'aura.runner.infer_adapter.vllm.patch.comm.vllm_execute_stat': cls.mock_vllm_execute_stat,
+                'aura.runner.infer_adapter.vllm.patch.comm.npu_model_profiling': cls.mock_npu_model_profiling,
+                'datetime': cls.mock_datetime,
+            },
+        )
         cls.modules_patcher.start()
 
     @classmethod
@@ -215,7 +223,16 @@ class TestPatchModelRunnerV1(unittest.TestCase):
 
         spec = importlib.util.spec_from_file_location(
             'patch_model_runner_v1',
-            os.path.join(project_root, 'aura', 'runner', 'infer_adapter', 'vllm', 'patch', 'patch_0_10_2', 'patch_model_runner_v1.py')
+            os.path.join(
+                project_root,
+                'aura',
+                'runner',
+                'infer_adapter',
+                'vllm',
+                'patch',
+                'patch_0_10_2',
+                'patch_model_runner_v1.py',
+            ),
         )
         cls.patch_model_runner_v1 = importlib.util.module_from_spec(spec)
         sys.modules['patch_model_runner_v1'] = cls.patch_model_runner_v1
@@ -378,7 +395,21 @@ class TestPatchModelRunnerV1(unittest.TestCase):
         """Test execute_model_patch function with kv_connector_output"""
         self.mock_scheduler_output.total_num_scheduled_tokens = 10
         self.mock_self._update_states = MagicMock()
-        self.mock_self._prepare_inputs = MagicMock(return_value=(MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock()))
+        self.mock_self._prepare_inputs = MagicMock(
+            return_value=(
+                MagicMock(),
+                MagicMock(),
+                MagicMock(),
+                MagicMock(),
+                MagicMock(),
+                MagicMock(),
+                MagicMock(),
+                MagicMock(),
+                MagicMock(),
+                MagicMock(),
+                MagicMock(),
+            )
+        )
         self.mock_self._select_moe_comm_method = MagicMock(return_value="all_reduce")
         self.mock_self.aclgraph_dispatcher.dispatch = MagicMock(return_value=(None, MagicMock()))
         self.mock_self.maybe_setup_kv_connector = MagicMock()
@@ -405,14 +436,30 @@ class TestPatchModelRunnerV1(unittest.TestCase):
         mock_attn_metadata.seq_lens.shape = [2]
         mock_attn_metadata.seq_lens.tolist.return_value = [5, 5]
 
-        self.mock_self._prepare_inputs = MagicMock(return_value=(mock_attn_metadata, MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock()))
+        self.mock_self._prepare_inputs = MagicMock(
+            return_value=(
+                mock_attn_metadata,
+                MagicMock(),
+                MagicMock(),
+                MagicMock(),
+                MagicMock(),
+                MagicMock(),
+                MagicMock(),
+                MagicMock(),
+                MagicMock(),
+                MagicMock(),
+                MagicMock(),
+            )
+        )
         self.mock_self._select_moe_comm_method = MagicMock(return_value="all_reduce")
         self.mock_self.aclgraph_dispatcher.dispatch = MagicMock(return_value=(None, MagicMock()))
         self.mock_self.maybe_setup_kv_connector = MagicMock()
 
         mock_hidden_states = MagicMock()
         mock_aux_hidden_states = MagicMock()
-        self.mock_self._generate_process_reqs_hidden_states = MagicMock(return_value=(mock_hidden_states, mock_aux_hidden_states))
+        self.mock_self._generate_process_reqs_hidden_states = MagicMock(
+            return_value=(mock_hidden_states, mock_aux_hidden_states)
+        )
         self.mock_self.maybe_wait_for_kv_save = MagicMock()
         self.mock_self.get_finished_kv_transfer = MagicMock(return_value=(None, None))
 
@@ -724,7 +771,21 @@ class TestPatchModelRunnerV1(unittest.TestCase):
         """Test execute_model_patch function with pooling for v0.10.1 version"""
         self.mock_scheduler_output.total_num_scheduled_tokens = 10
         self.mock_self._update_states = MagicMock()
-        self.mock_self._prepare_inputs = MagicMock(return_value=(MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock()))
+        self.mock_self._prepare_inputs = MagicMock(
+            return_value=(
+                MagicMock(),
+                MagicMock(),
+                MagicMock(),
+                MagicMock(),
+                MagicMock(),
+                MagicMock(),
+                MagicMock(),
+                MagicMock(),
+                MagicMock(),
+                MagicMock(),
+                MagicMock(),
+            )
+        )
         self.mock_self._select_moe_comm_method = MagicMock(return_value="all_reduce")
         self.mock_self.aclgraph_dispatcher.dispatch = MagicMock(return_value=(None, MagicMock()))
         self.mock_self.maybe_setup_kv_connector = MagicMock()
@@ -749,7 +810,21 @@ class TestPatchModelRunnerV1(unittest.TestCase):
         """Test execute_model_patch function with pooling for non-v0.10.1 version"""
         self.mock_scheduler_output.total_num_scheduled_tokens = 10
         self.mock_self._update_states = MagicMock()
-        self.mock_self._prepare_inputs = MagicMock(return_value=(MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock()))
+        self.mock_self._prepare_inputs = MagicMock(
+            return_value=(
+                MagicMock(),
+                MagicMock(),
+                MagicMock(),
+                MagicMock(),
+                MagicMock(),
+                MagicMock(),
+                MagicMock(),
+                MagicMock(),
+                MagicMock(),
+                MagicMock(),
+                MagicMock(),
+            )
+        )
         self.mock_self._select_moe_comm_method = MagicMock(return_value="all_reduce")
         self.mock_self.aclgraph_dispatcher.dispatch = MagicMock(return_value=(None, MagicMock()))
         self.mock_self.maybe_setup_kv_connector = MagicMock()
@@ -774,19 +849,21 @@ class TestPatchModelRunnerV1(unittest.TestCase):
         """Test execute_model_patch function with normal execution"""
         self.mock_scheduler_output.total_num_scheduled_tokens = 2
         self.mock_self._update_states = MagicMock()
-        self.mock_self._prepare_inputs = MagicMock(return_value=(
-            MagicMock(attn_state="DecodeOnly", num_actual_tokens=2, seq_lens=self.mock_torch.tensor([1, 1])),
-            MagicMock(),
-            self.mock_numpy.array([1, 1]),
-            2,
-            None,
-            None,
-            MagicMock(),
-            None,
-            MagicMock(),
-            None,
-            None
-        ))
+        self.mock_self._prepare_inputs = MagicMock(
+            return_value=(
+                MagicMock(attn_state="DecodeOnly", num_actual_tokens=2, seq_lens=self.mock_torch.tensor([1, 1])),
+                MagicMock(),
+                self.mock_numpy.array([1, 1]),
+                2,
+                None,
+                None,
+                MagicMock(),
+                None,
+                MagicMock(),
+                None,
+                None,
+            )
+        )
         self.mock_self._generate_process_reqs_hidden_states = MagicMock(return_value=self.mock_torch.tensor([[1.0]]))
         self.mock_self.model.compute_logits = MagicMock(return_value=self.mock_torch.tensor([[1.0]]))
         self.mock_self._get_prompt_logprobs_dict = MagicMock(return_value={})
@@ -818,20 +895,24 @@ class TestPatchModelRunnerV1(unittest.TestCase):
         mock_spec_decode_metadata.target_logits_indices = [1]
         mock_spec_decode_metadata.logits_indices = [0, 1]
 
-        self.mock_self._prepare_inputs = MagicMock(return_value=(
-            MagicMock(attn_state="DecodeOnly", num_actual_tokens=2, seq_lens=self.mock_torch.tensor([1, 1])),
-            MagicMock(),
-            self.mock_numpy.array([1, 1]),
-            2,
-            None,
-            None,
-            MagicMock(),
-            mock_spec_decode_metadata,
-            MagicMock(),
-            None,
-            None
-        ))
-        self.mock_self._generate_process_reqs_hidden_states = MagicMock(return_value=self.mock_torch.tensor([[1.0], [2.0]]))
+        self.mock_self._prepare_inputs = MagicMock(
+            return_value=(
+                MagicMock(attn_state="DecodeOnly", num_actual_tokens=2, seq_lens=self.mock_torch.tensor([1, 1])),
+                MagicMock(),
+                self.mock_numpy.array([1, 1]),
+                2,
+                None,
+                None,
+                MagicMock(),
+                mock_spec_decode_metadata,
+                MagicMock(),
+                None,
+                None,
+            )
+        )
+        self.mock_self._generate_process_reqs_hidden_states = MagicMock(
+            return_value=self.mock_torch.tensor([[1.0], [2.0]])
+        )
         self.mock_self.model.compute_logits = MagicMock(return_value=self.mock_torch.tensor([[1.0], [2.0]]))
         self.mock_self._get_prompt_logprobs_dict = MagicMock(return_value={})
         self.mock_self.rejection_sampler.parse_output = MagicMock(return_value=[[100], [200]])
@@ -860,23 +941,27 @@ class TestPatchModelRunnerV1(unittest.TestCase):
         self.mock_self._update_states = MagicMock()
         self.mock_self.use_aux_hidden_state_outputs = True
 
-        self.mock_self._prepare_inputs = MagicMock(return_value=(
-            MagicMock(attn_state="DecodeOnly", num_actual_tokens=2, seq_lens=self.mock_torch.tensor([1, 1])),
-            MagicMock(),
-            self.mock_numpy.array([1, 1]),
-            2,
-            None,
-            None,
-            MagicMock(),
-            None,
-            MagicMock(),
-            None,
-            None
-        ))
+        self.mock_self._prepare_inputs = MagicMock(
+            return_value=(
+                MagicMock(attn_state="DecodeOnly", num_actual_tokens=2, seq_lens=self.mock_torch.tensor([1, 1])),
+                MagicMock(),
+                self.mock_numpy.array([1, 1]),
+                2,
+                None,
+                None,
+                MagicMock(),
+                None,
+                MagicMock(),
+                None,
+                None,
+            )
+        )
 
         mock_hidden_states = MagicMock()
         mock_aux_hidden_states = MagicMock()
-        self.mock_self._generate_process_reqs_hidden_states = MagicMock(return_value=(mock_hidden_states, mock_aux_hidden_states))
+        self.mock_self._generate_process_reqs_hidden_states = MagicMock(
+            return_value=(mock_hidden_states, mock_aux_hidden_states)
+        )
 
         self.mock_self.model.compute_logits = MagicMock(return_value=self.mock_torch.tensor([[1.0]]))
         self.mock_self._get_prompt_logprobs_dict = MagicMock(return_value={})
@@ -904,19 +989,21 @@ class TestPatchModelRunnerV1(unittest.TestCase):
         self.mock_self.parallel_config.distributed_executor_backend = "external_launcher"
         self.mock_pp_group.ranks = [0, 1]
 
-        self.mock_self._prepare_inputs = MagicMock(return_value=(
-            MagicMock(attn_state="DecodeOnly", num_actual_tokens=2, seq_lens=self.mock_torch.tensor([1, 1])),
-            MagicMock(),
-            self.mock_numpy.array([1, 1]),
-            2,
-            None,
-            None,
-            MagicMock(),
-            None,
-            MagicMock(),
-            None,
-            None
-        ))
+        self.mock_self._prepare_inputs = MagicMock(
+            return_value=(
+                MagicMock(attn_state="DecodeOnly", num_actual_tokens=2, seq_lens=self.mock_torch.tensor([1, 1])),
+                MagicMock(),
+                self.mock_numpy.array([1, 1]),
+                2,
+                None,
+                None,
+                MagicMock(),
+                None,
+                MagicMock(),
+                None,
+                None,
+            )
+        )
 
         self.mock_self._generate_process_reqs_hidden_states = MagicMock(return_value=self.mock_torch.tensor([[1.0]]))
         self.mock_self.model.compute_logits = MagicMock(return_value=self.mock_torch.tensor([[1.0]]))
@@ -947,19 +1034,21 @@ class TestPatchModelRunnerV1(unittest.TestCase):
         self.mock_self.input_batch.pooling_params = MagicMock()
         self.mock_self._pool = MagicMock(return_value=self.mock_vllm_outputs.ModelRunnerOutput())
 
-        self.mock_self._prepare_inputs = MagicMock(return_value=(
-            MagicMock(attn_state="DecodeOnly", num_actual_tokens=2, seq_lens=self.mock_torch.tensor([1, 1])),
-            MagicMock(),
-            self.mock_numpy.array([1, 1]),
-            2,
-            None,
-            None,
-            MagicMock(),
-            None,
-            MagicMock(),
-            None,
-            None
-        ))
+        self.mock_self._prepare_inputs = MagicMock(
+            return_value=(
+                MagicMock(attn_state="DecodeOnly", num_actual_tokens=2, seq_lens=self.mock_torch.tensor([1, 1])),
+                MagicMock(),
+                self.mock_numpy.array([1, 1]),
+                2,
+                None,
+                None,
+                MagicMock(),
+                None,
+                MagicMock(),
+                None,
+                None,
+            )
+        )
 
         self.mock_self._generate_process_reqs_hidden_states = MagicMock(return_value=self.mock_torch.tensor([[1.0]]))
         self.mock_self.get_finished_kv_transfer = MagicMock(return_value=(None, None))
@@ -984,19 +1073,21 @@ class TestPatchModelRunnerV1(unittest.TestCase):
         self.mock_self._update_states = MagicMock()
         self.mock_self.apply_grammar_bitmask = MagicMock(return_value=self.mock_torch.tensor([[1.0]]))
 
-        self.mock_self._prepare_inputs = MagicMock(return_value=(
-            MagicMock(attn_state="DecodeOnly", num_actual_tokens=2, seq_lens=self.mock_torch.tensor([1, 1])),
-            MagicMock(),
-            self.mock_numpy.array([1, 1]),
-            2,
-            None,
-            None,
-            MagicMock(),
-            None,
-            MagicMock(),
-            None,
-            None
-        ))
+        self.mock_self._prepare_inputs = MagicMock(
+            return_value=(
+                MagicMock(attn_state="DecodeOnly", num_actual_tokens=2, seq_lens=self.mock_torch.tensor([1, 1])),
+                MagicMock(),
+                self.mock_numpy.array([1, 1]),
+                2,
+                None,
+                None,
+                MagicMock(),
+                None,
+                MagicMock(),
+                None,
+                None,
+            )
+        )
 
         self.mock_self._generate_process_reqs_hidden_states = MagicMock(return_value=self.mock_torch.tensor([[1.0]]))
         self.mock_self.model.compute_logits = MagicMock(return_value=self.mock_torch.tensor([[1.0]]))
@@ -1014,7 +1105,9 @@ class TestPatchModelRunnerV1(unittest.TestCase):
         self.patch_model_runner_v1.execute_model_patch(self.mock_self, self.mock_scheduler_output)
 
         self.mock_self._update_states.assert_called_once_with(self.mock_scheduler_output)
-        self.mock_self.apply_grammar_bitmask.assert_called_once_with(self.mock_scheduler_output, self.mock_torch.tensor([[1.0]]))
+        self.mock_self.apply_grammar_bitmask.assert_called_once_with(
+            self.mock_scheduler_output, self.mock_torch.tensor([[1.0]])
+        )
 
     def test_dummy_run_basic(self):
         """Test dummy_run function with basic configuration"""

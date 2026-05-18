@@ -15,10 +15,10 @@ MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 See the Mulan PSL v2 for more details.
 -------------------------------------------------------------------------
 """
+
 import os
 import subprocess
 import unittest
-import shutil
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional
@@ -42,6 +42,7 @@ def get_presmoke_configs_dir() -> Path:
 @dataclass
 class CLIResult:
     """Result of a CLI command execution."""
+
     exit_code: int
     stdout: str
     stderr: str
@@ -60,7 +61,7 @@ class CLIResult:
 
 class SourceRunner:
     """
-    Utility for running AgenticRL from source code via run_start_in_local.sh script.
+    Utility for running AgenticRL from source code via start_rl_with_verl_vllm.sh script.
     """
 
     def __init__(self, timeout: int = 300):
@@ -72,7 +73,7 @@ class SourceRunner:
         """
         self.timeout = timeout
         self.project_root = get_project_root()
-        self.run_script = self.project_root / "aura" / "run_start_in_local.sh"
+        self.run_script = self.project_root / "aura" / "scripts" / "start_rl_with_verl_vllm.sh"
         self.presmoke_configs_dir = get_presmoke_configs_dir()
 
     def run(self, config_name: str, extra_args: Optional[List[str]] = None, expect_error: bool = False):
@@ -92,10 +93,10 @@ class SourceRunner:
                 return CLIResult(
                     exit_code=1,
                     stdout="",
-                    stderr=f"run_start_in_local.sh not found at: {self.run_script}",
-                    combined_output=f"run_start_in_local.sh not found at: {self.run_script}"
+                    stderr=f"start_rl_with_verl_vllm.sh not found at: {self.run_script}",
+                    combined_output=f"start_rl_with_verl_vllm.sh not found at: {self.run_script}",
                 )
-            raise RuntimeError(f"run_start_in_local.sh not found at: {self.run_script}")
+            raise RuntimeError(f"start_rl_with_verl_vllm.sh not found at: {self.run_script}")
 
         # Check if config file exists in presmoke/configs/
         config_path = self.presmoke_configs_dir / config_name

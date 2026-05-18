@@ -2,6 +2,7 @@
 line-length = 120
 target-version = "py310"
 format.quote-style = "preserve"
+exclude = ["aura/**", "aura", "presmoke", "pre-commit"]
 
 [tool.ruff.lint]
 # 追加 D209，不会覆盖、不会屏蔽任何现有规则
@@ -9,6 +10,7 @@ extend-select = [
   "D209",  # 规则8：多行文档字符串末尾 """ 必须单独一行
   "SIM115",    # 规则17：推荐用 with 代替 try-finally
 ]
+exclude = ["aura", "presmoke", "pre-commit"]
 
 # 业界标准 PYLINT 生产配置
 # 只开高价值规则，关闭所有洁癖规则
@@ -97,6 +99,8 @@ disable = [
   "import-error",
 ]
 
+ignore-paths = ["aura", "presmoke", "pre-commit"]
+
 # ==============================================
 # Bandit 安全门禁专用配置
 # 功能：仅检测用户指定的安全规则，已跳过 B101
@@ -108,7 +112,7 @@ confidence_level = "LOW"
 
 # 跳过不需要扫描的目录
 exclude_dirs = [
-  "tests", "test", "venv", ".venv", "build", "dist", "migrations", "__pycache__"
+  "aura", "presmoke", "pre-commit", "tests", "test", "venv", ".venv", "build", "dist", "migrations", "__pycache__"
 ]
 
 # ==============================

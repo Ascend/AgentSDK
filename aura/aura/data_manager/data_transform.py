@@ -24,16 +24,15 @@ from tensordict import TensorDict
 from torch import Tensor
 from torch.nn.utils.rnn import pad_sequence
 
-from mindspeed_rl.utils.utils import mstx_timer_decorator
-
 
 def padding_dict_to_tensor_dict(experience_data: Dict[str, Union[Tensor, List[Tensor]]]):
     experience_batch = {}
     experience_data_length = []
     for experience_column, value in experience_data.items():
         max_length = max(len(exp) for exp in value)
-        padded_tensors = [torch.nn.functional.pad(exp, (0, max_length - len(exp)),
-                                                  mode='constant', value=0) for exp in value]
+        padded_tensors = [
+            torch.nn.functional.pad(exp, (0, max_length - len(exp)), mode='constant', value=0) for exp in value
+        ]
         experience_batch[experience_column] = torch.stack(padded_tensors, dim=0)
         experience_data_length.extend([torch.tensor(len(exp)) for exp in value])
     experience_batch['original_length'] = torch.stack(experience_data_length)
@@ -41,10 +40,7 @@ def padding_dict_to_tensor_dict(experience_data: Dict[str, Union[Tensor, List[Te
     return experience_batch
 
 
-@mstx_timer_decorator
-def padding_dict_to_tensor_dict_fast(
-        experience_data: Dict[str, List[Tensor]]
-) -> TensorDict:
+def padding_dict_to_tensor_dict_fast(experience_data: Dict[str, List[Tensor]]) -> TensorDict:
     """
     • Uses `pad_sequence` (C-kernel) once per column.
     • Allocates the final tensor once, instead of calling `F.pad` per row.

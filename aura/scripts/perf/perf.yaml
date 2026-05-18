@@ -1,0 +1,54 @@
+trace:
+  # 输出的 trace 文件路径
+  output: "trace.json"
+
+  # 日志时间戳相关配置
+  # timestamp_unit:
+  #   - unix_ms / unix_s / relative_ms 同旧版语义
+  #   - datetime: 日志中的时间戳为字符串，需要配合 timestamp_format
+  timestamp_unit: "datetime"
+  timestamp_format: "%Y-%m-%d %H:%M:%S,%f"
+
+  # 日志行中识别事件的正则规则
+  # 每条规则会生成一类 trace 事件
+  # name:  事件名称（出现在 trace 视图中）
+  # start_pattern: 匹配“开始”的正则
+  # end_pattern:   匹配“结束”的正则
+  # time_group:    正则中时间戳所在的捕获组序号（从 1 开始）
+  # id_group:      （可选）用于将 start/end 匹配到同一条逻辑任务，例如 step id
+
+  events:
+    - name: "rollout"
+      pid: RL
+      tid: infer_node
+      start_pattern: "(\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2},\\d{3}).*generate_sequences iteration"
+      end_pattern: "(\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2},\\d{3}).*====finish trajectories: 512/512"
+      time_group: 1
+
+    - name: "train"
+      pid: RL
+      tid: train_node
+      start_pattern: "(\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2},\\d{3}).*compute_advantage start"
+      end_pattern: "(\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2},\\d{3}).*update weights start ..."
+      time_group: 1
+
+    - name: "weight_update"
+      pid: RL
+      tid: train_node
+      start_pattern: "(\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2},\\d{3}).*update weights start ..."
+      end_pattern: "(\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2},\\d{3}).*update weights done, cost:"
+      time_group: 1
+
+    - name: "assemble_weight"
+      pid: RL
+      tid: infer_node
+      start_pattern: "(\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2},\\d{3}).*start do converted weights ..."
+      end_pattern: "(\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2},\\d{3}).*converted weights succeed, weights version:"
+      time_group: 1
+
+    - name: "weight_load"
+      pid: RL
+      tid: infer_node
+      start_pattern: "(\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2},\\d{3}).*=== update model weights from train ==="
+      end_pattern: "(\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2},\\d{3}).*infer update_weights done, cost:"
+      time_group: 1

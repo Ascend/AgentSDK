@@ -50,3 +50,6 @@ class InferDataManager:
 
     def update_metrics(self, k, value, cumulate):
         pass
+
+    def reset_experience_len(self, experience_len):
+        pass

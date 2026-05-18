@@ -17,8 +17,8 @@ ignore-hex = true
 identifier-leading-digits = false
 locale = "en"
 extend-ignore-identifiers-re = [".*Unc.*", ".*_thw",
-    ".*UE8M0.*", ".*[UE4M3|ue4m3].*", ".*eles.*", ".*fo.*", ".*ba.*",
-    ".*ot.*", ".*[Tt]h[rR].*"]
+    ".*UE8M0.*", ".*[UE4M3|ue4m3].*", ".*ba.*",
+    ".*[Tt]h[rR].*"]
 extend-ignore-words-re = ["CANN", "cann","ND","alog"]
 extend-ignore-re = []
 
@@ -32,7 +32,6 @@ NOOPs = "NOOPs"
 typ = "typ"
 nin_shortcut = "nin_shortcut"
 UperNetDecoder = "UperNetDecoder"
-subtile = "subtile"
 SFOuput = "SFOuput"
 # huggingface transformers repo uses these words
 depthwise_seperable_out_channel = "depthwise_seperable_out_channel"
@@ -44,7 +43,6 @@ iy = "iy"
 tendencias = "tendencias"
 # intel cpu features
 tme = "tme"
-dout = "dout"
 Pn = "Pn"
 arange = "arange"
 
@@ -68,7 +66,5 @@ extend-ignore-words-re = []
 extend-ignore-re = []
 
 [type.sh.extend-identifiers]
-stap = "stap"
-ot = "ot"
 
 [type.sh.extend-words]

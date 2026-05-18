@@ -26,38 +26,18 @@ logger = Loggers(__name__).get_logger()
 
 
 class AgenticRLConf:
-    CONF_ENV: str = "AGENTIC_RL_CONF"
-
-    # Define the whitelist: Only allow these first-level keys
-    WHITELIST_KEYS = {
-        "agentic_ai",
-        "serve_conf",
-        "direct_conf",
-        "train_instances",
-        "agent_instances",
-        "infer_instances"
-    }
+    CONF_ENV: str = "AURA_CONF"
 
     @classmethod
-    def load_config(cls, conf_str=None):
-        conf_str = os.environ.get(cls.CONF_ENV) if conf_str is None else conf_str
+    def load_config(cls):
+        conf_str = os.environ.get(cls.CONF_ENV)
         if not conf_str:
             logger.warning(f"Environment variable {cls.CONF_ENV} is empty.")
             return OmegaConf.create({})
 
         # Load the original complete configuration
-        full_conf = OmegaConf.create(conf_str)
+        conf = OmegaConf.create(conf_str)
 
-        # Filter configuration: Only retain the first-level key in the whitelist and its sub-configurations
-        filtered_dict = {
-            k: v
-            for k, v in full_conf.items()
-            if k in cls.WHITELIST_KEYS
-        }
-
-        # Repackage as an OmegaConf object
-        # while maintaining its DictConfig characteristics, such as dot notation access
-        conf = OmegaConf.create(filtered_dict)
         logger.debug(f"AgenticRLConf: {conf}")
 
         return conf

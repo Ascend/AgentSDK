@@ -65,11 +65,11 @@ class VerlDataManager:
         return 0
 
     def get_data(
-            self,
-            experience_consumer_stage: str,
-            experience_columns: Optional[List[str]],
-            experience_count: int,
-            get_n_samples: bool = True
+        self,
+        experience_consumer_stage: str,
+        experience_columns: Optional[List[str]],
+        experience_count: int,
+        get_n_samples: bool = True,
     ) -> Tuple[Dict[str, torch.Tensor], List[int]]:
         """
         Obtain training data (in Verl format)
@@ -107,7 +107,7 @@ class VerlDataManager:
             metric: Optional indicator data
         """
         # Convert the output to DataProto and merge them together
-        data_proto = self._dict_to_dataproto(output)
+        data_proto = self._dict_to_data_proto(output)
 
         if self._current_batch is None:
             self._current_batch = data_proto
@@ -154,7 +154,7 @@ class VerlDataManager:
         """Set padding token ID"""
         self._pad_token_id = pad_token_id
 
-    def _dict_to_dataproto(self, data_dict: Dict) -> DataProto:
+    def _dict_to_data_proto(self, data_dict: Dict) -> DataProto:
         """Convert the dict to DataProto"""
         tensors = {}
         non_tensors = {}

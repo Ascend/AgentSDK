@@ -17,17 +17,10 @@
 # limitations under the License.
 # -------------------------------------------------------------------------
 
-from dataclasses import dataclass
 from typing import List
 
-import numpy as np
 import torch
-import torchair._contrib.custom_torch_ops  # type: ignore  # noqa: F401
-from vllm.attention.backends.utils import (PAD_SLOT_ID, CommonAttentionState,
-                                           CommonMetadataBuilder,
-                                           compute_slot_mapping,
-                                           compute_slot_mapping_start_idx,
-                                           is_block_tables_empty)
+from vllm.attention.backends.utils import PAD_SLOT_ID
 from vllm.utils import async_tensor_h2d, make_tensor_with_pad
 from vllm_ascend.attention.attention import AscendMetadataBuilder, AscendMetadata, AttentionMaskBuilder
 
@@ -49,11 +42,9 @@ def get_splitfuse_attn_mask_patch(
         else:
             attn_mask = self.attn_mask_cache
         return torch.index_select(attn_mask, dim=0, index=position)[:, :max_seq_len]
-    
+
     total_q_len = sum(query_lens)
-    attn_mask = torch.zeros((total_q_len, max_seq_len),
-                            dtype=dtype,
-                            device="cpu")
+    attn_mask = torch.zeros((total_q_len, max_seq_len), dtype=dtype, device="cpu")
 
     current_row = 0
     for i in range(len(query_lens)):
@@ -63,14 +54,12 @@ def get_splitfuse_attn_mask_patch(
 
         if context_len < 0:
             raise ValueError(
-                f"Context length {context_len} cannot be negative. "
-                f"Sequence length: {seq_len}, Query length: {q_len}"
+                f"Context length {context_len} cannot be negative. Sequence length: {seq_len}, Query length: {q_len}"
             )
-        
-        attn_mask[current_row:current_row + q_len, context_len:] = self.splitfuse_mask_value
-        right_tensor = attn_mask[current_row:current_row + q_len, context_len:seq_len]
-        right_tensor.masked_fill_(
-            right_tensor.tril() == self.splitfuse_mask_value, 0)
+
+        attn_mask[current_row : current_row + q_len, context_len:] = self.splitfuse_mask_value
+        right_tensor = attn_mask[current_row : current_row + q_len, context_len:seq_len]
+        right_tensor.masked_fill_(right_tensor.tril() == self.splitfuse_mask_value, 0)
         current_row += q_len
 
     return attn_mask.to(device, non_blocking=True)
@@ -83,15 +72,15 @@ def build_patch(
     graph_pad_size: int,
 ) -> AscendMetadata:
     """Build attention metadata with on-device tensors.
-    
+
     This method constructs the metadata required for attention computation,
     handling both prefill and decode phases with support for NPU graph optimization.
-    
+
     Args:
         seq_lens: The maybe padded sequence lengths of the input sequences.
         query_lens: The query lengths of the input sequences.
         graph_pad_size: Padding size for NPU graph optimization. Use -1 to disable.
-    
+
     Returns:
         AscendMetadata object containing all necessary attention metadata.
     """
@@ -123,14 +112,11 @@ def build_patch(
 
     if self.num_prefills > 0:
         if block_tables is None or block_tables.numel() == 0:
-            self.attn_mask = AscendMetadataBuilder._attn_mask_builder.get_attn_mask(  # type: ignore
-                max_prefill_seq_len, dtype, device)
+            self.attn_mask = AscendMetadataBuilder._attn_mask_builder.get_attn_mask(max_prefill_seq_len, dtype, device)
         elif self.num_decode_tokens == 0 and not self.input_builder.chunked_prefill_enabled:
-            self.compress_mask = AscendMetadataBuilder._attn_mask_builder.get_attn_mask(  # type: ignore
-                128, dtype, device)
+            self.compress_mask = AscendMetadataBuilder._attn_mask_builder.get_attn_mask(128, dtype, device)
         else:
-            attn_mask = AscendMetadataBuilder._attn_mask_builder.get_attn_mask(  # type: ignore
-                max_seq_len, dtype, device)
+            attn_mask = AscendMetadataBuilder._attn_mask_builder.get_attn_mask(max_seq_len, dtype, device)
             if attn_mask.numel() > 1 and attn_mask[0][1] > 0:
                 attn_mask = attn_mask * -10000
             chunk_mask_list = []
@@ -144,22 +130,15 @@ def build_patch(
         self.chunk_mask = None
 
     if max_query_len <= 0:
-        raise ValueError(
-            f"Maximum query length must be positive, got {max_query_len}. "
-            f"Query lengths: {query_lens}"
-        )
+        raise ValueError(f"Maximum query length must be positive, got {max_query_len}. Query lengths: {query_lens}")
 
     if device is None:
         raise RuntimeError("Device is not initialized in runner")
 
-    slot_mapping_tensor = async_tensor_h2d(self.slot_mapping, torch.int32,
-                                           device, self.runner.pin_memory)
-    seq_lens_tensor = async_tensor_h2d(seq_lens, torch.int, device,
-                                       self.runner.pin_memory)
+    slot_mapping_tensor = async_tensor_h2d(self.slot_mapping, torch.int32, device, self.runner.pin_memory)
+    seq_lens_tensor = async_tensor_h2d(seq_lens, torch.int, device, self.runner.pin_memory)
     placeholder_index_maps = {
-        modality: placeholder_map.index_map()
-        for modality, placeholder_map in
-        self.multimodal_placeholder_maps.items()
+        modality: placeholder_map.index_map() for modality, placeholder_map in self.multimodal_placeholder_maps.items()
     }
 
     return AscendMetadata(

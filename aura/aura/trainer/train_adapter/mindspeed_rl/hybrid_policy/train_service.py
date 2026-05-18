@@ -4,13 +4,13 @@
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
-# 
+#
 # AgentSDK is licensed under Mulan PSL v2.
 # You can use this software according to the terms and conditions of the Mulan PSL v2.
 # You may obtain a copy of Mulan PSL v2 at:
-# 
+#
 #          http://license.coscl.org.cn/MulanPSL2
-# 
+#
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
@@ -20,10 +20,7 @@
 
 import ray
 
-from mindspeed_rl.utils.pad_process import (
-    remove_padding_tensor_dict_to_dict,
-    remove_padding_and_split_to_list
-)
+from mindspeed_rl.utils.pad_process import remove_padding_tensor_dict_to_dict, remove_padding_and_split_to_list
 
 from aura.base.log.loggers import Loggers
 from aura.trainer.rollout.rollout_worker import RolloutWorker
@@ -34,16 +31,30 @@ logger = Loggers(__name__).get_logger()
 
 
 @ray.remote
-def train(config, agent_service=None, infer_service=None):
-    (actor_config, rl_config, rl_config, generate_config, agentic_env_config,
-     actor_worker, reference_worker, reward_list, tokenizer,
-     data_iters, val_dataloader, test_dataloader) = prepare_train(config, "hybrid")
+def train(work_mode, train_config, rollout_config=None, agent_service=None, infer_service=None):
+    _ = rollout_config
 
+    (
+        actor_config,
+        rl_config,
+        generate_config,
+        agentic_env_config,
+        actor_worker,
+        reference_worker,
+        reward_list,
+        tokenizer,
+        data_iters,
+        val_dataloader,
+        test_dataloader,
+    ) = prepare_train(train_config, work_mode)
+
+    logger.info("starting rollout worker...")
     rollout_worker = RolloutWorker.remote(
         n_parallel_agents=rl_config.n_samples_per_prompt,
         max_prompt_length=rl_config.max_prompt_length,
         actor_rollout_dispatch_size=rl_config.actor_rollout_dispatch_size,
         simplify_think_content=rl_config.simplify_think_content,
+        use_stepwise_advantage=rl_config.use_stepwise_advantage,
         validate_n_samples=rl_config.validate_n_samples,
         traj_output_path=agentic_env_config.rollout_output_path,
         tokenizer_name_or_path=actor_config.tokenizer_name_or_path,
@@ -54,7 +65,7 @@ def train(config, agent_service=None, infer_service=None):
         remove_padding_tensor_dict_to_dict=remove_padding_tensor_dict_to_dict,
         remove_padding_and_split_to_list=remove_padding_and_split_to_list,
         agent_service=agent_service,
-        infer_service=infer_service
+        infer_service=infer_service,
     )
 
     ray.get(rollout_worker.wait_init_finished.remote(is_proxy_mode=False))
@@ -75,7 +86,7 @@ def train(config, agent_service=None, infer_service=None):
         train_iters=actor_config.train_iters,
         save_interval=actor_config.save_interval,
         dataset_additional_keys=actor_config.dataset_additional_keys,
-        **rl_config.dict()
+        **rl_config.dict(),
     )
 
     trainer.fit(data_iters, val_dataloader, test_dataloader)

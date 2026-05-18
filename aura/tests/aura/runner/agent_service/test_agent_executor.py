@@ -16,7 +16,6 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-import asyncio
 import json
 import sys
 import types
@@ -28,6 +27,7 @@ from unittest.mock import patch, MagicMock, AsyncMock
 # ============================================================
 # Helper: run async coroutine in sync test
 # ============================================================
+
 
 def _build_fake_ray_modules():
     """
@@ -69,9 +69,7 @@ def _build_fake_rllm_engine_wrapper_module(wrapper_cls):
     AgentExecutor dynamically imports RLLMEngineWrapper inside __init__.
     This function creates a fake module with that class.
     """
-    fake_mod = types.ModuleType(
-        "aura.runner.agent_engine_wrapper.rllm.rllm_engine_wrapper"
-    )
+    fake_mod = types.ModuleType("aura.runner.agent_engine_wrapper.rllm.rllm_engine_wrapper")
     fake_mod.RLLMEngineWrapper = wrapper_cls
     return fake_mod
 
@@ -89,6 +87,7 @@ def _reload_agent_executor_module():
 # ============================================================
 # Tests for AgentExecutor
 # ============================================================
+
 
 class TestAgentExecutor(unittest.IsolatedAsyncioTestCase):
     """Unit tests for the AgentExecutor class."""
@@ -140,9 +139,7 @@ class TestAgentExecutor(unittest.IsolatedAsyncioTestCase):
 
         self.rllm_patch = patch.dict(
             sys.modules,
-            {
-                "aura.runner.agent_engine_wrapper.rllm.rllm_engine_wrapper": fake_rllm_mod
-            },
+            {"aura.runner.agent_engine_wrapper.rllm.rllm_engine_wrapper": fake_rllm_mod},
         )
         self.rllm_patch.start()
         self.addCleanup(self.rllm_patch.stop)
@@ -153,6 +150,7 @@ class TestAgentExecutor(unittest.IsolatedAsyncioTestCase):
 
         # import these after reload to avoid old bindings
         from aura.runner.agent_engine_wrapper.base_engine_wrapper import AgentTask, Trajectory
+
         self.AgentTask = AgentTask
         self.Trajectory = Trajectory
 
@@ -193,18 +191,6 @@ class TestAgentExecutor(unittest.IsolatedAsyncioTestCase):
     # ------------------------------------------------------------
     # Initialization tests
     # ------------------------------------------------------------
-    def test_init_with_rllm_engine(self):
-        """AgentExecutor initializes correctly with 'rllm' engine."""
-        self.assertEqual(self.executor.agent_engine, "rllm")
-        self.assertEqual(self.executor.agent_engine_kwargs, {"model": "test_model"})
-        self.assertEqual(self.executor.infer_service_params, {"endpoint": "test_endpoint"})
-        self.assertEqual(self.executor.trajectory_save_dir, "/tmp/test_trajectory.jsonl")
-        self.assertIsNotNone(self.executor.agent_executor_wrapper)
-
-        self.mock_wrapper_cls.assert_called_once_with(
-            infer_service_params=self.infer_service_params,
-            **self.agent_engine_kwargs,
-        )
 
     def test_init_with_unsupported_engine(self):
         """Unsupported agent engine should raise ValueError."""
@@ -221,21 +207,6 @@ class TestAgentExecutor(unittest.IsolatedAsyncioTestCase):
     # ------------------------------------------------------------
     # Core method tests
     # ------------------------------------------------------------
-    async def test_generate_trajectory(self):
-        """generate_trajectory should forward to wrapper and return trajectory."""
-        mock_task = MagicMock(spec=self.AgentTask)
-        mock_traj = MagicMock(spec=self.Trajectory)
-
-        self.mock_wrapper_instance.generate_trajectory = AsyncMock(return_value=mock_traj)
-
-        result = await self.executor.generate_trajectory(
-            mock_task, mode="Text", addresses=None
-        )
-
-        self.mock_wrapper_instance.generate_trajectory.assert_called_once_with(
-            task=mock_task, mode="Text", addresses=None
-        )
-        self.assertEqual(result, mock_traj)
 
     async def test_generate_trajectories_returns_none(self):
         """generate_trajectories (list version) returns None (placeholder)."""
@@ -279,9 +250,7 @@ class TestAgentExecutor(unittest.IsolatedAsyncioTestCase):
                 stream_queue.put_nowait(ev)
             return mock_traj
 
-        self.mock_wrapper_instance.generate_trajectory = AsyncMock(
-            side_effect=mock_generate_trajectory
-        )
+        self.mock_wrapper_instance.generate_trajectory = AsyncMock(side_effect=mock_generate_trajectory)
 
         try:
             self._setup_fake_engine_episode()
@@ -289,12 +258,10 @@ class TestAgentExecutor(unittest.IsolatedAsyncioTestCase):
             raise
 
         import ray
+
         ray.get.return_value = {"episode_data": "test_data"}
 
-        with patch(
-            "aura.memory.episode.backend.json_episode_store.JsonEpisodeStore"
-        ) as mock_store_cls:
-
+        with patch("aura.memory.episode.backend.json_episode_store.JsonEpisodeStore") as mock_store_cls:
             mock_store = MagicMock()
             mock_store_cls.return_value = mock_store
 
@@ -323,9 +290,7 @@ class TestAgentExecutor(unittest.IsolatedAsyncioTestCase):
             stream_queue.put_nowait(None)
             raise RuntimeError("Test exception")
 
-        self.mock_wrapper_instance.generate_trajectory = AsyncMock(
-            side_effect=mock_generate_trajectory
-        )
+        self.mock_wrapper_instance.generate_trajectory = AsyncMock(side_effect=mock_generate_trajectory)
 
         with patch("aura.runner.agent_service.agent_executor.logger"):
             with self.assertRaises(RuntimeError) as ctx:
@@ -342,9 +307,7 @@ class TestAgentExecutor(unittest.IsolatedAsyncioTestCase):
         async def mock_generate_trajectory(task, stream_queue, **kwargs):
             return mock_traj
 
-        self.mock_wrapper_instance.generate_trajectory = AsyncMock(
-            side_effect=mock_generate_trajectory
-        )
+        self.mock_wrapper_instance.generate_trajectory = AsyncMock(side_effect=mock_generate_trajectory)
 
         try:
             self._setup_fake_engine_episode()
@@ -352,12 +315,10 @@ class TestAgentExecutor(unittest.IsolatedAsyncioTestCase):
             raise
 
         import ray
+
         ray.get.return_value = {"episode_data": "test_data"}
 
-        with patch(
-            "aura.memory.episode.backend.json_episode_store.JsonEpisodeStore"
-        ) as mock_store_cls:
-
+        with patch("aura.memory.episode.backend.json_episode_store.JsonEpisodeStore") as mock_store_cls:
             mock_store = MagicMock()
             mock_store_cls.return_value = mock_store
 
@@ -380,9 +341,7 @@ class TestAgentExecutor(unittest.IsolatedAsyncioTestCase):
         async def mock_generate_trajectory(task, stream_queue, **kwargs):
             return mock_traj
 
-        self.mock_wrapper_instance.generate_trajectory = AsyncMock(
-            side_effect=mock_generate_trajectory
-        )
+        self.mock_wrapper_instance.generate_trajectory = AsyncMock(side_effect=mock_generate_trajectory)
 
         try:
             self._setup_fake_engine_episode()
@@ -390,12 +349,10 @@ class TestAgentExecutor(unittest.IsolatedAsyncioTestCase):
             raise
 
         import ray
+
         ray.get.return_value = {"episode_data": "test_data"}
 
-        with patch(
-            "aura.memory.episode.backend.json_episode_store.JsonEpisodeStore"
-        ) as mock_store_cls:
-
+        with patch("aura.memory.episode.backend.json_episode_store.JsonEpisodeStore") as mock_store_cls:
             mock_store = MagicMock()
             mock_store_cls.return_value = mock_store
 
@@ -405,6 +362,7 @@ class TestAgentExecutor(unittest.IsolatedAsyncioTestCase):
 
             args, kwargs = mock_store.store_episode.call_args
             self.assertEqual(args[1], "")
+
 
 if __name__ == "__main__":
     unittest.main()

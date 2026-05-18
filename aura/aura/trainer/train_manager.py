@@ -13,7 +13,7 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
-# 
+#
 import ray
 from omegaconf import OmegaConf
 
@@ -54,7 +54,7 @@ class TrainManager(ExecutorManager):
             logger.info(f"Train manager created, instance list={self.instance_dict.keys()}.")
         except Exception as e:
             logger.error("Train manager setup failed: %s", e)
-            raise
+            raise e
 
 
 async def get_or_create_train_manager():

@@ -30,12 +30,16 @@ logger = Loggers(__name__).get_logger()
 
 class AgentExecutor(Executor):
     def __init__(
-            self,
-            agent_engine: Dict,
-            agent_engine_kwargs: Dict,
-            infer_service_params: Dict,
-            trajectory_save_dir: str,
-            *args, **kwargs
+        self,
+        agent_engine: Dict,
+        agent_engine_kwargs: Dict,
+        infer_service_params: Dict,
+        trajectory_save_dir: str,
+        traj_proxy_url: str = "",
+        agent_proxy_url: str = "",
+        traj_proxy_run_id: str = "",
+        *args,
+        **kwargs,
     ):
         super().__init__(*args, **kwargs)
         self.agent_engine = agent_engine
@@ -44,10 +48,20 @@ class AgentExecutor(Executor):
         self.trajectory_save_dir = trajectory_save_dir
 
         if self.agent_engine == "rllm":
-            from aura.runner.agent_engine_wrapper.rllm.rllm_engine_wrapper import  RLLMEngineWrapper
+            from aura.runner.agent_engine_wrapper.rllm.rllm_engine_wrapper import RLLMEngineWrapper
+
             self.agent_executor_wrapper = RLLMEngineWrapper(
                 infer_service_params=infer_service_params,
-                **agent_engine_kwargs
+                traj_proxy_url=traj_proxy_url,
+                agent_proxy_url=agent_proxy_url,
+                traj_proxy_run_id=traj_proxy_run_id,
+                **agent_engine_kwargs,
+            )
+        elif self.agent_engine == "vaee":
+            from aura.runner.agent_engine_wrapper.vaee_v2.vaee_engine_wrapper import VirtualAgentEngineExecutionWrapper
+
+            self.agent_executor_wrapper = VirtualAgentEngineExecutionWrapper(
+                infer_service_params=infer_service_params, **agent_engine_kwargs
             )
         else:
             raise ValueError(f"{agent_engine} is not supported.")
@@ -82,12 +96,17 @@ class AgentExecutor(Executor):
         if self.trajectory_save_dir.endswith('.jsonl'):
             import ray
             from aura.memory.episode.backend.json_episode_store import JsonEpisodeStore
+
             json_episode_store = JsonEpisodeStore(path=self.trajectory_save_dir)
             json_episode_store.store_episode(ray.get(self.agent_executor_wrapper.engine.episode.to_dict.remote()), "")
 
     @public_api(name="generate_trajectory")
-    async def generate_trajectory(self, task: AgentTask, mode="Text", addresses=None, *args, **kwargs) -> Trajectory:
-        traj = await self.agent_executor_wrapper.generate_trajectory(task=task, mode=mode, addresses=addresses)
+    async def generate_trajectory(
+        self, task: AgentTask, mode="Text", addresses=None, server_handles=None, *args, **kwargs
+    ) -> Trajectory:
+        traj = await self.agent_executor_wrapper.generate_trajectory(
+            task=task, mode=mode, addresses=addresses, server_handles=server_handles
+        )
         return traj
 
     @public_api(name="generate_trajectories")

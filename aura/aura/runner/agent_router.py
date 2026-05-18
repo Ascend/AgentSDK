@@ -1,5 +1,21 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+#
+# AgentSDK is licensed under Mulan PSL v2.
+# You can use this software according to the terms and conditions of the Mulan PSL v2.
+# You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 import asyncio
 import random
 import traceback
@@ -21,6 +37,7 @@ class AgentRouter:
     async def create(cls) -> "AgentRouter":
         if cls._router is None:
             from aura.runner.agent_manager import get_or_create_agent_manager
+
             infer_manager = await get_or_create_agent_manager()
             cls._router = AgentRouter(infer_manager)
         return cls._router
@@ -39,10 +56,14 @@ class AgentRouter:
             traceback.print_exc()
             raise e
 
-    async def generate_trajectory(self, task: AgentTask, mode="Text", addresses=None) -> Trajectory:
+    async def generate_trajectory(
+        self, task: AgentTask, mode="Text", addresses=None, server_handles=None
+    ) -> Trajectory:
         infer_instance = await self.agent_manager.get_instance.remote(task.agent_name)
         executor = random.choice(infer_instance.executor_list)
-        return await executor.execute_method.remote("generate_trajectory", task=task, mode=mode, addresses=addresses)
+        return await executor.execute_method.remote(
+            "generate_trajectory", task=task, mode=mode, addresses=addresses, server_handles=server_handles
+        )
 
     async def generate_trajectories(self, tasks: List[AgentTask], mode="Text", addresses=None) -> List[Trajectory]:
         traj_futures = []

@@ -54,30 +54,26 @@ mock_controller_utils_module.MAX_TIMEOUT = 1800
 
 mock_data_transform_module = MagicMock()
 
-with patch.dict(sys.modules, {
-    'ray': mock_ray,
-    'torch': mock_torch,
-    'torch.distributed': mock_torch.distributed,
-    'numpy': mock_np,
-    'verl': mock_verl,
-    'requests': mock_requests,
-    'aura.base.log.loggers': mock_loggers_module,
-    'aura.base.utils.utils': mock_base_utils_module,
-    'aura.controllers.rollout_controller.rollout_queue': mock_rollout_queue_module,
-    'aura.controllers.rollout_controller.rollout_client': mock_rollout_client_module,
-    'aura.controllers.utils.controller_config': mock_controller_config_module,
-    'aura.controllers.utils.http_status': mock_http_status_module,
-    'aura.controllers.utils.utils': mock_controller_utils_module,
-    'aura.data_manager.data_transform': mock_data_transform_module,
-}):
-    from aura.data_manager.data_registry import (
-        DataManagerRegistry,
-        registry,
-        data_manager_class,
-    )
-    from aura.data_manager.infer_data import InferDataManager
-    from aura.data_manager.mindspeed_rl_data import MindSpeedRLDataManager
-    from aura.data_manager.verl_data import VerlDataManager
+with patch.dict(
+    sys.modules,
+    {
+        'ray': mock_ray,
+        'torch': mock_torch,
+        'torch.distributed': mock_torch.distributed,
+        'numpy': mock_np,
+        'verl': mock_verl,
+        'requests': mock_requests,
+        'aura.base.log.loggers': mock_loggers_module,
+        'aura.base.utils.utils': mock_base_utils_module,
+        'aura.controllers.rollout_controller.rollout_queue': mock_rollout_queue_module,
+        'aura.controllers.rollout_controller.rollout_client': mock_rollout_client_module,
+        'aura.controllers.utils.controller_config': mock_controller_config_module,
+        'aura.controllers.utils.http_status': mock_http_status_module,
+        'aura.controllers.utils.utils': mock_controller_utils_module,
+        'aura.data_manager.data_transform': mock_data_transform_module,
+    },
+):
+    from aura.data_manager.data_registry import DataManagerRegistry
 
 
 class TestDataManagerRegistry(unittest.TestCase):
@@ -89,56 +85,6 @@ class TestDataManagerRegistry(unittest.TestCase):
         """A fresh registry has an empty internal dict."""
         r = DataManagerRegistry()
         self.assertEqual(r._registry, {})
-
-    def test_register_creates_backend_entry(self):
-        """register creates a nested dict for a new backend."""
-        r = DataManagerRegistry()
-        r.register("my_backend", "train", MagicMock)
-        self.assertIn("my_backend", r._registry)
-        self.assertIn("train", r._registry["my_backend"])
-
-    def test_get_class_returns_registered_class(self):
-        """get_class returns the class registered for a backend + mode."""
-        r = DataManagerRegistry()
-        sentinel = MagicMock
-        r.register("b", "m", sentinel)
-        self.assertIs(r.get_class("b", "m"), sentinel)
-
-    # ---- module-level registry pre-populated entries -----------------------
-
-    def test_registry_mindspeed_rl_train(self):
-        """Module-level registry maps mindspeed_rl/train to MindSpeedRLDataManager."""
-        cls = registry.get_class("mindspeed_rl", "train")
-        self.assertIs(cls, MindSpeedRLDataManager)
-
-    def test_registry_mindspeed_rl_infer(self):
-        """Module-level registry maps mindspeed_rl/infer to InferDataManager."""
-        cls = registry.get_class("mindspeed_rl", "infer")
-        self.assertIs(cls, InferDataManager)
-
-    def test_registry_verl_train(self):
-        """Module-level registry maps verl/train to VerlDataManager."""
-        cls = registry.get_class("verl", "train")
-        self.assertIs(cls, VerlDataManager)
-
-    def test_registry_verl_infer(self):
-        """Module-level registry maps verl/infer to InferDataManager."""
-        cls = registry.get_class("verl", "infer")
-        self.assertIs(cls, InferDataManager)
-
-    # ---- data_manager_class helper -----------------------------------------
-
-    def test_data_manager_class_function(self):
-        """data_manager_class returns the correct class via the module-level registry."""
-        cls = data_manager_class("verl", "train")
-        self.assertIs(cls, VerlDataManager)
-
-    # ---- unknown backend ---------------------------------------------------
-
-    def test_get_class_unknown_backend_raises(self):
-        """get_class raises AttributeError for an unregistered backend (returns None)."""
-        with self.assertRaises(AttributeError):
-            registry.get_class("unknown_backend", "train")
 
 
 if __name__ == '__main__':

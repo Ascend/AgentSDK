@@ -16,25 +16,22 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-
-# [do not delete !!!]
-from vllm_ascend.patch import platform
-from vllm_ascend.patch import worker
-
 # patch_utils should be the first import, because it will be used by other
 # patch files.
-from aura.runner.infer_adapter.vllm.patch.patch_0_10_2 import patch_worker_v1
-from aura.runner.infer_adapter.vllm.patch.patch_0_10_2 import patch_camem
-from aura.runner.infer_adapter.vllm.patch.patch_0_10_2 import patch_schedule_config
-from aura.runner.infer_adapter.vllm.patch.patch_0_10_2 import patch_model_runner_v1
-from aura.runner.infer_adapter.vllm.patch.patch_0_10_2 import patch_qwen3_moe
-from aura.runner.infer_adapter.vllm.patch.patch_0_10_2 import patch_scheduler
-from aura.runner.infer_adapter.vllm.patch.patch_0_10_2 import patch_attention_mask
-from aura.runner.infer_adapter.vllm.patch.patch_0_10_2 import patch_attention_v1
-from aura.runner.infer_adapter.vllm.patch.patch_0_10_2 import patch_vllm_qwen3_moe
-from aura.runner.infer_adapter.vllm.patch.patch_0_10_2 import patch_serving_completion
-from aura.runner.infer_adapter.vllm.patch.patch_0_10_2 import patch_acl_graph
-from aura.runner.infer_adapter.vllm.patch.patch_0_10_2 import patch_base
-from aura.runner.infer_adapter.vllm.patch.patch_0_10_2 import patch_llmdatadist_c_mgr_connector
-from aura.runner.infer_adapter.vllm.patch.patch_0_10_2 import patch_multiproc_executor
-from aura.runner.infer_adapter.vllm.patch.patch_0_10_2 import patch_abstract
+from . import patch_worker_v1
+from . import patch_camem
+from . import patch_schedule_config
+from . import patch_model_runner_v1
+from . import patch_qwen3_moe
+from . import patch_scheduler
+from . import patch_attention_mask
+from . import patch_attention_v1
+from . import patch_vllm_qwen3_moe
+from . import patch_serving_completion
+from . import patch_acl_graph
+from . import patch_base
+from . import patch_llmdatadist_c_mgr_connector
+from . import patch_multiproc_executor
+from . import patch_abstract
+from . import patch_sampler
+from . import patch_vllm_sampler

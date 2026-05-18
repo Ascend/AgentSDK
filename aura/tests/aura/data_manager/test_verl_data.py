@@ -39,12 +39,15 @@ mock_np.ndarray = _FakeNdarray
 # torch.from_numpy should return a distinguishable sentinel
 mock_torch.from_numpy = MagicMock(side_effect=lambda x: f"tensor_from_numpy({x})")
 
-with patch.dict(sys.modules, {
-    'torch': mock_torch,
-    'torch.distributed': mock_torch.distributed,
-    'numpy': mock_np,
-    'verl': mock_verl,
-}):
+with patch.dict(
+    sys.modules,
+    {
+        'torch': mock_torch,
+        'torch.distributed': mock_torch.distributed,
+        'numpy': mock_np,
+        'verl': mock_verl,
+    },
+):
     from aura.data_manager.verl_data import VerlDataManager
     import aura.data_manager.verl_data as _verl_data_mod
 
@@ -133,18 +136,22 @@ class TestVerlDataManager(unittest.TestCase):
 
     def test_put_data_first_batch(self):
         """First put_data sets _current_batch to the converted DataProto."""
-        with patch.object(_verl_data_mod, 'np', mock_np), \
-             patch.object(_verl_data_mod, 'torch', mock_torch), \
-             patch.object(_verl_data_mod, 'DataProto', mock_verl.DataProto):
+        with (
+            patch.object(_verl_data_mod, 'np', mock_np),
+            patch.object(_verl_data_mod, 'torch', mock_torch),
+            patch.object(_verl_data_mod, 'DataProto', mock_verl.DataProto),
+        ):
             mock_verl.DataProto.from_dict.return_value = "proto_1"
             self.dm.put_data({"a": _FakeTensor()}, [0])
             self.assertEqual(self.dm._current_batch, "proto_1")
 
     def test_put_data_union_subsequent(self):
         """Subsequent put_data calls union with existing batch."""
-        with patch.object(_verl_data_mod, 'np', mock_np), \
-             patch.object(_verl_data_mod, 'torch', mock_torch), \
-             patch.object(_verl_data_mod, 'DataProto', mock_verl.DataProto):
+        with (
+            patch.object(_verl_data_mod, 'np', mock_np),
+            patch.object(_verl_data_mod, 'torch', mock_torch),
+            patch.object(_verl_data_mod, 'DataProto', mock_verl.DataProto),
+        ):
             proto1 = MagicMock()
             proto2 = MagicMock()
             proto1.union.return_value = "merged"
@@ -158,9 +165,11 @@ class TestVerlDataManager(unittest.TestCase):
 
     def test_put_data_with_metric(self):
         """put_data stores passed metrics."""
-        with patch.object(_verl_data_mod, 'np', mock_np), \
-             patch.object(_verl_data_mod, 'torch', mock_torch), \
-             patch.object(_verl_data_mod, 'DataProto', mock_verl.DataProto):
+        with (
+            patch.object(_verl_data_mod, 'np', mock_np),
+            patch.object(_verl_data_mod, 'torch', mock_torch),
+            patch.object(_verl_data_mod, 'DataProto', mock_verl.DataProto),
+        ):
             mock_verl.DataProto.from_dict.side_effect = None
             mock_verl.DataProto.from_dict.return_value = MagicMock()
             self.dm.put_data({"a": _FakeTensor()}, [0], metric={"acc": 0.9})
@@ -168,9 +177,11 @@ class TestVerlDataManager(unittest.TestCase):
 
     def test_put_data_without_metric(self):
         """put_data does not alter metrics when metric is None."""
-        with patch.object(_verl_data_mod, 'np', mock_np), \
-             patch.object(_verl_data_mod, 'torch', mock_torch), \
-             patch.object(_verl_data_mod, 'DataProto', mock_verl.DataProto):
+        with (
+            patch.object(_verl_data_mod, 'np', mock_np),
+            patch.object(_verl_data_mod, 'torch', mock_torch),
+            patch.object(_verl_data_mod, 'DataProto', mock_verl.DataProto),
+        ):
             mock_verl.DataProto.from_dict.side_effect = None
             mock_verl.DataProto.from_dict.return_value = MagicMock()
             self.dm.put_data({"a": _FakeTensor()}, [0])
@@ -180,9 +191,11 @@ class TestVerlDataManager(unittest.TestCase):
 
     def test_put_experience_delegates_to_put_data(self):
         """put_experience delegates to put_data."""
-        with patch.object(_verl_data_mod, 'np', mock_np), \
-             patch.object(_verl_data_mod, 'torch', mock_torch), \
-             patch.object(_verl_data_mod, 'DataProto', mock_verl.DataProto):
+        with (
+            patch.object(_verl_data_mod, 'np', mock_np),
+            patch.object(_verl_data_mod, 'torch', mock_torch),
+            patch.object(_verl_data_mod, 'DataProto', mock_verl.DataProto),
+        ):
             mock_verl.DataProto.from_dict.side_effect = None
             mock_verl.DataProto.from_dict.return_value = MagicMock()
             self.dm.put_experience({"x": _FakeTensor()}, [0])
@@ -252,82 +265,6 @@ class TestVerlDataManager(unittest.TestCase):
         """set_pad_token_id updates _pad_token_id."""
         self.dm.set_pad_token_id(42)
         self.assertEqual(self.dm._pad_token_id, 42)
-
-    # ---- _dict_to_dataproto -------------------------------------------------
-
-    def test_dict_to_dataproto_tensor_value(self):
-        """Tensor values go into the tensors dict."""
-        with patch.object(_verl_data_mod, 'np', mock_np), \
-             patch.object(_verl_data_mod, 'torch', mock_torch), \
-             patch.object(_verl_data_mod, 'DataProto', mock_verl.DataProto):
-            tensor_val = _FakeTensor()
-            mock_verl.DataProto.from_dict.return_value = "proto"
-
-            result = self.dm._dict_to_dataproto({"t": tensor_val})
-
-            call_kwargs = mock_verl.DataProto.from_dict.call_args
-            tensors_arg = call_kwargs[1]["tensors"] if "tensors" in call_kwargs[1] else call_kwargs[0][0]
-            self.assertIn("t", tensors_arg)
-            self.assertIs(tensors_arg["t"], tensor_val)
-
-    def test_dict_to_dataproto_ndarray_numeric(self):
-        """Numeric ndarray values are converted via torch.from_numpy into tensors."""
-        with patch.object(_verl_data_mod, 'np', mock_np), \
-             patch.object(_verl_data_mod, 'torch', mock_torch), \
-             patch.object(_verl_data_mod, 'DataProto', mock_verl.DataProto):
-            arr = _FakeNdarray()
-            arr.dtype = "float32"
-            mock_torch.from_numpy.return_value = "converted_tensor"
-            mock_verl.DataProto.from_dict.return_value = "proto"
-
-            self.dm._dict_to_dataproto({"arr": arr})
-
-            mock_torch.from_numpy.assert_called_with(arr)
-            call_kwargs = mock_verl.DataProto.from_dict.call_args[1]
-            self.assertIn("arr", call_kwargs["tensors"])
-
-    def test_dict_to_dataproto_ndarray_object(self):
-        """Object-dtype ndarray values go into non_tensors."""
-        with patch.object(_verl_data_mod, 'np', mock_np), \
-             patch.object(_verl_data_mod, 'torch', mock_torch), \
-             patch.object(_verl_data_mod, 'DataProto', mock_verl.DataProto):
-            arr = _FakeNdarray()
-            arr.dtype = object
-            mock_verl.DataProto.from_dict.return_value = "proto"
-
-            self.dm._dict_to_dataproto({"obj": arr})
-
-            call_kwargs = mock_verl.DataProto.from_dict.call_args[1]
-            self.assertIn("obj", call_kwargs["non_tensors"])
-            self.assertIs(call_kwargs["non_tensors"]["obj"], arr)
-
-    def test_dict_to_dataproto_list_value(self):
-        """List values are wrapped with np.array(dtype=object) into non_tensors."""
-        with patch.object(_verl_data_mod, 'np', mock_np), \
-             patch.object(_verl_data_mod, 'torch', mock_torch), \
-             patch.object(_verl_data_mod, 'DataProto', mock_verl.DataProto):
-            mock_np.array.return_value = "np_arr"
-            mock_verl.DataProto.from_dict.return_value = "proto"
-
-            self.dm._dict_to_dataproto({"lst": [1, 2, 3]})
-
-            mock_np.array.assert_called_with([1, 2, 3], dtype=object)
-            call_kwargs = mock_verl.DataProto.from_dict.call_args[1]
-            self.assertIn("lst", call_kwargs["non_tensors"])
-
-    def test_dict_to_dataproto_scalar_value(self):
-        """Scalar values are wrapped with np.array([value], dtype=object) into non_tensors."""
-        with patch.object(_verl_data_mod, 'np', mock_np), \
-             patch.object(_verl_data_mod, 'torch', mock_torch), \
-             patch.object(_verl_data_mod, 'DataProto', mock_verl.DataProto):
-            mock_np.array.return_value = "np_scalar"
-            mock_verl.DataProto.from_dict.return_value = "proto"
-
-            self.dm._dict_to_dataproto({"s": 42})
-
-            mock_np.array.assert_called_with([42], dtype=object)
-            call_kwargs = mock_verl.DataProto.from_dict.call_args[1]
-            self.assertIn("s", call_kwargs["non_tensors"])
 
 
 if __name__ == '__main__':

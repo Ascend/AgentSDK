@@ -14,7 +14,7 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
-# 
+#
 import datasets
 
 import third_party.rl
@@ -40,19 +40,34 @@ compute_utils.compute_group_norm_advantage_return = compute_group_norm_advantage
 
 from mindspeed_rl.models.base.base_training_engine import BaseTrainingEngine
 from .base_training_engine import _split_batches_with_dynamic_bsz
+
 BaseTrainingEngine._split_batches_with_dynamic_bsz = _split_batches_with_dynamic_bsz
+
+from mindspeed_rl.models.loss.logprob_computer import StandardLogProbComputer
+from .logprob_computer import compute
+
+StandardLogProbComputer.compute = compute
 
 from mindspeed_rl.workers.resharding.memory_buffer import MemoryBuffer, ModelWeightBuffer
 from mindspeed_rl.workers.resharding import memory_buffer
 from .memory_buffer_patch import __init__, copy_by_name, rebuild_with_device, build_experts_memory_buffer_patch
+
 MemoryBuffer.__init__ = __init__
 MemoryBuffer.copy_by_name = copy_by_name
 memory_buffer.build_experts_memory_buffer = build_experts_memory_buffer_patch
 ModelWeightBuffer.rebuild_with_device = rebuild_with_device
 
 from mindspeed_rl.workers.resharding.vllm_weight_container import MegatronStyleVllmWeightContainer
-from .vllm_weight_container_patch import __init__, _validate_parallel_config_patch, split_tp_params_patch, \
-    _update_weight_buffers_ep_patch, _get_simple_ep_params, _collect_name_pairs_for_pp, get_infer_params_patch
+from .vllm_weight_container_patch import (
+    __init__,
+    _validate_parallel_config_patch,
+    split_tp_params_patch,
+    _update_weight_buffers_ep_patch,
+    _get_simple_ep_params,
+    _collect_name_pairs_for_pp,
+    get_infer_params_patch,
+)
+
 MegatronStyleVllmWeightContainer.__init__ = __init__
 MegatronStyleVllmWeightContainer._validate_parallel_config = _validate_parallel_config_patch
 MegatronStyleVllmWeightContainer._collect_name_pairs_for_pp = _collect_name_pairs_for_pp
@@ -60,3 +75,30 @@ MegatronStyleVllmWeightContainer._get_simple_ep_params = _get_simple_ep_params
 MegatronStyleVllmWeightContainer.split_tp_params = split_tp_params_patch
 MegatronStyleVllmWeightContainer._update_weight_buffers_ep = _update_weight_buffers_ep_patch
 MegatronStyleVllmWeightContainer.get_infer_params = get_infer_params_patch
+
+from mindspeed_rl.models.actor_rollout_hybrid import ActorRolloutHybrid
+from .actor_rollout_hybrid import update_mini_batch_size
+
+ActorRolloutHybrid.update_mini_batch_size = update_mini_batch_size
+
+from mindspeed_rl.models.base.base_training_engine import BaseTrainingEngine
+from .base_training_engine import update_mini_batch_size
+
+BaseTrainingEngine.update_mini_batch_size = update_mini_batch_size
+
+from mindspeed_rl.trainer.grpo_trainer_hybrid import RayGRPOTrainer
+from .compute_utils import compute_advantage
+
+RayGRPOTrainer.compute_advantage = compute_advantage
+
+from .launcher import (
+    update_ref_dispatch_size,
+    update_actor_logprob_dispatch_size,
+    update_actor_update_dispatch_size,
+    update_mini_batch_size,
+)
+
+RayActorGroup.update_ref_dispatch_size = update_ref_dispatch_size
+RayActorGroup.update_actor_logprob_dispatch_size = update_actor_logprob_dispatch_size
+RayActorGroup.update_actor_update_dispatch_size = update_actor_update_dispatch_size
+RayActorGroup.update_mini_batch_size = update_mini_batch_size

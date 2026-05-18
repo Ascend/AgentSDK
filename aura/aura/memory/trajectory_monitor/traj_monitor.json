@@ -1,0 +1,72 @@
+{
+  "metrics": {
+    "windowed_distinct_trigrams": {
+      "type": "distinct_n",
+      "n": 3,
+      "window_size": 200,
+      "stride": 50,
+      "thresholds": {
+        "min": 0.1,
+        "max": 0.9
+      },
+      "wd": 0.15
+    },
+    "windowed_compression": {
+      "type": "compression_ratio",
+      "window_size": 200,
+      "stride": 50,
+      "thresholds": {
+        "min": 0.15,
+        "max": 0.4
+      },
+      "wd": 0.042
+    },
+    "windowed_LZ_complexity": {
+      "type": "LZ_complexity",
+      "window_size": 200,
+      "stride": 50,
+      "thresholds": {
+        "min": 0.15,
+        "max": 0.7
+      },
+      "wd": 0.093
+   },
+    "global_distinct_trigrams": {
+      "type": "distinct_n",
+      "n": 3,
+      "thresholds": {
+        "min": 0.3,
+        "max": 0.85
+      }
+    },
+    "global_compression": {
+      "type": "compression_ratio",
+      "thresholds": {
+        "min": 0.15,
+        "max": 0.35
+      }
+    },
+    "global_vocab_gini": {
+      "type": "vocab_gini",
+      "thresholds": {
+        "min": 0.5,
+        "max": 0.85
+      }
+    },
+    "global_intra_kld": {
+      "type": "intra_kld",
+      "thresholds": {
+        "max": 15
+      }
+    },
+    "global_LZ_complexity": {
+      "type": "LZ_complexity",
+      "thresholds": {
+        "min": 0.3,
+        "max": 0.6
+      }
+    }
+  },
+  "remove_tool_response": true,
+  "bs": 512
+}

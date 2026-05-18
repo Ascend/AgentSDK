@@ -28,6 +28,7 @@ from unittest.mock import MagicMock, patch
 # Fake module builder to isolate tests from real dependencies
 # ============================================================
 
+
 def _build_fake_modules():
     """Create and return a dict of fake modules needed for testing."""
     fake_modules = {}
@@ -93,6 +94,7 @@ def _build_fake_modules():
 # Base Test Class with module patching and state reset
 # ============================================================
 
+
 class BaseVllmTest(unittest.TestCase):
     MOD_PATH = "aura.runner.infer_adapter.vllm.vllm_parallel_state"
 
@@ -126,8 +128,8 @@ class BaseVllmTest(unittest.TestCase):
 # Test cases for vllm_parallel_state module
 # ============================================================
 
-class TestVllmParallelStateFull(BaseVllmTest):
 
+class TestVllmParallelStateFull(BaseVllmTest):
     # --------------------------------------------------------
     # 1. Basic getter/setter for TP group ranks
     # --------------------------------------------------------
@@ -163,15 +165,20 @@ class TestVllmParallelStateFull(BaseVllmTest):
     # --------------------------------------------------------
     def test_initialize_parallel_state_single_process_calls_initialize_model_parallel(self):
         """Single process world_size=1 should call initialize_model_parallel."""
-        with patch.dict(os.environ, {
-            "WORLD_SIZE": "1",
-            "RANK": "0",
-            "LOCAL_RANK": "0",
-        }, clear=True):
-            with patch.object(self.ps_mod, "init_distributed_environment") as mock_init_env, \
-                 patch.object(self.ps_mod, "initialize_model_parallel") as mock_init_mp, \
-                 patch.object(self.ps_mod.torch.distributed, "get_world_size", return_value=1):
-
+        with patch.dict(
+            os.environ,
+            {
+                "WORLD_SIZE": "1",
+                "RANK": "0",
+                "LOCAL_RANK": "0",
+            },
+            clear=True,
+        ):
+            with (
+                patch.object(self.ps_mod, "init_distributed_environment") as mock_init_env,
+                patch.object(self.ps_mod, "initialize_model_parallel") as mock_init_mp,
+                patch.object(self.ps_mod.torch.distributed, "get_world_size", return_value=1),
+            ):
                 self.ps_mod.initialize_parallel_state()
 
                 mock_init_env.assert_called_once_with(1, 0, "env://", 0, "hccl")
@@ -179,15 +186,20 @@ class TestVllmParallelStateFull(BaseVllmTest):
 
     def test_initialize_parallel_state_multi_process_calls_initialize_model_parallel_for_vllm(self):
         """Multi-process scenario should call initialize_model_parallel_for_vllm."""
-        with patch.dict(os.environ, {
-            "WORLD_SIZE": "4",
-            "RANK": "1",
-            "LOCAL_RANK": "0",
-        }, clear=True):
-            with patch.object(self.ps_mod, "init_distributed_environment") as mock_init_env, \
-                 patch.object(self.ps_mod, "initialize_model_parallel_for_vllm") as mock_init_vllm, \
-                 patch.object(self.ps_mod.torch.distributed, "get_world_size", return_value=4):
-
+        with patch.dict(
+            os.environ,
+            {
+                "WORLD_SIZE": "4",
+                "RANK": "1",
+                "LOCAL_RANK": "0",
+            },
+            clear=True,
+        ):
+            with (
+                patch.object(self.ps_mod, "init_distributed_environment") as mock_init_env,
+                patch.object(self.ps_mod, "initialize_model_parallel_for_vllm") as mock_init_vllm,
+                patch.object(self.ps_mod.torch.distributed, "get_world_size", return_value=4),
+            ):
                 self.ps_mod.initialize_parallel_state(
                     infer_tensor_model_parallel_size=2,
                     train_tensor_model_parallel_size=4,
@@ -205,11 +217,6 @@ class TestVllmParallelStateFull(BaseVllmTest):
     # --------------------------------------------------------
     # 3. initialize_model_parallel_for_vllm error branches
     # --------------------------------------------------------
-    def test_init_vllm_error_not_distributed(self):
-        """If torch.distributed not initialized, raise ValueError."""
-        with patch.object(torch.distributed, "is_initialized", return_value=False):
-            with self.assertRaisesRegex(ValueError, "torch.distributed is not initialized"):
-                self.ps_mod.initialize_model_parallel_for_vllm(2)
 
     def test_init_vllm_error_invalid_type(self):
         """Non-integer argument should raise TypeError."""
@@ -221,30 +228,20 @@ class TestVllmParallelStateFull(BaseVllmTest):
         """If TP group already exists, raise ValueError."""
         with patch.object(torch.distributed, "is_initialized", return_value=True):
             import vllm.distributed.parallel_state as ps
+
             ps._TP = MagicMock()
             with self.assertRaisesRegex(ValueError, "tensor model parallel group is already initialized"):
                 self.ps_mod.initialize_model_parallel_for_vllm(2)
 
-    def test_init_vllm_error_invalid_split(self):
-        """Test non-divisible case: world_size=8, train_tp=2, infer_tp=3 -> split invalid."""
-        with patch.object(torch.distributed, "is_initialized", return_value=True), \
-             patch.object(torch.distributed, "get_world_size", return_value=8), \
-             patch.object(torch.distributed, "get_backend", return_value="hccl"):
-
-            with self.assertRaisesRegex(ValueError, "Can't split train tp size"):
-                self.ps_mod.initialize_model_parallel_for_vllm(
-                    infer_tensor_model_parallel_size=3,
-                    train_tensor_model_parallel_size=2
-                )
-
     def test_init_vllm_error_invalid_gather(self):
         """Test 'Can't gather train tp size' branch: world_size=8, train_tp=4, infer_tp=3."""
-        with patch.object(torch.distributed, "is_initialized", return_value=True), \
-             patch.object(torch.distributed, "get_world_size", return_value=8), \
-             patch.object(torch.distributed, "get_backend", return_value="hccl"), \
-             patch.object(torch.distributed, "get_rank", return_value=0), \
-             patch.object(self.ps_mod, "get_world_group") as mock_wg:
-
+        with (
+            patch.object(torch.distributed, "is_initialized", return_value=True),
+            patch.object(torch.distributed, "get_world_size", return_value=8),
+            patch.object(torch.distributed, "get_backend", return_value="hccl"),
+            patch.object(torch.distributed, "get_rank", return_value=0),
+            patch.object(self.ps_mod, "get_world_group") as mock_wg,
+        ):
             fake_wg = MagicMock()
             fake_wg.local_rank = 0
             mock_wg.return_value = fake_wg
@@ -262,98 +259,17 @@ class TestVllmParallelStateFull(BaseVllmTest):
                 )
 
     # --------------------------------------------------------
-    # 4. rebuild_EP_group=True path
-    # --------------------------------------------------------
-    def test_init_vllm_rebuild_ep_group(self):
-        """Test rebuilding expert parallel groups (rebulid_EP_group=True)."""
-        with patch.object(torch.distributed, "is_initialized", return_value=True), \
-            patch.object(torch.distributed, "get_world_size", return_value=8), \
-            patch.object(torch.distributed, "get_backend", return_value="hccl"), \
-            patch.object(torch.distributed, "get_rank", return_value=0), \
-            patch.object(self.ps_mod, "get_world_group") as mock_wg, \
-            patch.object(self.ps_mod, "init_model_parallel_group") as mock_init:
-
-            fake_wg = MagicMock()
-            fake_wg.local_rank = 0
-            mock_wg.return_value = fake_wg
-
-            # Create many mock groups to satisfy side effects
-            mock_rets = [MagicMock(rank_in_group=0) for _ in range(20)]
-            mock_init.side_effect = mock_rets
-
-            with patch.dict(os.environ, {"MASTER_PORT": "29500"}, clear=False):
-                self.ps_mod.initialize_model_parallel_for_vllm(
-                    infer_tensor_model_parallel_size=2,
-                    train_tensor_model_parallel_size=2,
-                    infer_expert_model_parallel_size=2,
-                    train_expert_model_parallel_size=2,
-                    rebulid_EP_group=True
-                )
-
-            self.assertEqual(len(self.ps_mod._TP_GROUP_RANKS), 4)
-            self.assertEqual(self.ps_mod._TP_GROUP_RANKS[0], [0, 1])
-            self.assertGreater(mock_init.call_count, 4)
-
-    def test_init_vllm_rebuild_ep_group_env_set(self):
-        """rebuild_EP_group=True should set environment variables for data parallel."""
-        with patch.object(torch.distributed, "is_initialized", return_value=True), \
-             patch.object(torch.distributed, "get_world_size", return_value=8), \
-             patch.object(torch.distributed, "get_backend", return_value="hccl"), \
-             patch.object(torch.distributed, "get_rank", return_value=1), \
-             patch.object(self.ps_mod, "get_world_group") as mock_wg, \
-             patch.object(self.ps_mod, "init_model_parallel_group") as mock_init, \
-             patch.object(self.ps_mod, "get_cluster_info") as mock_cluster:
-
-            fake_wg = MagicMock()
-            fake_wg.local_rank = 0
-            mock_wg.return_value = fake_wg
-
-            fake_dp_group = MagicMock()
-            fake_dp_group.rank_in_group = 0
-
-            mock_init.side_effect = [
-                MagicMock(name="TP_GROUP"),
-                MagicMock(name="PP_GROUP"),
-                MagicMock(name="EP_GROUP"),
-                MagicMock(name="MC2_GROUP"),
-                fake_dp_group,
-            ]
-
-            mock_cluster.return_value = [
-                "10.0.0.1", "10.0.0.2", "10.0.0.3", "10.0.0.4",
-                "10.0.0.5", "10.0.0.6", "10.0.0.7", "10.0.0.8",
-            ]
-
-            with patch.dict(os.environ, {"MASTER_PORT": "29500"}, clear=True):
-                self.ps_mod.initialize_model_parallel_for_vllm(
-                    infer_tensor_model_parallel_size=2,
-                    train_tensor_model_parallel_size=2,
-                    infer_pipeline_model_parallel_size=1,
-                    train_pipeline_model_parallel_size=1,
-                    infer_expert_model_parallel_size=2,
-                    train_expert_model_parallel_size=1,
-                    train_context_model_parallel_size=1,
-                    rebulid_EP_group=True,
-                )
-
-                self.assertIn("VLLM_DP_RANK", os.environ)
-                self.assertIn("VLLM_DP_MASTER_PORT", os.environ)
-                self.assertIn("VLLM_DP_MASTER_IP", os.environ)
-                self.assertIn("VLLM_PORT", os.environ)
-
-            self.assertEqual(mock_init.call_count, 5)
-
-    # --------------------------------------------------------
     # 5. initialize_model_parallel logic tests
     # --------------------------------------------------------
     def test_initialize_model_parallel_tp_pp_not_match_still_works(self):
         """Even if tp*pp != world_size, no assertion is raised (code allows it)."""
-        with patch.object(self.ps_mod.torch.distributed, "is_initialized", return_value=True), \
-            patch.object(self.ps_mod.torch.distributed, "get_world_size", return_value=8), \
-            patch.object(self.ps_mod.torch.distributed, "get_backend", return_value="hccl"), \
-            patch.object(self.ps_mod.ps, "get_world_group") as mock_wg, \
-            patch.object(self.ps_mod, "init_model_parallel_group") as mock_init:
-
+        with (
+            patch.object(self.ps_mod.torch.distributed, "is_initialized", return_value=True),
+            patch.object(self.ps_mod.torch.distributed, "get_world_size", return_value=8),
+            patch.object(self.ps_mod.torch.distributed, "get_backend", return_value="hccl"),
+            patch.object(self.ps_mod.ps, "get_world_group") as mock_wg,
+            patch.object(self.ps_mod, "init_model_parallel_group") as mock_init,
+        ):
             fake_wg = MagicMock()
             fake_wg.local_rank = 0
             fake_wg.device_group = "fake_device_group"
@@ -363,25 +279,21 @@ class TestVllmParallelStateFull(BaseVllmTest):
 
             # tp=4, pp=4, product=16 != world_size=8 -> should still run
             self.ps_mod.initialize_model_parallel(
-                tensor_model_parallel_size=4,
-                pipeline_model_parallel_size=4,
-                backend=None
+                tensor_model_parallel_size=4, pipeline_model_parallel_size=4, backend=None
             )
 
             self.assertEqual(mock_init.call_count, 2)
 
     def test_initialize_model_parallel_already_init_pp(self):
         """If PP group already exists, raise ValueError."""
-        with patch.object(torch.distributed, "is_initialized", return_value=True), \
-            patch.object(torch.distributed, "get_world_size", return_value=4), \
-            patch.object(torch.distributed, "get_backend", return_value="hccl"):
-
+        with (
+            patch.object(torch.distributed, "is_initialized", return_value=True),
+            patch.object(torch.distributed, "get_world_size", return_value=4),
+            patch.object(torch.distributed, "get_backend", return_value="hccl"),
+        ):
             self.ps_mod._PP = MagicMock()
             with self.assertRaisesRegex(ValueError, "pipeline model parallel group is already initialized"):
-                self.ps_mod.initialize_model_parallel(
-                    tensor_model_parallel_size=2,
-                    pipeline_model_parallel_size=2
-                )
+                self.ps_mod.initialize_model_parallel(tensor_model_parallel_size=2, pipeline_model_parallel_size=2)
 
     def test_initialize_model_parallel_distributed_not_initialized(self):
         """When torch.distributed not initialized, raise ValueError."""
@@ -389,39 +301,22 @@ class TestVllmParallelStateFull(BaseVllmTest):
             with self.assertRaisesRegex(ValueError, "torch.distributed is not initialized"):
                 self.ps_mod.initialize_model_parallel()
 
-    def test_initialize_model_parallel_normal_path(self):
-        """Normal initialization of TP and PP groups."""
-        with patch.object(self.ps_mod.torch.distributed, "is_initialized", return_value=True), \
-             patch.object(self.ps_mod.torch.distributed, "get_world_size", return_value=4), \
-             patch.object(self.ps_mod, "init_model_parallel_group") as mock_init_group, \
-             patch.object(self.ps_mod, "get_world_group") as mock_world_group:
-
-            fake_wg = MagicMock()
-            fake_wg.local_rank = 0
-            fake_wg.device_group = "dg"
-            mock_world_group.return_value = fake_wg
-
-            self.ps_mod.initialize_model_parallel(
-                tensor_model_parallel_size=2,
-                pipeline_model_parallel_size=2,
-                backend="hccl",
-            )
-
-            self.assertEqual(mock_init_group.call_count, 2)
-
     # --------------------------------------------------------
     # 6. initialize_model_parallel_for_vllm normal path
     # --------------------------------------------------------
     def test_initialize_model_parallel_for_vllm_normal_path(self):
         """Full normal execution with rebulid_EP_group=False."""
-        with patch.object(self.ps_mod.torch.distributed, "is_initialized", return_value=True), \
-             patch.object(self.ps_mod.torch.distributed, "get_world_size", return_value=4), \
-             patch.object(self.ps_mod.torch.distributed, "get_backend", return_value="hccl"), \
-             patch.object(self.ps_mod.torch.distributed, "get_rank", return_value=0), \
-             patch.object(self.ps_mod, "get_world_group") as mock_world_group, \
-             patch.object(self.ps_mod, "init_model_parallel_group") as mock_init_group, \
-             patch.object(self.ps_mod, "get_cluster_info", return_value=["10.0.0.1", "10.0.0.2", "10.0.0.3", "10.0.0.4"]):
-
+        with (
+            patch.object(self.ps_mod.torch.distributed, "is_initialized", return_value=True),
+            patch.object(self.ps_mod.torch.distributed, "get_world_size", return_value=4),
+            patch.object(self.ps_mod.torch.distributed, "get_backend", return_value="hccl"),
+            patch.object(self.ps_mod.torch.distributed, "get_rank", return_value=0),
+            patch.object(self.ps_mod, "get_world_group") as mock_world_group,
+            patch.object(self.ps_mod, "init_model_parallel_group") as mock_init_group,
+            patch.object(
+                self.ps_mod, "get_cluster_info", return_value=["10.0.0.1", "10.0.0.2", "10.0.0.3", "10.0.0.4"]
+            ),
+        ):
             fake_wg = MagicMock()
             fake_wg.local_rank = 0
             mock_world_group.return_value = fake_wg

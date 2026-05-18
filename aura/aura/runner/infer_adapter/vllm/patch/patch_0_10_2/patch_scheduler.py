@@ -22,18 +22,16 @@ from typing import List, Tuple
 
 from vllm.config import VllmConfig
 from vllm.multimodal import MULTIMODAL_REGISTRY, MultiModalRegistry
-from vllm.v1.core.sched.output import (CachedRequestData, NewRequestData,
-                                       SchedulerOutput)
-from vllm.v1.core.sched.utils import check_stop, remove_all
-from vllm.v1.engine import (EngineCoreEventType, EngineCoreOutput,
-                            EngineCoreOutputs)
+from vllm.v1.core.sched.output import SchedulerOutput
+from vllm.v1.core.sched.utils import check_stop
+from vllm.v1.engine import EngineCoreEventType
 from vllm.v1.kv_cache_interface import KVCacheConfig
-from vllm.v1.request import Request, RequestStatus
+from vllm.v1.request import Request
 from vllm.v1.structured_output import StructuredOutputManager
 from vllm.v1.core.sched.scheduler import Scheduler
-
-from aura.runner.infer_adapter.vllm.patch.comm.scheduler_stat import RequestStats
-
+from vllm.v1.worker.kv_connector_model_runner_mixin import KVConnectorOutput
+from vllm.logger import logger
+from ..comm.scheduler_stat import RequestStats
 
 original_scheduler_init = Scheduler.__init__
 
@@ -48,9 +46,13 @@ def scheduler_init(
     log_stats: bool = False,
 ) -> None:
     original_scheduler_init(
-        self, vllm_config, kv_cache_config, structured_output_manager,
-        mm_registry, include_finished_set, log_stats)
+        self, vllm_config, kv_cache_config, structured_output_manager, mm_registry, include_finished_set, log_stats
+    )
     self.req_stats: RequestStats = RequestStats()
+
+    self.is_prefill = (
+        vllm_config.kv_transfer_config.kv_role == "kv_producer" if vllm_config.kv_transfer_config is not None else False
+    )
 
 
 def update_after_schedule_patch(
@@ -86,15 +88,15 @@ def update_request_with_output_patch(
     new_token_ids: List[int],
 ) -> Tuple[List[int], bool]:
     """Update request state with generated output tokens.
-    
+
     This method appends generated tokens to the request, checks for stop
     conditions, and tracks prefill completion and finish events for
     statistics collection.
-    
+
     Args:
         request: The request to update.
         new_token_ids: List of newly generated token IDs.
-    
+
     Returns:
         Tuple containing:
             - Trimmed list of new token IDs (if stopped early)
@@ -109,10 +111,10 @@ def update_request_with_output_patch(
             self.req_stats.stat_finish(request.request_id, request.num_prompt_tokens, request.num_output_tokens)
             del new_token_ids[num_new:]
             break
-    
+
     if request.num_output_tokens == 1:
         self.req_stats.stat_prefill_done(request.request_id)
-    
+
     return new_token_ids, stopped
 
 
@@ -129,8 +131,35 @@ def reset_prefix_cache_patch(self) -> bool:
     return self.kv_cache_manager.reset_prefix_cache()
 
 
+def _update_from_kv_xfer_finished_patch(self, kv_connector_output: KVConnectorOutput):
+    """
+    KV Connector: update the scheduler state based on the output.
+
+    The Worker side connectors add finished_recving and
+    finished_sending reqs to the output.
+    * if finished_sending: free the blocks
+    # if finished_recving: add to state so we can
+        schedule the request during the next step.
+    """
+
+    if self.connector is not None:
+        self.connector.update_connector_output(kv_connector_output)
+
+    # KV Connector:: update recv and send status from last step.
+    for req_id in kv_connector_output.finished_recving or ():
+        logger.debug("Finished recving KV transfer for request %s", req_id)
+        self.finished_recving_kv_req_ids.add(req_id)
+    for req_id in kv_connector_output.finished_sending or ():
+        logger.debug("Finished sending KV transfer for request %s", req_id)
+        if req_id not in self.requests:
+            logger.warning("Got finished sending KV transfer for request %s,but the request is already freed.", req_id)
+        else:
+            self._free_blocks(self.requests[req_id])
+
+
 Scheduler.__init__ = scheduler_init
 Scheduler._update_after_schedule = update_after_schedule_patch
 Scheduler._update_request_with_output = update_request_with_output_patch
 Scheduler.add_request = add_request_patch
 Scheduler.reset_prefix_cache = reset_prefix_cache_patch
+Scheduler._update_from_kv_xfer_finished = _update_from_kv_xfer_finished_patch

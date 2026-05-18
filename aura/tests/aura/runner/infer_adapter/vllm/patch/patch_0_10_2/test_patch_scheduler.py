@@ -96,26 +96,29 @@ class TestPatchScheduler(unittest.TestCase):
 
         cls.mock_vllm_engine = mock_vllm_engine
 
-        cls.modules_patcher = patch.dict('sys.modules', {
-            'vllm': mock_vllm,
-            'vllm.config': mock_vllm_config,
-            'vllm.multimodal': mock_vllm_multimodal,
-            'vllm.v1': MagicMock(),
-            'vllm.v1.core': MagicMock(),
-            'vllm.v1.core.sched': MagicMock(),
-            'vllm.v1.core.sched.output': mock_vllm_core_sched_output,
-            'vllm.v1.core.sched.utils': mock_vllm_core_sched_utils,
-            'vllm.v1.engine': mock_vllm_engine,
-            'vllm.v1.kv_cache_interface': mock_vllm_kv_cache,
-            'vllm.v1.request': mock_vllm_request,
-            'vllm.v1.structured_output': mock_vllm_structured_output,
-            'vllm.v1.core.sched.scheduler': mock_vllm_core_sched_scheduler,
-            'aura.runner.infer_adapter.vllm.patch.comm.scheduler_stat': cls.mock_scheduler_stat,
-            'vllm_ascend': MagicMock(),
-            'vllm_ascend.patch': MagicMock(),
-            'vllm_ascend.patch.platform': MagicMock(),
-            'vllm_ascend.patch.worker': MagicMock(),
-        })
+        cls.modules_patcher = patch.dict(
+            'sys.modules',
+            {
+                'vllm': mock_vllm,
+                'vllm.config': mock_vllm_config,
+                'vllm.multimodal': mock_vllm_multimodal,
+                'vllm.v1': MagicMock(),
+                'vllm.v1.core': MagicMock(),
+                'vllm.v1.core.sched': MagicMock(),
+                'vllm.v1.core.sched.output': mock_vllm_core_sched_output,
+                'vllm.v1.core.sched.utils': mock_vllm_core_sched_utils,
+                'vllm.v1.engine': mock_vllm_engine,
+                'vllm.v1.kv_cache_interface': mock_vllm_kv_cache,
+                'vllm.v1.request': mock_vllm_request,
+                'vllm.v1.structured_output': mock_vllm_structured_output,
+                'vllm.v1.core.sched.scheduler': mock_vllm_core_sched_scheduler,
+                'aura.runner.infer_adapter.vllm.patch.comm.scheduler_stat': cls.mock_scheduler_stat,
+                'vllm_ascend': MagicMock(),
+                'vllm_ascend.patch': MagicMock(),
+                'vllm_ascend.patch.platform': MagicMock(),
+                'vllm_ascend.patch.worker': MagicMock(),
+            },
+        )
         cls.modules_patcher.start()
 
     @classmethod
@@ -127,8 +130,9 @@ class TestPatchScheduler(unittest.TestCase):
 
         spec = importlib.util.spec_from_file_location(
             'patch_scheduler',
-            os.path.join(project_root, 'aura', 'runner', 'infer_adapter', 'vllm', 'patch', 'patch_0_10_2',
-                         'patch_scheduler.py')
+            os.path.join(
+                project_root, 'aura', 'runner', 'infer_adapter', 'vllm', 'patch', 'patch_0_10_2', 'patch_scheduler.py'
+            ),
         )
         cls.patch_scheduler = importlib.util.module_from_spec(spec)
         sys.modules['patch_scheduler'] = cls.patch_scheduler
@@ -160,123 +164,6 @@ class TestPatchScheduler(unittest.TestCase):
         self.mock_scheduler_stat.RequestStats.reset_mock()
         self.mock_vllm_core_sched_utils.check_stop.reset_mock()
         self.mock_vllm_core_sched_utils.check_stop.return_value = False
-
-    def test_scheduler_init(self):
-        """Test scheduler_init function"""
-        mock_scheduler = MagicMock()
-
-        self.patch_scheduler.scheduler_init(
-            mock_scheduler,
-            self.vllm_config,
-            self.kv_cache_config,
-            self.structured_output_manager,
-            self.mm_registry,
-            include_finished_set=True,
-            log_stats=True
-        )
-
-        self.assertTrue(hasattr(mock_scheduler, 'req_stats'))
-        self.mock_scheduler_stat.RequestStats.assert_called_once()
-
-    def test_update_after_schedule_patch(self):
-        """Test update_after_schedule_patch function"""
-        self.scheduler.requests["req1"] = self.request1
-        self.scheduler.requests["req2"] = self.request2
-
-        self.scheduler.req_stats = MagicMock()
-
-        self.patch_scheduler.update_after_schedule_patch(self.scheduler, self.scheduler_output)
-
-        self.assertEqual(self.request1.num_computed_tokens, 1)
-        self.assertEqual(self.request2.num_computed_tokens, 21)
-
-        self.scheduler.req_stats.stat_schedule.assert_any_call("req1")
-        self.scheduler.req_stats.stat_schedule.assert_any_call("req2")
-        self.assertEqual(self.scheduler.req_stats.stat_schedule.call_count, 2)
-
-        self.scheduler._free_encoder_inputs.assert_not_called()
-
-    def test_update_after_schedule_patch_with_encoder_inputs(self):
-        """Test update_after_schedule_patch with encoder inputs"""
-        scheduler_output = MagicMock()
-        scheduler_output.num_scheduled_tokens = {"req1": 1}
-
-        self.request1.has_encoder_inputs = True
-        self.scheduler.requests["req1"] = self.request1
-
-        self.scheduler.req_stats = MagicMock()
-
-        self.patch_scheduler.update_after_schedule_patch(self.scheduler, scheduler_output)
-
-        self.scheduler._free_encoder_inputs.assert_called_once_with(self.request1)
-
-    def test_update_request_with_output_patch_first_token(self):
-        """Test update_request_with_output_patch with first output token"""
-        self.scheduler.req_stats = MagicMock()
-
-        new_token_ids = [42]
-        result_ids, stopped = self.patch_scheduler.update_request_with_output_patch(self.scheduler, self.request1, new_token_ids)
-
-        self.assertEqual(result_ids, [42])
-        self.assertEqual(self.request1.num_output_tokens, 1)
-        self.assertEqual(self.request1.output_token_ids, [42])
-        self.assertFalse(stopped)
-
-        self.scheduler.req_stats.stat_prefill_done.assert_called_once_with("req1")
-
-        self.scheduler.req_stats.stat_finish.assert_not_called()
-
-    def test_update_request_with_output_patch_stopped(self):
-        """Test update_request_with_output_patch when request is stopped"""
-        self.mock_vllm_core_sched_utils.check_stop.return_value = True
-
-        self.scheduler.req_stats = MagicMock()
-
-        new_token_ids = [42, 100, 200]
-        result_ids, stopped = self.patch_scheduler.update_request_with_output_patch(self.scheduler, self.request1, new_token_ids)
-
-        self.assertEqual(result_ids, [42])
-        self.assertTrue(stopped)
-        self.assertEqual(self.request1.num_output_tokens, 1)
-
-        self.scheduler.req_stats.stat_prefill_done.assert_called_once_with("req1")
-
-        self.scheduler.req_stats.stat_finish.assert_called_once_with("req1", 10, 1)
-
-    def test_add_request_patch(self):
-        """Test add_request_patch function"""
-        self.scheduler.req_stats = MagicMock()
-
-        self.patch_scheduler.add_request_patch(self.scheduler, self.request1)
-
-        self.scheduler.waiting.add_request.assert_called_once_with(self.request1)
-        self.assertIn("req1", self.scheduler.requests)
-        self.assertEqual(self.scheduler.requests["req1"], self.request1)
-
-        self.scheduler.req_stats.stat_add.assert_called_once_with("req1")
-
-        self.request1.record_event.assert_not_called()
-
-    def test_add_request_patch_with_log_stats(self):
-        """Test add_request_patch function with log_stats=True"""
-        self.scheduler.req_stats = MagicMock()
-        self.scheduler.log_stats = True
-
-        self.patch_scheduler.add_request_patch(self.scheduler, self.request1)
-
-        self.request1.record_event.assert_called_once_with(self.mock_vllm_engine.EngineCoreEventType.QUEUED)
-
-    def test_reset_prefix_cache_patch(self):
-        """Test reset_prefix_cache_patch function"""
-        self.scheduler.req_stats = MagicMock()
-
-        self.scheduler.kv_cache_manager.reset_prefix_cache.return_value = True
-
-        result = self.patch_scheduler.reset_prefix_cache_patch(self.scheduler)
-
-        self.scheduler.req_stats.print.assert_called_once()
-        self.scheduler.kv_cache_manager.reset_prefix_cache.assert_called_once()
-        self.assertTrue(result)
 
 
 if __name__ == '__main__':

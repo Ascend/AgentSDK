@@ -136,14 +136,10 @@ class AsyncServerProxyManager:
     """Used for shared-card and separated mode (pure inference)."""
 
     def __init__(
-            self,
-            tokenizer_name_or_path,
-            worker_group,
-            infer_service,
-            *,
-            scheduler_kwargs: Dict[str, Any] = None
+        self, config, tokenizer_name_or_path, worker_group, infer_service, *, scheduler_kwargs: Dict[str, Any] = None
     ):
         self.weight_offloaded = True
+        self.config = config
         self.tokenizer_name_or_path = tokenizer_name_or_path
         self.worker_group = worker_group
         self.server_addresses = None
@@ -167,14 +163,14 @@ class AsyncServerProxyManager:
             model_name=self.infer_service,
             kwargs_list=[
                 {
-                    "config": None,
+                    "config": self.config,
                     "tokenizer_name_or_path": self.tokenizer_name_or_path,
                     "vllm_dp_size": self.rollout_dp_size,
                     "vllm_dp_rank": rollout_dp_rank,
                     "wg_prefix": "",
                 }
                 for rollout_dp_rank in unready_dp_ranks
-            ]
+            ],
         )
 
     def get_weight_offloaded(self):
@@ -194,6 +190,7 @@ class AsyncServerProxyManager:
         kwargs_list = [{"path": path}]
         logger.info(f"update_weights, kwargs_list: {kwargs_list}")
         await self.infer_router.update_weights(model_name=self.infer_service, kwargs_list=kwargs_list)
+        await self.infer_router.reset_prefix_cache(model_name=self.infer_service)
 
 
 class AsyncServerManager:
@@ -225,6 +222,7 @@ class AsyncServerManager:
         self.server_addresses = [None] * self.rollout_dp_size
 
         from aura.runner.infer_adapter.infer_registry import async_server_class
+
         server_class = async_server_class(
             infer_backend=self.rollout_infer_backend,
         )
@@ -235,13 +233,15 @@ class AsyncServerManager:
         unready_dp_ranks = set(range(self.rollout_dp_size))
         while len(unready_dp_ranks) > 0:
             servers = {
-                rollout_dp_rank: ray.remote(server_class).options(
+                rollout_dp_rank: ray.remote(server_class)
+                .options(
                     scheduling_strategy=ray.util.scheduling_strategies.NodeAffinitySchedulingStrategy(
                         node_id=workers_info[rollout_dp_rank * self.rollout_tp_size * dp_size],
                         soft=False,
                     ),
                     name=f"async_llm_server_{rollout_dp_rank}",
-                ).remote(config, tokenizer_name_or_path, self.rollout_dp_size, rollout_dp_rank, "")
+                )
+                .remote(config, tokenizer_name_or_path, self.rollout_dp_size, rollout_dp_rank, "")
                 for rollout_dp_rank in unready_dp_ranks
             }
 
@@ -302,8 +302,7 @@ class AsyncServerManager:
         original_devices = ranktable.get("prefill_device_list", []) + ranktable.get("decode_device_list", [])
         if len(original_devices) != total_device_cnt:
             raise ValueError(
-                f"Ranktable has {len(original_devices)} devices, "
-                f"but expected {total_device_cnt} from workers_info."
+                f"Ranktable has {len(original_devices)} devices, but expected {total_device_cnt} from workers_info."
             )
 
         idx = 0

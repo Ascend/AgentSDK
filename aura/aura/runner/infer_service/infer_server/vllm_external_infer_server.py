@@ -4,24 +4,21 @@
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
-# 
+#
 # AgentSDK is licensed under Mulan PSL v2.
 # You can use this software according to the terms and conditions of the Mulan PSL v2.
 # You may obtain a copy of Mulan PSL v2 at:
-# 
+#
 #          http://license.coscl.org.cn/MulanPSL2
-# 
+#
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-
-# Standard library imports
 from typing import Dict
 
-# Internal imports
 from aura.base.log.loggers import Loggers
 from aura.runner.infer_service.base_infer_server import BaseInferServer
 
@@ -29,7 +26,6 @@ logger = Loggers(__name__).get_logger()
 
 
 class VLLMExternalInferServer(BaseInferServer):
-    # TODO: Support "shared card" deployment mode, externally pass vLLMExecutor address
     def __init__(self, model_name, *args, **kwargs):
         self.server = None
         self.model_name = model_name
@@ -54,7 +50,7 @@ class VLLMExternalInferServer(BaseInferServer):
 
             async def json_func():
                 return data
-    
+
             request.json = json_func
             return request
 
@@ -68,8 +64,10 @@ class VLLMExternalInferServer(BaseInferServer):
         if self.server is None:
             from aura.base.utils.run_env import get_vllm_version
             import os
+
             os.environ['VLLM_VERSION'] = get_vllm_version()
             from aura.runner.infer_adapter.vllm.vllm_async_server import AsyncVLLMServer
+
             self.server = AsyncVLLMServer(*args, **kwargs)
             await self.server.init_engine()
             return

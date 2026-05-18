@@ -1,0 +1,5 @@
+megatron==core_r0.8.0
+verl==
+vllm==72506c9
+vllm_ascend==6281c12
+rllm==0.1

@@ -27,7 +27,6 @@ import os
 import time
 from collections import defaultdict
 
-from omegaconf import DictConfig
 import numpy as np
 import ray
 import torch
@@ -46,6 +45,7 @@ logger = Loggers(__name__).get_logger()
 
 UNAVAILABLE_WEIGHT_VERSION = -1
 
+
 def get_least_common_multiple(num_1: int, num_2: int):
     return abs(num_1 * num_2) // math.gcd(num_1, num_2)
 
@@ -56,14 +56,9 @@ def generate_dummy_trajectory(prompt_id):
         "response_tokens": torch.tensor([0]),
         "response_masks": torch.tensor([1]),
         "trajectory_reward": 0.0,
-        "idx": "0",
+        "idx": 0,
         "prompt_id": str(prompt_id),
-        "chat_completions": [
-            {
-                "role": "system",
-                "content": "0"
-            }
-        ],
+        "chat_completions": [{"role": "system", "content": "0"}],
         "trajectory": {
             "task": {},
             "data_id": "000000000000000000000000000000000",
@@ -71,7 +66,7 @@ def generate_dummy_trajectory(prompt_id):
             "epoch_id": 0,
             "iteration_id": 0,
             "sample_id": 1,
-            "trajectory_id": "000000000000000000000000000000000-20251218230427-0-0-1-0"
+            "trajectory_id": "000000000000000000000000000000000-20251218230427-0-0-1-0",
         },
         "metrics": {
             "steps": 1,
@@ -81,15 +76,12 @@ def generate_dummy_trajectory(prompt_id):
             "total_time": 0.0,
             "toolcall_reward": 0.0,
             "res_reward": 0.0,
-            "env_step_times": [
-                0.0
-            ],
-            "llm_step_times": [
-                0.0
-            ]
-        }
+            "env_step_times": [0.0],
+            "llm_step_times": [0.0],
+        },
     }
     return trajectory
+
 
 def parse_messages(prompt, model_name="qwen"):
     import re
@@ -106,24 +98,19 @@ def parse_messages(prompt, model_name="qwen"):
     # Extract roles and content
     extracted_messages = []
     for role, content in matches:
-        extracted_messages.append({
-            "role": role.strip().lower(),
-            "content": content.strip()
-        })
+        extracted_messages.append({"role": role.strip().lower(), "content": content.strip()})
 
     return extracted_messages
 
 
 def _stat_rollout_metrics(rollout_cost, resharding_to_infer, metrics):
-    rollout_metrics = {
-        "rollout_cost": rollout_cost,
-        "resharding_to_infer": resharding_to_infer
-    }
+    rollout_metrics = {"rollout_cost": rollout_cost, "resharding_to_infer": resharding_to_infer}
     for k, value in metrics.items():
         if "res_reward" in k or "toolcall_reward" in k:
             actual_key = k.split("/")[1]
             rollout_metrics[f"{actual_key}"] = value
     return rollout_metrics
+
 
 def clean_traj_groups(traj_groups, all_prompt_ids, trajectories):
     for traj in trajectories:
@@ -139,19 +126,43 @@ def get_all_prompt_ids(agent_tasks):
     return all_prompt_ids
 
 
+def _synchronize_and_collect():
+    torch.npu.empty_cache()
+    gc.collect()
+    torch.npu.synchronize()
+
+
+def pad_dataproto_to_divisor(tensor_batch: dict, size_divisor: int):
+    current_len = len(tensor_batch["input_ids"])
+    if current_len % size_divisor != 0:
+        remaining_pad = size_divisor - current_len % size_divisor
+        for key in tensor_batch:
+            if isinstance(tensor_batch[key], list):
+                tensor_batch[key] = tensor_batch[key] + tensor_batch[key][:remaining_pad]
+            else:
+                if key == "token_level_scores":
+                    size = tensor_batch[key][0].size()[0]
+                    pad_tensor = torch.zeros(remaining_pad, size)
+                else:
+                    pad_tensor = tensor_batch[key][:remaining_pad]
+                tensor_batch[key] = torch.concat([tensor_batch[key], pad_tensor], dim=0)
+    return tensor_batch
+
+
 @ray.remote
 class RolloutWorker:
     def __init__(
         self,
+        generate_config,
         train_backend,
         weight_save_dir,
         trajectory_timeout,
         hybrid_batch_num,
         use_on_policy,
+        wait_available_weight_timeout,
         n_parallel_agents=8,
-        max_prompt_length=8192,
         actor_rollout_dispatch_size=0,
-        simplify_think_content=False,
+        use_stepwise_advantage=False,
         validate_n_samples=1,
         traj_output_path=None,
         tokenizer_name_or_path=None,
@@ -162,7 +173,8 @@ class RolloutWorker:
         remove_padding_and_split_to_list=None,
         service_mode="train",
         agent_service=None,
-        infer_service=None
+        infer_service=None,
+        llm_tokenizer_path=None,
     ):
         # ------------------------------------------------
         import signal
@@ -179,24 +191,37 @@ class RolloutWorker:
         signal.signal = _noop_signal
         # ------------------------------------------------
 
+        # verl这个默认为None，msrl有具体配置
+        self.generate_config = generate_config
+
         self.weight_save_dir = weight_save_dir
         self.actor_rollout_dispatch_size = actor_rollout_dispatch_size
         self.tokenizer_name_or_path = tokenizer_name_or_path
         self.validate_n_samples = validate_n_samples
         self.traj_output_path = traj_output_path
-        logger.info(f"traj_output_path={self.traj_output_path}")
+        logger.info(
+            f"traj_output_path={self.traj_output_path}, "
+            f"tokenizer_name_or_path={tokenizer_name_or_path}, "
+            f"llm_tokenizer_path={llm_tokenizer_path}"
+        )
+
+        self.use_stepwise_advantage = use_stepwise_advantage
 
         self.parallel_state = None
         self.tokenizer = AutoTokenizer.from_pretrained(self.tokenizer_name_or_path)
+        self.llm_tokenizer = None
+        if llm_tokenizer_path is not None:
+            self.llm_tokenizer = AutoTokenizer.from_pretrained(llm_tokenizer_path)
         self.iteration = 0
         self.dataset_additional_keys = dataset_additional_keys
         self.global_batch_size = global_batch_size
 
         self.service_mode = service_mode
+        self.train_backend = train_backend
         self.data_manager = DataManager(train_backend, service_mode)
 
         self.remove_padding_tensor_dict_to_dict = remove_padding_tensor_dict_to_dict
-        self.remove_padding_and_split_to_list = remove_padding_and_split_to_list
+        self.remove_padding_and_split_to_list = remove_padding_and_split_to_list  # msrl会传入该函数，verl不会
         self.n_samples_per_prompt = n_parallel_agents
 
         logger.info(f"in rollout worker, n_samples_per_prompt={self.n_samples_per_prompt}")
@@ -224,8 +249,9 @@ class RolloutWorker:
         if self.use_on_policy and self.hybrid_batch_num > 1:
             raise AssertionError(
                 f"Configuration error: hybrid_batch_num={self.hybrid_batch_num} "
-                f"must be 1 when use_on_policy={self.use_on_policy}.")
-        self.wait_timeout = float(os.getenv("WAIT_AVAILABLE_WEIGHT_TIMEOUT", -1)) if not self.use_on_policy else -1
+                f"must be 1 when use_on_policy={self.use_on_policy}."
+            )
+        self.wait_timeout = wait_available_weight_timeout
         self.terminate_trajectories = 0
 
         logger.info(f"trajectory_timeout: {self.trajectory_timeout}")
@@ -234,10 +260,10 @@ class RolloutWorker:
         if is_proxy_mode:
             # Training and inference separated deployment mode, controller managed via ray cluster co-deployment
             self.rollout_engine = AsyncServerProxyManager(
-                # config=self.generate_config,
+                config=self.generate_config,
                 tokenizer_name_or_path=self.tokenizer_name_or_path,
                 worker_group=self.worker_group,
-                infer_service=self.infer_service
+                infer_service=self.infer_service,
             )
             await self.rollout_engine.init()
             return
@@ -245,7 +271,7 @@ class RolloutWorker:
         self.rollout_engine = AsyncServerManager(
             config=self.generate_config,
             tokenizer_name_or_path=self.tokenizer_name_or_path,
-            worker_group=self.worker_group
+            worker_group=self.worker_group,
         )
 
     def init_data_manager(self, data_manager):
@@ -256,25 +282,53 @@ class RolloutWorker:
 
     def init_weight_manager(self, rollout_weight_manager):
         self.rollout_weight_manager = rollout_weight_manager
-        logger.info(f"init rollout_weight_manager")
+        logger.info("init rollout_weight_manager")
+
+    def is_hybrid_mode(self):
+        if self.rollout_weight_manager is not None:
+            return False
+        return True
+
+    async def first_gen_update_model_weights(self, actual_batch_num=1):
+        resume_iteration = int(os.getenv("RESUME_ITERATION", '-1'))  # 断点续训的iteration_id
+        if resume_iteration > 0:
+            if self.train_backend == "verl":
+                # verl非0断点续训时，rollout直接更新续训权重版本，不再更新权重
+                logger.info(f"=== update model weights version from verl resume iteration {resume_iteration} ===")
+                self.current_weights_version = resume_iteration
+                ray.get(
+                    self.rollout_weight_manager.update_max_version.remote(
+                        add_version_num=(actual_batch_num + resume_iteration)
+                    )
+                )
+            else:
+                # mindspeed_rl非0断点续训时，rollout需要更新续训权重和续训版本
+                logger.info(f"=== update model weights from msrl resume iteration {resume_iteration} ===")
+                await self.update_model_weights()
+        else:
+            # 正常启动时，无需更新权重，仅更新max version
+            ray.get(self.rollout_weight_manager.update_max_version.remote(add_version_num=actual_batch_num))
 
     async def _do_update_model_weights(self, actual_batch_num=1):
         start_time = time.time()
         if self.service_mode == "train" or self.rollout_engine.get_weight_offloaded():
-            logger.info(f"first generation sequence, wake up ori weights ===")
-            ray.get(self.rollout_weight_manager.update_max_version.remote(
-                add_version_num=actual_batch_num))
+            logger.info("=== hybrid train mode or one step off mode first generation, wake up weights ===")
             await self.rollout_engine.wake_up()
+            if not self.is_hybrid_mode():
+                await self.first_gen_update_model_weights(actual_batch_num)
         else:
-            logger.info("update model weights from train ===")
+            logger.info("=== update model weights from train ===")
             await self.update_model_weights(actual_batch_num)
         cost_time = time.time() - start_time
-        logger.info(f"infer update weights done, e2e cost: {cost_time}, "
-                    f"current version: {self.current_weights_version} ===")
+        logger.info(
+            f"==== infer update weights done, e2e cost: {cost_time}, "
+            f"current version: {self.current_weights_version} ==="
+        )
         return cost_time
 
     async def _do_offload_model_weights(self):
         if self.service_mode == "train":
+            logger.info("=== hybrid train mode, offload weights ===")
             await self.rollout_engine.sleep()
 
     def get_data_for_generation(self):
@@ -290,9 +344,7 @@ class RolloutWorker:
         indexes = []
         while self.data_manager.all_consumed(experience_consumer_stage) > 0:
             batch_data, index = self.data_manager.get_data(
-                experience_consumer_stage,
-                experience_columns,
-                experience_count
+                experience_consumer_stage, experience_columns, experience_count
             )
             if not index:
                 continue
@@ -303,7 +355,11 @@ class RolloutWorker:
                 start_time = time.time()
                 start_time_defined = True
             model_name = self.tokenizer.name_or_path.lower()
-            prompts = [parse_messages(self.tokenizer.decode(s), model_name=model_name) for s in batch_data['prompts']]
+            # TODO: 使用llm语言模型解析数据
+            tokenizer_handle = self.tokenizer
+            if self.llm_tokenizer is not None:
+                tokenizer_handle = self.llm_tokenizer
+            prompts = [parse_messages(tokenizer_handle.decode(s), model_name=model_name) for s in batch_data['prompts']]
             problems = []
             for messages in prompts:
                 for content in messages:
@@ -313,16 +369,14 @@ class RolloutWorker:
             additional_keys_dict = {"question": problems}
             if self.dataset_additional_keys is not None:
                 for key in self.dataset_additional_keys:
-                    decode_list = [self.tokenizer.decode(s) for s in batch_data[key]]
+                    decode_list = [tokenizer_handle.decode(s) for s in batch_data[key]]
                     if "labels" == key:
                         additional_keys_dict["ground_truth"] = decode_list
                     else:
                         additional_keys_dict[key] = decode_list
 
             for i in range(len(index)):
-                task = {
-                    "id": index[i]
-                }
+                task = {"id": index[i]}
                 for key in additional_keys_dict.keys():
                     task[key] = additional_keys_dict[key][i]
                 tasks.append(task)
@@ -342,12 +396,12 @@ class RolloutWorker:
                         self.prompt_ids[question] = len(self.prompt_ids)
             task["prompt_id"] = self.prompt_ids[question]
 
-        logger.info(f'generate_sequences with experience consumer stage: '
-                    f'{experience_consumer_stage}, and tasks: {tasks}')
+        logger.info(f"generate_sequences with experience consumer stage: {experience_consumer_stage}")
         return tasks, indexes, start_time
 
     async def get_agents(self, tasks):
         from aura.runner.agent_engine_wrapper.base_engine_wrapper import AgentTask
+
         agent_tasks = [
             AgentTask(
                 task_id=str(task["id"]),
@@ -357,8 +411,12 @@ class RolloutWorker:
                 problem=task["question"],
                 ground_truth=task["ground_truth"] if "ground_truth" in task else "",
                 prompt_id=task["prompt_id"],
-                content=task["content"] if "content" in task else "", # Required for dtn_code scenario
-                extra_args={key: value for key, value in task.items() if key not in ["id", "question", "ground_truth", "prompt_id", "content"]}
+                content=task["content"] if "content" in task else "",  # Required for dtn_code scenario
+                extra_args={
+                    key: value
+                    for key, value in task.items()
+                    if key not in ["id", "question", "ground_truth", "prompt_id", "content"]
+                },
             )
             for task in tasks
         ]
@@ -375,6 +433,7 @@ class RolloutWorker:
     async def stream_generate_trajectories(self, agent_tasks, agent_router, mode="Text", concurrency=64):
         """Return completed task results in real-time streaming mode"""
         semaphore = asyncio.Semaphore(concurrency)
+
         async def worker_with_retry(task):
             retry_count = 0
             while retry_count < self.retry_limit:
@@ -382,69 +441,151 @@ class RolloutWorker:
                     async with semaphore:
                         task_result = await asyncio.wait_for(
                             agent_router.generate_trajectory(
-                                task=task, mode=mode, addresses=self.rollout_engine.server_addresses),
-                            timeout=self.trajectory_timeout
+                                task=task, mode=mode, addresses=self.rollout_engine.server_addresses
+                            ),
+                            timeout=self.trajectory_timeout,
                         )
                     return task_result
                 except asyncio.TimeoutError:
-                    logger.warning(f"generate trajectory timeout, task id: {task.task_id}, prompt id: {task.prompt_id} "
-                                   f"after {self.trajectory_timeout}s, early termination.")
+                    logger.warning(
+                        f"generate trajectory timeout, task id: {task.task_id}, prompt id: {task.prompt_id} "
+                        f"after {self.trajectory_timeout}s, early termination."
+                    )
                     await self.early_termination_requests(task, agent_router)
                     return None
                 except Exception as exp:
                     retry_count += 1
-                    logger.warning(f"generate trajectory failed task: {task.task_id} prompt_id: {task.prompt_id}, "
-                                   f"retrying ({retry_count}/{self.retry_limit}), exp: {exp}")
+                    logger.warning(
+                        f"generate trajectory failed task: {task.task_id} prompt_id: {task.prompt_id}, "
+                        f"retrying ({retry_count}/{self.retry_limit}), exp: {exp}"
+                    )
             raise Exception(f"generate_agent_trajectory Task failed after {self.retry_limit} retries.")
 
         futures = [asyncio.create_task(worker_with_retry(task)) for task in agent_tasks]
         for future in asyncio.as_completed(futures):
             try:
                 result = await future
-                logger.info(f">>> get worker future")
+                logger.info(">>> get worker future")
                 yield result
             except Exception as e:
                 logger.error(f"Task failed: {e}")
 
-    def handle_full_batch_trajectories(
-        self,
-        indexes,
-        start_time,
-        resharding_to_infer,
-        trajectories
-    ):
-        trajectories.sort(key=lambda x: x["idx"])
-        final_gen_batch_output, metrics = self._transform_agent_trajectories(trajectories)
+    def hybrid_mode_metrics_handle(self, metrics, start_time, end_time):
+        if not self.is_hybrid_mode():
+            return
+        for k, value in metrics.items():
+            if "res_reward" in k or "toolcall_reward" in k:
+                self.data_manager.update_metrics(k, value=[float(value)], cumulate=True)
+        self.data_manager.update_metrics(
+            "timing/rollout", value=[round(end_time, 4), round(start_time, 4)], cumulate=True
+        )
 
+    def reset_trajectory_reward(self, trajectories):
+        scores = torch.tensor([trajectory.reward for trajectory in trajectories], dtype=torch.float64)
+        scores = scores.reshape(-1, self.n_samples_per_prompt)
+        scores = (scores - scores.mean(dim=-1, keepdim=True)) / (scores.std(dim=-1, keepdim=True) + 1e-6)
+        scores = scores.reshape(-1)
+        for i, trajectory in zip(range(len(trajectories)), trajectories):
+            trajectory.reward = scores[i]
+        print("-----reset trajectory_reward finish-----")
+
+    def stepwise_normalization(self, trajectories):
+        if self.use_stepwise_advantage:
+            # record original trajectory reward before normalization
+            traj_reward_list = []
+            for traj in trajectories:
+                traj_reward_list.append(traj.reward)
+            max_traj_reward = max(traj_reward_list)
+            min_traj_reward = min(traj_reward_list)
+            mean_traj_reward = sum(traj_reward_list) / len(traj_reward_list)
+            self.data_manager.update_metrics("traj_reward/max", value=[float(max_traj_reward)], cumulate=True)
+            self.data_manager.update_metrics("traj_reward/min", value=[float(min_traj_reward)], cumulate=True)
+            self.data_manager.update_metrics("traj_reward/mean", value=[float(mean_traj_reward)], cumulate=True)
+
+            # normalization
+            self.reset_trajectory_reward(trajectories)
+
+    def stepwise_pad_datapro(self, final_gen_batch_output):
+        if self.use_stepwise_advantage:
+            # need to be set
+            final_gen_batch_output = pad_dataproto_to_divisor(final_gen_batch_output, self.global_batch_size)
+            indexes = [i for i in range(len(final_gen_batch_output["input_ids"]))]
+            if self.is_hybrid_mode():
+                self.data_manager.reset_experience_len(len(indexes))
+
+    def add_output_for_verl(self, final_gen_batch_output, responses, outputs):
+        if self.remove_padding_and_split_to_list is not None:
+            return
+        outputs["responses"] = responses  # verl: tensor, 长短一样
+        outputs["input_ids"] = final_gen_batch_output['input_ids']  # verl: pad, 长短一样
+        outputs["prompt_ids"] = final_gen_batch_output['prompt_ids']
+        outputs["position_ids"] = final_gen_batch_output["position_ids"]
+        outputs["attention_mask"] = final_gen_batch_output["attention_mask"]
+        outputs["prompts"] = final_gen_batch_output["prompts"]
+        outputs["prompt_length"] = final_gen_batch_output["prompt_length"]
+        outputs["rm_scores"] = final_gen_batch_output["token_level_scores"]
+        outputs["token_level_rewards"] = final_gen_batch_output["token_level_scores"]
+        outputs["position_ids"] = final_gen_batch_output["position_ids"]
+        outputs["response_mask"] = final_gen_batch_output["traj_mask"]
+        if "rollout_log_probs" in final_gen_batch_output:
+            outputs["rollout_log_probs"] = final_gen_batch_output["rollout_log_probs"]
+
+    def add_output_for_msrl(self, responses, input_ids, outputs):
+        if self.remove_padding_and_split_to_list is None:
+            return
+        responses_length = [torch.tensor([len(response)]) for response in responses]
+        outputs["responses"] = responses  # msrl: list，长短不一，为真实长度(后续所有轮的)
+        outputs["input_ids"] = input_ids  # msrl: 无pad，长短不一，含prompt(最初)和response(后续所有轮的)
+        outputs["response_length"] = responses_length
+
+    def handle_full_batch_trajectories(self, indexes, start_time, resharding_to_infer, trajectories):
+        ## 3. 保存数据
+        from aura.base.analysis.data_analysis import json_save_data
+
+        json_save_data(trajectories, "trajectories_before_sort", self.iteration)
+
+        trajectories.sort(key=lambda x: x["idx"])
+
+        self.stepwise_normalization(trajectories)
+
+        final_gen_batch_output, metrics = self._transform_agent_trajectories(trajectories)
         responses = final_gen_batch_output['responses']
         input_ids = final_gen_batch_output['input_ids']
-        prompt_ids = final_gen_batch_output['prompt_ids']
+
+        if not self.use_stepwise_advantage and self.remove_padding_and_split_to_list is not None:
+            pad_token_id = self.tokenizer.pad_token_id if self.tokenizer.pad_token_id else self.tokenizer.eos_token_id
+            responses = self.remove_padding_and_split_to_list(responses, pad_token_id, pad_token_id)
 
         outputs = {
-            'responses': responses,  # list with varying lengths, actual length (all subsequent rounds)
-            'input_ids': input_ids,  # no padding, varying lengths, contains prompt (initial) and responses (all subsequent rounds)
-            "prompt_ids": prompt_ids,
-            'prompt_length': final_gen_batch_output['prompt_length'],
-            'rm_scores': final_gen_batch_output["token_level_scores"],
-            'token_level_rewards': final_gen_batch_output["token_level_scores"],
-            'position_ids': final_gen_batch_output["position_ids"],
-            'prompts': final_gen_batch_output["prompts"],
-            'rollout_log_probs': final_gen_batch_output["rollout_log_probs"],
-            'attention_mask': final_gen_batch_output["attention_mask"],
-            'response_mask': final_gen_batch_output['traj_mask']  # Tool outputs are masked
+            "prompt_length": final_gen_batch_output['prompt_length'],
+            "rm_scores": final_gen_batch_output["token_level_scores"],
+            "token_level_rewards": final_gen_batch_output["token_level_scores"],
+            "response_mask": final_gen_batch_output['traj_mask'],  # 工具输出mask掉了
         }
+        self.add_output_for_verl(final_gen_batch_output, responses, outputs)
+        self.add_output_for_msrl(responses, input_ids, outputs)
+
+        logger.info(f"outputs keys: {list(outputs.keys())}")
 
         self.write_file(trajectories, prefix="trajectories")
         self.write_file(outputs, prefix="outputs")
         self.iteration += 1
         end_time = time.time()
 
+        self.stepwise_pad_datapro(final_gen_batch_output)
+
         rollout_cost = end_time - start_time
         rollout_metrics = _stat_rollout_metrics(rollout_cost, resharding_to_infer, metrics)
+        # 异步分离模式, 通过put_data将outputs和rollout metrics传递到训练端
         self.data_manager.put_data(outputs, indexes, rollout_metrics)
+        # 共卡模式, 需要将rollout metrics直接写回到td中
+        self.hybrid_mode_metrics_handle(metrics, start_time, end_time)
+
         logger.info(f'|perf-stat|rollout| rollout worker put_data iteration-{self.iteration} to train')
-        logger.info(f"|perf-stat|rollout| ===rollout iteration: {self.iteration}, "
-                    f"timing/rollout : {time.time() - start_time:.4f}===")
+        logger.info(
+            f"|perf-stat|rollout| ===rollout iteration: {self.iteration}, "
+            f"timing/rollout : {time.time() - start_time:.4f}==="
+        )
         app_stats.print(self.iteration)
 
     def trajectories_collect_done(self, trajectories, concurrency, done_batch_count, actual_batch_num):
@@ -454,25 +595,29 @@ class RolloutWorker:
                     return True
             return False
         return True
-    
+
     def get_train_batch_traj(self, traj_groups, concurrency: int, n_sample: int = 8):
         trajectories = [traj for group in traj_groups.values() if len(group) == n_sample for traj in group][
-                       :concurrency]
-        logger.info(f"|perf-stat|rollout| ====finish trajectories: {len(trajectories)}/{concurrency}, "
-                    f"terminate trajectories: {self.terminate_trajectories}")
+            :concurrency
+        ]
+        logger.info(
+            f"|perf-stat|rollout| ====finish trajectories: {len(trajectories)}/{concurrency}, "
+            f"terminate trajectories: {self.terminate_trajectories}"
+        )
         return trajectories
 
-    def multi_batches_final_handle(self, traj_groups, all_prompt_ids,
-                                   concurrency, indexes, start_time, resharding_to_infer):
+    def multi_batches_final_handle(
+        self, traj_groups, all_prompt_ids, concurrency, indexes, start_time, resharding_to_infer
+    ):
         if not all_prompt_ids:
-            logger.info(f"prompt id is empty, go to next iteration")
+            logger.info("prompt id is empty, go to next iteration")
             return
         logger.info(f"maybe early terminated, traj_groups: {len(traj_groups)}, all_prompt_ids: {len(all_prompt_ids)}")
         trajectories = self.get_train_batch_traj(traj_groups, concurrency, self.n_samples_per_prompt)
         clean_traj_groups(traj_groups, all_prompt_ids, trajectories)
         if not trajectories:
             # No available trajectories, skip to next iteration
-            logger.warning(f"skip empty trajectories, go to next iteration")
+            logger.warning("skip empty trajectories, go to next iteration")
             return
         # Insufficient concurrency data, need to pad with dummy data, otherwise training will hang if it can't collect a complete td data
         if len(trajectories) < concurrency:
@@ -482,24 +627,22 @@ class RolloutWorker:
                     trajectories.append(traj)
                 if len(trajectories) == concurrency:
                     break
-        logger.info(f"|perf-stat|rollout| ====finish trajectories: {len(trajectories)}/{concurrency}, "
-                    f"terminate trajectories: {self.terminate_trajectories}")
+        logger.info(
+            f"|perf-stat|rollout| ====finish trajectories: {len(trajectories)}/{concurrency}, "
+            f"terminate trajectories: {self.terminate_trajectories}"
+        )
         self.handle_full_batch_trajectories(indexes, start_time, resharding_to_infer, trajectories)
 
     async def multi_batches_generate_sequences(
-        self,
-        agent_tasks,
-        agent_router,
-        indexes,
-        start_time,
-        resharding_to_infer,
-        actual_batch_num
+        self, agent_tasks, agent_router, indexes, start_time, resharding_to_infer, actual_batch_num
     ):
-        logger.info(f'|perf-stat|rollout| generate_sequences iteration: {self.iteration} begin, '
-                    f'tasks: {len(agent_tasks)}, actual_batch_num: {actual_batch_num}')
+        logger.info(
+            f'|perf-stat|rollout| generate_sequences iteration: {self.iteration} begin, '
+            f'tasks: {len(agent_tasks)}, actual_batch_num: {actual_batch_num}'
+        )
         concurrency = int(len(agent_tasks) / actual_batch_num)
-        result_stream = self.stream_generate_trajectories(
-            agent_tasks, agent_router, mode='Token', concurrency=concurrency)
+        mode = "Step" if self.use_stepwise_advantage else "Token"
+        result_stream = self.stream_generate_trajectories(agent_tasks, agent_router, mode=mode, concurrency=concurrency)
         traj_groups = defaultdict(list)
         all_prompt_ids = get_all_prompt_ids(agent_tasks)
         done_batch_count = 0
@@ -523,18 +666,21 @@ class RolloutWorker:
                 start_time = time.time()
 
         # Loop may exit early due to truncation, need to process data one final time
-        self.multi_batches_final_handle(traj_groups, all_prompt_ids,
-                                        concurrency, indexes, start_time, resharding_to_infer)
+        self.multi_batches_final_handle(
+            traj_groups, all_prompt_ids, concurrency, indexes, start_time, resharding_to_infer
+        )
 
     async def generate_sequences(self, actual_batch_num=1):
+        resharding_to_infer = await self._do_update_model_weights(actual_batch_num)
         tasks, indexes, start_time = self.get_data_for_generation()
         agent_tasks, agent_router = await self.get_agents(tasks)
         self.terminate_trajectories = 0
-        resharding_to_infer = await self._do_update_model_weights(actual_batch_num)
         await self.multi_batches_generate_sequences(
-            agent_tasks, agent_router, indexes, start_time, resharding_to_infer, actual_batch_num)
+            agent_tasks, agent_router, indexes, start_time, resharding_to_infer, actual_batch_num
+        )
         await agent_router.clear_cache(self.agent_service)
         await self._do_offload_model_weights()
+        return len(indexes) // self.global_batch_size
 
     def write_file(self, data_dict, prefix):
         # Convert tensor to string
@@ -578,9 +724,7 @@ class RolloutWorker:
 
         tasks = []
         for i in range(len(index)):
-            task = {
-                "id": index[i]
-            }
+            task = {"id": index[i]}
             for key in additional_keys_dict.keys():
                 task[key] = additional_keys_dict[key][i]
             tasks.append(task)
@@ -594,8 +738,9 @@ class RolloutWorker:
         trajectories.sort(key=lambda x: x["idx"])
 
         keys_to_remove = {"prompt_tokens", "response_tokens", "response_masks"}
-        trajectories_without_remove_keys = [{k: v for k, v in traj_dict.items() if k not in keys_to_remove} for
-                                            traj_dict in trajectories]
+        trajectories_without_remove_keys = [
+            {k: v for k, v in traj_dict.items() if k not in keys_to_remove} for traj_dict in trajectories
+        ]
         self.write_file(trajectories_without_remove_keys, prefix="val_trajs")
 
         final_gen_batch_output, metrics = self._transform_agent_trajectories(trajectories)
@@ -622,24 +767,47 @@ class RolloutWorker:
         all_logprobs_list = []
         traj_scores = []
         chat_completions = []
+        step_nums = []
+        cancel_logprobs = False
 
         for traj in trajectories:
-            prompt_id = traj["prompt_id"]
-            prompt_tokens = traj["prompt_tokens"]
-            response_tokens = traj["response_tokens"]
-            # test if trajectory is empty
-            if prompt_tokens.numel() == 0 or response_tokens.numel() == 0:
-                raise ValueError(
-                    f"Both prompt {prompt_tokens.numel()} and response {response_tokens.numel()} "
-                    f"of trajectory shouldn't be empty. Please check make sure environment is working and the config"
-                )
-            all_initial_tokens_list.append(prompt_tokens)
-            all_response_tokens_list.append(response_tokens)
-            all_logprobs_list.append(torch.tensor(traj["logprobs"]))
-            all_masks_list.append(traj["response_masks"])
-            traj_scores.append(traj["trajectory_reward"])
-            chat_completions.append(traj["chat_completions"])
-            all_prompt_ids.append(prompt_id)
+            if self.use_stepwise_advantage:
+                # step mode
+                for step in traj.steps:
+                    chat_completions = step.chat_completions
+
+                    prompt = self.chat_parser.parse(
+                        chat_completions[:-1], is_first_msg=True, add_generation_prompt=True
+                    )
+                    prompt = torch.tensor(self.tokenizer.encode(prompt, add_special_tokens=False), dtype=torch.long)
+                    all_initial_tokens_list.append(prompt)
+
+                    response = chat_completions[-1]["content"]
+                    response = torch.tensor(self.tokenizer.encode(response, add_special_tokens=False), dtype=torch.long)
+                    all_response_tokens_list.append(response)
+
+                step_nums.append(len(traj.steps))
+                traj_scores.append(traj.reward)
+            else:
+                prompt_id = traj["prompt_id"]
+                prompt_tokens = traj["prompt_tokens"]
+                response_tokens = traj["response_tokens"]
+                # test if trajectory is empty
+                if prompt_tokens.numel() == 0 or response_tokens.numel() == 0:
+                    raise ValueError(
+                        f"Both prompt {prompt_tokens.numel()} and response {response_tokens.numel()} "
+                        f"of trajectory shouldn't be empty. Please check make sure environment is working and the config"
+                    )
+                all_initial_tokens_list.append(prompt_tokens)
+                all_response_tokens_list.append(response_tokens)
+                if "logprobs" in traj and len(traj["logprobs"]) != 0 and not cancel_logprobs:
+                    all_logprobs_list.append(torch.tensor(traj["logprobs"]))
+                else:
+                    cancel_logprobs = True
+                all_masks_list.append(traj["response_masks"])
+                traj_scores.append(traj["trajectory_reward"])
+                chat_completions.append(traj["chat_completions"])
+                all_prompt_ids.append(prompt_id)
 
         metrics = self.run_trajectories_perf_metric(trajectories)
 
@@ -654,12 +822,6 @@ class RolloutWorker:
             all_response_tokens_list,
             batch_first=True,
             padding_value=self.tokenizer.pad_token_id,
-        )
-
-        rollout_log_probs_batch = torch.nn.utils.rnn.pad_sequence(
-            all_logprobs_list,
-            batch_first=True,
-            padding_value=0.0,
         )
 
         input_ids_list = torch.concat([prompts_batch, response_batch], dim=1)
@@ -685,6 +847,29 @@ class RolloutWorker:
             last_valid_idx = valid_response_length_sequences[i] - 1
             if 0 <= last_valid_idx < score_batch.shape[1]:
                 score_batch[i, last_valid_idx] = traj_score
+
+        rollout_log_probs_batch = None
+        if not cancel_logprobs:
+            rollout_log_probs_batch = torch.nn.utils.rnn.pad_sequence(
+                all_logprobs_list,
+                batch_first=True,
+                padding_value=0.0,
+            )
+
+        if self.use_stepwise_advantage:
+            step_index = 0
+            for i, traj_score in enumerate(traj_scores):
+                step_num = step_nums[i]
+                for _ in range(step_num):
+                    last_valid_idx = valid_response_length_sequences[step_index] - 1
+                    if 0 <= last_valid_idx < score_batch.shape[1]:
+                        score_batch[step_index, last_valid_idx] = traj_score
+                    step_index += 1
+        else:
+            for i, traj_score in enumerate(traj_scores):
+                last_valid_idx = valid_response_length_sequences[i] - 1
+                if 0 <= last_valid_idx < score_batch.shape[1]:
+                    score_batch[i, last_valid_idx] = traj_score
         tensor_batch = {
             "input_ids": input_ids_list,  # no padding, varying lengths
             "prompt_length": prompt_length_list,  # prompt length
@@ -694,14 +879,15 @@ class RolloutWorker:
             "prompts": prompts_batch,  # left padded
             "token_level_scores": score_batch,  # right padded, only the length position has a score, others are 0
             "traj_mask": traj_mask,  # same shape as responses, right padded with 0
-            "rollout_log_probs": rollout_log_probs_batch,
-            "prompt_ids": all_prompt_ids
+            "prompt_ids": all_prompt_ids,
         }
+        if not cancel_logprobs:
+            tensor_batch["rollout_log_probs"] = rollout_log_probs_batch
 
         self.visualize_trajectory(tensor_batch)
 
         return tensor_batch, metrics
-    
+
     def visualize_trajectory(self, tensor_batch, sample_idx=0, max_samples=1, mask_key="traj_mask"):
         """
         Visualize the trajectory from tensor_batch by de-tokenizing prompts and responses,
@@ -775,22 +961,18 @@ class RolloutWorker:
             traj_metrics.append(traj["metrics"])
 
         # Flatten traj_metrics into a dict of lists
-        traj_metrics = {k: [d[k] for d in traj_metrics]
-                        for k in traj_metrics[0]}
+        traj_metrics = {k: [d[k] for d in traj_metrics] for k in traj_metrics[0]}
         # Aggregate metrics (mean, min, max)
         for k, v_list in traj_metrics.items():
             if k == "traj_start_time":
                 continue
             if k in ["llm_step_times", "env_step_times", "step_reward"]:
-                v_list = [
-                    item
-                    for sublist in v_list
-                    for item in sublist
-                ]
+                v_list = [item for sublist in v_list for item in sublist]
                 v_list = np.array(v_list)
                 logger.info(
                     f"iteration {self.iteration} traj/{k}_mean: {v_list.mean()} || "
-                    f"traj/{k}_min: {v_list.min()} || traj/{k}_max: {v_list.max()}")
+                    f"traj/{k}_min: {v_list.min()} || traj/{k}_max: {v_list.max()}"
+                )
             else:
                 # fix: reward may negative
                 v_list = [v for v in v_list if v is not None]
@@ -807,7 +989,8 @@ class RolloutWorker:
                 if k in ["env_time", "llm_time", "total_time"]:
                     logger.info(
                         f"iteration {self.iteration} traj/{k}_mean: {v_list.mean()} || "
-                        f"traj/{k}_min: {v_list.min()} || traj/{k}_max: {v_list.max()}")
+                        f"traj/{k}_min: {v_list.min()} || traj/{k}_max: {v_list.max()}"
+                    )
         return metrics
 
     def _wait_available_version(self, wait_timeout=0):
@@ -825,35 +1008,34 @@ class RolloutWorker:
                 logger.info(f"Waiting for weights update timed out after {wait_timeout} seconds")
                 break
             time.sleep(DEFAULT_SLEEP_TIME)
-        logger.info(f"|perf-stat|rollout| end waiting available weights for iteration: {self.iteration}, "
-                    f"version: {weights_version}/{self.current_weights_version}")
+        logger.info(
+            f"|perf-stat|rollout| end waiting available weights for iteration: {self.iteration}, "
+            f"version: {weights_version}/{self.current_weights_version}"
+        )
         return weights_version
 
     async def update_model_weights(self, actual_batch_num=1):
         if not self.use_on_policy and self.iteration == 1:
             # After the first iteration, if entering update judgment, one_step_off weight is 0, no need to wait for weight update
-            logger.info(f"|perf-stat|rollout| one_step_off skip update_weights before iteration: {self.iteration}")
+            logger.info(f"|perf-stat|rollout| one_step_off skip update_weights on iteration: {self.iteration}")
             return
-        weights_version = self._wait_available_version(wait_timeout=self.wait_timeout)
         logger.info(f"update_model_weights {actual_batch_num=}")
+        weights_version = self._wait_available_version(wait_timeout=self.wait_timeout)
         ray.get(self.rollout_weight_manager.update_max_version.remote(add_version_num=actual_batch_num))
         if weights_version == UNAVAILABLE_WEIGHT_VERSION:
             return
 
         start_time = time.time()
-        weights_path = (self.weight_save_dir + ROLLOUT_WEIGHTS_PREFIX + "/weights_" + str(weights_version))
+        weights_path = self.weight_save_dir + ROLLOUT_WEIGHTS_PREFIX + "/weights_" + str(weights_version)
         logger.info(f"|perf-stat|rollout| start update_weights from {weights_path}")
 
-        torch.npu.empty_cache()
-        gc.collect()
-        # torch.npu.synchronize()
+        _synchronize_and_collect()
 
         await self.rollout_engine.update_weights(weights_path)
 
-        gc.collect()
-        # torch.npu.synchronize()
+        _synchronize_and_collect()
         self.current_weights_version = weights_version
-        cost_time = time.time() - start_time
-        logger.info(f"|perf-stat|rollout| infer update_weights done, cost: {cost_time}, "
-                    f"current version: {self.current_weights_version} ===")
-        
+        logger.info(
+            f"|perf-stat|rollout| infer update_weights done, cost: {time.time() - start_time}, "
+            f"current version: {self.current_weights_version} ==="
+        )

@@ -53,7 +53,8 @@ def _norm(name: str) -> str:
 
 
 def cat_dim0(parts: List[torch.Tensor]) -> torch.Tensor:
-    if len(parts) == 1: return parts[0]
+    if len(parts) == 1:
+        return parts[0]
     h_shape = sum(p.shape[0] for p in parts)
     w_shape = parts[0].shape[1]
     out = torch.empty((h_shape, w_shape), dtype=parts[0].dtype)
@@ -66,7 +67,8 @@ def cat_dim0(parts: List[torch.Tensor]) -> torch.Tensor:
 
 
 def cat_dim1(parts: List[torch.Tensor]) -> torch.Tensor:
-    if len(parts) == 1: return parts[0]
+    if len(parts) == 1:
+        return parts[0]
     h_shape = parts[0].shape[0]
     w_shape = sum(p.shape[1] for p in parts)
     out = torch.empty((h_shape, w_shape), dtype=parts[0].dtype)
@@ -99,7 +101,7 @@ def _chunk_evenly(items: list, workers: int) -> List[List]:
         return []
     workers = max(1, min(workers, len(items)))
     per = _ceil_div(len(items), workers)
-    return [items[i * per:(i + 1) * per] for i in range(workers) if items[i * per:(i + 1) * per]]
+    return [items[i * per : (i + 1) * per] for i in range(workers) if items[i * per : (i + 1) * per]]
 
 
 @dataclass
@@ -113,7 +115,8 @@ class LaunchedGroup:
             out = ray.get(self.refs)
             if self.flatten and out and isinstance(out[0], list):
                 flat = []
-                for sub in out: flat.extend(sub)
+                for sub in out:
+                    flat.extend(sub)
                 return flat
             return out
         finally:
@@ -134,8 +137,9 @@ def plan_num_cpus(desired_workers: int, ideal_cpus_per_worker: int) -> int:
     return max(1, ideal_cpus_per_worker)
 
 
-def create_pg_with_fallback(*, workers: int, bundle_cpus: int, timeout_s: float = 5.0,
-                            min_cpus: int = 1, strategy: str = "SPREAD"):
+def create_pg_with_fallback(
+    *, workers: int, bundle_cpus: int, timeout_s: float = 5.0, min_cpus: int = 1, strategy: str = "SPREAD"
+):
     if workers < 1:
         raise ValueError(f"workers must be >= 1, got {workers}")
     b = max(min_cpus, bundle_cpus)
@@ -154,15 +158,16 @@ def create_pg_with_fallback(*, workers: int, bundle_cpus: int, timeout_s: float 
 
 
 def launch_chunked_with_pg(
-        *,
-        items: list,
-        workers: int,
-        ideal_cpus_per_worker: int,
-        make_kwargs,
-        capture_child_tasks: bool = True,
-        strategy: str = "SPREAD",
-        timeout_s: float = 5.0,
-        use_pg_if_one: bool = False, flatten_list_results: bool = True
+    *,
+    items: list,
+    workers: int,
+    ideal_cpus_per_worker: int,
+    make_kwargs,
+    capture_child_tasks: bool = True,
+    strategy: str = "SPREAD",
+    timeout_s: float = 5.0,
+    use_pg_if_one: bool = False,
+    flatten_list_results: bool = True,
 ) -> LaunchedGroup:
     chunks = _chunk_evenly(items, workers)
     if not chunks:
@@ -176,17 +181,18 @@ def launch_chunked_with_pg(
     bundle_cpus = plan_num_cpus(len(chunks), ideal_cpus_per_worker)
     pg = None
     try:
-        pg, final_cpus = create_pg_with_fallback(workers=len(chunks), bundle_cpus=bundle_cpus,
-                                                 timeout_s=timeout_s, strategy=strategy)
+        pg, final_cpus = create_pg_with_fallback(
+            workers=len(chunks), bundle_cpus=bundle_cpus, timeout_s=timeout_s, strategy=strategy
+        )
         refs = []
         for i, chunk in enumerate(chunks):
-            strat = PlacementGroupSchedulingStrategy(
+            strategy = PlacementGroupSchedulingStrategy(
                 placement_group=pg,
                 placement_group_bundle_index=i,
                 placement_group_capture_child_tasks=capture_child_tasks,
             )
             kw = make_kwargs(i, chunk)
-            refs.append(assemble_subset_worker.options(scheduling_strategy=strat, num_cpus=final_cpus).remote(**kw))
+            refs.append(assemble_subset_worker.options(scheduling_strategy=strategy, num_cpus=final_cpus).remote(**kw))
         return LaunchedGroup(refs=refs, pg=pg, flatten=flatten_list_results)
     except Exception:
         if pg is not None:
@@ -245,7 +251,8 @@ class _ReaderCache:
     def close_all(self):
         for p, (f, _) in list(self._cache.items()):
             try:
-                f.close()
+                if hasattr(f, "close"):
+                    f.close()
             except Exception as exp:
                 logger.warning(f"close file failed: {exp}")
                 pass
@@ -299,6 +306,7 @@ class ParamsAssembler:
     Simplified assembler for TP=1, PP=1 checkpoints that may have EP sharding.
     target_dtype: optional torch dtype (e.g., torch.bfloat16) to cast outputs.
     """
+
     target_dtype: Optional[torch.dtype] = None
     infer_tp: int = 1
     infer_dp: int = 1
@@ -316,8 +324,14 @@ class ParamsAssembler:
     head_dim_scale = 1
     use_simple_ep_mode = False
 
-    def __init__(self, infer_tp: int = 1, infer_dp: int = 1, target_dtype: Optional[torch.dtype] = None,
-                 head_dim_scale: int = 1, use_simple_ep_mode: bool = False):
+    def __init__(
+        self,
+        infer_tp: int = 1,
+        infer_dp: int = 1,
+        target_dtype: Optional[torch.dtype] = None,
+        head_dim_scale: int = 1,
+        use_simple_ep_mode: bool = False,
+    ):
         self.target_dtype = target_dtype
         self.infer_tp = max(infer_tp, 1)
         self.infer_dp = max(infer_dp, 1)
@@ -360,44 +374,20 @@ class ParamsAssembler:
     def get_weight_3D_permute(self, name: str) -> Optional[Tuple]:
         return None
 
-    def unflatten_weight(self, name: str, weight: torch.Tensor) -> torch.Tensor:
+    def convert_w13_weights(self, weights: torch.Tensor, per_tp: int, local_expert_num: int) -> torch.Tensor:
+        return torch.Tensor(weights)
+
+    def unflatten_weight(self, name: str, weight: torch.Tensor, per_tp: int, local_expert_num: int) -> torch.Tensor:
         old_shape = list(weight.shape)
         if len(old_shape) == 3:
             return weight
+        if "w13" in name:
+            return self.convert_w13_weights(weight, per_tp, local_expert_num)
         new_shape = self.get_weight_3D_shape(name, old_shape)
         perm = self.get_weight_3D_permute(name)
         if (new_shape is None) or (perm is None):
             return weight
         return weight.view(*new_shape).permute(*perm).contiguous()
-
-    def _repack_w13_flat_fused(self, t2d: torch.Tensor, Ewin: int, name: str) -> torch.Tensor:
-        """
-        Bit-exact fused repack+collapse for w13:
-        Input  (per EP window, TP-major cat): t2d [H, Ewin*U]
-        Output (flattened, post-collapse):    [H, Ewin*U]
-        It reproduces the old path:
-        group-by-expert -> view(H,E,2,T,c) -> permute(..., c, T) -> collapse T (innermost)
-        """
-        if t2d is None or t2d.dim() != 2:
-            raise ValueError(f"{name}: expected 2D tensor, got {None if t2d is None else tuple(t2d.shape)}")
-
-        H, Wwin = t2d.shape
-        if Wwin % Ewin != 0:
-            raise ValueError(f"{name}: window width {Wwin} not divisible by Ewin={Ewin}")
-
-        T = int(self._Teff)
-        U = Wwin // Ewin
-        if U % (2 * T) != 0:
-            raise ValueError(f"{name}: U={U} must be divisible by 2*TP_eff={2 * T}")
-        c = U // (2 * T)
-
-        # Exact expert-grouping reorder like the old method:
-        # old did: t2d.view(Ewin, H, U).permute(1, 0, 2).contiguous() -> [H, Ewin, U]
-        g = t2d.view(Ewin, H, U).permute(1, 0, 2)  # [H, Ewin, U] (no contiguous yet)
-        flat = (g.reshape(H, Ewin, 2, T, c)  # reshape tolerates non-contig (copies once)
-                .permute(0, 1, 2, 4, 3)
-                .reshape(H, Ewin * U))
-        return flat
 
     def reshape_qkv_megatron_local(self, name, query_key_value):
         if self.is_fused_qkv_weight(name):
@@ -410,8 +400,8 @@ class ParamsAssembler:
             qkv_weight = query_key_value.reshape(ng, repeats + 2, head_dim, query_key_value.shape[1])
             hidden_size = qkv_weight.shape[-1]
             qw = qkv_weight[:, :repeats, ...].reshape(-1, hidden_size)
-            kw = qkv_weight[:, repeats: repeats + 1, ...].reshape(-1, hidden_size)
-            vw = qkv_weight[:, repeats + 1:, ...].reshape(-1, hidden_size)
+            kw = qkv_weight[:, repeats : repeats + 1, ...].reshape(-1, hidden_size)
+            vw = qkv_weight[:, repeats + 1 :, ...].reshape(-1, hidden_size)
             return torch.cat([qw, kw, vw], dim=0)
         if self.is_fused_qkv_bias(name):
             nh = self.num_attention_heads // self.infer_tp
@@ -420,14 +410,10 @@ class ParamsAssembler:
             head_dim = query_key_value.shape[0] // (ng * (repeats + 2))
             if (head_dim * self.head_dim_scale) != self.head_dim:
                 raise ValueError(f"weight head_dim mismatch: {head_dim * self.head_dim_scale} != {self.head_dim}")
-            bias_weight = query_key_value.reshape(
-                ng,
-                repeats + 2,
-                head_dim
-            )
+            bias_weight = query_key_value.reshape(ng, repeats + 2, head_dim)
             qw = bias_weight[:, :repeats, ...].reshape(-1)
-            kw = bias_weight[:, repeats: repeats + 1, ...].reshape(-1)
-            vw = bias_weight[:, repeats + 1:, ...].reshape(-1)
+            kw = bias_weight[:, repeats : repeats + 1, ...].reshape(-1)
+            vw = bias_weight[:, repeats + 1 :, ...].reshape(-1)
             return torch.cat([qw, kw, vw], dim=0)
 
         return query_key_value
@@ -448,16 +434,19 @@ class ParamsAssembler:
         return buckets
 
     # ---------- core assembly ----------
-    def assemble_dir(self, pp2ep_paths: Dict[int, Dict[int, List[Tuple[int, str]]]], rc: _ReaderCache,
-                     names_filter: Optional[set] = None) -> Dict[str, torch.Tensor]:
+    def assemble_dir(
+        self,
+        pp2ep_paths: Dict[int, Dict[int, List[Tuple[int, str]]]],
+        rc: _ReaderCache,
+        names_filter: Optional[set] = None,
+    ) -> Dict[str, torch.Tensor]:
         final_tensors: Dict[str, torch.Tensor] = {}
         error = None
         # logger.info("Started assemble loop.")
         try:
             for pp, ep2tplist in sorted(pp2ep_paths.items()):
                 # ep -> {tp: path}
-                ep_tp_path = {ep: {tp: path for (tp, path) in tplist}
-                              for ep, tplist in ep2tplist.items()}
+                ep_tp_path = {ep: {tp: path for (tp, path) in tplist} for ep, tplist in ep2tplist.items()}
                 all_eps = sorted(ep_tp_path.keys())
                 all_tps = sorted({tp for ep in all_eps for tp in ep_tp_path[ep]})
 
@@ -508,10 +497,16 @@ class ParamsAssembler:
                         if not sl:
                             continue
                         for k, v in sl.items():
-                            key2entries[k].append((
-                                ep, tp, path,
-                                int(v["offset"]), int(v["length"]), int(v.get("axis", 1)),
-                            ))
+                            key2entries[k].append(
+                                (
+                                    ep,
+                                    tp,
+                                    path,
+                                    int(v["offset"]),
+                                    int(v["length"]),
+                                    int(v.get("axis", 1)),
+                                )
+                            )
 
                 # ---------------- Experts: stitch EP per TP -> cat across TP -> 3D ----------------
                 with torch.no_grad():
@@ -549,20 +544,24 @@ class ParamsAssembler:
                             per_tp = seed_part.shape[0] // E_local
                             per_total = per_tp * tp_in_window
                             # FINAL full matrix must have per_total per expert
-                            full2d = torch.empty((num_experts_total * per_total, self.hidden_size),
-                                                 dtype=seed_part.dtype, device="cpu")
+                            full2d = torch.empty(
+                                (num_experts_total * per_total, self.hidden_size), dtype=seed_part.dtype, device="cpu"
+                            )
                             # Buffer sized for max window: ln ≤ E_local -> E_local * per_total rows
-                            cat_buf = torch.empty(E_local * per_total, self.hidden_size,
-                                                  dtype=seed_part.dtype, device="cpu")
+                            cat_buf = torch.empty(
+                                E_local * per_total, self.hidden_size, dtype=seed_part.dtype, device="cpu"
+                            )
                         else:  # w13: (H, E_local*per_tp) per shard
                             per_tp = seed_part.shape[1] // E_local
                             per_total = per_tp * tp_in_window  # this is U (cols/expert before gate/up split)
                             # FINAL full matrix must have per_total per expert (already TP-collapsed via fused repack)
-                            full2d = torch.empty((self.hidden_size, num_experts_total * per_total),
-                                                 dtype=seed_part.dtype, device="cpu")
+                            full2d = torch.empty(
+                                (self.hidden_size, num_experts_total * per_total), dtype=seed_part.dtype, device="cpu"
+                            )
                             # Buffer sized for max window: ln ≤ E_local -> H x (E_local * per_total) cols
-                            cat_buf = torch.empty(self.hidden_size, E_local * per_total,
-                                                  dtype=seed_part.dtype, device="cpu")
+                            cat_buf = torch.empty(
+                                self.hidden_size, E_local * per_total, dtype=seed_part.dtype, device="cpu"
+                            )
 
                         is_w13_key = self.is_w13(key)
                         is_w2_key = self.is_w2(key)
@@ -580,9 +579,7 @@ class ParamsAssembler:
                                     s, e = o * per_here, (o + ln) * per_here
                                     full2d[s:e, :].copy_(cat)
                                 else:
-                                    cat_in = t
-                                    cat = self._repack_w13_flat_fused(cat_in, Ewin=ln,
-                                                                      name=key) if is_w13_key else cat_in
+                                    cat = t
                                     per_here = cat.shape[1] // ln
                                     s, e = o * per_here, (o + ln) * per_here
                                     full2d[:, s:e].copy_(cat)
@@ -591,7 +588,7 @@ class ParamsAssembler:
                                 # row-wise concat across training TP
                                 for _, t in lst:
                                     h = ln * per_tp  # rows contributed by this TP shard
-                                    cat_buf[off:off + h, :].copy_(t)
+                                    cat_buf[off : off + h, :].copy_(t)
                                     off += h
                                 cat_win = cat_buf[:off, :]  # [ln * per_total, H]
                                 cat = self._w2_interleave_rows(cat_win, ln) if self.is_w2(key) else cat_win
@@ -604,21 +601,17 @@ class ParamsAssembler:
                                 # col-wise concat across training TP
                                 for _, t in lst:
                                     w = ln * per_tp  # cols contributed by this TP shard
-                                    cat_buf[:, off:off + w].copy_(t)
+                                    cat_buf[:, off : off + w].copy_(t)
                                     off += w
                                 cat_win = cat_buf[:, :off]  # [H, ln * per_total]
 
-                                if self.is_w13(key):
-                                    # fused repack + TP-collapse → bit-exact with old repack+collapse
-                                    cat = self._repack_w13_flat_fused(cat_win, Ewin=ln, name=key)  # [H, ln * per_total]
-                                else:
-                                    cat = cat_win  # non-w13 axis==1: just the filled slice
+                                cat = cat_win  # non-w13 axis==1: just the filled slice
 
                                 per_here = cat.shape[1] // ln  # == per_total
                                 s, e = o * per_here, (o + ln) * per_here
                                 full2d[:, s:e].copy_(cat)
 
-                        final3d = self.unflatten_weight(key, full2d)
+                        final3d = self.unflatten_weight(key, full2d, per_tp, ln)
                         final_tensors[key] = self._cast_if_needed(final3d).contiguous()
 
                 # ---------------- Non-experts: cat TP for a single EP (identical across EP) ----------------
@@ -732,6 +725,7 @@ class ParamsAssembler:
         if self.w2_rows_mode == "grouped" or self.infer_tp == 1:
             return cat
         T = self._Teff
+        R, H = cat.shape
         if R % (ln * T) != 0:
             raise ValueError(f"w2 rows {R} not divisible by ln*TP_eff={ln * T}")
         per_tp = R // (ln * T)
@@ -809,8 +803,9 @@ class ParamsAssembler:
             if self.is_w13(name):
                 # w13 is (E, per_total, H). Split with stride when interleaved.
                 for r in range(R):
-                    split_tensors[r][name] = self.shard_w13_for_tp_with_axi(tensor, r,
-                                                                            split_axis=axis if axis is not None else 1)
+                    split_tensors[r][name] = self.shard_w13_for_tp_with_axi(
+                        tensor, r, split_axis=axis if axis is not None else 1
+                    )
                 continue
             if self.is_w2(name):
                 # Axis-generalized split for w2 (default axis=2 keeps old behavior)
@@ -841,29 +836,27 @@ class ParamsAssembler:
         return split_tensors
 
     def assemble_split_write_core(
-            self,
-            pp2ep_paths: Dict[int, Dict[int, List[Tuple[int, str]]]],
-            rc: _ReaderCache, final_dir: str,
-            names: Optional[List[str]] = None,
-            pid: Optional[str] = None
+        self,
+        pp2ep_paths: Dict[int, Dict[int, List[Tuple[int, str]]]],
+        rc: _ReaderCache,
+        final_dir: str,
+        names: Optional[List[str]] = None,
+        pid: Optional[str] = None,
     ) -> List[str]:
         init_time = time.time()
         names_filter = set(names) if names else None
 
         tensors = self.assemble_dir(pp2ep_paths, rc, names_filter=names_filter)
-        for name, t in tensors.items():
-            print(f"ASSEMBLE {name}: {t.shape}")
         assemble_time = time.time()
         if self.use_simple_ep_mode:
             split_tensors = self.final_rank_split_new(tensors)
         else:
             split_tensors = self.final_rank_split(tensors)
-        for split_tensor in split_tensors:
-            for name, t in split_tensor.items():
-                print(f"SPLIT {name}: {t.shape}")
         split_time = time.time()
-        logger.info(f"Finished assembling {len(tensors)} tensors in {assemble_time - init_time:.2f}s, "
-                    f"splitting EP (TPxDP) in {split_time - assemble_time:.2f}s.")
+        logger.info(
+            f"Finished assembling {len(tensors)} tensors in {assemble_time - init_time:.2f}s, "
+            f"splitting EP (TPxDP) in {split_time - assemble_time:.2f}s."
+        )
 
         written: List[str] = []
         suffix = f"_{pid}" if pid is not None else ""
@@ -878,23 +871,34 @@ class ParamsAssembler:
 
 class Qwen3MoEParamsAssembler(ParamsAssembler):
     def __init__(
-            self,
-            hf_config,
-            infer_tp: int = 1,
-            infer_dp: int = 1,
-            target_dtype: Optional[torch.dtype] = None,
-            w13_gate_up_order: str = "gate_up",
-            head_dim_scale: int = 1,
-            use_simple_ep_mode: bool = False,
+        self,
+        hf_config,
+        infer_tp: int = 1,
+        infer_dp: int = 1,
+        target_dtype: Optional[torch.dtype] = None,
+        w13_gate_up_order: str = "gate_up",
+        head_dim_scale: int = 1,
+        use_simple_ep_mode: bool = False,
     ):
         # w13_gate_up_order ∈ {"gate_up", "up_gate"}; set "up_gate" if your model packs as [up, gate]
-        super().__init__(infer_tp=infer_tp, infer_dp=infer_dp, target_dtype=target_dtype, head_dim_scale=head_dim_scale,
-                         use_simple_ep_mode=use_simple_ep_mode)
+        super().__init__(
+            infer_tp=infer_tp,
+            infer_dp=infer_dp,
+            target_dtype=target_dtype,
+            head_dim_scale=head_dim_scale,
+            use_simple_ep_mode=use_simple_ep_mode,
+        )
         self.w13_gate_up_order = w13_gate_up_order.lower()
         self._init_configs(hf_config)
         self.has_moe = bool(self.num_experts and self.num_experts > 0)
         self.w2_rows_mode = "grouped"
-        self.w13_cols_mode = "interleaved"
+        self.w13_cols_mode = "grouped" if use_simple_ep_mode else "interleaved"
+
+    def convert_w13_weights(self, weights: torch.Tensor, per_tp: int, local_expert_num: int):
+        ep_group = self.num_experts // local_expert_num
+        temp = weights.view(local_expert_num, -1, ep_group, local_expert_num, per_tp)
+        permuted = temp.permute(2, 0, 4, 1, 3).contiguous()
+        return permuted.view(self.num_experts, per_tp, -1)
 
     def get_weight_3D_shape(self, name: str, old_shape: List[int]) -> Optional[Tuple]:
         layer_name = self.remove_idx_pattern.sub(".", name)
@@ -932,21 +936,33 @@ class Qwen3MoEParamsAssembler(ParamsAssembler):
         #   w13: (H_shard?, E_local*per)  -> concat along dim=0 (row-like)
         #   w2 : (E_local*per, H_shard?)  -> concat along dim=1 (col-like)
         if self.has_moe:
-            if "experts.w13_weight" in f: return 1
-            if "experts.w2_weight" in f: return 1
+            if "experts.w13_weight" in f:
+                return 1
+            if "experts.w2_weight" in f:
+                return 1
         # Common TP rules for non-experts in Megatron:
-        if "embed_tokens.weight" in f: return 0
-        if "lm_head.weight" in f: return 0
-        if "qkv_proj.weight" in f: return 0  # ColumnParallel
-        if ".o_proj.weight" in f: return 1  # RowParallel
+        if "embed_tokens.weight" in f:
+            return 0
+        if "lm_head.weight" in f:
+            return 0
+        if "qkv_proj.weight" in f:
+            return 0  # ColumnParallel
+        if ".o_proj.weight" in f:
+            return 1  # RowParallel
+        if ".gate_up_proj.weight" in f:
+            return 0
 
         # MLP (dense): ColumnParallel up/gate, RowParallel down
-        if any(k in f for k in (".up_proj.weight", ".gate_proj.weight", ".w1.weight", ".w3.weight")): return 0
-        if any(k in f for k in (".down_proj.weight", ".w2.weight")): return 1
+        if any(k in f for k in (".up_proj.weight", ".gate_proj.weight", ".w1.weight", ".w3.weight")):
+            return 0
+        if any(k in f for k in (".down_proj.weight", ".w2.weight")):
+            return 1
 
         # bias rules if present
-        if "qkv_proj.bias" in f: return 0
-        if ".o_proj.bias" in f: return 0
+        if "qkv_proj.bias" in f:
+            return 0
+        if ".o_proj.bias" in f:
+            return 0
         # fallback: no TP split
         return None
 
@@ -966,8 +982,10 @@ class Qwen3MoEParamsAssembler(ParamsAssembler):
             return 0
 
         # MLP (dense): ColumnParallel up/gate, RowParallel down
-        if any(k in f for k in (".up_proj", ".gate_proj", ".w1", ".w3")): return 0
-        if any(k in f for k in (".down_proj", ".w2")): return 1
+        if any(k in f for k in (".up_proj", ".gate_proj", ".w1", ".w3", ".gate_up_proj")):
+            return 0
+        if any(k in f for k in (".down_proj", ".w2")):
+            return 1
         return None
 
     def _init_configs(self, hf_config):
@@ -1030,15 +1048,15 @@ class Qwen3MoEParamsAssembler(ParamsAssembler):
 
 @ray.remote
 def assemble_subset_worker(
-        *,  # kwargs only
-        final_dir: str,
-        reduce_idx: int,
-        names: List[str],
-        pp2ep_paths: Dict[int, Dict[int, List[Tuple[int, str]]]],
-        assembler: ParamsAssembler,
-        max_open_files: int = 64,
-        num_procs: int = 1,
-        child_idx_stride: int = 1_000_000,
+    *,  # kwargs only
+    final_dir: str,
+    reduce_idx: int,
+    names: List[str],
+    pp2ep_paths: Dict[int, Dict[int, List[Tuple[int, str]]]],
+    assembler: ParamsAssembler,
+    max_open_files: int = 64,
+    num_procs: int = 1,
+    child_idx_stride: int = 1_000_000,
 ) -> List[str] | None:
     """
     Run inside one Ray task. Forks up to num_procs children.
@@ -1062,8 +1080,10 @@ def assemble_subset_worker(
     rest = [n for n in names if n not in big]
 
     chunks = [[] for _ in range(min(num_procs, len(names)))]
-    for i, n in enumerate(big):  chunks[i % len(chunks)].append(n)
-    for i, n in enumerate(rest): chunks[i % len(chunks)].append(n)
+    for i, n in enumerate(big):
+        chunks[i % len(chunks)].append(n)
+    for i, n in enumerate(rest):
+        chunks[i % len(chunks)].append(n)
     chunks = [c for c in chunks if c]
 
     # Fork children
@@ -1104,27 +1124,29 @@ def assemble_subset_worker(
     for _ in procs:
         idx, paths, err = ret_q.get()
         if err is not None:
-            for p in procs: p.join()
+            for p in procs:
+                p.join()
             raise RuntimeError(f"assemble_subset_worker child {idx} failed: {err}")
         all_paths.extend(paths)
-    for p in procs: p.join()
+    for p in procs:
+        p.join()
     return all_paths
 
 
 def run_distributed_qwen3_assemble(
-        train_save_path: str,
-        hf_config: Any,
-        infer_tp: int,
-        weights_version: int,
-        inference_save_path: str,
-        infer_dp: int = 1,
-        target_dtype: Optional[torch.dtype] = torch.bfloat16,
-        pattern: str = "pp*_tp*_ep*.safetensors",
-        max_open_files: int = 64,
-        num_workers: int = 3,
-        num_procs: int = 24,
-        head_dim_scale: int = 1,
-        use_simple_ep_mode: bool = False,
+    train_save_path: str,
+    hf_config: Any,
+    infer_tp: int,
+    weights_version: int,
+    inference_save_path: str,
+    infer_dp: int = 1,
+    target_dtype: Optional[torch.dtype] = torch.bfloat16,
+    pattern: str = "pp*_tp*_ep*.safetensors",
+    max_open_files: int = 64,
+    num_workers: int = 3,
+    num_procs: int = 24,
+    head_dim_scale: int = 1,
+    use_simple_ep_mode: bool = False,
 ):
     start_time = time.time()
     final_dir = os.path.join(inference_save_path, f"weights_{weights_version}")
@@ -1133,9 +1155,15 @@ def run_distributed_qwen3_assemble(
     os.makedirs(final_dir, exist_ok=True)
 
     logger.info(f"final_dir: {final_dir}")
-    assembler = Qwen3MoEParamsAssembler(hf_config, infer_tp, infer_dp, target_dtype,
-                                        w13_gate_up_order="gate_up", head_dim_scale=head_dim_scale,
-                                        use_simple_ep_mode=use_simple_ep_mode)
+    assembler = Qwen3MoEParamsAssembler(
+        hf_config,
+        infer_tp,
+        infer_dp,
+        target_dtype,
+        w13_gate_up_order="gate_up",
+        head_dim_scale=head_dim_scale,
+        use_simple_ep_mode=use_simple_ep_mode,
+    )
     all_paths = sorted(glob.glob(os.path.join(train_save_path, pattern)))
     if not all_paths:
         raise FileNotFoundError(f"no files match {pattern} under {train_save_path}")

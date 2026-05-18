@@ -40,7 +40,8 @@ def _split_batches_with_dynamic_bsz(
         seq_len_list.append(prompt_len.item() + response_len.item())
 
     partitions = rearrange_micro_batches_patch(
-        seq_len_list, max_packing_token,
+        seq_len_list,
+        max_packing_token,
         dynamic_max_batch_size=dynamic_max_batch_size,
     )
     batches: List[Dict] = []
@@ -50,3 +51,14 @@ def _split_batches_with_dynamic_bsz(
                 batches.append({})
             batches[batch_idx][key] = tensors[partition]
     return batches, partitions
+
+
+def update_mini_batch_size(
+    self, original_n_samples_per_prompt: int, new_samples_per_prompt: int, use_stepwise_advantage=False
+):
+    if use_stepwise_advantage:
+        self.mini_batch_size_per_dp_new_size = (
+            self.mini_batch_size_per_dp // original_n_samples_per_prompt * new_samples_per_prompt
+        )
+    else:
+        self.mini_batch_size_per_dp_new_size = self.mini_batch_size_per_dp

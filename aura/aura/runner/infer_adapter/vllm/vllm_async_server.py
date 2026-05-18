@@ -38,8 +38,11 @@ from starlette.responses import JSONResponse, StreamingResponse
 from vllm.config import CompilationConfig
 from vllm.engine.arg_utils import AsyncEngineArgs
 from vllm.entrypoints.openai.protocol import (
-    ChatCompletionRequest, ChatCompletionResponse, 
-    CompletionRequest, CompletionResponse, ErrorResponse
+    ChatCompletionRequest,
+    ChatCompletionResponse,
+    CompletionRequest,
+    CompletionResponse,
+    ErrorResponse,
 )
 from vllm.entrypoints.openai.serving_chat import OpenAIServingChat
 from vllm.entrypoints.openai.serving_completion import OpenAIServingCompletion
@@ -67,7 +70,7 @@ def safe_ray_init(namespace: str = "default"):
         logger.warning(f"Failed to connect to Ray cluster. Trying to start local instance... error: {e}")
         ray.init(namespace=namespace, ignore_reinit_error=True)
         logger.info(f"Started local Ray instance in namespace '{namespace}'.")
-        
+
 
 class ExternalRayDistributedExecutor(Executor):
     """An executor that engines are launched by external ray actors."""
@@ -96,12 +99,10 @@ class ExternalRayDistributedExecutor(Executor):
 
         actors = [v["Name"] for k, v in ray.state.actors().items()]
         actor_names = [
-            actor_name
-            for actor_name in actors
-            if "ActorHybridWorker" in actor_name or "IntegratedWorker" in actor_name
+            actor_name for actor_name in actors if "ActorHybridWorker" in actor_name or "IntegratedWorker" in actor_name
         ]
         actor_names = sorted(actor_names, key=lambda x: int(x.split("_")[1]))
-        self.actor_names = actor_names[vllm_dp_rank * vllm_tp_size: (vllm_dp_rank + 1) * vllm_tp_size]
+        self.actor_names = actor_names[vllm_dp_rank * vllm_tp_size : (vllm_dp_rank + 1) * vllm_tp_size]
         self.workers = [ray.get_actor(actor_name, namespace=namespace) for actor_name in self.actor_names]
         kwargs = dict(
             vllm_config=self.vllm_config,
@@ -131,7 +132,8 @@ class ExternalRayDistributedExecutor(Executor):
 
         # ~3ms overhead per schedule step due to serialization/deserialization.
         outputs = ray.get(
-            [worker.execute_method.remote(sent_method, *args, **(kwargs or {})) for worker in self.workers])
+            [worker.execute_method.remote(sent_method, *args, **(kwargs or {})) for worker in self.workers]
+        )
         return outputs
 
     def check_health(self) -> None:
@@ -162,11 +164,9 @@ class AsyncVLLMServer(AsyncServerBase):
     For vLLM AsyncLLM design, see: https://github.com/vllm-project/vllm/pull/9826
     """
 
-    def __init__(self, config: DictConfig,
-                 tokenizer_name_or_path: str,
-                 vllm_dp_size: int,
-                 vllm_dp_rank: int,
-                 wg_prefix: str):
+    def __init__(
+        self, config: DictConfig, tokenizer_name_or_path: str, vllm_dp_size: int, vllm_dp_rank: int, wg_prefix: str
+    ):
         """
         Args:
             config: DictConfig, actor_rollout_ref config.
@@ -214,14 +214,20 @@ class AsyncVLLMServer(AsyncServerBase):
         dp_size = int(os.getenv("VLLM_DP_SIZE", "1"))
 
         logger.info(f"override_generation_config: {kwargs}")
-        logger.info(f"max_num_batched_tokens={max_num_batched_tokens}, [attention] this num > 8k may cause error for 'chunked prefill'!")
+        logger.info(
+            f"max_num_batched_tokens={max_num_batched_tokens}, [attention] this num > 8k may cause error for 'chunked prefill'!"
+        )
         cudagraph_capture_sizes = None
         # Not None and array config not empty
-        if config.cudagraph_capture_sizes is not None and config.cudagraph_capture_sizes:
+        if config.cudagraph_capture_sizes is not None and not config.cudagraph_capture_sizes:
             cudagraph_capture_sizes = [int(size) for size in config.cudagraph_capture_sizes.replace(" ", "").split(',')]
-        additional_config = {"ascend_scheduler_config": {"enabled": not config.enforce_eager,
-                             "enable_chunked_prefill": config.enable_chunked_prefill, },
-                             "enable_weight_nz_layout": True}
+        additional_config = {
+            "ascend_scheduler_config": {
+                "enabled": not config.enforce_eager,
+                "enable_chunked_prefill": config.enable_chunked_prefill,
+            },
+            "enable_weight_nz_layout": True,
+        }
         engine_args = AsyncEngineArgs(
             model=local_path,
             enable_sleep_mode=config.enable_sleep_mode,
@@ -249,7 +255,7 @@ class AsyncVLLMServer(AsyncServerBase):
             hf_overrides={"max_position_embeddings": max_model_len},
             compilation_config=CompilationConfig(cudagraph_capture_sizes=cudagraph_capture_sizes),
             additional_config=additional_config,
-            worker_extension_cls="aura.runner.infer_adapter.vllm.extension.custom_worker_extensions.CustomWorkerExtensions"
+            worker_extension_cls="aura.runner.infer_adapter.vllm.extension.custom_worker_extensions.CustomWorkerExtensions",
         )
         # init async llm engine
         self.ins_workload = InstanceWorkLoad(dp_size=dp_size)
@@ -257,8 +263,9 @@ class AsyncVLLMServer(AsyncServerBase):
         namespace = ray.get_runtime_context().namespace
         vllm_config.instance_id = f"{namespace}:{self.wg_prefix}:{self.vllm_dp_size}:{self.vllm_dp_rank}"
         vllm_config.workload = self.ins_workload
-        self.engine = AsyncLLM.from_vllm_config(vllm_config, disable_log_stats=config.disable_log_stats,
-            stat_loggers=[WorkloadStatLogger])
+        self.engine = AsyncLLM.from_vllm_config(
+            vllm_config, disable_log_stats=config.disable_log_stats, stat_loggers=[WorkloadStatLogger]
+        )
 
         # build serving chat
         model_config = self.engine.model_config
@@ -285,7 +292,6 @@ class AsyncVLLMServer(AsyncServerBase):
         if not config.disable_log_stats:
             asyncio.create_task(vllm_log_stats_periodically(self))
         logger.info(f"Async vLLM Server running at {await self.get_server_address()}")
-
 
     async def chat_completion(self, raw_request: Request):
         """OpenAI-compatible HTTP endpoint.

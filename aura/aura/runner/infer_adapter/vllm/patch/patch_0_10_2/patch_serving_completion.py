@@ -28,35 +28,29 @@ import jinja2
 from fastapi import Request
 from typing_extensions import assert_never
 
-from vllm.entrypoints.openai.protocol import (ChatCompletionRequest,
-                                              ChatCompletionResponse,
-                                              CompletionLogProbs,
-                                              CompletionRequest,
-                                              CompletionResponse,
-                                              CompletionResponseChoice,
-                                              CompletionResponseStreamChoice,
-                                              CompletionStreamResponse,
-                                              ErrorResponse,
-                                              PromptTokenUsageInfo,
-                                              RequestResponseMetadata,
-                                              UsageInfo)
-from vllm.entrypoints.openai.serving_engine import (OpenAIServing,
-                                                    TextTokensPrompt,
-                                                    clamp_prompt_logprobs,
-                                                    is_text_tokens_prompt)
+from vllm.entrypoints.openai.protocol import (
+    ChatCompletionRequest,
+    ChatCompletionResponse,
+    CompletionRequest,
+    CompletionResponse,
+    ErrorResponse,
+    RequestResponseMetadata,
+)
+from vllm.entrypoints.openai.serving_engine import is_text_tokens_prompt
 from vllm.entrypoints.openai.serving_completion import OpenAIServingCompletion
 from vllm.entrypoints.openai.serving_chat import OpenAIServingChat
 from vllm.entrypoints.utils import get_max_tokens
-from vllm.inputs.data import (EmbedsPrompt, TokensPrompt, is_embeds_prompt,
-                              is_tokens_prompt)
+from vllm.inputs.data import EmbedsPrompt, TokensPrompt, is_embeds_prompt, is_tokens_prompt
 from vllm.logger import init_logger
 from vllm.outputs import RequestOutput
 from vllm.sampling_params import BeamSearchParams, SamplingParams
 from vllm.transformers_utils.tokenizer import MistralTokenizer
-from vllm.transformers_utils.tokenizers import (maybe_serialize_tool_calls,
-                                                truncate_tool_call_ids,
-                                                validate_request_params)
-from vllm.utils import as_list, merge_async_iterators
+from vllm.transformers_utils.tokenizers import (
+    maybe_serialize_tool_calls,
+    truncate_tool_call_ids,
+    validate_request_params,
+)
+from vllm.utils import merge_async_iterators
 
 logger = init_logger(__name__)
 
@@ -137,7 +131,7 @@ async def create_completion_patch(
             # infer the type of engine_prompt correctly because of the
             # enumerate. So we need an unnecessary cast here.
             engine_prompt = cast(Union[EmbedsPrompt, TokensPrompt], engine_prompt)
-            
+
             if is_embeds_prompt(engine_prompt):
                 input_length = len(engine_prompt["prompt_embeds"])
             elif is_tokens_prompt(engine_prompt):
@@ -156,8 +150,7 @@ async def create_completion_patch(
             )
 
             if request.use_beam_search:
-                sampling_params = request.to_beam_search_params(
-                    max_tokens, self.default_sampling_params)
+                sampling_params = request.to_beam_search_params(max_tokens, self.default_sampling_params)
             else:
                 sampling_params = request.to_sampling_params(
                     max_tokens,
@@ -174,8 +167,7 @@ async def create_completion_patch(
                 lora_request=lora_request,
             )
 
-            trace_headers = (None if raw_request is None else
-                             await self._get_trace_headers(raw_request.headers))
+            trace_headers = None if raw_request is None else await self._get_trace_headers(raw_request.headers)
 
             engine_prompt = cast(Union[EmbedsPrompt, TokensPrompt], engine_prompt)
             if isinstance(sampling_params, BeamSearchParams):
@@ -193,7 +185,7 @@ async def create_completion_patch(
                     lora_request=lora_request,
                     trace_headers=trace_headers,
                     priority=request.priority,
-                    data_parallel_rank=None if dp_rank is None else int(dp_rank)
+                    data_parallel_rank=None if dp_rank is None else int(dp_rank),
                 )
 
             generators.append(generator)
@@ -205,9 +197,9 @@ async def create_completion_patch(
     model_name = self._get_model_name(request.model, lora_request)
     num_prompts = len(engine_prompts)
 
-    stream = (request.stream
-              and (request.best_of is None or request.n == request.best_of)
-              and not request.use_beam_search)
+    stream = (
+        request.stream and (request.best_of is None or request.n == request.best_of) and not request.use_beam_search
+    )
 
     if stream:
         return self.completion_stream_generator(
@@ -230,9 +222,7 @@ async def create_completion_patch(
 
         for i, final_res in enumerate(final_res_batch):
             if final_res is None:
-                raise RuntimeError(
-                    f"Request output at index {i} is None, which should not happen"
-                )
+                raise RuntimeError(f"Request output at index {i} is None, which should not happen")
 
             if final_res.prompt is None:
                 request_prompt = request_prompts[i]
@@ -290,8 +280,7 @@ async def create_chat_completion_patch(
         raise self.engine_client.dead_error
 
     try:
-        lora_request = self._maybe_get_adapters(
-            request, supports_default_mm_loras=True)
+        lora_request = self._maybe_get_adapters(request, supports_default_mm_loras=True)
 
         model_name = self._get_model_name(request.model, lora_request)
 
@@ -304,18 +293,17 @@ async def create_chat_completion_patch(
             truncate_tool_call_ids(request)
             validate_request_params(request)
 
-        if (request.tool_choice == "auto" and
-                not (self.enable_auto_tools and tool_parser is not None)
-                and not isinstance(tokenizer, MistralTokenizer)
-                and not self.use_harmony):
+        if (
+            request.tool_choice == "auto"
+            and not (self.enable_auto_tools and tool_parser is not None)
+            and not isinstance(tokenizer, MistralTokenizer)
+            and not self.use_harmony
+        ):
             return self.create_error_response(
-                "\"auto\" tool choice requires "
-                "--enable-auto-tool-choice and --tool-call-parser to be set"
+                "\"auto\" tool choice requires --enable-auto-tool-choice and --tool-call-parser to be set"
             )
 
-        if (request.tools is None
-                or (request.tool_choice == "none"
-                    and self.exclude_tools_when_tool_choice_none)):
+        if request.tools is None or (request.tool_choice == "none" and self.exclude_tools_when_tool_choice_none):
             tool_dicts = None
         else:
             tool_dicts = [tool.model_dump() for tool in request.tools]
@@ -367,25 +355,19 @@ async def create_chat_completion_patch(
                 max_model_len=self.max_model_len,
                 request=request,
                 input_length=len(engine_prompt["prompt_token_ids"]),
-                default_sampling_params=self.default_sampling_params)
+                default_sampling_params=self.default_sampling_params,
+            )
 
             if request.use_beam_search:
-                sampling_params = request.to_beam_search_params(
-                    max_tokens, self.default_sampling_params)
+                sampling_params = request.to_beam_search_params(max_tokens, self.default_sampling_params)
             else:
                 sampling_params = request.to_sampling_params(
-                    max_tokens,
-                    self.model_config.logits_processor_pattern,
-                    self.default_sampling_params)
+                    max_tokens, self.model_config.logits_processor_pattern, self.default_sampling_params
+                )
 
-            self._log_inputs(
-                request_id,
-                request_prompts[i],
-                params=sampling_params,
-                lora_request=lora_request)
+            self._log_inputs(request_id, request_prompts[i], params=sampling_params, lora_request=lora_request)
 
-            trace_headers = (None if raw_request is None else
-                             await self._get_trace_headers(raw_request.headers))
+            trace_headers = None if raw_request is None else await self._get_trace_headers(raw_request.headers)
 
             if isinstance(sampling_params, BeamSearchParams):
                 generator = self.engine_client.beam_search(
@@ -402,7 +384,7 @@ async def create_chat_completion_patch(
                     lora_request=lora_request,
                     trace_headers=trace_headers,
                     priority=request.priority,
-                    data_parallel_rank=None if dp_rank is None else int(dp_rank)
+                    data_parallel_rank=None if dp_rank is None else int(dp_rank),
                 )
 
             generators.append(generator)
@@ -410,11 +392,9 @@ async def create_chat_completion_patch(
         return self.create_error_response(str(e))
 
     if len(generators) != 1:
-        raise RuntimeError(
-            f"Expected exactly one generator for chat completion, but got {len(generators)}"
-        )
-    
-    result_generator = generators[0]
+        raise RuntimeError(f"Expected exactly one generator for chat completion, but got {len(generators)}")
+
+    (result_generator,) = generators
 
     if request.stream:
         return self.chat_completion_stream_generator(
@@ -425,12 +405,13 @@ async def create_chat_completion_patch(
             conversation,
             tokenizer,
             request_metadata,
-            enable_force_include_usage=self.enable_force_include_usage)
+            enable_force_include_usage=self.enable_force_include_usage,
+        )
 
     try:
         return await self.chat_completion_full_generator(
-            request, result_generator, request_id, model_name,
-            conversation, tokenizer, request_metadata)
+            request, result_generator, request_id, model_name, conversation, tokenizer, request_metadata
+        )
     except ValueError as e:
         return self.create_error_response(str(e))
 

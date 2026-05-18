@@ -4,19 +4,18 @@
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
-# 
+#
 # AgentSDK is licensed under Mulan PSL v2.
 # You can use this software according to the terms and conditions of the Mulan PSL v2.
 # You may obtain a copy of Mulan PSL v2 at:
-# 
+#
 #          http://license.coscl.org.cn/MulanPSL2
-# 
+#
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
-
 
 from fastapi import APIRouter, Request
 from sse_starlette import EventSourceResponse
@@ -38,6 +37,7 @@ async def agent_invoke(request: Request):
     """
 
     from aura.runner.agent_router import AgentRouter
+
     agent_router: AgentRouter = await AgentRouter.create()
 
     request_data = await request.json()
@@ -47,16 +47,35 @@ async def agent_invoke(request: Request):
 
 @router.post("/v1/chat/completions")
 @async_raise_http_exception
-async def chat_completions(request: Request):
+async def completions(request: Request):
     """
     Standard Chat Completions API:
     - stream=False -> Returns complete result at once (JSON)
     - stream=True -> Returns in SSE streaming mode (chunked push)
     """
     from aura.runner.infer_router import InferRouter
+
     infer_router: InferRouter = await InferRouter.create()
 
     request_data = await request.json()
     if request_data["stream"]:
         return EventSourceResponse(infer_router.stream_chat_completions(request_data))
     return await infer_router.chat_completions(request_data)
+
+
+@router.post("/v1/completions")
+@async_raise_http_exception
+async def chat_completions(request: Request):
+    """
+    Standard Completions API:
+    - stream=False -> Returns complete result at once (JSON)
+    - stream=True -> Returns in SSE streaming mode (chunked push)
+    """
+    from aura.runner.infer_router import InferRouter
+
+    infer_router: InferRouter = await InferRouter.create()
+
+    request_data = await request.json()
+    if request_data["stream"]:
+        return EventSourceResponse(infer_router.stream_completions(request_data))
+    return await infer_router.completions(request_data)

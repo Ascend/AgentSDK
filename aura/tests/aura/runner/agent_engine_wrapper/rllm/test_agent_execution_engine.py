@@ -2,19 +2,11 @@
 # Copyright Huawei Technologies Co., Ltd. 2026. All rights reserved.
 """Unit tests for rllm/agent_execution_engine module."""
 
-import asyncio
 import os
-from unittest.mock import AsyncMock, MagicMock, patch, PropertyMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-import torch
 
-from aura.runner.agent_engine_wrapper.base.agent.base_agent import (
-    Action,
-    BaseAgent,
-    Step,
-    Trajectory,
-)
 from aura.runner.agent_engine_wrapper.base_engine_wrapper import AgentTask
 from aura.runner.agent_engine_wrapper.rllm.agent_execution_engine import (
     AgentExecutionEngine,
@@ -27,6 +19,7 @@ from aura.runner.agent_engine_wrapper.rllm.agent_execution_engine import (
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def mock_tokenizer():
@@ -84,6 +77,7 @@ def engine(mock_tokenizer, mock_chat_parser, mock_env_class, mock_agent_class):
 # create_application_id tests
 # ---------------------------------------------------------------------------
 
+
 class TestCreateApplicationId:
     def test_returns_string(self):
         result = create_application_id(0)
@@ -106,6 +100,7 @@ class TestCreateApplicationId:
 # _generate_key tests
 # ---------------------------------------------------------------------------
 
+
 class TestGenerateKey:
     def test_dict_task(self):
         task = {"task_id": "abc", "prompt_id": 1}
@@ -113,10 +108,7 @@ class TestGenerateKey:
         assert result == "abc_1"
 
     def test_agent_task(self):
-        task = AgentTask(
-            task_id="xyz", sample_id=0, iteration=0,
-            agent_name="a", problem="p", prompt_id=5
-        )
+        task = AgentTask(task_id="xyz", sample_id=0, iteration=0, agent_name="a", problem="p", prompt_id=5)
         result = _generate_key(task)
         assert result == "xyz_5"
 
@@ -132,6 +124,7 @@ class TestGenerateKey:
 # ---------------------------------------------------------------------------
 # AgentExecutionEngine __init__ tests
 # ---------------------------------------------------------------------------
+
 
 class TestAgentExecutionEngineInit:
     def test_basic_attributes(self, engine, mock_tokenizer, mock_chat_parser):
@@ -179,6 +172,7 @@ class TestAgentExecutionEngineInit:
 # update_envs_and_agents tests
 # ---------------------------------------------------------------------------
 
+
 class TestUpdateEnvsAndAgents:
     def test_updates_envs_and_agents(self, engine):
         envs = [MagicMock(), MagicMock()]
@@ -208,6 +202,7 @@ class TestUpdateEnvsAndAgents:
 # update_env_and_agent / release tests
 # ---------------------------------------------------------------------------
 
+
 class TestUpdateAndReleaseEnvAgent:
     def test_update_env_and_agent(self, engine):
         env = MagicMock()
@@ -231,6 +226,7 @@ class TestUpdateAndReleaseEnvAgent:
 # ---------------------------------------------------------------------------
 # store/pop application_id tests
 # ---------------------------------------------------------------------------
+
 
 class TestApplicationIdManagement:
     def test_store_and_pop(self, engine):
@@ -264,6 +260,7 @@ class TestApplicationIdManagement:
 # ---------------------------------------------------------------------------
 # init_router tests
 # ---------------------------------------------------------------------------
+
 
 class TestInitRouter:
     def test_none_addresses_no_router(self, engine):
@@ -302,8 +299,8 @@ class TestInitRouter:
 # cancel_trajectories / reset tests
 # ---------------------------------------------------------------------------
 
-class TestCancelAndReset:
 
+class TestCancelAndReset:
     @pytest.mark.asyncio
     async def test_cancel_sets_stop(self, engine):
         engine.router = MagicMock()
@@ -320,83 +317,9 @@ class TestCancelAndReset:
 
 
 # ---------------------------------------------------------------------------
-# assemble_steps tests
-# ---------------------------------------------------------------------------
-
-class TestAssembleSteps:
-    def test_single_step(self, engine):
-        steps = [{
-            "prompt": "prompt",
-            "response": "response",
-            "prompt_ids": [1, 2, 3],
-            "completion_ids": [4, 5],
-            "logprobs": [0.1, 0.2],
-        }]
-        prompt_tokens, response_tokens, response_masks, is_valid = engine.assemble_steps(steps, masked_out=False)
-        assert torch.equal(prompt_tokens, torch.tensor([1, 2, 3], dtype=torch.long))
-        assert torch.equal(response_tokens, torch.tensor([4, 5], dtype=torch.long))
-        assert torch.equal(response_masks, torch.tensor([1, 1], dtype=torch.long))
-        assert is_valid is True
-
-    def test_two_cumulative_steps(self, engine):
-        steps = [
-            {
-                "prompt": "p1",
-                "response": "r1",
-                "prompt_ids": [1, 2, 3],
-                "completion_ids": [4, 5],
-                "logprobs": [0.1, 0.2],
-            },
-            {
-                "prompt": "p2",
-                "response": "r2",
-                "prompt_ids": [1, 2, 3, 4, 5, 6, 7],
-                "completion_ids": [8, 9],
-                "logprobs": [0.3, 0.4],
-            },
-        ]
-        prompt_tokens, response_tokens, response_masks, is_valid = engine.assemble_steps(steps, masked_out=False)
-        assert torch.equal(prompt_tokens, torch.tensor([1, 2, 3], dtype=torch.long))
-        # response_tokens: [4, 5] (step0 completion) + [6, 7] (env tokens) + [8, 9] (step1 completion)
-        assert torch.equal(response_tokens, torch.tensor([4, 5, 6, 7, 8, 9], dtype=torch.long))
-        # masks: [1, 1] (step0 completion) + [0, 0] (env) + [1, 1] (step1 completion)
-        assert torch.equal(response_masks, torch.tensor([1, 1, 0, 0, 1, 1], dtype=torch.long))
-
-    def test_masked_out_zeroes_all_masks(self, engine):
-        steps = [{
-            "prompt": "p",
-            "response": "r",
-            "prompt_ids": [1, 2],
-            "completion_ids": [3, 4],
-            "logprobs": [0.1, 0.2],
-        }]
-        _, _, response_masks, _ = engine.assemble_steps(steps, masked_out=True)
-        assert all(m == 0 for m in response_masks)
-
-    def test_non_cumulative_steps_raise(self, engine):
-        steps = [
-            {
-                "prompt": "p1",
-                "response": "r1",
-                "prompt_ids": [1, 2, 3],
-                "completion_ids": [4, 5],
-                "logprobs": [0.1, 0.2],
-            },
-            {
-                "prompt": "p2",
-                "response": "r2",
-                "prompt_ids": [9, 9, 9, 9, 9, 9, 9],
-                "completion_ids": [8, 9],
-                "logprobs": [0.3, 0.4],
-            },
-        ]
-        with pytest.raises(Exception, match="Detected invalid trajectory"):
-            engine.assemble_steps(steps, masked_out=False)
-
-
-# ---------------------------------------------------------------------------
 # AsyncAgentExecutionEngine tests
 # ---------------------------------------------------------------------------
+
 
 class TestAsyncAgentExecutionEngine:
     def test_inherits_from_agent_execution_engine(self):

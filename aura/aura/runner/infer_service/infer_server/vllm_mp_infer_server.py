@@ -4,13 +4,13 @@
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
-# 
+#
 # AgentSDK is licensed under Mulan PSL v2.
 # You can use this software according to the terms and conditions of the Mulan PSL v2.
 # You may obtain a copy of Mulan PSL v2 at:
-# 
+#
 #          http://license.coscl.org.cn/MulanPSL2
-# 
+#
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
@@ -36,6 +36,7 @@ from openai import AsyncOpenAI
 # Internal imports
 from aura.base.log.loggers import Loggers
 from aura.runner.infer_service.base_infer_server import BaseInferServer
+from aura.runner.scheduler.load_stat import parse_prometheus_text_to_json
 
 logger = Loggers(__name__).get_logger()
 
@@ -43,6 +44,7 @@ logger = Loggers(__name__).get_logger()
 # =============================================================================
 # Start vLLM in MP mode on remote nodes (divided into Master and Slave nodes, using all cards on the node)
 # =============================================================================
+
 
 def print_log(out_buffer, key_word, key_event):
     idx = 0
@@ -81,14 +83,15 @@ def start_cmd(cmd, out_buffer: list):
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,  # Merge stderr to stdout
             bufsize=1,  # Line buffering
-            text=False,  # Direct str instead of bytes
-            start_new_session=True
+            text=True,  # Direct str instead of bytes
+            encoding="utf-8",
+            errors="replace",
+            start_new_session=True,
         )
         atexit.register(cleanup)
         logger.info(f"Child process started (PID: {server.pid}), output is being written to list in real-time...")
 
-        for line_bytes in iter(server.stdout.readline, b''):
-            line = line_bytes.decode('utf-8', errors='replace')
+        for line in server.stdout:
             out_buffer.append(line)
 
         server.stdout.close()
@@ -101,10 +104,7 @@ def start_cmd(cmd, out_buffer: list):
         logger.error(f"Failed to start: {e}")
 
 
-def map_dict_to_cli_args(
-        params: Dict[str, Any],
-        initial_args: Optional[List[str]] = None
-) -> List[str]:
+def map_dict_to_cli_args(params: Dict[str, Any], initial_args: Optional[List[str]] = None) -> List[str]:
     """
     Convert parameters in a dictionary (keys in snake_case) to a list of command line arguments (kebab-case).
 
@@ -144,13 +144,15 @@ def map_dict_to_cli_args(
 
     return cli_args
 
+
 def start_slave(index, master_addr, kwargs):
     # ================= Modify special variables and addresses =================
     model = kwargs.pop('model')
     kwargs['data_parallel_address'] = master_addr
     kwargs['data_parallel_start_rank'] = index * kwargs['data_parallel_size_local']
-    kwargs["worker_extension_cls"] = ("aura.runner.infer_adapter.vllm." 
-                                      "extension.custom_worker_extensions.CustomWorkerExtensions")
+    kwargs["worker_extension_cls"] = (
+        "aura.runner.infer_adapter.vllm.extension.custom_worker_extensions.CustomWorkerExtensions"
+    )
 
     # ================= Simulate complete command line arguments list =================
     cli_args = map_dict_to_cli_args(kwargs, ["vllm", "serve", model, "--headless"])
@@ -158,7 +160,13 @@ def start_slave(index, master_addr, kwargs):
 
     out_buffer = []
     ready_word, ready_event = 'Application startup complete.', threading.Event()
-    threading.Thread(target=start_cmd, args=(cli_args, out_buffer,)).start()
+    threading.Thread(
+        target=start_cmd,
+        args=(
+            cli_args,
+            out_buffer,
+        ),
+    ).start()
     threading.Thread(target=print_log, args=(out_buffer, ready_word, ready_event)).start()
 
 
@@ -166,8 +174,9 @@ def start_master(master_addr, kwargs):
     # ================= Modify special variables and addresses =================
     model = kwargs.pop('model')
     kwargs['data_parallel_address'] = master_addr
-    kwargs["worker_extension_cls"] = ("aura.runner.infer_adapter.vllm." 
-                                      "extension.custom_worker_extensions.CustomWorkerExtensions")
+    kwargs["worker_extension_cls"] = (
+        "aura.runner.infer_adapter.vllm.extension.custom_worker_extensions.CustomWorkerExtensions"
+    )
 
     # ================= Simulate complete command line arguments list =================
     cli_args = map_dict_to_cli_args(kwargs, ["vllm", "serve", model])
@@ -175,7 +184,13 @@ def start_master(master_addr, kwargs):
 
     out_buffer = []
     ready_word, ready_event = 'Application startup complete.', threading.Event()
-    threading.Thread(target=start_cmd, args=(cli_args, out_buffer,)).start()
+    threading.Thread(
+        target=start_cmd,
+        args=(
+            cli_args,
+            out_buffer,
+        ),
+    ).start()
     threading.Thread(target=print_log, args=(out_buffer, ready_word, ready_event)).start()
     ready_event.wait()
 
@@ -183,6 +198,7 @@ def start_master(master_addr, kwargs):
 # =============================================================================
 # Start vLLM remote processes in MP mode on remote nodes (one per node)
 # =============================================================================
+
 
 class RemoteMPVLLMInferServer:
     def __init__(self, *args: Any, **kwargs: Any) -> None:
@@ -194,6 +210,11 @@ class RemoteMPVLLMInferServer:
 
         local_addr = await self.get_local_addr()
         is_master = local_addr == master_addr
+
+        from aura.base.utils.run_env import get_vllm_version
+
+        os.environ["VLLM_VERSION"] = get_vllm_version()
+        logger.info(f"vllm version: {get_vllm_version()}")
 
         if is_master:
             logger.info(f"Running on master node: {local_addr}")
@@ -223,17 +244,19 @@ class RemoteMPVLLMInferServer:
         os.environ['OMP_PROC_BIND'] = 'false'  # corresponds to false
         os.environ['OMP_NUM_THREADS'] = '100'  # corresponds to 100
         os.environ['VLLM_USE_V1'] = '1'  # corresponds to 1
-        os.environ['HCCL_BUFFSIZE'] = '1024'  # corresponds to 1024
+        os.environ['HCCL_BUFFSIZE'] = '256'  # corresponds to 1024
 
     @classmethod
     async def get_nic_name(cls, local_ip) -> str:
         import psutil
+
         interfaces = psutil.net_if_addrs()
 
         for nic_name, snics in interfaces.items():
             for snic in snics:
                 # AF_INET represents IPv4
                 import socket
+
                 if snic.family == socket.AF_INET:
                     if snic.address == local_ip:
                         return nic_name
@@ -246,6 +269,7 @@ class RemoteMPVLLMInferServer:
         try:
             # Create a UDP socket
             import socket
+
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             # Connect to a public DNS address (Google DNS) on any port
             # Note: This step does not actually send data, no handshake needed, so it's very fast and doesn't consume traffic
@@ -267,6 +291,7 @@ class RemoteMPVLLMInferServer:
 # Main process entry for starting vLLM in MP mode on remote nodes
 # =============================================================================
 
+
 class VLLMMPInferServer(BaseInferServer):
     def __init__(self, model_name, **kwargs):
         if "distributed_executor_backend" in kwargs and kwargs["distributed_executor_backend"] != "mp":
@@ -279,51 +304,58 @@ class VLLMMPInferServer(BaseInferServer):
 
         if placement_group is None:
             raise RuntimeError("Current actor is not running in a Placement Group.")
-        
+
         bundles = placement_group.bundle_specs
         logger.info(f"Bundle specs: {bundles}")
 
-        #================================================
+        # ================================================
         # 1. Create Server and set affinity
-        #================================================ 
-        self.master_server = ray.remote(RemoteMPVLLMInferServer).options(
-            scheduling_strategy=PlacementGroupSchedulingStrategy(
-                placement_group=placement_group,
-                placement_group_bundle_index=0,  # Bind to index 0
-            ),
-            num_cpus=0,
-            resources=bundles[0]
-        ).remote()
+        # ================================================
+        self.master_server = (
+            ray.remote(RemoteMPVLLMInferServer)
+            .options(
+                scheduling_strategy=PlacementGroupSchedulingStrategy(
+                    placement_group=placement_group,
+                    placement_group_bundle_index=0,  # Bind to index 0
+                ),
+                num_cpus=0,
+                resources=bundles[0],
+            )
+            .remote()
+        )
 
         self.slave_servers = [
-            ray.remote(RemoteMPVLLMInferServer).options(
+            ray.remote(RemoteMPVLLMInferServer)
+            .options(
                 scheduling_strategy=PlacementGroupSchedulingStrategy(
                     placement_group=placement_group,
                     placement_group_bundle_index=i,  # Bind to index i
                 ),
                 num_cpus=0,
-                resources=bundles[i]
-            ).remote()
+                resources=bundles[i],
+            )
+            .remote()
             for i in range(1, len(bundles))
         ]
 
-        #================================================
+        # ================================================
         # 2. Initialize all Servers
-        #================================================ 
+        # ================================================
         master_addr = ray.get(self.master_server.get_local_addr.remote())
-        futures = [self.master_server.init_server.remote(
-            index=0, master_addr=master_addr, model_name=model_name, **kwargs
-        )] + [server.init_server.remote(index=i + 1, master_addr=master_addr, model_name=model_name, **kwargs)
-              for i, server in enumerate(self.slave_servers)]
+        futures = [
+            self.master_server.init_server.remote(index=0, master_addr=master_addr, model_name=model_name, **kwargs)
+        ] + [
+            server.init_server.remote(index=i + 1, master_addr=master_addr, model_name=model_name, **kwargs)
+            for i, server in enumerate(self.slave_servers)
+        ]
         for f in futures:
             ray.get(f)
 
         self.vllm_server_addr = f"http://{master_addr}:{kwargs['port']}"
-        self.client = AsyncOpenAI(
-            base_url=self.vllm_server_addr + '/v1/',
-            api_key='EMPTY'
-        )
+        self.client = AsyncOpenAI(base_url=self.vllm_server_addr + '/v1/', api_key='EMPTY')
         self.model = kwargs['model']
+        self.last_metrics = None
+        self.max_num_seqs = 12
         logger.info(f"VLLMMPInferServer init done: {self.model=}.")
 
     async def completions(self, request_data: Dict):
@@ -353,9 +385,7 @@ class VLLMMPInferServer(BaseInferServer):
             request_data.pop('extra_headers')
 
         # Call OpenAI SDK asynchronous method
-        completion = await self.client.chat.completions.create(
-            **request_data
-        )
+        completion = await self.client.chat.completions.create(**request_data)
 
         # Return dictionary representation of Pydantic model
         return completion.model_dump()
@@ -366,9 +396,7 @@ class VLLMMPInferServer(BaseInferServer):
         request_data['model'] = self.model
 
         # Call OpenAI SDK asynchronous method
-        stream = await self.client.chat.completions.create(
-            **request_data
-        )
+        stream = await self.client.chat.completions.create(**request_data)
 
         # Asynchronously iterate through the stream and generate dictionary representation of each chunk
         async for chunk in stream:
@@ -376,11 +404,11 @@ class VLLMMPInferServer(BaseInferServer):
             yield json_string
 
     async def collective_rpc(
-            self,
-            method: Union[str, Callable],
-            timeout: Optional[float] = 600,
-            args: Tuple = (),
-            kwargs: Optional[Dict[str, Any]] = None,
+        self,
+        method: Union[str, Callable],
+        timeout: Optional[float] = 10,
+        args: Tuple = (),
+        kwargs: Optional[Dict[str, Any]] = None,
     ) -> List:
         # Construct request body
         payload = {
@@ -395,7 +423,8 @@ class VLLMMPInferServer(BaseInferServer):
             response = requests.post(
                 collective_rpc_url,
                 json=payload,
-                timeout=timeout + 5  # The timeout for the `requests` library can be set slightly longer than the RPC timeout
+                timeout=timeout
+                + 5,  # The timeout for the `requests` library can be set slightly longer than the RPC timeout
             )
 
             response.raise_for_status()
@@ -407,11 +436,27 @@ class VLLMMPInferServer(BaseInferServer):
             return None
         except Exception as e:
             import traceback
+
             traceback.print_exc()
             raise e
 
     async def get_workload(self):
-        pass
+        metrics_url = self.vllm_server_addr + '/metrics'
+        try:
+            response = requests.get(metrics_url, timeout=30)
+            response.raise_for_status()
+            if response.status_code == 200:
+                result, metrics = parse_prometheus_text_to_json(self.last_metrics, response.text, self.max_num_seqs)
+                self.last_metrics = metrics
+                logger.info(f"metrics_url={metrics_url}, result={result}")
+                return result
+            return None
+        except Exception as e:
+            import traceback
+
+            traceback.print_exc()
+            raise e
 
     async def cancel_requests(self, *args, **kwargs):
-        pass
+        """cancel requests from AsyncVLLMServer"""
+        request_list = kwargs["requests"]

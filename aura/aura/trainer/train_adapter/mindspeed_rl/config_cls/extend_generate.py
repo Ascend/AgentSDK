@@ -4,13 +4,13 @@
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
-# 
+#
 # AgentSDK is licensed under Mulan PSL v2.
 # You can use this software according to the terms and conditions of the Mulan PSL v2.
 # You may obtain a copy of Mulan PSL v2 at:
-# 
+#
 #          http://license.coscl.org.cn/MulanPSL2
-# 
+#
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
@@ -18,7 +18,6 @@
 # -------------------------------------------------------------------------
 
 
-import os
 from mindspeed_rl import GenerateConfig
 
 
@@ -37,23 +36,22 @@ class ExtendedGenerateConfig(GenerateConfig):
         self.disable_log_stats = False
         self.enable_chunked_prefill = True
 
-        self.validate_sampling = {
-            "max_tokens": 8192,
-            "top_p": 0.5,
-            "top_k": 50,
-            "min_p": 0.01,
-            "temperature": 0.2
-        }
+        self.validate_sampling = {"max_tokens": 8192, "top_p": 0.5, "top_k": 50, "min_p": 0.01, "temperature": 0.2}
 
+        # one-step-off params
         self.init_num_group_batches = 1
-        self.hybrid_batch_num = 1
-        self.enable_version_control = False
-        self.use_on_policy = False
         self.max_queue_size = 1
         self.weight_save_dir = None
         self.update_weights_interval = 1
         self.ckpt_delta = 1
         self.data_optimized = False
+        # hybrid params
+        self.hybrid_batch_num = 1
+        self.enable_version_control = False
+        self.use_on_policy = False
+        self.wait_available_weight_timeout = (
+            -1
+        )  # -1 indicates indefinite waiting; any other value specifies the timeout duration in seconds
 
         # add prefill params
         self.prefill_enforce_eager = None

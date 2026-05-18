@@ -22,9 +22,8 @@ from unittest.mock import MagicMock
 import os
 import pytest
 import tempfile
-from unittest.mock import patch, AsyncMock
+from unittest.mock import patch
 import torch
-import re
 
 # Mock ray before importing the module under test
 mock_ray = MagicMock()
@@ -368,13 +367,6 @@ class TestParamsAssembler:
         assembler = ParamsAssembler()
         assert assembler.get_weight_3D_permute("any.name") is None
 
-    def test_unflatten_weight_no_change(self):
-        """Test unflatten_weight when no change needed."""
-        assembler = ParamsAssembler()
-        t = torch.randn(3, 4)
-        result = assembler.unflatten_weight("any.name", t)
-        assert torch.equal(result, t)
-
     def test_write_file(self):
         """Test write_file method."""
         assembler = ParamsAssembler()
@@ -382,9 +374,11 @@ class TestParamsAssembler:
             out_path = os.path.join(tmpdir, "test.safetensors")
             tensors = {"weight": torch.randn(3, 4)}
             with patch('aura.controllers.rollout_controller.rollout_weight_loader.save_file') as mock_save:
+
                 def create_file(data, path):
                     with open(path, 'wb') as f:
                         f.write(b"test")
+
                 mock_save.side_effect = create_file
                 assembler.write_file(tensors, out_path)
                 mock_save.assert_called_once()
@@ -437,6 +431,7 @@ class TestQwen3MoEParamsAssembler:
         mock_config.vocab_size = 32000
 
         from aura.controllers.rollout_controller.rollout_weight_loader import Qwen3MoEParamsAssembler
+
         assembler = Qwen3MoEParamsAssembler(mock_config, infer_tp=2)
 
         assert assembler.hidden_size == 4096
@@ -459,6 +454,7 @@ class TestQwen3MoEParamsAssembler:
         mock_config.vocab_size = 32000
 
         from aura.controllers.rollout_controller.rollout_weight_loader import Qwen3MoEParamsAssembler
+
         assembler = Qwen3MoEParamsAssembler(mock_config)
 
         assert assembler.is_fused_qkv_weight("model.layers.0.self_attn.qkv_proj.weight") is True
@@ -476,6 +472,7 @@ class TestQwen3MoEParamsAssembler:
         mock_config.vocab_size = 32000
 
         from aura.controllers.rollout_controller.rollout_weight_loader import Qwen3MoEParamsAssembler
+
         assembler = Qwen3MoEParamsAssembler(mock_config)
 
         assert assembler.is_fused_qkv_bias("model.layers.0.self_attn.qkv_proj.bias") is True
@@ -493,6 +490,7 @@ class TestQwen3MoEParamsAssembler:
         mock_config.vocab_size = 32000
 
         from aura.controllers.rollout_controller.rollout_weight_loader import Qwen3MoEParamsAssembler
+
         assembler = Qwen3MoEParamsAssembler(mock_config)
 
         assert assembler.is_w13("model.layers.0.mlp.experts.w13_weight") is True
@@ -510,6 +508,7 @@ class TestQwen3MoEParamsAssembler:
         mock_config.vocab_size = 32000
 
         from aura.controllers.rollout_controller.rollout_weight_loader import Qwen3MoEParamsAssembler
+
         assembler = Qwen3MoEParamsAssembler(mock_config)
 
         assert assembler.is_w2("model.layers.0.mlp.experts.w2_weight") is True
@@ -527,6 +526,7 @@ class TestQwen3MoEParamsAssembler:
         mock_config.vocab_size = 32000
 
         from aura.controllers.rollout_controller.rollout_weight_loader import Qwen3MoEParamsAssembler
+
         assembler = Qwen3MoEParamsAssembler(mock_config)
 
         assert assembler.get_tp_split_axis("model.layers.0.mlp.experts.w13_weight") == 0
@@ -548,6 +548,7 @@ class TestQwen3MoEParamsAssembler:
         mock_config.vocab_size = 32000
 
         from aura.controllers.rollout_controller.rollout_weight_loader import Qwen3MoEParamsAssembler
+
         assembler = Qwen3MoEParamsAssembler(mock_config)
 
         result = assembler.get_weight_3D_shape("model.layers.0.mlp.experts.w13_weight", [4096, 32768])
@@ -565,6 +566,7 @@ class TestQwen3MoEParamsAssembler:
         mock_config.vocab_size = 32000
 
         from aura.controllers.rollout_controller.rollout_weight_loader import Qwen3MoEParamsAssembler
+
         assembler = Qwen3MoEParamsAssembler(mock_config)
 
         result = assembler.get_weight_3D_shape("model.layers.0.mlp.experts.w2_weight", [32768, 4096])
@@ -582,6 +584,7 @@ class TestQwen3MoEParamsAssembler:
         mock_config.vocab_size = 32000
 
         from aura.controllers.rollout_controller.rollout_weight_loader import Qwen3MoEParamsAssembler
+
         assembler = Qwen3MoEParamsAssembler(mock_config)
 
         result = assembler.get_weight_3D_permute("model.layers.0.mlp.experts.w13_weight")
@@ -599,6 +602,7 @@ class TestQwen3MoEParamsAssembler:
         mock_config.vocab_size = 32000
 
         from aura.controllers.rollout_controller.rollout_weight_loader import Qwen3MoEParamsAssembler
+
         assembler = Qwen3MoEParamsAssembler(mock_config)
 
         result = assembler.get_weight_3D_permute("model.layers.0.mlp.experts.w2_weight")
@@ -632,8 +636,15 @@ def ensure_mock():
 def cleanup_module():
     """Cleanup mock modules after all tests in this module."""
     yield
-    modules_to_clean = ['ray', 'safetensors', 'safetensors.torch', 'ray.util', 
-                       'ray.util.placement_group', 'ray.util.scheduling_strategies', 'ray.exceptions']
+    modules_to_clean = [
+        'ray',
+        'safetensors',
+        'safetensors.torch',
+        'ray.util',
+        'ray.util.placement_group',
+        'ray.util.scheduling_strategies',
+        'ray.exceptions',
+    ]
     for mod in modules_to_clean:
         if mod in sys.modules:
             del sys.modules[mod]

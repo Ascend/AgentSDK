@@ -18,14 +18,13 @@
 # -------------------------------------------------------------------------
 
 from contextlib import ExitStack
-from typing import Any, Tuple
 from unittest.mock import patch
 
 import torch
 from vllm.compilation.counter import compilation_counter
 from vllm.compilation.monitor import validate_cudagraph_capturing_enabled
-from vllm.config import CUDAGraphMode, VllmConfig
-from vllm.forward_context import BatchDescriptor, get_forward_context
+from vllm.config import CUDAGraphMode
+from vllm.forward_context import get_forward_context
 from vllm.logger import logger
 from vllm.utils import weak_ref_tensors
 
@@ -37,35 +36,27 @@ def __call__(self, *args, **kwargs):
     batch_descriptor = forward_context.batch_descriptor
     aclgraph_runtime_mode = forward_context.cudagraph_runtime_mode
 
-    if aclgraph_runtime_mode == CUDAGraphMode.NONE or \
-            aclgraph_runtime_mode != self.runtime_mode:
+    if aclgraph_runtime_mode == CUDAGraphMode.NONE or aclgraph_runtime_mode != self.runtime_mode:
         return self.runnable(*args, **kwargs)
 
     if batch_descriptor not in self.concrete_aclgraph_entries:
-        self.concrete_aclgraph_entries[batch_descriptor] = \
-            ACLGraphEntry(batch_descriptor=batch_descriptor)
+        self.concrete_aclgraph_entries[batch_descriptor] = ACLGraphEntry(batch_descriptor=batch_descriptor)
 
     entry = self.concrete_aclgraph_entries[batch_descriptor]
 
     if entry.aclgraph is None:
         if self.aclgraph_options.debug_log_enable:
-            logger.debug("Capturing a aclgraph on (%s,%s)",
-                         self.runtime_mode.name, entry.batch_descriptor)
+            logger.debug("Capturing a aclgraph on (%s,%s)", self.runtime_mode.name, entry.batch_descriptor)
         validate_cudagraph_capturing_enabled()
 
-        input_addresses = [
-            x.data_ptr()
-            for x in args
-            if isinstance(x, torch.Tensor)
-        ]
+        input_addresses = [x.data_ptr() for x in args if isinstance(x, torch.Tensor)]
         entry.input_addresses = input_addresses
         aclgraph = torch.npu.NPUGraph()
 
         with ExitStack() as stack:
             if self.aclgraph_options.gc_disable:
                 stack.enter_context(patch("gc.collect", lambda: None))
-                stack.enter_context(
-                    patch("torch.npu.empty_cache", lambda: None))
+                stack.enter_context(patch("torch.npu.empty_cache", lambda: None))
 
             device_id = torch.npu.current_device()
             torch.npu.set_device(device_id)
@@ -88,11 +79,7 @@ def __call__(self, *args, **kwargs):
         return output
 
     if self.is_debugging_mode:
-        new_input_addresses = [
-            x.data_ptr()
-            for x in args
-            if isinstance(x, torch.Tensor)
-        ]
+        new_input_addresses = [x.data_ptr() for x in args if isinstance(x, torch.Tensor)]
         if new_input_addresses != entry.input_addresses:
             raise RuntimeError(
                 f"Input addresses for aclgraphs are different during replay. "

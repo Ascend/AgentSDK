@@ -13,7 +13,7 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
-# 
+#
 import copy
 
 import ray
@@ -31,7 +31,7 @@ from aura.trainer.train_adapter.mindspeed_rl.utils.megatron_utils import (
     initialize_megatron,
     rm_model_provider,
     gpt_model_provider,
-    parse_training_config
+    parse_training_config,
 )
 from aura.trainer.train_adapter.mindspeed_rl.workers.actor_hybrid_worker import ActorHybridWorker
 from aura.trainer.train_adapter.mindspeed_rl.workers.integrated_worker import IntegratedWorker
@@ -54,28 +54,42 @@ def prepare_train(config: dict, work_mode: str) -> tuple:
         actor_worker, reference_worker, reward_list, tokenizer, data_iters,
         val_dataloader, and test_dataloader.
     """
-    actor_config, ref_config, reward_config, rl_config, \
-        generate_config, profiler_config, msprobe_config, \
-        agentic_env_config = parse_training_config(config).values()
+    (
+        actor_config,
+        ref_config,
+        reward_config,
+        rl_config,
+        generate_config,
+        profiler_config,
+        msprobe_config,
+        agentic_env_config,
+    ) = parse_training_config(config).values()
 
-    if (hasattr(config['megatron_training'], "ai_framework") and
-            config['megatron_training']['ai_framework'] == "mindspore"):
+    if (
+        hasattr(config['megatron_training'], "ai_framework")
+        and config['megatron_training']['ai_framework'] == "mindspore"
+    ):
         from mindspeed_rl.workers.scheduler.launcher_ms import RayActorGroupMs as RayActorGroup
     else:
         from mindspeed_rl.workers.scheduler.launcher import RayActorGroup
 
     MsProbe.config_init(msprobe_config)
-    MsProbe.save_configs({
-        'actor': copy.deepcopy(actor_config.dict()),
-        'ref': copy.deepcopy(ref_config.dict()),
-        'reward': copy.deepcopy(reward_config.dict()),
-        'rl': copy.deepcopy(rl_config.dict()),
-        'generate': copy.deepcopy(generate_config.dict()),
-    })
+    MsProbe.save_configs(
+        {
+            'actor': copy.deepcopy(actor_config.dict()),
+            'ref': copy.deepcopy(ref_config.dict()),
+            'reward': copy.deepcopy(reward_config.dict()),
+            'rl': copy.deepcopy(rl_config.dict()),
+            'generate': copy.deepcopy(generate_config.dict()),
+        }
+    )
 
-    tokenizer = get_tokenizer(tokenizer_model=actor_config.tokenizer_name_or_path,
-                              prompt_type=actor_config.prompt_type, prompt_type_path=actor_config.prompt_type_path)
-    logger.info('start async initializing ray actor groups')
+    tokenizer = get_tokenizer(
+        tokenizer_model=actor_config.tokenizer_name_or_path,
+        prompt_type=actor_config.prompt_type,
+        prompt_type_path=actor_config.prompt_type_path,
+    )
+    logger.info(f'start async initializing ray actor groups, work_mode: {work_mode}')
 
     reward_list = []
 
@@ -92,12 +106,12 @@ def prepare_train(config: dict, work_mode: str) -> tuple:
             tokenizer=tokenizer,
             initialize_func=initialize_megatron,
             get_megatron_module=get_megatron_module,
-            global_batch_size=actor_config.global_batch_size * rl_config.n_samples_per_prompt
+            global_batch_size=actor_config.global_batch_size * rl_config.n_samples_per_prompt,
         ).initialize()
 
         actor_worker = integrated_worker
         reference_worker = integrated_worker
-
+        logger.info("start integrated_worker succeed")
     else:
         actor_worker = RayActorGroup(
             worker=ActorHybridWorker,
@@ -111,7 +125,7 @@ def prepare_train(config: dict, work_mode: str) -> tuple:
             tokenizer=tokenizer,
             initialize_func=initialize_megatron,
             get_megatron_module=get_megatron_module,
-            global_batch_size=actor_config.global_batch_size * rl_config.n_samples_per_prompt
+            global_batch_size=actor_config.global_batch_size * rl_config.n_samples_per_prompt,
         ).initialize()
 
         reference_worker = RayActorGroup(
@@ -124,7 +138,7 @@ def prepare_train(config: dict, work_mode: str) -> tuple:
             tokenizer=tokenizer,
             initialize_func=initialize_megatron,
             get_megatron_module=get_megatron_module,
-            global_batch_size=actor_config.global_batch_size * rl_config.n_samples_per_prompt
+            global_batch_size=actor_config.global_batch_size * rl_config.n_samples_per_prompt,
         ).initialize()
 
         if rl_config.reward_resource:
@@ -138,7 +152,7 @@ def prepare_train(config: dict, work_mode: str) -> tuple:
                 tokenizer=tokenizer,
                 initialize_func=initialize_megatron,
                 get_megatron_module=get_megatron_module,
-                global_batch_size=actor_config.global_batch_size * rl_config.n_samples_per_prompt
+                global_batch_size=actor_config.global_batch_size * rl_config.n_samples_per_prompt,
             ).initialize()
 
             reward_list.append(reward_worker)
@@ -146,8 +160,7 @@ def prepare_train(config: dict, work_mode: str) -> tuple:
     rule_reward_num_process = get_node_nums()
     if rl_config.rule_reward:
         pg = placement_group(
-            [{"CPU": rl_config.num_cpus_for_local_task} for _ in range(rule_reward_num_process)],
-            strategy='SPREAD'
+            [{"CPU": rl_config.num_cpus_for_local_task} for _ in range(rule_reward_num_process)], strategy='SPREAD'
         )
 
         ray.get(pg.ready())
@@ -167,12 +180,24 @@ def prepare_train(config: dict, work_mode: str) -> tuple:
     if work_mode == "hybrid":
         consumed_train_samples = actor_worker.get_consumed_train_samples()
         data_iters, val_dataloader, test_dataloader = default_train_dataloader(
-            actor_config, rl_config.validate_num_samples, consumed_train_samples)
+            actor_config, rl_config.validate_num_samples, consumed_train_samples
+        )
 
     reference_worker.wait_all_ref_objs_run_over()
     for reward in reward_list:
         if hasattr(reward, 'wait_all_ref_objs_run_over'):
             reward.wait_all_ref_objs_run_over()
 
-    return (actor_config, rl_config, generate_config, agentic_env_config, actor_worker,
-            reference_worker, reward_list, tokenizer, data_iters, val_dataloader, test_dataloader)
+    return (
+        actor_config,
+        rl_config,
+        generate_config,
+        agentic_env_config,
+        actor_worker,
+        reference_worker,
+        reward_list,
+        tokenizer,
+        data_iters,
+        val_dataloader,
+        test_dataloader,
+    )

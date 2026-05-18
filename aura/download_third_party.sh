@@ -1,8 +1,38 @@
 #!/bin/bash
-# 三方软件下载
+# Copyright Huawei Technologies Co., Ltd. 2021-2021. All rights reserved.
+# 三方件下载
 
 root_dir=$(realpath $(dirname $0))
 third_party_dir=${root_dir}/third_party
+
+rm -rf ${root_dir}/tmp
+mkdir -p ${root_dir}/tmp
+
+requirements_files=(
+  "requirements_with_msrl_vllm.txt"
+  "requirements_with_verl_vllm.txt"
+)
+
+echo "support following requirements:"
+number=0
+for item in "${requirements_files[@]}"; do
+  ((number++))
+  echo "    ${number}. ${item}"
+done
+read -p "chose one requirements file (1-${number}): " requirements_no
+
+index=$((requirements_no-1))
+requirements_file=${requirements_files[${index}]}
+
+echo "selected: ${requirements_file}"
+
+dos2unix ${root_dir}/third_party/${requirements_file}
+
+git config --global --unset http.proxy
+git config --global --unset https.proxy
+git config --global http.https://github.com.proxy 'http://10.50.113.120:3128'
+git config --global http.sslVerify false
+git config --global https.sslVerify false
 
 function check_succeed()
 {
@@ -10,7 +40,7 @@ function check_succeed()
   id=$2
   checkout_flag=$(git branch | grep ${id} | wc -l)
   if [[ ${checkout_flag} != "1" ]]; then
-    echo -e "\e[40;31;1m[ERROR]: \e[m${name} checkout to ${id} failed, please use 'dos2unix requirements.txt' to change format..."
+    echo -e "\e[40;31;1m[ERROR]: \e[m${name} checkout to ${id} failed, please use 'dos2unix ${requirements_file}' to change format..."
     exit 1
   fi
 }
@@ -23,7 +53,7 @@ function download_pacakge_succeed()
 
 function download_vllm_src_code()
 {
-  commit_id=$(cat ${root_dir}/requirements.txt | grep vllm | grep -v vllm_ascend | awk -F'==' '{print $2}')
+  commit_id=$(cat ${root_dir}/third_party/${requirements_file} | grep vllm | grep -v vllm_ascend | awk -F'==' '{print $2}')
   echo "start download vllm src code, version: ${commit_id}"
 
   mkdir -p ${root_dir}/tmp/vllm
@@ -43,7 +73,7 @@ function download_vllm_src_code()
 
 function download_vllm_ascend_src_code()
 {
-  commit_id=$(cat ${root_dir}/requirements.txt | grep vllm_ascend | awk -F'==' '{print $2}')
+  commit_id=$(cat ${root_dir}/third_party/${requirements_file} | grep vllm_ascend | awk -F'==' '{print $2}')
   echo "start download vllm_ascend src code, version: ${commit_id}"
 
   mkdir -p ${root_dir}/tmp/vllm_ascend
@@ -63,12 +93,12 @@ function download_vllm_ascend_src_code()
 
 function download_mindspeed_rl_src_code()
 {
-  commit_id=$(cat ${root_dir}/requirements.txt | grep mindspeed_rl | awk -F'==' '{print $2}')
+  commit_id=$(cat ${root_dir}/third_party/${requirements_file} | grep mindspeed_rl | awk -F'==' '{print $2}')
   echo "start download mindspeed_rl src code, version: ${commit_id}"
 
   mkdir -p ${root_dir}/tmp/mindspeed_rl
   cd ${root_dir}/tmp/mindspeed_rl
-  git clone https://gitee.com/ascend/MindSpeed-RL.git
+  git clone https://github.com/Ascend/MindSpeed-RL.git
   cd MindSpeed-RL
   git branch
   git checkout ${commit_id}
@@ -82,7 +112,7 @@ function download_mindspeed_rl_src_code()
 
 function download_megatron_src_code()
 {
-  branch_id=$(cat ${root_dir}/requirements.txt | grep megatron | awk -F'==' '{print $2}')
+  branch_id=$(cat ${root_dir}/third_party/${requirements_file} | grep megatron | awk -F'==' '{print $2}')
   echo "start download megatron src code, version: ${branch_id}"
 
   mkdir -p ${root_dir}/tmp/megatron
@@ -100,12 +130,12 @@ function download_megatron_src_code()
 
 function download_mindspeed_src_code()
 {
-  commit_id=$(cat ${root_dir}/requirements.txt | grep mindspeed | grep -v mindspeed_rl | grep -v mindspeed_llm | awk -F'==' '{print $2}')
+  commit_id=$(cat ${root_dir}/third_party/${requirements_file} | grep mindspeed | grep -v mindspeed_rl | grep -v mindspeed_llm | awk -F'==' '{print $2}')
   echo "start download mindspeed src code, version: ${commit_id}"
 
   mkdir -p ${root_dir}/tmp/mindspeed
   cd ${root_dir}/tmp/mindspeed
-  git clone https://gitee.com/ascend/MindSpeed.git
+  git clone https://github.com/Ascend/MindSpeed.git
   cd MindSpeed
   git branch
   git checkout ${commit_id}
@@ -119,12 +149,12 @@ function download_mindspeed_src_code()
 
 function download_mindspeed_llm_src_code()
 {
-  commit_id=$(cat ${root_dir}/requirements.txt | grep mindspeed_llm | awk -F'==' '{print $2}')
+  commit_id=$(cat ${root_dir}/third_party/${requirements_file} | grep mindspeed_llm | awk -F'==' '{print $2}')
   echo "start download mindspeed_llm src code, version: ${commit_id}"
 
   mkdir -p ${root_dir}/tmp/mindspeed_llm
   cd ${root_dir}/tmp/mindspeed_llm
-  git clone https://gitee.com/ascend/MindSpeed-LLM.git
+  git clone https://github.com/Ascend/MindSpeed-LLM.git
   cd MindSpeed-LLM
   git branch
   git checkout ${commit_id}
@@ -141,7 +171,7 @@ function download_mindspeed_llm_src_code()
 
 function download_rllm_src_code()
 {
-  branch_id=$(cat ${root_dir}/requirements.txt | grep rllm | awk -F'==' '{print $2}')
+  branch_id=$(cat ${root_dir}/third_party/${requirements_file} | grep rllm | awk -F'==' '{print $2}')
   echo "start download rllm src code, version: ${branch_id}"
 
   mkdir -p ${root_dir}/tmp/rllm
@@ -171,9 +201,6 @@ function clean_old_srcs()
   cd -
   echo -e "\e[40;32;1mclean old srcs succeed\e[m"
 }
-
-rm -rf ${root_dir}/tmp
-mkdir -p ${root_dir}/tmp
 
 clean_old_srcs
 download_vllm_src_code

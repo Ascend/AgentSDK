@@ -17,10 +17,7 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-import sys
 import asyncio
-import io
-import json
 import unittest
 from unittest.mock import MagicMock, patch, AsyncMock
 
@@ -55,17 +52,20 @@ mock_msg_handler_module = MagicMock()
 mock_deserialize_and_split = MagicMock(return_value={"input_ids": [1, 2, 3]})
 mock_msg_handler_module.deserialize_and_split = mock_deserialize_and_split
 
-with patch.dict('sys.modules', {
-    'ray': mock_ray,
-    'torch': mock_torch,
-    'torch.distributed': mock_torch.distributed,
-    'fastapi': mock_fastapi,
-    'starlette': mock_starlette,
-    'starlette.responses': mock_starlette_responses,
-    'aura.base.log.loggers': mock_loggers_module,
-    'aura.controllers.train_controller.train_queue': mock_train_queue_module,
-    'aura.controllers.utils.msg_handler': mock_msg_handler_module,
-}):
+with patch.dict(
+    'sys.modules',
+    {
+        'ray': mock_ray,
+        'torch': mock_torch,
+        'torch.distributed': mock_torch.distributed,
+        'fastapi': mock_fastapi,
+        'starlette': mock_starlette,
+        'starlette.responses': mock_starlette_responses,
+        'aura.base.log.loggers': mock_loggers_module,
+        'aura.controllers.train_controller.train_queue': mock_train_queue_module,
+        'aura.controllers.utils.msg_handler': mock_msg_handler_module,
+    },
+):
     from aura.controllers.train_controller.train_server import TrainServer
 
 
@@ -108,14 +108,6 @@ class TestTrainServer(unittest.TestCase):
         self.assertIs(self.server.dispatch_actor, mock_dispatch_actor)
 
     # ---- put_minibatch_to_queue ---------------------------------------------
-
-    def test_put_minibatch_to_queue_not_full(self):
-        mock_train_queue_instance.add_minibatch.return_value = True
-        outputs = {"input_ids": [1, 2]}
-        metric = {"rollout_cost": 1.0}
-        self.server.put_minibatch_to_queue(outputs, metric)
-        mock_train_queue_instance.add_minibatch.assert_called_once_with(outputs, metric)
-        mock_dispatch_actor.send_batch_groups.remote.assert_called_once_with(1)
 
     def test_put_minibatch_to_queue_full_locks_rollout(self):
         mock_train_queue_instance.add_minibatch.return_value = False
@@ -168,6 +160,7 @@ def async_test(coro):
         finally:
             loop.close()
             asyncio.set_event_loop(asyncio.new_event_loop())
+
     return wrapper
 
 

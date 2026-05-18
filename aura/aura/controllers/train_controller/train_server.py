@@ -30,7 +30,7 @@ from aura.controllers.train_controller.train_queue import TrainQueue
 from aura.controllers.utils.msg_handler import deserialize_and_split
 
 DEFAULT_CHUNK = 1 << 19  # 512 kb
-DEFAULT_BATCH_SIZE = 1
+DEFAULT_BATCH_SIZE = 2
 
 
 class TrainServer:
@@ -42,7 +42,7 @@ class TrainServer:
             self.queue_instance = TrainQueue(
                 max_queue_size=max_queue_size,
                 global_batch_size=global_batch_size,
-                n_samples_per_prompt=n_samples_per_prompt
+                n_samples_per_prompt=n_samples_per_prompt,
             )
         except Exception as e:
             self.logger.error(f"failed to get ray actor in Train Server: {e}")
@@ -56,7 +56,7 @@ class TrainServer:
     def put_minibatch_to_queue(self, outputs, metric):
         self.logger.info("putting minibatch to queue...")
         not_full = self.queue_instance.add_minibatch(outputs, metric)
-        self.logger.info(f"put minibatch to queue complete  {self.queue_instance.size()=} ...")
+        self.logger.info("put minibatch to queue complete ...")
         if not not_full:
             # The training end cannot handle the consumption, so suspend the inference for now.
             self.logger.info("queue is full, locking rollout unit...")
@@ -67,18 +67,18 @@ class TrainServer:
         self.dispatch_actor.send_batch_groups.remote(DEFAULT_BATCH_SIZE)
 
     async def receive_minibatch(
-            self,
-            file: UploadFile = File(...),
-            rollout_cost: float = Form(...),
-            resharding_to_infer: float = Form(...),
-            toolcall_reward_mean: float = Form(...),
-            toolcall_reward_min: float = Form(...),
-            toolcall_reward_max: float = Form(...),
-            res_reward_mean: float = Form(...),
-            res_reward_min: float = Form(...),
-            res_reward_max: float = Form(...)
+        self,
+        file: UploadFile = File(...),
+        rollout_cost: float = Form(...),
+        resharding_to_infer: float = Form(...),
+        toolcall_reward_mean: float = Form(...),
+        toolcall_reward_min: float = Form(...),
+        toolcall_reward_max: float = Form(...),
+        res_reward_mean: float = Form(...),
+        res_reward_min: float = Form(...),
+        res_reward_max: float = Form(...),
     ):
-        print(f"receive_minibatch ...")
+        print("receive_minibatch ...")
         self.logger.info("receive minibatch...")
         start_time = time.time()
         buf = io.BytesIO()
@@ -114,7 +114,7 @@ class TrainServer:
         return {"is_ready": is_ready}
 
     async def pop_minibatch(self):
-        self.logger.info(f"get a training batch ...")
+        self.logger.info("get a training batch ...")
         start_time = time.time()
         outputs, metric = self.queue_instance.pop_batch()
         buf = io.BytesIO()
@@ -124,13 +124,12 @@ class TrainServer:
         headers = {
             "Content-Type": "application/octet-stream",
             "Content-Disposition": "attachment; filename=data.bin",
-            "X-Metrics-Metadata": json.dumps(metric)
+            "X-Metrics-Metadata": json.dumps(metric),
         }
-        self.logger.info(
-            f"|perf-stat|train| get a training batch end, {self.queue_instance.size()=} cost={time.time() - start_time:.2f} s")
+        self.logger.info(f"|perf-stat|train| get a training batch end, cost={time.time() - start_time:.2f} s")
         return Response(content=file_bytes, headers=headers)
 
     async def is_ready(self):
-        self.logger.info(f"rollout unit is ready")
+        self.logger.info("rollout unit is ready")
         await self.dispatch_actor.set_rollout_unit_ready.remote()
         return {"status": "ok"}

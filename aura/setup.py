@@ -27,16 +27,13 @@ def parse_requirements(filename):
     if os.path.exists(filename):
         with open(filename, 'r') as f:
             # Remove whitespace and comments from each line
-            requirements = [
-                line.strip()
-                for line in f.readlines()
-                if line.strip() and not line.startswith('#')
-            ]
+            requirements = [line.strip() for line in f.readlines() if line.strip() and not line.startswith('#')]
     return requirements
+
 
 setup(
     name='aura',
-    version='0.1.0',
+    version='5.0.0',
     packages=find_packages(),
     install_requires=parse_requirements('requirements.txt'),
     classifiers=[
@@ -46,5 +43,5 @@ setup(
     ],
     python_requires='>=3.11',
     long_description=open('README.md').read(),
-    long_description_content_type='text/markdown'
+    long_description_content_type='text/markdown',
 )
