@@ -179,7 +179,7 @@ class ToolEnvironment(BaseEnv):
             thread.start()
 
         for thread in threads:
-            thread.join()
+            thread.join(timeout=50)
 
         # Collect results and store in order
         while not output_queue.empty():

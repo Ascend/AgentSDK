@@ -13,7 +13,7 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
-# 
+#
 import random
 from typing import Any
 
@@ -52,16 +52,7 @@ class TrainRouter:
             logger.info("Train router created.")
         return cls._router
 
-    async def train(self, name: str) -> Any:
-        """
-        Route a training request to a randomly selected executor.
-
-        Args:
-            name: Name of the training instance to invoke.
-
-        Returns:
-            Result of the executor's fit method.
-        """
+    async def train(self, name, *args, **kwargs) -> Any:
         infer_instance = await self.train_manager.get_instance.remote(name)
         executor = random.choice(infer_instance.executor_list)
         return await executor.execute_method.remote("fit")

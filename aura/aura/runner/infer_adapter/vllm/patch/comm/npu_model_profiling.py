@@ -41,10 +41,9 @@
 import os
 import re
 
-import torch
 import torch_npu
 
-PROF_SAVE_PATH = os.environ.get("PROFILING_SAVE_PATH", "./")
+prof_save_path = os.environ.get("PROFILING_SAVE_PATH", "./")
 
 
 def run_model_with_profiling(model, input_ids, positions, intermediate_tensors, inputs_embeds, stat_step, process_name):
@@ -53,20 +52,18 @@ def run_model_with_profiling(model, input_ids, positions, intermediate_tensors, 
     experimental_config = torch_npu.profiler._ExperimentalConfig(
         profiler_level=torch_npu.profiler.ProfilerLevel.Level2,
         aic_metrics=torch_npu.profiler.AiCMetrics.PipeUtilization,
-        export_type=torch_npu.profiler.ExportType.Text)
+        export_type=torch_npu.profiler.ExportType.Text,
+    )
     prof = torch_npu.profiler.profile(
-        activities=[
-            torch_npu.profiler.ProfilerActivity.NPU,
-            torch_npu.profiler.ProfilerActivity.CPU
-        ],
+        activities=[torch_npu.profiler.ProfilerActivity.NPU, torch_npu.profiler.ProfilerActivity.CPU],
         with_stack=False,
         record_shapes=True,
         profile_memory=False,
         experimental_config=experimental_config,
         schedule=torch_npu.profiler.schedule(wait=0, warmup=0, active=1, repeat=1, skip_first=0),
         on_trace_ready=torch_npu.profiler.tensorboard_trace_handler(
-            dir_name=PROF_SAVE_PATH + "_generate",
-            worker_name=process_name_new)
+            dir_name=prof_save_path + "_generate", worker_name=process_name_new
+        ),
     )
     prof.start()
 

@@ -93,14 +93,14 @@ class FieldMapper:
 
     @classmethod
     def _process_single_sample(
-            cls,
-            batch: Dict,
-            idx: int,
-            raw_data: Dict,
-            prompts_list: List,
-            responses_list: List,
-            prompt_length: int,
-            response_length: int,
+        cls,
+        batch: Dict,
+        idx: int,
+        raw_data: Dict,
+        prompts_list: List,
+        responses_list: List,
+        prompt_length: int,
+        response_length: int,
     ):
         """Handling the filling and conversion of individual samples"""
         # A. Prompt Left Padding
@@ -115,15 +115,15 @@ class FieldMapper:
 
         # C. merge input_ids [Padded Prompt | Valid Response]
         batch["input_ids"][idx, :prompt_length] = batch["prompts"][idx]
-        batch["input_ids"][idx, prompt_length:prompt_length + r_len] = r_data
+        batch["input_ids"][idx, prompt_length : prompt_length + r_len] = r_data
 
         # D. Attention Mask (The actual data positions are marked as 1)
-        batch["attention_mask"][idx, prompt_length - p_len:prompt_length + r_len] = 1
+        batch["attention_mask"][idx, prompt_length - p_len : prompt_length + r_len] = 1
 
         # E. Response Mask
         if 'response_mask' in raw_data and raw_data['response_mask'] is not None:
             rm_data = raw_data['response_mask'][idx].squeeze()
-            batch["response_mask"][idx, :rm_data.size(0)] = rm_data
+            batch["response_mask"][idx, : rm_data.size(0)] = rm_data
         else:
             # Default: All valid response tokens are 1.
             batch["response_mask"][idx, :r_len] = 1
@@ -150,7 +150,7 @@ class FieldMapper:
         batch["position_ids"][idx] = seq_pos * valid_mask
 
     @classmethod
-    def convert_dataproto_to_msrl(cls, data_proto) -> Dict:
+    def convert_data_proto_to_msrl(cls, data_proto) -> Dict:
         """
         Convert the verl DataProto back to the mindspeed_rl format (if necessary)
 

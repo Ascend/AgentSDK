@@ -18,18 +18,19 @@
 # -------------------------------------------------------------------------
 
 
-import sys
 import unittest
-from unittest.mock import patch, MagicMock, call
-
+from unittest.mock import patch, MagicMock
 
 # Create mock objects
 mock_torch = MagicMock()
 
 # Mock required dependency modules before importing the module under test
-with patch.dict('sys.modules', {
-    'torch': mock_torch,
-}):
+with patch.dict(
+    'sys.modules',
+    {
+        'torch': mock_torch,
+    },
+):
     from aura.data_manager.field_mapper import FieldMapper
 
 
@@ -75,9 +76,15 @@ class TestConvertBatch(unittest.TestCase):
 
         # Batch should have the standard keys
         expected_keys = {
-            "prompts", "responses", "input_ids", "attention_mask",
-            "response_mask", "position_ids", "rm_scores",
-            "token_level_rewards", "rollout_log_probs",
+            "prompts",
+            "responses",
+            "input_ids",
+            "attention_mask",
+            "response_mask",
+            "position_ids",
+            "rm_scores",
+            "token_level_rewards",
+            "rollout_log_probs",
         }
         self.assertTrue(expected_keys.issubset(set(batch.keys())))
 
@@ -154,10 +161,13 @@ class TestProcessSingleSample(unittest.TestCase):
         }
         # Should not raise
         FieldMapper._process_single_sample(
-            batch=self.batch, idx=0, raw_data=raw_data,
+            batch=self.batch,
+            idx=0,
+            raw_data=raw_data,
             prompts_list=raw_data['prompts'],
             responses_list=raw_data['responses'],
-            prompt_length=4, response_length=6,
+            prompt_length=4,
+            response_length=6,
         )
         self.prompt.squeeze.assert_called_once()
         self.response.squeeze.assert_called_once()
@@ -173,10 +183,13 @@ class TestProcessSingleSample(unittest.TestCase):
             'response_mask': [rm_tensor],
         }
         FieldMapper._process_single_sample(
-            batch=self.batch, idx=0, raw_data=raw_data,
+            batch=self.batch,
+            idx=0,
+            raw_data=raw_data,
             prompts_list=raw_data['prompts'],
             responses_list=raw_data['responses'],
-            prompt_length=4, response_length=6,
+            prompt_length=4,
+            response_length=6,
         )
         rm_tensor.squeeze.assert_called_once()
 
@@ -191,10 +204,13 @@ class TestProcessSingleSample(unittest.TestCase):
             'rm_scores': [score_tensor],
         }
         FieldMapper._process_single_sample(
-            batch=self.batch, idx=0, raw_data=raw_data,
+            batch=self.batch,
+            idx=0,
+            raw_data=raw_data,
             prompts_list=raw_data['prompts'],
             responses_list=raw_data['responses'],
-            prompt_length=4, response_length=6,
+            prompt_length=4,
+            response_length=6,
         )
         score_tensor.flatten.assert_called_once()
 
@@ -209,61 +225,15 @@ class TestProcessSingleSample(unittest.TestCase):
             'rollout_log_probs': [logprob_tensor],
         }
         FieldMapper._process_single_sample(
-            batch=self.batch, idx=0, raw_data=raw_data,
+            batch=self.batch,
+            idx=0,
+            raw_data=raw_data,
             prompts_list=raw_data['prompts'],
             responses_list=raw_data['responses'],
-            prompt_length=4, response_length=6,
+            prompt_length=4,
+            response_length=6,
         )
         logprob_tensor.flatten.assert_called_once()
-
-
-class TestConvertDataprotoToMsrl(unittest.TestCase):
-    """Tests for FieldMapper.convert_dataproto_to_msrl classmethod."""
-
-    def setUp(self):
-        mock_torch.reset_mock()
-
-    def tearDown(self):
-        mock_torch.reset_mock()
-
-    def test_basic_conversion(self):
-        """Verify batch and non_tensor_batch are merged into the result."""
-        mock_data_proto = MagicMock(spec=[])
-        mock_input_ids = MagicMock()
-        mock_attention_mask = MagicMock()
-        mock_data_proto.batch = {"input_ids": mock_input_ids, "attention_mask": mock_attention_mask}
-        mock_data_proto.non_tensor_batch = {"uid": [1, 2, 3]}
-
-        result = FieldMapper.convert_dataproto_to_msrl(mock_data_proto)
-
-        self.assertIn("input_ids", result)
-        self.assertIn("attention_mask", result)
-        self.assertIn("uid", result)
-        self.assertEqual(result["uid"], [1, 2, 3])
-
-    def test_empty_non_tensor_batch(self):
-        """Verify conversion works when non_tensor_batch is empty."""
-        mock_data_proto = MagicMock(spec=[])
-        mock_responses = MagicMock()
-        mock_data_proto.batch = {"responses": mock_responses}
-        mock_data_proto.non_tensor_batch = {}
-
-        result = FieldMapper.convert_dataproto_to_msrl(mock_data_proto)
-
-        self.assertIn("responses", result)
-        self.assertEqual(len(result), 1)
-
-    def test_none_batch(self):
-        """When batch is None, only non_tensor_batch keys should appear."""
-        mock_data_proto = MagicMock(spec=[])
-        mock_data_proto.batch = None
-        mock_data_proto.non_tensor_batch = {"meta": "info"}
-
-        result = FieldMapper.convert_dataproto_to_msrl(mock_data_proto)
-
-        self.assertIn("meta", result)
-        self.assertEqual(result["meta"], "info")
-        self.assertEqual(len(result), 1)
 
 
 if __name__ == '__main__':

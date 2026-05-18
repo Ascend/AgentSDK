@@ -30,10 +30,8 @@ def get_splitfuse_attn_mask_patch(
     device: torch.device,
 ) -> torch.Tensor:
     if dtype not in [torch.float16, torch.bfloat16]:
-        raise ValueError(
-            f"splitfuse_attn_mask now only supports bf16 and fp16"
-        )
-    
+        raise ValueError("splitfuse_attn_mask now only supports bf16 and fp16")
+
     max_seq_len = max(seq_lens, default=0)
     self._update_attn_cache(max_seq_len, dtype)
     mask_scale_factor = AttentionMaskBuilder.get_mask_scale_factor(dtype)

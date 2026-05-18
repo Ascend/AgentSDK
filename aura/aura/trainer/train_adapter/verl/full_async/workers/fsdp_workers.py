@@ -15,19 +15,16 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
-# 
+#
 import os
 from time import time
 
 import ray
 import torch
-from torch.distributed.fsdp import (
-    FullyShardedDataParallel as FSDP,
-    StateDictType,
-    FullStateDictConfig,
-)
+import torch.distributed.checkpoint as dcp
+from torch.distributed.checkpoint.state_dict import get_model_state_dict
 
-from recipe.fully_async_policy.fsdp_workers import DetachActorWorker
+from verl.experimental.separation.engine_workers import DetachActorWorker
 from verl.single_controller.base.decorator import Dispatch, register
 
 from aura.base.log.loggers import Loggers
@@ -46,18 +43,17 @@ class FsdpDetachActorWorker(DetachActorWorker):
             weight_save_dir: Directory path where weights will be saved.
         """
         logger.info(f"start saving weights, path={weight_save_dir}")
+        os.makedirs(weight_save_dir, exist_ok=True)
+
         start_time = time()
+        model_sd = get_model_state_dict(self.actor.engine.module)
+        dcp.save(state_dict=model_sd, checkpoint_id=weight_save_dir)
 
-        save_policy = FullStateDictConfig(offload_to_cpu=True, rank0_only=True)
-        with FSDP.state_dict_type(self.actor_module_fsdp, StateDictType.FULL_STATE_DICT, save_policy):
-            state_dict = self.actor_module_fsdp.state_dict()
-            if torch.distributed.get_rank() == 0:
-                os.makedirs(weight_save_dir, exist_ok=True)
-                from safetensors.torch import save_file
-
-                save_file(state_dict, os.path.join(weight_save_dir, "model.safetensors"))
-
-        logger.info(f"weight saving completed, path={weight_save_dir}, time={time() - start_time}")
+        logger.info(
+            f"weight saving completed, "
+            f"rank={torch.distributed.get_rank()}, "
+            f"path={weight_save_dir}, time={time() - start_time}"
+        )
 
         w_actor = ray.get_actor("weight_updater", namespace="controller_raygroup")
         w_actor.weight_saved.remote(weight_save_dir)

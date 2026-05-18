@@ -7,7 +7,6 @@ import socket
 import ray
 
 from verl.trainer.main_ppo import TaskRunner, create_rl_dataset, create_rl_sampler
-from verl.trainer.ppo.reward import load_reward_manager
 from verl.trainer.ppo.utils import need_critic, need_reference_policy
 from verl.utils.config import validate_config
 
@@ -38,13 +37,8 @@ class HybridTaskRunner(TaskRunner):
         actor_rollout_cls, ray_worker_group_cls = self.add_actor_rollout_worker(config)
         self.add_critic_worker(config)
 
-        # We should adopt a multi-source reward function here:
-        # - for rule-based rm, we directly call a reward score
-        # - for model-based rm, we call a model
-        # - for code related prompt, we send to a sandbox if there are test cases
-        # finally, we combine all the rewards together
-        # The reward type depends on the tag of the data
-        self.add_reward_model_worker(config)
+        # Add reward model resource pool (v0.7.1: changed from add_reward_model_worker)
+        self.add_reward_model_resource_pool(config)
 
         # Add a reference policy worker if KL loss or KL reward is used.
         self.add_ref_policy_worker(config, actor_rollout_cls)
@@ -52,7 +46,7 @@ class HybridTaskRunner(TaskRunner):
         # validate config
         validate_config(
             config=config,
-            use_reference_policy=need_reference_policy(self.role_worker_mapping),
+            use_reference_policy=need_reference_policy(config),
             use_critic=need_critic(config),
         )
 
@@ -69,14 +63,6 @@ class HybridTaskRunner(TaskRunner):
         tokenizer = hf_tokenizer(local_path, trust_remote_code=trust_remote_code)
         # Used for multimodal LLM, could be None
         processor = hf_processor(local_path, trust_remote_code=trust_remote_code, use_fast=True)
-
-        # Load the reward manager for training and validation.
-        reward_fn = load_reward_manager(
-            config, tokenizer, num_examine=0, **config.reward_model.get("reward_kwargs", {})
-        )
-        val_reward_fn = load_reward_manager(
-            config, tokenizer, num_examine=1, **config.reward_model.get("reward_kwargs", {})
-        )
 
         resource_pool_manager = self.init_resource_pool_mgr(config)
 
@@ -109,8 +95,6 @@ class HybridTaskRunner(TaskRunner):
             role_worker_mapping=self.role_worker_mapping,
             resource_pool_manager=resource_pool_manager,
             ray_worker_group_cls=ray_worker_group_cls,
-            reward_fn=reward_fn,
-            val_reward_fn=val_reward_fn,
             train_dataset=train_dataset,
             val_dataset=val_dataset,
             collate_fn=collate_fn,
@@ -124,14 +108,8 @@ class HybridTaskRunner(TaskRunner):
 
 
 @ray.remote
-def start_train(cluster_mode: str, train_config) -> None:
-    """Launch the hybrid PPO training pipeline.
-
-    Args:
-        cluster_mode: Cluster deployment mode identifier.
-        train_config: OmegaConf training configuration.
-    """
-    logger.info(f"train_config={train_config}, cluster_mode={cluster_mode}")
+def start_train(work_mode, train_config, rollout_config, agent_service, infer_service):
+    logger.info(f"train_config={train_config}, work_mode={work_mode}")
     from verl.trainer.main_ppo import run_ppo
     from time import time
 

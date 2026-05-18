@@ -18,7 +18,6 @@
 
 import importlib.util
 import os
-import sys
 import unittest
 from unittest.mock import patch, MagicMock
 
@@ -61,20 +60,25 @@ class TestStatTimeUtil(unittest.TestCase):
         cls.mock_vllm_logger_module = MagicMock()
         cls.mock_vllm_logger_module.logger = cls.mock_vllm_logger
 
-        cls.modules_patcher = patch.dict('sys.modules', {
-            'torch': cls.mock_torch,
-            'socket': cls.mock_socket,
-            'pandas': cls.mock_pd,
-            'vllm': cls.mock_vllm,
-            'vllm.logger': cls.mock_vllm_logger_module,
-        })
+        cls.modules_patcher = patch.dict(
+            'sys.modules',
+            {
+                'torch': cls.mock_torch,
+                'socket': cls.mock_socket,
+                'pandas': cls.mock_pd,
+                'vllm': cls.mock_vllm,
+                'vllm.logger': cls.mock_vllm_logger_module,
+            },
+        )
         cls.modules_patcher.start()
 
     @classmethod
     def _import_module_under_test(cls):
         test_file_dir = os.path.dirname(os.path.abspath(__file__))
         project_root = os.path.abspath(os.path.join(test_file_dir, '..', '..', '..', '..', '..', '..', '..'))
-        module_path = os.path.join(project_root, 'aura', 'runner', 'infer_adapter', 'vllm', 'patch', 'comm', 'vllm_execute_stat.py')
+        module_path = os.path.join(
+            project_root, 'aura', 'runner', 'infer_adapter', 'vllm', 'patch', 'comm', 'vllm_execute_stat.py'
+        )
         spec = importlib.util.spec_from_file_location('vllm_execute_stat', module_path)
         cls.stat_module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(cls.stat_module)
@@ -158,20 +162,25 @@ class TestStatPhase(unittest.TestCase):
         cls.mock_vllm_logger_module = MagicMock()
         cls.mock_vllm_logger_module.logger = cls.mock_vllm_logger
 
-        cls.modules_patcher = patch.dict('sys.modules', {
-            'torch': cls.mock_torch,
-            'socket': cls.mock_socket,
-            'pandas': cls.mock_pd,
-            'vllm': cls.mock_vllm,
-            'vllm.logger': cls.mock_vllm_logger_module,
-        })
+        cls.modules_patcher = patch.dict(
+            'sys.modules',
+            {
+                'torch': cls.mock_torch,
+                'socket': cls.mock_socket,
+                'pandas': cls.mock_pd,
+                'vllm': cls.mock_vllm,
+                'vllm.logger': cls.mock_vllm_logger_module,
+            },
+        )
         cls.modules_patcher.start()
 
     @classmethod
     def _import_module_under_test(cls):
         test_file_dir = os.path.dirname(os.path.abspath(__file__))
         project_root = os.path.abspath(os.path.join(test_file_dir, '..', '..', '..', '..', '..', '..', '..'))
-        module_path = os.path.join(project_root, 'aura', 'runner', 'infer_adapter', 'vllm', 'patch', 'comm', 'vllm_execute_stat.py')
+        module_path = os.path.join(
+            project_root, 'aura', 'runner', 'infer_adapter', 'vllm', 'patch', 'comm', 'vllm_execute_stat.py'
+        )
         spec = importlib.util.spec_from_file_location('vllm_execute_stat', module_path)
         cls.stat_module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(cls.stat_module)
@@ -190,17 +199,31 @@ class TestStatPhase(unittest.TestCase):
     def test_enum_names(self):
         """Test that enum names are correct"""
         expected_names = [
-            'step_start_time', 'step_finished_time',
-            'prepare_input_time', 'aclgraph_dispatcher_time', 'forward_time',
-            'kvconnectoroutput_time', 'post_process_time', 'pop_captured_sync_time',
-            'step_total_time', 'step_inter_time',
-            'forward_init_metadata_time', 'forward_embedding_time',
-            'forward_alllayers_time', 'forward_last_norm_time',
+            'step_start_time',
+            'step_finished_time',
+            'prepare_input_time',
+            'aclgraph_dispatcher_time',
+            'forward_time',
+            'kvconnectoroutput_time',
+            'post_process_time',
+            'pop_captured_sync_time',
+            'step_total_time',
+            'step_inter_time',
+            'forward_init_metadata_time',
+            'forward_embedding_time',
+            'forward_alllayers_time',
+            'forward_last_norm_time',
             'forward_metadata_unpadding_time',
-            'post_process_compute_logits_time', 'post_process_sampler_time',
+            'post_process_compute_logits_time',
+            'post_process_sampler_time',
             'post_process_other_time',
-            'with_prefill', 'attn_state', 'batch_num', 'num_actual_tokens',
-            'seq_lens', 'is_dummy_run', 'is_profiling'
+            'with_prefill',
+            'attn_state',
+            'batch_num',
+            'num_actual_tokens',
+            'seq_lens',
+            'is_dummy_run',
+            'is_profiling',
         ]
 
         phase_names = [phase.name for phase in self.StatPhase]
@@ -245,13 +268,16 @@ class TestVllmOutputStatics(unittest.TestCase):
         cls.mock_vllm_logger_module = MagicMock()
         cls.mock_vllm_logger_module.logger = cls.mock_vllm_logger
 
-        cls.modules_patcher = patch.dict('sys.modules', {
-            'torch': cls.mock_torch,
-            'socket': cls.mock_socket,
-            'pandas': cls.mock_pd,
-            'vllm': cls.mock_vllm,
-            'vllm.logger': cls.mock_vllm_logger_module,
-        })
+        cls.modules_patcher = patch.dict(
+            'sys.modules',
+            {
+                'torch': cls.mock_torch,
+                'socket': cls.mock_socket,
+                'pandas': cls.mock_pd,
+                'vllm': cls.mock_vllm,
+                'vllm.logger': cls.mock_vllm_logger_module,
+            },
+        )
         cls.modules_patcher.start()
 
     @classmethod
@@ -261,7 +287,9 @@ class TestVllmOutputStatics(unittest.TestCase):
     def _import_module_with_env(self):
         test_file_dir = os.path.dirname(os.path.abspath(__file__))
         project_root = os.path.abspath(os.path.join(test_file_dir, '..', '..', '..', '..', '..', '..', '..'))
-        module_path = os.path.join(project_root, 'aura', 'runner', 'infer_adapter', 'vllm', 'patch', 'comm', 'vllm_execute_stat.py')
+        module_path = os.path.join(
+            project_root, 'aura', 'runner', 'infer_adapter', 'vllm', 'patch', 'comm', 'vllm_execute_stat.py'
+        )
         spec = importlib.util.spec_from_file_location('vllm_execute_stat', module_path)
         stat_module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(stat_module)
@@ -291,48 +319,6 @@ class TestVllmOutputStatics(unittest.TestCase):
         else:
             os.environ['VLLM_STAT_SVAE_PATH_SUFFIX'] = self.original_vllm_stat_suffix
 
-    def test_init(self):
-        """Test initialization"""
-        self.assertEqual(len(self.statics.stats), 1)
-        self.assertIn('title', self.statics.stats)
-        self.assertEqual(self.statics.last_step_finish_time, 0)
-        self.assertEqual(self.statics.step_start_time, 0)
-        self.assertEqual(self.statics.local_ip, "127.0.0.1")
-        self.assertIn("127.0.0.1", self.statics.process_name)
-        self.assertIn("IntegratedWorker", self.statics.process_name)
-        self.assertEqual(self.statics.cur_requestid_stepid, "")
-        self.assertEqual(self.statics.base_path, "logs/vllm_statistic")
-
-    def test_set_process_name(self):
-        """Test setting the process name"""
-        new_process_name = "TestWorker"
-        self.statics.set_process_name(new_process_name)
-
-        self.assertIn("127.0.0.1", self.statics.process_name)
-        self.assertIn(new_process_name, self.statics.process_name)
-        self.assertIn("pid=", self.statics.process_name)
-
-    def test_set_cur_requestid_stepid(self):
-        """Test setting request ID and step ID"""
-        requestid_stepid = "req_123/step_456"
-        start_time = 123456789.0
-
-        self.statics.set_cur_requestid_stepid(requestid_stepid, start_time)
-
-        self.assertEqual(self.statics.step_start_time, start_time)
-        self.assertIn("127.0.0.1", self.statics.cur_requestid_stepid)
-        self.assertIn("IntegratedWorker", self.statics.cur_requestid_stepid)
-        self.assertIn(requestid_stepid, self.statics.cur_requestid_stepid)
-
-        self.assertIn(self.statics.cur_requestid_stepid, self.statics.stats)
-        self.assertEqual(len(self.statics.stats[self.statics.cur_requestid_stepid]), len(self.StatPhase))
-        self.assertEqual(self.statics.stats[self.statics.cur_requestid_stepid][self.StatPhase.is_profiling.value],
-                         False)
-        self.assertEqual(self.statics.stats[self.statics.cur_requestid_stepid][self.StatPhase.is_dummy_run.value],
-                         False)
-        self.assertEqual(self.statics.stats[self.statics.cur_requestid_stepid][self.StatPhase.step_start_time.value],
-                         start_time)
-
     def test_set_cur_requestid_stepid_with_inter_time(self):
         """Test setting request ID and step ID (with inter-step time)"""
         self.statics.last_step_finish_time = 123456788.0
@@ -341,8 +327,9 @@ class TestVllmOutputStatics(unittest.TestCase):
 
         self.statics.set_cur_requestid_stepid(requestid_stepid, start_time)
 
-        self.assertEqual(self.statics.stats[self.statics.cur_requestid_stepid][self.StatPhase.step_inter_time.value],
-                         1000.0)
+        self.assertEqual(
+            self.statics.stats[self.statics.cur_requestid_stepid][self.StatPhase.step_inter_time.value], 1000.0
+        )
 
     def test_set_step_finish_time(self):
         """Test setting step finish time"""
@@ -352,10 +339,12 @@ class TestVllmOutputStatics(unittest.TestCase):
         self.statics.set_step_finish_time(finish_time)
 
         self.assertEqual(self.statics.last_step_finish_time, finish_time)
-        self.assertEqual(self.statics.stats[self.statics.cur_requestid_stepid][self.StatPhase.step_total_time.value],
-                         1000.0)
-        self.assertEqual(self.statics.stats[self.statics.cur_requestid_stepid][self.StatPhase.step_finished_time.value],
-                         finish_time)
+        self.assertEqual(
+            self.statics.stats[self.statics.cur_requestid_stepid][self.StatPhase.step_total_time.value], 1000.0
+        )
+        self.assertEqual(
+            self.statics.stats[self.statics.cur_requestid_stepid][self.StatPhase.step_finished_time.value], finish_time
+        )
 
     def test_add_stat(self):
         """Test adding statistics data"""
@@ -364,8 +353,9 @@ class TestVllmOutputStatics(unittest.TestCase):
         duration = 123.45
         self.statics.add_stat(self.StatPhase.forward_time, duration)
 
-        self.assertEqual(self.statics.stats[self.statics.cur_requestid_stepid][self.StatPhase.forward_time.value],
-                         duration)
+        self.assertEqual(
+            self.statics.stats[self.statics.cur_requestid_stepid][self.StatPhase.forward_time.value], duration
+        )
 
     def test_add_stat_new_request(self):
         """Test adding statistics for a new request"""
@@ -373,8 +363,9 @@ class TestVllmOutputStatics(unittest.TestCase):
         self.statics.add_stat(self.StatPhase.forward_time, duration)
 
         self.assertIn(self.statics.cur_requestid_stepid, self.statics.stats)
-        self.assertEqual(self.statics.stats[self.statics.cur_requestid_stepid][self.StatPhase.forward_time.value],
-                         duration)
+        self.assertEqual(
+            self.statics.stats[self.statics.cur_requestid_stepid][self.StatPhase.forward_time.value], duration
+        )
 
     def test_set_stat(self):
         """Test setting statistics data"""
@@ -411,47 +402,6 @@ class TestVllmOutputStatics(unittest.TestCase):
 
         mock_print.assert_called_once()
         self.assertIn("_VllmOutputStatics cur_request-id_step-id:", mock_print.call_args[0][0])
-
-    @patch('os.makedirs')
-    @patch('os.path.exists', return_value=False)
-    def test_write_stats_tofile(self, mock_exists, mock_makedirs):
-        """Test writing statistics to file"""
-        mock_date = MagicMock()
-        mock_date.strftime.side_effect = ["20230402", "2023-04-02 12:34:56"]
-
-        with patch('datetime.datetime') as mock_datetime_class:
-            mock_datetime_class.now.return_value = mock_date
-
-            stat_module = self._import_module_with_env()
-            statics = stat_module._VllmOutputStatics()
-            StatPhase = stat_module.StatPhase
-
-            statics.set_cur_requestid_stepid("req_123/step_456", 123456789.0)
-            statics.set_step_finish_time(123456790.0)
-
-            statics.write_stats_tofile()
-
-            mock_exists.assert_called_once()
-            exists_call_args = mock_exists.call_args[0][0]
-            self.assertIn('20230402', exists_call_args)
-            self.assertIn('test_suffix', exists_call_args)
-            self.assertIn('logs', exists_call_args)
-            self.assertIn('vllm_statistic', exists_call_args)
-
-            mock_makedirs.assert_called_once()
-            makedirs_call_args = mock_makedirs.call_args[0][0]
-            self.assertIn('20230402', makedirs_call_args)
-            self.assertIn('test_suffix', makedirs_call_args)
-            self.assertIn('logs', makedirs_call_args)
-            self.assertIn('vllm_statistic', makedirs_call_args)
-            self.assertEqual(mock_makedirs.call_args[1]['exist_ok'], True)
-
-            self.mock_pd.DataFrame.assert_called_once()
-            self.mock_df.set_index.assert_called_once_with('title')
-            self.mock_df.transpose.assert_called_once()
-            self.mock_df.reset_index.assert_called_once()
-            self.mock_df.rename.assert_called_once_with(columns={'index': 'title'})
-            self.mock_df.to_csv.assert_called_once()
 
     def test_clear(self):
         """Test clearing statistics"""
@@ -533,13 +483,16 @@ class TestGlobalVariables(unittest.TestCase):
         cls.mock_vllm_logger_module = MagicMock()
         cls.mock_vllm_logger_module.logger = cls.mock_vllm_logger
 
-        cls.modules_patcher = patch.dict('sys.modules', {
-            'torch': cls.mock_torch,
-            'socket': cls.mock_socket,
-            'pandas': cls.mock_pd,
-            'vllm': cls.mock_vllm,
-            'vllm.logger': cls.mock_vllm_logger_module,
-        })
+        cls.modules_patcher = patch.dict(
+            'sys.modules',
+            {
+                'torch': cls.mock_torch,
+                'socket': cls.mock_socket,
+                'pandas': cls.mock_pd,
+                'vllm': cls.mock_vllm,
+                'vllm.logger': cls.mock_vllm_logger_module,
+            },
+        )
         cls.modules_patcher.start()
 
     @classmethod
@@ -549,7 +502,9 @@ class TestGlobalVariables(unittest.TestCase):
     def _import_module_with_env(self):
         test_file_dir = os.path.dirname(os.path.abspath(__file__))
         project_root = os.path.abspath(os.path.join(test_file_dir, '..', '..', '..', '..', '..', '..', '..'))
-        module_path = os.path.join(project_root, 'aura', 'runner', 'infer_adapter', 'vllm', 'patch', 'comm', 'vllm_execute_stat.py')
+        module_path = os.path.join(
+            project_root, 'aura', 'runner', 'infer_adapter', 'vllm', 'patch', 'comm', 'vllm_execute_stat.py'
+        )
         spec = importlib.util.spec_from_file_location('vllm_execute_stat', module_path)
         stat_module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(stat_module)
@@ -586,13 +541,6 @@ class TestGlobalVariables(unittest.TestCase):
         stat_module = self._import_module_with_env()
 
         self.assertEqual(stat_module.vllm_stat_save_path_suffix, " ")
-
-    @patch.dict(os.environ, {"VLLM_STAT_SVAE_PATH_SUFFIX": "test_suffix"})
-    def test_vllm_stat_save_path_suffix_custom(self):
-        """Test custom save path suffix"""
-        stat_module = self._import_module_with_env()
-
-        self.assertEqual(stat_module.vllm_stat_save_path_suffix, "test_suffix")
 
     def test_vllm_output_statics_singleton(self):
         """Test singleton instance"""

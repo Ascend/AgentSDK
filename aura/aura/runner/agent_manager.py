@@ -1,6 +1,21 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-import asyncio
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+#
+# AgentSDK is licensed under Mulan PSL v2.
+# You can use this software according to the terms and conditions of the Mulan PSL v2.
+# You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 import traceback
 
 import ray
@@ -12,10 +27,12 @@ from aura.runner.agent_service.agent_executor import AgentExecutor
 
 logger = Loggers(__name__).get_logger()
 
+
 class AgentManager(ExecutorManager):
     async def setup(self, *args, **kwargs) -> None:
         try:
             from aura.base.conf.conf import AgenticRLConf
+
             conf = AgenticRLConf.load_config()
             for instance_conf in conf.agent_instances:
                 logger.info(f"Agent manager instance conf: {instance_conf}")
@@ -31,6 +48,7 @@ class AgentManager(ExecutorManager):
             traceback.print_exc()
             raise e
 
+
 async def get_or_create_agent_manager():
     actor_name = "AgentManager"
     try:
@@ -40,6 +58,7 @@ async def get_or_create_agent_manager():
     manager = ray.remote(AgentManager).options(name="AgentManager", lifetime="detached").remote()
     await manager.setup.remote()
     return manager
+
 
 def destroy_agent_manager():
     actor_name = "AgentManager"

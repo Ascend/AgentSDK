@@ -24,6 +24,7 @@ import time
 from pathlib import Path
 
 import ray
+from ray.util.scheduling_strategies import NodeAffinitySchedulingStrategy
 import requests
 import torch
 from fastapi import FastAPI
@@ -36,35 +37,40 @@ from aura.controllers.train_controller.train_weight_updater import WeightUpdateA
 from aura.controllers.utils.controller_config import ControllerConfig
 from aura.controllers.utils.http_status import HTTP_OK_200
 from aura.controllers.utils.utils import (
-    create_actor, DEFAULT_SLEEP_TIME,
-    MAX_CPUS, MAX_TIMEOUT, DEFAULT_URL_METHOD)
+    create_actor,
+    kill_actor,
+    DEFAULT_SLEEP_TIME,
+    MAX_CPUS,
+    MAX_TIMEOUT,
+    DEFAULT_URL_METHOD,
+    TRAIN_CONTROLLER_NAMESPACE,
+)
 
 logger = Loggers(__name__).get_logger()
 
 
 class TrainController:
     def __init__(
-            self,
-            global_batch_size,
-            n_samples_per_prompt,
-            validate_num_samples,
-            init_num_group_batches,
-            max_queue_size,
-            train_iters,
-            weight_save_dir,
-            delta,
-            data_loader,
-            actor_worker,
-            initialize_rollout_dataloader,
-            consumed_train_samples,
-            data_optimized
+        self,
+        global_batch_size,
+        n_samples_per_prompt,
+        validate_num_samples,
+        init_num_group_batches,
+        max_queue_size,
+        train_iters,
+        weight_save_dir,
+        delta,
+        data_loader,
+        actor_worker,
+        initialize_rollout_dataloader,
+        consumed_train_samples,
+        data_optimized,
     ) -> None:
         self.dispatch_actor = None
         self.train_server = None
         self.weight_update_actor = None
 
         self.actor_worker = actor_worker
-        self.data_loader = data_loader
         self.timing_training_unit = []
         self.initialization_timeout = MAX_TIMEOUT
 
@@ -77,6 +83,7 @@ class TrainController:
         self.train_iters = train_iters
         self.weight_save_dir = weight_save_dir
         self.delta = delta
+        self.data_loader = data_loader
         self.initialize_rollout_dataloader = initialize_rollout_dataloader
         self.consumed_train_samples = consumed_train_samples
         self.data_optimized = data_optimized
@@ -95,73 +102,84 @@ class TrainController:
         self.unlock_rollout_unit()
         self.clean_train_updated_weights()
 
+    def update_rollout_weights(self, iteration: int):
+        logger.info(f">>> start to export weights, iteration={iteration}...")
+        start_time = time.time()
+        weights_path = self._create_weight_dir(iteration)
+        self.weight_update_actor.update_weights_to_file.remote(weight_save_dir=str(weights_path), iteration=iteration)
+        while not ray.get(self.weight_update_actor.update_weights_finished.remote()):
+            time.sleep(DEFAULT_SLEEP_TIME)
+        logger.info(f">>> finish export weights, iteration={iteration}, cost: {time.time() - start_time}")
+
+    def _get_old_iter_dirs(self):
+        ckpt_dir = Path(self.weight_save_dir)
+        # checkpoint filenames look like <ckpt_dir>/iter_<N>/
+        all_iters = sorted(
+            int(iter_path.name.split('_')[-1]) for iter_path in ckpt_dir.glob("iter_*") if iter_path.is_dir()
+        )
+        return ckpt_dir, all_iters
+
+    def _clean_old_iters_than_delta(self, ckpt_dir, all_iters):
+        # Remove the iters older than delta
+        if len(all_iters) > self.delta:
+            for iter_idx in range(len(all_iters) - self.delta):
+                old = str(all_iters[iter_idx])
+                old_path = ckpt_dir / f"iter_{old.zfill(7)}"
+                try:
+                    if os.path.exists(old_path):
+                        shutil.rmtree(old_path)
+                except OSError as e:
+                    logger.warning(f"Failed to delete {old_path}: {e}")
+
+    def _create_weight_dir(self, iteration: int) -> Path:
+        ckpt_dir, all_iters = self._get_old_iter_dirs()
+        self._clean_old_iters_than_delta(ckpt_dir, all_iters)
+        return ckpt_dir / f"iter_{str(iteration).zfill(7)}"
+
+    def clean_weight_files(self, iteration: int = 1):
+        ckpt_dir, all_iters = self._get_old_iter_dirs()
+        to_delete = [iter_idx for iter_idx in all_iters if iter_idx >= iteration]
+        for old in to_delete:
+            old = str(old)
+            old_path = ckpt_dir / f"iter_{old.zfill(7)}"
+            shutil.rmtree(old_path)
+
     def initialize_dispatch(self):
-        from ray.util.scheduling_strategies import NodeAffinitySchedulingStrategy
         self.dispatch_actor = create_actor(
             name="dispatch",
             cls=DispatchActor,
-            namespace="controller_raygroup",
+            namespace=TRAIN_CONTROLLER_NAMESPACE,
             options={
-                "num_cpus": MAX_CPUS, 'scheduling_strategy': NodeAffinitySchedulingStrategy(
-                    node_id=ray.get_runtime_context().node_id,
-                    soft=False)  # Compulsory strong affinity
+                "num_cpus": MAX_CPUS,
+                'scheduling_strategy': NodeAffinitySchedulingStrategy(
+                    node_id=ray.get_runtime_context().node_id, soft=False
+                ),  # Compulsory strong affinity
             },
-            actor_args=(self.n_samples_per_prompt,
-                        self.validate_num_samples,
-                        self.global_batch_size,
-                        self.train_iters,
-                        self.data_loader,
-                        self.initialize_rollout_dataloader,
-                        self.consumed_train_samples,
-                        self.data_optimized,
-                        self.rollout_server_addr),
+            actor_args=(
+                self.n_samples_per_prompt,
+                self.validate_num_samples,
+                self.global_batch_size,
+                self.train_iters,
+                self.data_loader,
+                self.initialize_rollout_dataloader,
+                self.consumed_train_samples,
+                self.data_optimized,
+                self.rollout_server_addr,
+            ),
         )
         ray.get(self.dispatch_actor.init_done.remote())
-        logger.info(f">>> dispatch actor create success")
-
-    def initialize_train_server(self):
-        logger.info(">>> initializing train server")
-        parts = self.train_server_addr.split(":")
-
-        self.train_server = TrainServer(
-            max_queue_size=self.max_queue_size,
-            global_batch_size=self.global_batch_size,
-            n_samples_per_prompt=self.n_samples_per_prompt
-        )
-
-        app = FastAPI()
-        app.include_router(self.train_server.router)
-
-        # Create a new thread to run the server
-        threading.Thread(target=start_server, args=('Train Server', app, parts[0], parts[1])).start()
-        logger.info(f">>> train server start success")
+        logger.info(">>> dispatch actor create success")
 
     def initialize_weight_updater(self):
         self.weight_update_actor = create_actor(
             name="weight_updater",
             cls=WeightUpdateActor,
-            namespace="controller_raygroup",
+            namespace=TRAIN_CONTROLLER_NAMESPACE,
             options={"num_cpus": MAX_CPUS},
-            actor_args=(self.dispatch_actor,
-                        self.actor_worker),
+            actor_args=(self.dispatch_actor, self.actor_worker),
         )
         ray.get(self.weight_update_actor.init_done.remote())
-        logger.info(f">>> weight update actor create success")
-
-    def send_initial_batch_groups_to_rollout(self):
-        self.dispatch_actor.send_batch_groups.remote(self.init_num_group_batches)
-
-    # If you need single unit controls from the driver:
-    def unlock_rollout_unit(self):
-        self.dispatch_actor.unlock_rollout_unit.remote()
-
-    def clean_train_updated_weights(self) -> None:
-        # Check if the directory exists
-        if os.path.exists(self.weight_save_dir) and os.path.isdir(self.weight_save_dir):
-            # Iterate through the two subfolders inside 'rollout'
-            for root, dirs, files in os.walk(self.weight_save_dir):
-                for file in files:
-                    os.remove(os.path.join(root, file))
+        logger.info(">>> weight update actor create success")
 
     def wait_for_rollout_unit_ready(self):
         init_time = time.time()
@@ -172,7 +190,34 @@ class TrainController:
                 raise TimeoutError("rollout unit did not signal its availability within timeout.")
         logger.info("all rollout units are ready!")
 
-    def _training_batch_queue_ready(self):
+    def data_iter_complete(self):
+        return ray.get(self.dispatch_actor.data_iter_finished.remote())
+
+    def initialize_train_server(self):
+        logger.info(">>> initializing train server")
+        parts = self.train_server_addr.split(":")
+
+        self.train_server = TrainServer(
+            max_queue_size=self.max_queue_size,
+            global_batch_size=self.global_batch_size,
+            n_samples_per_prompt=self.n_samples_per_prompt,
+        )
+
+        app = FastAPI()
+        app.include_router(self.train_server.router)
+
+        # Create a new thread to run the server
+        threading.Thread(target=start_server, args=('Train Server', app, parts[0], parts[1])).start()
+        logger.info(">>> train server start success")
+
+    def send_initial_batch_groups_to_rollout(self):
+        self.dispatch_actor.send_batch_groups.remote(self.init_num_group_batches)
+
+    # If you need single unit controls from the driver:
+    def unlock_rollout_unit(self):
+        self.dispatch_actor.unlock_rollout_unit.remote()
+
+    def training_batch_queue_ready(self):
         url = f"{DEFAULT_URL_METHOD}://{self.train_server_addr}/train/is_batch_ready"
         response = requests.post(url)
         if response.status_code != HTTP_OK_200:
@@ -181,8 +226,8 @@ class TrainController:
         return data.get("is_ready", False)
 
     def get_next_training_batch(self, last_iteration: bool = False):
-        logger.info(f"waiting next training batch ...")
-        while not self._training_batch_queue_ready():
+        logger.info("waiting next training batch ...")
+        while not self.training_batch_queue_ready():
             time.sleep(DEFAULT_SLEEP_TIME)
 
         logger.info(">>> start to get a mini batch ....")
@@ -214,43 +259,30 @@ class TrainController:
         self.timing_training_unit.append(time.time())
         self.dispatch_actor.set_current_training_iter.remote(iteration + 1)
 
+    def wait_for_rollout_quit(self):
+        while True:
+            data = ray.get(self.dispatch_actor.rollout_already_quit.remote())
+            status = data.get("Status")
+            if status == "true":
+                return
+            time.sleep(DEFAULT_SLEEP_TIME)
+
     def finish_training(self):
-        # Shut down one's own server
-        logger.info(f"stop train server succeed")
         ray.get(self.dispatch_actor.shutdown.remote())
-        # stop dispatch actor
-        ray.kill(self.dispatch_actor)
+        self.wait_for_rollout_quit()
+        logger.info("stop rollout succeed")
+
+        # 停止dispatch actor
+        kill_actor(self.dispatch_actor)
         logger.info("stop dispatch actor succeed")
         # weight update actor
-        ray.kill(self.weight_update_actor)
+        kill_actor(self.weight_update_actor)
         logger.info("stop weight update actor succeed")
 
-    def update_rollout_weights(self, iteration: int):
-        logger.info(f">>> start to export weights, iteration={iteration}...")
-        start_time = time.time()
-        weights_path = self._create_weight_dir(iteration)
-        self.weight_update_actor.update_weights_to_file.remote(weight_save_dir=str(weights_path), iteration=iteration)
-        while not ray.get(self.weight_update_actor.update_weights_finished.remote()):
-            time.sleep(DEFAULT_SLEEP_TIME)
-        logger.info(f">>> finish export weights, iteration={iteration}, cost: {time.time() - start_time}")
-
-    def _get_old_iter_dirs(self):
-        ckpt_dir = Path(self.weight_save_dir)
-        # checkpoint filenames look like <ckpt_dir>/iter_<N>/
-        all_iters = [iter_path for iter_path in ckpt_dir.glob("iter_*") if iter_path.is_dir()]
-        # Sort by modification time. The directories created earlier should be deleted first.
-        all_iters = sorted(all_iters, key=lambda iter_path: iter_path.stat().st_mtime)
-        return ckpt_dir, all_iters
-
-    def _clean_old_iters_than_delta(self, ckpt_dir, all_iters):
-        # Remove the iters older than delta
-        if len(all_iters) > self.delta:
-            for iter_idx in range(len(all_iters) - self.delta):
-                old_path = all_iters[iter_idx]
-                logger.info(f"remove the old weight dir: {old_path}")
-                shutil.rmtree(old_path)
-
-    def _create_weight_dir(self, iteration: int) -> Path:
-        ckpt_dir, all_iters = self._get_old_iter_dirs()
-        self._clean_old_iters_than_delta(ckpt_dir, all_iters)
-        return ckpt_dir / f"iter_{str(iteration).zfill(7)}"
+    def clean_train_updated_weights(self) -> None:
+        # Check if the directory exists
+        if os.path.exists(self.weight_save_dir) and os.path.isdir(self.weight_save_dir):
+            # Iterate through the two subfolders inside 'rollout'
+            for root, dirs, files in os.walk(self.weight_save_dir):
+                for file in files:
+                    os.remove(os.path.join(root, file))

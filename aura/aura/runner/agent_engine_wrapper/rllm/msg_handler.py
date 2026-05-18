@@ -17,6 +17,8 @@
 # limitations under the License.
 # -------------------------------------------------------------------------
 
+import copy
+import json
 from typing import List, Tuple
 
 from transformers import PreTrainedTokenizerBase
@@ -57,11 +59,11 @@ def get_recent_assistant_user_messages(chat_completions_messages: List[dict]) ->
 
 
 def convert_messages_to_tokens_and_masks(
-        messages: List[dict[str, str]],
-        tokenizer: PreTrainedTokenizerBase,
-        parser: ChatTemplateParser,
-        contains_first_msg: bool = False,
-        contains_generation_msg: bool = False
+    messages: List[dict[str, str]],
+    tokenizer: PreTrainedTokenizerBase,
+    parser: ChatTemplateParser,
+    contains_first_msg: bool = False,
+    contains_generation_msg: bool = False,
 ) -> Tuple[List[int], List[int]]:
     """
     Converts multiple messages to tokens and masks.
@@ -83,9 +85,7 @@ def convert_messages_to_tokens_and_masks(
     all_msg_masks = []
 
     def _convert_message_to_tokens_and_masks(
-            msg: dict,
-            first_msg: bool = False,
-            generation_msg: bool = False
+        msg: dict, first_msg: bool = False, generation_msg: bool = False
     ) -> Tuple[List[int], List[int]]:
         msg_text = parser.parse([msg], add_generation_prompt=generation_msg, is_first_msg=first_msg)
 
@@ -104,9 +104,99 @@ def convert_messages_to_tokens_and_masks(
         message_tokens, message_mask = _convert_message_to_tokens_and_masks(
             message,
             first_msg=(contains_first_msg and i == 0),
-            generation_msg=(contains_generation_msg and i == len(messages) - 1)
+            generation_msg=(contains_generation_msg and i == len(messages) - 1),
         )
         all_msg_tokens.extend(message_tokens)
         all_msg_masks.extend(message_mask)
 
     return all_msg_tokens, all_msg_masks
+
+
+def preprocess_messages_for_qwen35(messages):
+    """
+    Convert all tool_calls.function.arguments in messages from JSON strings to dicts to adapt to
+    the .items() call in the Qwen 3.5 template
+    """
+    new_messages = copy.deepcopy(messages)
+    for msg in new_messages:
+        if "tool_calls" in msg and isinstance(msg["tool_calls"], list):
+            for tc in msg["tool_calls"]:
+                func = tc.get("function", {})
+                args = func.get("arguments")
+                if isinstance(args, str):
+                    try:
+                        func["arguments"] = json.loads(args)
+                    except json.JSONDecodeError:
+                        print(f"Warning: Failed to decode arguments: {args}")
+    return new_messages
+
+
+def parse_whole_response_token_ids(
+    parser: ChatTemplateParser, messages, tools, assistant_token, enable_interleaved_think=False
+):
+    processed_messages = preprocess_messages_for_qwen35(messages)
+    asst_start_len = len(parser.tokenizer.encode(assistant_token, add_special_tokens=False))
+    first_asst_idx = next(
+        (i for i, m in enumerate(processed_messages) if m["role"] == "assistant"), len(processed_messages)
+    )
+
+    prompt_str = parser.parse(
+        processed_messages[:first_asst_idx], tools=tools, tokenize=False, add_generation_prompt=True
+    )
+    prompt_token_ids = parser.tokenizer.encode(prompt_str, add_special_tokens=False)
+
+    if enable_interleaved_think:
+        interleaved_think_msg = copy.deepcopy(processed_messages)
+        for msg in interleaved_think_msg:
+            if msg["role"] == "assistant" and "<think>" in msg.get("content", ""):
+                msg["content"] = (
+                    msg["content"].replace("<think>", "<past_thought>").replace("</think>", "</past_thought>")
+                )
+        full_str = parser.parse(interleaved_think_msg, tools=tools, tokenize=False, add_generation_prompt=False)
+        full_str = full_str.replace("<past_thought>", "<think>").replace("</past_thought>", "</think>")
+    else:
+        full_str = parser.parse(processed_messages, tools=tools, tokenize=False, add_generation_prompt=False)
+
+    full_token_ids = parser.tokenizer.encode(full_str, add_special_tokens=False)
+    full_mask = [0] * len(full_token_ids)
+    current_pos = len(prompt_token_ids)
+
+    is_first = True
+    for i in range(first_asst_idx + 1, len(processed_messages) + 1):
+        if enable_interleaved_think:
+            interleaved_think_msg = copy.deepcopy(processed_messages)
+            for msg in interleaved_think_msg:
+                if msg["role"] == "assistant" and "<think>" in msg.get("content", ""):
+                    msg["content"] = (
+                        msg["content"].replace("<think>", "<past_thought>").replace("</think>", "</past_thought>")
+                    )
+            sub_prompt = parser.parse(
+                interleaved_think_msg[:i], tools=tools, tokenize=False, add_generation_prompt=False
+            )
+            sub_prompt = sub_prompt.replace("<past_thought>", "<think>").replace("</past_thought>", "</think>")
+        else:
+            sub_prompt = parser.parse(processed_messages[:i], tools=tools, tokenize=False, add_generation_prompt=False)
+
+        sub_ids = parser.tokenizer.encode(sub_prompt, add_special_tokens=False)
+        start_idx = current_pos
+        end_idx = len(sub_ids)
+        if processed_messages[i - 1]["role"] == "assistant":
+            if is_first:
+                actual_content_start = min(start_idx, end_idx)
+                is_first = False
+            else:
+                actual_content_start = min(start_idx + asst_start_len, end_idx)
+
+            # Only the assistant content within the response area is marked as 1
+            for j in range(actual_content_start, end_idx):
+                full_mask[j] = 1
+
+        current_pos = end_idx
+
+    # response_mask has automatically excluded the Prompt area (because the Prompt area corresponds to i <= first_asst_idx).
+    response_token_ids = full_token_ids[len(prompt_token_ids) :]
+    response_mask = full_mask[len(prompt_token_ids) :]
+
+    if len(response_token_ids) != len(response_mask):
+        raise ValueError(f"Length mismatch: ids({len(response_token_ids)}) != mask({len(response_mask)})")
+    return prompt_token_ids, response_token_ids, response_mask

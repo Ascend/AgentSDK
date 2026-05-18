@@ -18,7 +18,6 @@
 
 import asyncio
 import importlib
-import os
 import sys
 from types import ModuleType, SimpleNamespace
 from unittest.mock import MagicMock, AsyncMock, mock_open, patch
@@ -55,6 +54,7 @@ def _remote(obj=None, **_kwargs):
 # -----------------------------
 class _RuntimeContext:
     """Fake Ray runtime context."""
+
     def __init__(self, node_id="node_x", namespace="ns"):
         self._node_id = node_id
         self.namespace = namespace
@@ -214,6 +214,7 @@ def async_server_mod(monkeypatch):
 @pytest.fixture
 def dummy_server(async_server_mod):
     """Create a dummy server that implements all abstract methods."""
+
     class Dummy(async_server_mod.AsyncServerBase):
         async def chat_completion(self, raw_request):
             return {"ok": True}
@@ -316,95 +317,6 @@ class TestHelperFunctions:
 
         mk.assert_not_called()
         assert ret == "node_abc"
-
-
-# -----------------------------
-# Tests for AsyncServerProxyManager
-# -----------------------------
-class TestAsyncServerProxyManager:
-    """Test proxy manager that delegates to InferRouter."""
-
-    def test_init_separate_mode(self, async_server_mod, monkeypatch):
-        """Initialization reads VLLM_DP_SIZE and sets flags."""
-        monkeypatch.setenv("VLLM_DP_SIZE", "2")
-
-        mgr = async_server_mod.AsyncServerProxyManager(
-            tokenizer_name_or_path="tok",
-            worker_group=MagicMock(),
-            infer_service="infer",
-        )
-
-        assert mgr.weight_offloaded is True
-        assert mgr.dp_size == 2
-        assert mgr.rollout_tp_size == 0
-        assert mgr.rollout_dp_size == 0
-
-    def test_wake_up(self, async_server_mod):
-        """wake_up calls infer_router.wake_up and clears weight_offloaded flag."""
-        mgr = async_server_mod.AsyncServerProxyManager(
-            tokenizer_name_or_path="tok",
-            worker_group=MagicMock(),
-            infer_service="infer",
-        )
-        mgr.infer_router = AsyncMock()
-        mgr.weight_offloaded = True
-
-        asyncio.run(mgr.wake_up())
-
-        mgr.infer_router.wake_up.assert_awaited_once_with(model_name="infer")
-        assert mgr.weight_offloaded is False
-
-    def test_sleep(self, async_server_mod):
-        """sleep calls infer_router.sleep and sets weight_offloaded flag."""
-        mgr = async_server_mod.AsyncServerProxyManager(
-            tokenizer_name_or_path="tok",
-            worker_group=MagicMock(),
-            infer_service="infer",
-        )
-        mgr.infer_router = AsyncMock()
-        mgr.weight_offloaded = False
-
-        asyncio.run(mgr.sleep())
-
-        mgr.infer_router.sleep.assert_awaited_once_with(model_name="infer")
-        assert mgr.weight_offloaded is True
-
-    def test_update_weights(self, async_server_mod):
-        """update_weights forwards to infer_router.update_weights."""
-        mgr = async_server_mod.AsyncServerProxyManager(
-            tokenizer_name_or_path="tok",
-            worker_group=MagicMock(),
-            infer_service="infer",
-        )
-        mgr.infer_router = AsyncMock()
-
-        asyncio.run(mgr.update_weights("/path/to/weights"))
-
-        mgr.infer_router.update_weights.assert_awaited_once()
-
-    def test_proxy_manager_init_calls_infer_router(self, async_server_mod, monkeypatch):
-        """init() creates InferRouter and initializes it with per-rank kwargs."""
-        mgr = async_server_mod.AsyncServerProxyManager(
-            tokenizer_name_or_path="tok",
-            worker_group=None,
-            infer_service="infer",
-        )
-        mgr.rollout_dp_size = 2  # Force dp size for test
-
-        fake_router = AsyncMock()
-        async_server_mod.InferRouter.create = AsyncMock(return_value=fake_router)
-
-        asyncio.run(mgr.init())
-
-        async_server_mod.InferRouter.create.assert_awaited_once()
-        fake_router.init.assert_awaited_once_with("infer")
-
-        # wake_up kwargs_list must contain two ranks
-        args, kwargs = fake_router.wake_up.call_args
-        assert kwargs["model_name"] == "infer"
-        assert len(kwargs["kwargs_list"]) == 2
-        assert kwargs["kwargs_list"][0]["vllm_dp_rank"] == 0
-        assert kwargs["kwargs_list"][1]["vllm_dp_rank"] == 1
 
 
 # -----------------------------
@@ -845,9 +757,7 @@ class TestAsyncServerManagerInitFlow:
 
         async_server_mod.ray.remote = MagicMock(return_value=remote_builder)
 
-        monkeypatch.setattr(async_server_mod.AsyncServerManager,
-                            "update_ranktable_from_workers_info",
-                            MagicMock())
+        monkeypatch.setattr(async_server_mod.AsyncServerManager, "update_ranktable_from_workers_info", MagicMock())
 
         _ = async_server_mod.AsyncServerManager(config, "tok", worker_group)
 

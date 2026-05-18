@@ -27,7 +27,7 @@ import numpy as np
 from aura.runner.agent_engine_wrapper.base.agent.base_agent import Trajectory
 
 
-def compute_trajectory_reward_raw(trajectory: Trajectory) -> Trajectory:
+def compute_trajectory_reward_raw(trajectory: "Trajectory") -> "Trajectory":
     """
     Add trajectory reward to the dict of each interaction.
 
@@ -45,7 +45,7 @@ def compute_trajectory_reward_raw(trajectory: Trajectory) -> Trajectory:
     return trajectory
 
 
-def compute_trajectory_reward(trajectory: Trajectory) -> Trajectory:
+def compute_trajectory_reward(trajectory: "Trajectory") -> "Trajectory":
     """
     Add trajectory reward to the dict of each interaction.
 
@@ -73,7 +73,7 @@ def compute_trajectory_reward(trajectory: Trajectory) -> Trajectory:
     return trajectory
 
 
-def compute_mc_return(trajectory: Trajectory, gamma: float = 0.95) -> Trajectory:
+def compute_mc_return(trajectory: "Trajectory", gamma: float = 0.95) -> "Trajectory":
     """
     In-place Monte Carlo returns for a Trajectory dataclass.
 

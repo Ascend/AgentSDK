@@ -18,18 +18,14 @@
 # limitations under the License.
 # -------------------------------------------------------------------------
 
-
-# Standard library imports
 import os
 import asyncio
 from typing import Dict, Union, Callable, Optional, Tuple, Any
 from typing_extensions import TypeVar
 
-# vLLM imports
 from vllm import AsyncEngineArgs
 from vllm.entrypoints.openai.protocol import ChatCompletionRequest
 
-# Internal imports
 from aura.base.log.loggers import Loggers
 from aura.runner.infer_service.base_infer_server import BaseInferServer
 from aura.runner.scheduler.load_stat import WorkloadStatLogger, vllm_log_stats_periodically
@@ -47,8 +43,15 @@ class VLLMRayInferServer(BaseInferServer):
         from vllm.entrypoints.openai.serving_models import BaseModelPath
         from vllm.entrypoints.openai.serving_models import OpenAIServingModels
 
+        from aura.base.utils.run_env import get_vllm_version
+
+        os.environ["VLLM_VERSION"] = get_vllm_version()
+        logger.info(f"vllm version: {get_vllm_version()}")
+
         # init async llm engine
-        kwargs["worker_extension_cls"] = "aura.runner.infer_adapter.vllm.extension.custom_worker_extensions.CustomWorkerExtensions"
+        kwargs["worker_extension_cls"] = (
+            "aura.runner.infer_adapter.vllm.extension.custom_worker_extensions.CustomWorkerExtensions"
+        )
         logger.info(f"VLLMInferServer kwargs={kwargs}")
         dp_size = int(os.getenv("VLLM_DP_SIZE", "1"))
         self.ins_workload = InstanceWorkLoad(dp_size=dp_size)
@@ -56,8 +59,9 @@ class VLLMRayInferServer(BaseInferServer):
         vllm_config = engine_args.create_engine_config()
         vllm_config.workload = self.ins_workload
         disable_log_stats = False
-        self.engine = AsyncLLM.from_vllm_config(vllm_config, disable_log_stats=disable_log_stats,
-            stat_loggers=[WorkloadStatLogger])
+        self.engine = AsyncLLM.from_vllm_config(
+            vllm_config, disable_log_stats=disable_log_stats, stat_loggers=[WorkloadStatLogger]
+        )
         if not disable_log_stats:
             asyncio.create_task(vllm_log_stats_periodically(self))
 
@@ -90,11 +94,11 @@ class VLLMRayInferServer(BaseInferServer):
             yield response[6:]
 
     async def collective_rpc(
-            self,
-            method: Union[str, Callable],
-            timeout: Optional[float] = None,
-            args: Tuple = (),
-            kwargs: Optional[Dict[str, Any]] = None,
+        self,
+        method: Union[str, Callable],
+        timeout: Optional[float] = None,
+        args: Tuple = (),
+        kwargs: Optional[Dict[str, Any]] = None,
     ) -> list[_R]:
         logger.info(f"exec collective_rpc, method={method}, args={args}, kwargs={kwargs}")
         return await self.engine.collective_rpc(method, timeout, args, kwargs)

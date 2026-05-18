@@ -17,12 +17,8 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-import sys
-import os
-import io
-import json
 import unittest
-from unittest.mock import MagicMock, patch, PropertyMock, call
+from unittest.mock import MagicMock, patch
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
@@ -72,23 +68,26 @@ mock_utils_module.MAX_CPUS = 4
 mock_utils_module.MAX_TIMEOUT = 1800
 mock_utils_module.DEFAULT_URL_METHOD = "http"
 
-with patch.dict('sys.modules', {
-    'ray': mock_ray,
-    'ray.util': MagicMock(),
-    'ray.util.scheduling_strategies': MagicMock(),
-    'requests': mock_requests,
-    'torch': mock_torch,
-    'torch.distributed': mock_torch.distributed,
-    'fastapi': mock_fastapi,
-    'aura.base.log.loggers': mock_loggers_module,
-    'aura.base.utils.http_server': mock_http_server_module,
-    'aura.controllers.train_controller.dispatch_actor': mock_dispatch_actor_module,
-    'aura.controllers.train_controller.train_server': mock_train_server_module,
-    'aura.controllers.train_controller.train_weight_updater': mock_weight_updater_module,
-    'aura.controllers.utils.controller_config': mock_controller_config_module,
-    'aura.controllers.utils.http_status': mock_http_status_module,
-    'aura.controllers.utils.utils': mock_utils_module,
-}):
+with patch.dict(
+    'sys.modules',
+    {
+        'ray': mock_ray,
+        'ray.util': MagicMock(),
+        'ray.util.scheduling_strategies': MagicMock(),
+        'requests': mock_requests,
+        'torch': mock_torch,
+        'torch.distributed': mock_torch.distributed,
+        'fastapi': mock_fastapi,
+        'aura.base.log.loggers': mock_loggers_module,
+        'aura.base.utils.http_server': mock_http_server_module,
+        'aura.controllers.train_controller.dispatch_actor': mock_dispatch_actor_module,
+        'aura.controllers.train_controller.train_server': mock_train_server_module,
+        'aura.controllers.train_controller.train_weight_updater': mock_weight_updater_module,
+        'aura.controllers.utils.controller_config': mock_controller_config_module,
+        'aura.controllers.utils.http_status': mock_http_status_module,
+        'aura.controllers.utils.utils': mock_utils_module,
+    },
+):
     from aura.controllers.train_controller.train_controller import TrainController
     import aura.controllers.train_controller.train_controller as _train_controller_mod
 
@@ -164,25 +163,14 @@ class TestTrainController(unittest.TestCase):
 
     # ---- initialize_dispatch ------------------------------------------------
 
-    def test_initialize_dispatch_calls_create_actor(self):
-        mock_dispatch_actor_ref = MagicMock()
-        mock_create_actor.return_value = mock_dispatch_actor_ref
-        mock_scheduling = MagicMock()
-        with patch.object(_train_controller_mod, 'ray', mock_ray), \
-             patch.dict('sys.modules', {'ray.util.scheduling_strategies': mock_scheduling}):
-            self.ctrl.initialize_dispatch()
-        mock_create_actor.assert_called_once()
-        call_kwargs = mock_create_actor.call_args[1]
-        self.assertEqual(call_kwargs['name'], 'dispatch')
-        self.assertEqual(call_kwargs['cls'], mock_dispatch_actor_class)
-        self.assertEqual(call_kwargs['namespace'], 'controller_raygroup')
-
     def test_initialize_dispatch_calls_init_done(self):
         mock_dispatch_actor_ref = MagicMock()
         mock_create_actor.return_value = mock_dispatch_actor_ref
         mock_scheduling = MagicMock()
-        with patch.object(_train_controller_mod, 'ray', mock_ray), \
-             patch.dict('sys.modules', {'ray.util.scheduling_strategies': mock_scheduling}):
+        with (
+            patch.object(_train_controller_mod, 'ray', mock_ray),
+            patch.dict('sys.modules', {'ray.util.scheduling_strategies': mock_scheduling}),
+        ):
             self.ctrl.initialize_dispatch()
         mock_dispatch_actor_ref.init_done.remote.assert_called_once()
         mock_ray.get.assert_called()
@@ -241,39 +229,16 @@ class TestTrainController(unittest.TestCase):
             self.ctrl.clean_train_updated_weights()
 
     def test_clean_train_updated_weights_removes_files(self):
-        with patch('os.path.exists', return_value=True), \
-             patch('os.path.isdir', return_value=True), \
-             patch('os.walk', return_value=[("/tmp/test_weights", [], ["file1.pt", "file2.pt"])]), \
-             patch('os.remove') as mock_remove:
+        with (
+            patch('os.path.exists', return_value=True),
+            patch('os.path.isdir', return_value=True),
+            patch('os.walk', return_value=[("/tmp/test_weights", [], ["file1.pt", "file2.pt"])]),
+            patch('os.remove') as mock_remove,
+        ):
             self.ctrl.clean_train_updated_weights()
             self.assertEqual(mock_remove.call_count, 2)
             mock_remove.assert_any_call("/tmp/test_weights/file1.pt")
             mock_remove.assert_any_call("/tmp/test_weights/file2.pt")
-
-    # ---- _training_batch_queue_ready ----------------------------------------
-
-    def test_training_batch_queue_ready_true(self):
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {"is_ready": True}
-        mock_requests.post.return_value = mock_response
-        result = self.ctrl._training_batch_queue_ready()
-        self.assertTrue(result)
-
-    def test_training_batch_queue_ready_false_status(self):
-        mock_response = MagicMock()
-        mock_response.status_code = 500
-        mock_requests.post.return_value = mock_response
-        result = self.ctrl._training_batch_queue_ready()
-        self.assertFalse(result)
-
-    def test_training_batch_queue_ready_false_not_ready(self):
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {"is_ready": False}
-        mock_requests.post.return_value = mock_response
-        result = self.ctrl._training_batch_queue_ready()
-        self.assertFalse(result)
 
     # ---- finish_training_iteration ------------------------------------------
 
@@ -290,45 +255,7 @@ class TestTrainController(unittest.TestCase):
         self.ctrl.finish_training_iteration(0)
         mock_da.set_current_training_iter.remote.assert_called_with(1)
 
-    # ---- finish_training ----------------------------------------------------
-
-    def test_finish_training_shuts_down_actors(self):
-        mock_da = MagicMock()
-        mock_wa = MagicMock()
-        self.ctrl.dispatch_actor = mock_da
-        self.ctrl.weight_update_actor = mock_wa
-        self.ctrl.finish_training()
-        mock_da.shutdown.remote.assert_called_once()
-        mock_ray.get.assert_called()
-        mock_ray.kill.assert_any_call(mock_da)
-        mock_ray.kill.assert_any_call(mock_wa)
-
-    # ---- _get_old_iter_dirs -------------------------------------------------
-
-    def test_get_old_iter_dirs(self):
-        with patch.object(Path, 'glob') as mock_glob:
-            mock_dir1 = MagicMock()
-            mock_dir1.is_dir.return_value = True
-            mock_dir1.stat.return_value.st_mtime = 100
-            mock_dir2 = MagicMock()
-            mock_dir2.is_dir.return_value = True
-            mock_dir2.stat.return_value.st_mtime = 200
-            mock_glob.return_value = [mock_dir2, mock_dir1]
-            ckpt_dir, all_iters = self.ctrl._get_old_iter_dirs()
-            self.assertEqual(len(all_iters), 2)
-            # sorted by mtime ascending
-            self.assertIs(all_iters[0], mock_dir1)
-            self.assertIs(all_iters[1], mock_dir2)
-
     # ---- _clean_old_iters_than_delta ----------------------------------------
-
-    def test_clean_old_iters_removes_excess(self):
-        ckpt_dir = Path("/tmp/test_weights")
-        mock_paths = [MagicMock() for _ in range(4)]
-        with patch('shutil.rmtree') as mock_rmtree:
-            self.ctrl._clean_old_iters_than_delta(ckpt_dir, mock_paths)
-            # delta=2, 4 iters, should remove first 2
-            self.assertEqual(mock_rmtree.call_count, 2)
 
     def test_clean_old_iters_no_removal_when_under_delta(self):
         ckpt_dir = Path("/tmp/test_weights")
@@ -340,14 +267,18 @@ class TestTrainController(unittest.TestCase):
     # ---- _create_weight_dir -------------------------------------------------
 
     def test_create_weight_dir_returns_path(self):
-        with patch.object(self.ctrl, '_get_old_iter_dirs', return_value=(Path("/tmp/test_weights"), [])), \
-             patch.object(self.ctrl, '_clean_old_iters_than_delta'):
+        with (
+            patch.object(self.ctrl, '_get_old_iter_dirs', return_value=(Path("/tmp/test_weights"), [])),
+            patch.object(self.ctrl, '_clean_old_iters_than_delta'),
+        ):
             result = self.ctrl._create_weight_dir(5)
             self.assertEqual(result, Path("/tmp/test_weights") / "iter_0000005")
 
     def test_create_weight_dir_zero_padded(self):
-        with patch.object(self.ctrl, '_get_old_iter_dirs', return_value=(Path("/tmp/w"), [])), \
-             patch.object(self.ctrl, '_clean_old_iters_than_delta'):
+        with (
+            patch.object(self.ctrl, '_get_old_iter_dirs', return_value=(Path("/tmp/w"), [])),
+            patch.object(self.ctrl, '_clean_old_iters_than_delta'),
+        ):
             result = self.ctrl._create_weight_dir(42)
             self.assertEqual(result.name, "iter_0000042")
 

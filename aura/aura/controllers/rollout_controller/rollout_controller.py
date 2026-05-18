@@ -30,7 +30,14 @@ from aura.controllers.rollout_controller.rollout_queue import RolloutQueueActor
 from aura.controllers.rollout_controller.rollout_server import RolloutServer
 from aura.controllers.rollout_controller.rollout_weight_manager import RolloutWeightManager
 from aura.controllers.utils.controller_config import ControllerConfig
-from aura.controllers.utils.utils import create_actor, MAX_CONCURRENCY, DEFAULT_CPUS
+from aura.controllers.utils.utils import (
+    create_actor,
+    kill_actor,
+    MAX_CONCURRENCY,
+    DEFAULT_CPUS,
+    DEFAULT_SLEEP_TIME,
+    TRAIN_CONTROLLER_NAMESPACE,
+)
 
 logger = Loggers(__name__).get_logger()
 
@@ -68,18 +75,17 @@ class RolloutController:
         self.rollout_queue_actor = create_actor(
             name="rollout_queue",
             cls=RolloutQueueActor,
-            namespace="controller_raygroup",
+            namespace=TRAIN_CONTROLLER_NAMESPACE,
             options={"num_cpus": DEFAULT_CPUS, "max_concurrency": MAX_CONCURRENCY},
         )
         ray.get(self.rollout_queue_actor.init_done.remote())
-        logger.info(f">>> rollout queue actor create succeed")
+        logger.info(">>> rollout queue actor create succeed")
 
     def initialize_rollout_server(self):
         parts = self.rollout_server_addr.split(":")
 
         self.rollout_server = RolloutServer(
-            rollout_queue=self.rollout_queue_actor,
-            rollout_weight_manager=self.rollout_weight_manager
+            rollout_queue=self.rollout_queue_actor, rollout_weight_manager=self.rollout_weight_manager
         )
 
         app = FastAPI()
@@ -87,15 +93,15 @@ class RolloutController:
 
         # Create a new thread to run the server
         threading.Thread(target=start_server, args=('Rollout Server', app, parts[0], parts[1])).start()
-        logger.info(f">>> rollout server start succeed")
+        logger.info(">>> rollout server start succeed")
 
     def initialize_rollout_weight_manager(self, **kwargs):
         self.rollout_weight_manager = create_actor(
             name="rollout_weight_manager",
             cls=RolloutWeightManager,
-            namespace="controller_raygroup",
+            namespace=TRAIN_CONTROLLER_NAMESPACE,
             options={"num_cpus": DEFAULT_CPUS, "max_concurrency": MAX_CONCURRENCY},
-            actor_kwargs=kwargs
+            actor_kwargs=kwargs,
         )
         ray.get(self.rollout_weight_manager.init_done.remote())
         logger.info(">>> initialized rollout weight manager succeed")
@@ -106,13 +112,14 @@ class RolloutController:
 
     def finish_rollout(self):
         while not self.rollout_server.is_shutdown:
-            time.sleep(3)
-            logger.info(f"Rollout wait for shutdown ...")
+            time.sleep(DEFAULT_SLEEP_TIME)
+            logger.info("Rollout wait for shutdown ...")
         # stop rollout server
-        logger.info(f"stop rollout server succeed")
+        logger.info("shutdown rollout server succeed")
         # stop dispatch actor
-        ray.kill(self.rollout_queue_actor)
+        kill_actor(self.rollout_queue_actor)
         logger.info("stop rollout queue actor succeed")
         # stop rollout_weight_manager
-        ray.kill(self.rollout_weight_manager)
+        kill_actor(self.rollout_weight_manager)
         logger.info("stop rollout rollout weight manager succeed")
+        self.rollout_server.already_quit = True

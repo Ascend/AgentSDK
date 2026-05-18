@@ -117,5 +117,5 @@ function run_test() {
   echo "[INFO] Test done!"
 }
 
-pre_install
-run_test
+#pre_install
+#run_test

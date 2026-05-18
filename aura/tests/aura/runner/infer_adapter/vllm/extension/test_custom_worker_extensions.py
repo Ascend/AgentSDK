@@ -16,7 +16,6 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-import os
 import sys
 import types
 import json
@@ -29,8 +28,10 @@ from unittest.mock import patch, MagicMock
 # Fake Torch (DO NOT import real torch, otherwise _C docstring issues)
 # =============================================================================
 
+
 class FakeDType:
     """Fake torch.dtype with a name attribute."""
+
     def __init__(self, name):
         self.name = name
 
@@ -40,6 +41,7 @@ class FakeDType:
 
 class FakeDevice:
     """Fake torch.device that mimics device string parsing."""
+
     def __init__(self, dev, index=None):
         if isinstance(dev, FakeDevice):
             self.type = dev.type
@@ -64,6 +66,7 @@ class FakeDevice:
 
 class FakeStorage:
     """Fake tensor storage with size tracking."""
+
     def __init__(self, size):
         self._size = size
 
@@ -79,6 +82,7 @@ class FakeTensor:
     Minimal fake tensor that supports shape, dtype, device, contiguity,
     and basic methods needed for tests.
     """
+
     def __init__(self, shape, dtype=None, device="cpu", contiguous=True):
         self.shape = tuple(shape)
         self.dtype = dtype
@@ -129,6 +133,7 @@ class FakeNoGrad:
     """
     Fake torch.no_grad() that works both as context manager and decorator.
     """
+
     def __enter__(self):
         return self
 
@@ -141,6 +146,7 @@ class FakeNoGrad:
 
 class FakeCuda:
     """Fake torch.cuda module."""
+
     def __init__(self):
         self._avail = False
 
@@ -162,6 +168,7 @@ class FakeCuda:
 
 class FakeNpu:
     """Fake torch.npu module."""
+
     def __init__(self):
         self._cur = 0
         self._avail = True
@@ -188,6 +195,7 @@ class FakeNpu:
 
 class FakeDistributed:
     """Fake torch.distributed module."""
+
     def __init__(self):
         self.broadcast = MagicMock(name="broadcast")
 
@@ -241,6 +249,7 @@ def _build_fake_torch():
 # External dependency fakes
 # =============================================================================
 
+
 def _build_fake_modules():
     """
     Create fake modules for external dependencies like acl, safetensors,
@@ -256,13 +265,14 @@ def _build_fake_modules():
     fake_safetensors_torch.safe_open = MagicMock(name="safe_open")
     fake_safetensors.torch = fake_safetensors_torch
 
-    fake_stat_mod = types.ModuleType(
-        "aura.runner.infer_adapter.vllm.patch.comm.vllm_execute_stat"
-    )
+    fake_stat_mod = types.ModuleType("aura.runner.infer_adapter.vllm.patch.comm.vllm_execute_stat")
     fake_stat_obj = MagicMock(name="vllm_output_statics")
     fake_stat_obj.write_stats_tofile = MagicMock()
     fake_stat_obj.clear = MagicMock()
     fake_stat_mod.vllm_output_statics = fake_stat_obj
+
+    fake_vllm = types.ModuleType("vllm")
+    fake_vllm_distributed = types.ModuleType("vllm.distributed")
 
     fake_verl = types.ModuleType("verl")
     fake_verl_utils = types.ModuleType("verl.utils")
@@ -271,9 +281,7 @@ def _build_fake_modules():
 
     fake_verl_utils_vllm = types.ModuleType("verl.utils.vllm")
     fake_verl_utils_vllm_patch = types.ModuleType("verl.utils.vllm.patch")
-    fake_verl_utils_vllm_patch.patch_vllm_moe_model_weight_loader = MagicMock(
-        name="patch_vllm_moe_model_weight_loader"
-    )
+    fake_verl_utils_vllm_patch.patch_vllm_moe_model_weight_loader = MagicMock(name="patch_vllm_moe_model_weight_loader")
 
     return {
         "torch": _build_fake_torch(),
@@ -283,6 +291,8 @@ def _build_fake_modules():
         "safetensors": fake_safetensors,
         "safetensors.torch": fake_safetensors_torch,
         "aura.runner.infer_adapter.vllm.patch.comm.vllm_execute_stat": fake_stat_mod,
+        "vllm": fake_vllm,
+        "vllm.distributed": fake_vllm_distributed,
         "verl": fake_verl,
         "verl.utils": fake_verl_utils,
         "verl.utils.device": fake_verl_utils_device,
@@ -301,6 +311,7 @@ def _import_target_module():
 
 class FakeSafeOpenCtx:
     """Context manager to fake safetensors.safe_open."""
+
     def __init__(self, tensor_map):
         self.tensor_map = tensor_map
 
@@ -320,6 +331,7 @@ class FakeSafeOpenCtx:
 # =============================================================================
 # Tests
 # =============================================================================
+
 
 class TestCustomWorkerExtensions(unittest.TestCase):
     """Unit tests for custom_worker_extensions module functions and class."""
@@ -382,9 +394,7 @@ class TestCustomWorkerExtensions(unittest.TestCase):
             entry4.name = "rank_0_aaa.txt"
             entry4.path = "/tmp/rank_0_aaa.txt"
 
-            mock_scandir.return_value.__enter__.return_value = [
-                entry1, entry2, entry3, entry4
-            ]
+            mock_scandir.return_value.__enter__.return_value = [entry1, entry2, entry3, entry4]
 
             files = self.target_mod._list_rank_files("/tmp", 0)
             self.assertEqual(files, ["/tmp/rank_0_001.safetensors", "/tmp/rank_0_002.safetensors"])
@@ -429,11 +439,13 @@ class TestCustomWorkerExtensions(unittest.TestCase):
 
         fake_safe_open.return_value = FakeSafeOpenCtx({"a": t1})
 
-        out = list(self.target_mod.iter_rank_tensors(
-            files=["f1"],
-            device="cpu",
-            dtype=torch.float16,
-        ))
+        out = list(
+            self.target_mod.iter_rank_tensors(
+                files=["f1"],
+                device="cpu",
+                dtype=torch.float16,
+            )
+        )
 
         self.assertEqual(len(out), 1)
         self.assertEqual(out[0][1].dtype.name, "float16")
@@ -448,11 +460,13 @@ class TestCustomWorkerExtensions(unittest.TestCase):
 
         fake_safe_open.return_value = FakeSafeOpenCtx({"keep": t1, "drop": t2})
 
-        out = list(self.target_mod.iter_rank_tensors(
-            files=["f1"],
-            device="cpu",
-            key_filter=lambda k: k == "keep",
-        ))
+        out = list(
+            self.target_mod.iter_rank_tensors(
+                files=["f1"],
+                device="cpu",
+                key_filter=lambda k: k == "keep",
+            )
+        )
 
         self.assertEqual(len(out), 1)
         self.assertEqual(out[0][0], "keep")
@@ -596,9 +610,7 @@ class TestCustomWorkerExtensions(unittest.TestCase):
         """vllm_statistics should write stats and clear."""
         obj = self.target_mod.CustomWorkerExtensions()
 
-        fake_stat_obj = sys.modules[
-            "aura.runner.infer_adapter.vllm.patch.comm.vllm_execute_stat"
-        ].vllm_output_statics
+        fake_stat_obj = sys.modules["aura.runner.infer_adapter.vllm.patch.comm.vllm_execute_stat"].vllm_output_statics
 
         obj.vllm_statistics()
 
@@ -817,9 +829,30 @@ class TestCustomWorkerExtensions(unittest.TestCase):
         with patch.object(self.target_mod, "_list_rank_files", return_value=fake_files):
             with patch.object(self.target_mod, "_thread_load_and_h2d") as mock_thr:
                 mock_thr.side_effect = [
-                    {"bytes_cpu": 10, "num_files": 1, "num_tensors": 1, "t_cpu_load_s": 0, "t_h2d_s": 0, "t_total_s": 0},
-                    {"bytes_cpu": 20, "num_files": 1, "num_tensors": 1, "t_cpu_load_s": 0, "t_h2d_s": 0, "t_total_s": 0},
-                    {"bytes_cpu": 30, "num_files": 1, "num_tensors": 1, "t_cpu_load_s": 0, "t_h2d_s": 0, "t_total_s": 0},
+                    {
+                        "bytes_cpu": 10,
+                        "num_files": 1,
+                        "num_tensors": 1,
+                        "t_cpu_load_s": 0,
+                        "t_h2d_s": 0,
+                        "t_total_s": 0,
+                    },
+                    {
+                        "bytes_cpu": 20,
+                        "num_files": 1,
+                        "num_tensors": 1,
+                        "t_cpu_load_s": 0,
+                        "t_h2d_s": 0,
+                        "t_total_s": 0,
+                    },
+                    {
+                        "bytes_cpu": 30,
+                        "num_files": 1,
+                        "num_tensors": 1,
+                        "t_cpu_load_s": 0,
+                        "t_h2d_s": 0,
+                        "t_total_s": 0,
+                    },
                 ]
 
                 stats = self.target_mod.load_rank_to_npu_threaded(

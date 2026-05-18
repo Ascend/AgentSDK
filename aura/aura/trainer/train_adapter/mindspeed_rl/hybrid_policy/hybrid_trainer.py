@@ -4,13 +4,13 @@
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
-# 
+#
 # AgentSDK is licensed under Mulan PSL v2.
 # You can use this software according to the terms and conditions of the Mulan PSL v2.
 # You may obtain a copy of Mulan PSL v2 at:
-# 
+#
 #          http://license.coscl.org.cn/MulanPSL2
-# 
+#
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
@@ -22,14 +22,12 @@ import traceback
 
 from codetiming import Timer
 import ray
-import torch
 
-from mindspeed_rl import RayGRPOTrainer, Metric
+from mindspeed_rl import Metric
 from mindspeed_rl.trainer.utils import compute_grpo_data_metrics
 from mindspeed_rl.utils.utils import compute_tps, metrics_post_processing, metrics_sort
 
 from aura.base.log.loggers import Loggers
-from aura.trainer.train_adapter.mindspeed_rl import patch
 from aura.trainer.train_adapter.mindspeed_rl.utils.trainer_utils import CommonGRPOTrainer
 
 log = Loggers(__name__)
@@ -37,7 +35,6 @@ logger = log.get_logger()
 
 
 class AgentGRPOTrainer(CommonGRPOTrainer):
-
     def __init__(self, rollout_worker, *args, **kwargs):
         self.rollout_worker = rollout_worker
         self.validate_freq = kwargs["validate_freq"]
@@ -67,7 +64,7 @@ class AgentGRPOTrainer(CommonGRPOTrainer):
         else:
             logger.info('async start grpo training at iteration: {}/{} ...'.format(iteration, self.train_iters))
 
-        if self.test_before_train and not test_dataloader is None:
+        if self.test_before_train and test_dataloader is not None:
             val_metrics = self._validate_agent(test_dataloader, True)
             logger.warning("test before training")
             for key, value in val_metrics.items():
@@ -75,10 +72,13 @@ class AgentGRPOTrainer(CommonGRPOTrainer):
             if self.test_only:
                 return
 
+        original_n_samples_per_prompt = self.n_samples_per_prompt
         while iteration < self.train_iters:
             with Timer(name='iteration', logger=None) as all_timer:
                 batch = next(data_iters)
-                batch_dict, indexes = put_prompts_experience(batch, self.n_samples_per_prompt, self.dataset_additional_keys)
+                batch_dict, indexes = put_prompts_experience(
+                    batch, self.n_samples_per_prompt, self.dataset_additional_keys
+                )
                 ray.get(self.transfer_dock.put_experience.remote(data_dict=batch_dict, indexes=indexes, is_prompt=True))
 
                 # generate sequences
@@ -86,20 +86,22 @@ class AgentGRPOTrainer(CommonGRPOTrainer):
 
                 logger.info('rollout_worker start ...')
                 try:
-                    ray.get(self.rollout_worker.generate_sequences.remote())
+                    new_samples_per_prompt = ray.get(self.rollout_worker.generate_sequences.remote())
                 except Exception as e:
                     traceback.print_exc()
                     print(f"error: {e}")
 
-                # logger.info('compute rm scores start ...')
-                # # compute rm scores.
-                # rule_reward = []
-                # for reward_worker in self.reward_list:
-                #     if isinstance(reward_worker, RayActorGroup):
-                #         reward_worker.compute_rm_score(blocking=self.blocking)
-                #     else:
-                #         logger.info('reward_worker start ...')
-                #         rule_reward.append(ray.get(reward_worker.compute_rm_score.remote()))
+                if self.kwargs.get("use_stepwise_advantage") == True:
+                    # total num changed
+                    self.n_samples_per_prompt = new_samples_per_prompt
+                    batch_len = self.global_batch_size * self.n_samples_per_prompt
+                    self.ref_worker.update_ref_dispatch_size(batch_len)
+                    self.actor_worker.update_actor_logprob_dispatch_size(batch_len)
+                    self.actor_worker.update_actor_update_dispatch_size(batch_len)
+
+                self.actor_worker.update_mini_batch_size(
+                    original_n_samples_per_prompt, new_samples_per_prompt, self.kwargs.get("use_stepwise_advantage")
+                )
 
                 logger.info('compute_advantage start ...')
                 # compute advantages, executed on the driver process
@@ -127,7 +129,7 @@ class AgentGRPOTrainer(CommonGRPOTrainer):
                 self.actor_worker.wait_all_ref_objs_run_over()
 
                 # validate
-                if not val_dataloader is None and self.validate_freq > 0 and iteration % self.validate_freq == 0:
+                if val_dataloader is not None and self.validate_freq > 0 and iteration % self.validate_freq == 0:
                     val_metrics: dict = self._validate_agent(val_dataloader, True)
                     logger.warning("validate result ...")
                     for key, value in val_metrics.items():
@@ -136,22 +138,42 @@ class AgentGRPOTrainer(CommonGRPOTrainer):
 
                 logger.info('compute_grpo_data_metrics start ...')
                 # collect metrics
-                grpo_data_metrics = compute_grpo_data_metrics(self.transfer_dock,
-                                                              self.global_batch_size * self.n_samples_per_prompt,
-                                                              self.tokenizer,
-                                                              self.global_batch_size * self.n_samples_per_prompt,
-                                                              self.guarantee_order)
+                grpo_data_metrics = compute_grpo_data_metrics(
+                    self.transfer_dock,
+                    self.global_batch_size * self.n_samples_per_prompt,
+                    self.tokenizer,
+                    self.global_batch_size * self.n_samples_per_prompt,
+                    self.guarantee_order,
+                )
                 metrics_result = ray.get(self.transfer_dock.get_metrics.remote())
 
             metrics_result = metrics_post_processing(metrics_result)
             metrics_result = metrics_sort(metrics_result, all_timer.last)
             log_max_throughput = False
-            tps = compute_tps(self.kwargs, grpo_data_metrics, self.global_batch_size, self.n_samples_per_prompt,
-                              all_timer.last, log_max_throughput)
-            update_tps = compute_tps(self.kwargs, grpo_data_metrics, self.global_batch_size, self.n_samples_per_prompt,
-                                     metrics_result["timing/update"], log_max_throughput)
-            vllm_tps = compute_tps(self.kwargs, grpo_data_metrics, self.global_batch_size, self.n_samples_per_prompt,
-                                   metrics_result["timing/rollout"], log_max_throughput)
+            tps = compute_tps(
+                self.kwargs,
+                grpo_data_metrics,
+                self.global_batch_size,
+                self.n_samples_per_prompt,
+                all_timer.last,
+                log_max_throughput,
+            )
+            update_tps = compute_tps(
+                self.kwargs,
+                grpo_data_metrics,
+                self.global_batch_size,
+                self.n_samples_per_prompt,
+                metrics_result["timing/update"],
+                log_max_throughput,
+            )
+            vllm_tps = compute_tps(
+                self.kwargs,
+                grpo_data_metrics,
+                self.global_batch_size,
+                self.n_samples_per_prompt,
+                metrics_result["timing/rollout"],
+                log_max_throughput,
+            )
             metrics.update(value=metrics_result)
             metrics.update(value=grpo_data_metrics)
             metrics.update("tokens/p/s", tps)
@@ -167,7 +189,11 @@ class AgentGRPOTrainer(CommonGRPOTrainer):
             if iteration % self.save_interval == 0 or iteration == self.train_iters:
                 self.save_checkpoint(iteration)
 
-        if not test_dataloader is None:
+            if self.kwargs.get("use_stepwise_advantage") == True:
+                self.n_samples_per_prompt = original_n_samples_per_prompt
+                self.transfer_dock.reset_experience_len.remote(self.global_batch_size * self.n_samples_per_prompt)
+
+        if test_dataloader is not None:
             val_metrics: dict = self._validate_agent(test_dataloader, True)
             logger.warning("test result")
             for key, value in val_metrics.items():

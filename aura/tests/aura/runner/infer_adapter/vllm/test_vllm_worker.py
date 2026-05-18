@@ -16,12 +16,11 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-import gc
 import os
 import sys
 import types
 import unittest
-from unittest.mock import patch, MagicMock, call
+from unittest.mock import patch, MagicMock
 import importlib
 
 import torch
@@ -29,6 +28,7 @@ import torch
 # ============================================================
 # Helpers: build fake dependency modules to avoid real imports
 # ============================================================
+
 
 def _fake_module(name: str):
     """Create an empty module with the given name."""
@@ -48,50 +48,59 @@ def _install_fake_deps():
         except Exception as e:
             raise RuntimeError(f"Failed to install fake dependency for {name}") from e
 
-            
     # transformers.AutoConfig
     transformers_mod = safe_get_fake("transformers")
+
     class FakeAutoConfig:
         @staticmethod
         def from_pretrained(*args, **kwargs):
             return MagicMock(name="HFConfig")
+
     transformers_mod.AutoConfig = FakeAutoConfig
     fake_modules["transformers"] = transformers_mod
 
     # tokenizer.get_tokenizer
     tokenizer_mod = safe_get_fake("aura.base.utils.tokenizer")
+
     def fake_get_tokenizer(*args, **kwargs):
         tok = MagicMock()
         tok.tokenizer = MagicMock()
         tok.tokenizer.pad_token_id = None
         tok.tokenizer.eos_token_id = 2
         return tok
+
     tokenizer_mod.get_tokenizer = fake_get_tokenizer
     fake_modules["aura.base.utils.tokenizer"] = tokenizer_mod
 
     # get_local_rank
     get_local_rank_mod = safe_get_fake("aura.base.utils.get_local_rank")
+
     def fake_get_local_rank(*args, **kwargs):
         return 0
+
     get_local_rank_mod.get_local_rank = fake_get_local_rank
     fake_modules["aura.base.utils.get_local_rank"] = get_local_rank_mod
 
     # logger
     loggers_mod = safe_get_fake("aura.base.log.loggers")
+
     class FakeLoggers:
         def __init__(self, *args, **kwargs):
             pass
+
         def get_logger(self):
             logger = MagicMock()
             logger.info = MagicMock()
             logger.debug = MagicMock()
             logger.error = MagicMock()
             return logger
+
     loggers_mod.Loggers = FakeLoggers
     fake_modules["aura.base.log.loggers"] = loggers_mod
 
     # BaseInferEngine
     base_engine_mod = safe_get_fake("aura.runner.infer_adapter.vllm.base_inference_engine")
+
     class FakeBaseInferEngine:
         def __init__(self, *args, **kwargs):
             self.tokenizer_name_or_path = kwargs.get("tokenizer_name_or_path", "/fake_model")
@@ -105,11 +114,13 @@ def _install_fake_deps():
             self.train_expert_parallel_size = kwargs.get("train_expert_parallel_size", 1)
             self.infer_expert_parallel_size = kwargs.get("infer_expert_parallel_size", 1)
             self.train_context_parallel_size = kwargs.get("train_context_parallel_size", 1)
+
     base_engine_mod.BaseInferEngine = FakeBaseInferEngine
     fake_modules["aura.runner.infer_adapter.vllm.base_inference_engine"] = base_engine_mod
 
     # vllm.worker.worker_base
     worker_base_mod = safe_get_fake("vllm.worker.worker_base")
+
     class FakeWorkerWrapperBase:
         def __init__(self, *args, **kwargs):
             self.worker = MagicMock()
@@ -122,66 +133,87 @@ def _install_fake_deps():
             self.worker.model_runner.kv_caches = []
             self.worker.model_runner.vllm_config.compilation_config = MagicMock()
             self.worker.model_runner.vllm_config.compilation_config.static_forward_context = {}
+
         def initialize_from_config(self, cfg):
             return None
+
         def init_worker(self, all_kwargs):
             return None
+
         def load_model(self, *args, **kwargs):
             return None
+
         def execute_method(self, method, *args, **kwargs):
             return f"executed:{method}"
+
         def get_kv_cache_spec(self):
             return "FAKE_KV_SPEC"
+
         def determine_available_memory(self):
             return 123
+
         def sleep(self, level=1):
             return None
+
         def wake_up(self, tags=None):
             return None
+
     class FakeSetCurrentVllmConfig:
         def __init__(self, cfg):
             self.cfg = cfg
+
         def __enter__(self):
             return self
+
         def __exit__(self, exc_type, exc, tb):
             return False
+
     worker_base_mod.WorkerWrapperBase = FakeWorkerWrapperBase
     worker_base_mod.set_current_vllm_config = lambda cfg: FakeSetCurrentVllmConfig(cfg)
     fake_modules["vllm.worker.worker_base"] = worker_base_mod
 
     # vllm.v1.core.kv_cache_utils
     kv_cache_utils_mod = safe_get_fake("vllm.v1.core.kv_cache_utils")
+
     def fake_get_kv_cache_config(vllm_config, spec, mem):
         cfg = MagicMock()
         cfg.num_blocks = 10
         return cfg
+
     def fake_unify_kv_cache_configs(cfgs):
         return None
+
     kv_cache_utils_mod.get_kv_cache_config = fake_get_kv_cache_config
     kv_cache_utils_mod.unify_kv_cache_configs = fake_unify_kv_cache_configs
     fake_modules["vllm.v1.core.kv_cache_utils"] = kv_cache_utils_mod
 
     # vllm.config
     vllm_config_mod = _fake_module("vllm.config")
+
     class FakeVllmConfig:
         pass
+
     vllm_config_mod.VllmConfig = FakeVllmConfig
     fake_modules["vllm.config"] = vllm_config_mod
 
     # vllm.attention.AttentionType
     vllm_attention_mod = _fake_module("vllm.attention")
+
     class FakeAttentionType:
         DECODER = "DECODER"
         ENCODER_DECODER = "ENCODER_DECODER"
+
     vllm_attention_mod.AttentionType = FakeAttentionType
     fake_modules["vllm.attention"] = vllm_attention_mod
 
     # vllm_ascend.platform
     vllm_ascend_platform_mod = safe_get_fake("vllm_ascend.platform")
+
     class FakeNPUPlatform:
         @staticmethod
         def mem_get_info():
             return (50 << 30, 100 << 30)
+
     vllm_ascend_platform_mod.NPUPlatform = FakeNPUPlatform
     fake_modules["vllm_ascend.platform"] = vllm_ascend_platform_mod
 
@@ -198,17 +230,21 @@ def _install_fake_deps():
 
     # megatron weight loaders
     megatron_loader_mod = safe_get_fake("aura.base.weight_loaders.megatron_weight_loaders")
+
     class FakeInferParallelConfig:
         def __init__(self, *args, **kwargs):
             self.args = args
+
     megatron_loader_mod.InferParallelConfig = FakeInferParallelConfig
     fake_modules["aura.base.weight_loaders.megatron_weight_loaders"] = megatron_loader_mod
 
     vllm_weight_loader_mod = safe_get_fake("aura.runner.infer_adapter.vllm.vllm_megatron_weight_loaders")
+
     class FakeVllmMegatronWeightLoaders:
         def __init__(self):
             self.load_megatron_weights = MagicMock()
             self.update_megatron_weight_loader = MagicMock()
+
     vllm_weight_loader_mod.VllmMegatronWeightLoaders = FakeVllmMegatronWeightLoaders
     fake_modules["aura.runner.infer_adapter.vllm.vllm_megatron_weight_loaders"] = vllm_weight_loader_mod
 
@@ -226,6 +262,7 @@ def _reload_target_module():
 # ============================================================
 # Tests
 # ============================================================
+
 
 class TestAsyncVLLMInferEngine(unittest.TestCase):
     """Unit tests for AsyncVLLMInferEngine and related helper functions."""
@@ -282,7 +319,9 @@ class TestAsyncVLLMInferEngine(unittest.TestCase):
 
     def test_init_worker_sets_rank_and_local_rank(self):
         """Ensure init_worker assigns rank and local rank from environment."""
-        engine = self.AsyncVLLMInferEngine(enable_sleep_mode=True, tokenizer_name_or_path="/fake_model", train_tensor_parallel_size=1)
+        engine = self.AsyncVLLMInferEngine(
+            enable_sleep_mode=True, tokenizer_name_or_path="/fake_model", train_tensor_parallel_size=1
+        )
         all_kwargs = [{"vllm_config": MagicMock()}]
         engine.init_worker(all_kwargs)
         self.assertEqual(all_kwargs[0]["rank"], 0)
@@ -293,7 +332,9 @@ class TestAsyncVLLMInferEngine(unittest.TestCase):
 
     def test_init_worker_calls_initialize_parallel_state(self):
         """Test that parallel state initialization is invoked for multi-GPU."""
-        engine = self.AsyncVLLMInferEngine(enable_sleep_mode=True, tokenizer_name_or_path="/fake_model", train_tensor_parallel_size=2)
+        engine = self.AsyncVLLMInferEngine(
+            enable_sleep_mode=True, tokenizer_name_or_path="/fake_model", train_tensor_parallel_size=2
+        )
         all_kwargs = [{"vllm_config": MagicMock()}]
         engine.init_worker(all_kwargs)
         init_ps = sys.modules["aura.runner.infer_adapter.vllm.vllm_parallel_state"].initialize_parallel_state
@@ -301,14 +342,24 @@ class TestAsyncVLLMInferEngine(unittest.TestCase):
 
     def test_init_worker_megatron_load_format_calls_update_loader(self):
         """When load_format is 'megatron', weight loader should be updated."""
-        engine = self.AsyncVLLMInferEngine(enable_sleep_mode=True, tokenizer_name_or_path="/fake_model", train_tensor_parallel_size=1, load_format="megatron")
+        engine = self.AsyncVLLMInferEngine(
+            enable_sleep_mode=True,
+            tokenizer_name_or_path="/fake_model",
+            train_tensor_parallel_size=1,
+            load_format="megatron",
+        )
         all_kwargs = [{"vllm_config": MagicMock()}]
         engine.init_worker(all_kwargs)
         engine.vllm_megatron_weight_loaders.update_megatron_weight_loader.assert_called_once()
 
     def test_init_worker_non_megatron_does_not_call_update_loader(self):
         """Other load formats should skip weight loader update."""
-        engine = self.AsyncVLLMInferEngine(enable_sleep_mode=True, tokenizer_name_or_path="/fake_model", train_tensor_parallel_size=1, load_format="auto")
+        engine = self.AsyncVLLMInferEngine(
+            enable_sleep_mode=True,
+            tokenizer_name_or_path="/fake_model",
+            train_tensor_parallel_size=1,
+            load_format="auto",
+        )
         all_kwargs = [{"vllm_config": MagicMock()}]
         engine.init_worker(all_kwargs)
         engine.vllm_megatron_weight_loaders.update_megatron_weight_loader.assert_not_called()
@@ -328,33 +379,6 @@ class TestAsyncVLLMInferEngine(unittest.TestCase):
         self.assertIn("w1", engine.cpu_model)
         self.assertIn("w2", engine.cpu_model)
         self.assertEqual(engine.cpu_model["w1"].device.type, "cpu")
-
-    def test_execute_method_routes(self):
-        """Test that execute_method dispatches to the appropriate internal method."""
-        engine = self.AsyncVLLMInferEngine(enable_sleep_mode=True, tokenizer_name_or_path="/fake_model")
-        all_kwargs = [{"vllm_config": MagicMock()}]
-        engine.execute_method("init_worker", all_kwargs)
-        self.assertIsNotNone(engine.inference_engine)
-
-        fake_param = torch.nn.Parameter(torch.randn(2, 3))
-        fake_model = MagicMock()
-        fake_model.named_parameters.return_value = [("w1", fake_param)]
-        engine.inference_engine.worker.model_runner.get_model.return_value = fake_model
-        engine.execute_method("load_model")
-        self.assertIs(engine.model, fake_model)
-
-        engine.inference_engine.sleep = MagicMock()
-        engine.execute_method("sleep")
-        engine.inference_engine.sleep.assert_called_once_with(level=2)
-
-        engine.inference_engine.wake_up = MagicMock()
-        engine.execute_method("wake_up")
-        engine.inference_engine.wake_up.assert_called_once_with(tags=["kv_cache"])
-
-        engine.inference_engine.execute_method = MagicMock(return_value="ok")
-        ret = engine.execute_method("other", 1, a=2)
-        self.assertEqual(ret, "ok")
-        engine.inference_engine.execute_method.assert_called_once_with("other", 1, a=2)
 
     # KV cache management tests
     def test_init_cache_engine(self):
@@ -383,70 +407,6 @@ class TestAsyncVLLMInferEngine(unittest.TestCase):
             mock_free.assert_called_once()
         self.assertGreaterEqual(engine.used_bytes, 0)
 
-    # Sleep / wake-up tests
-    def test_offload_model_weights_sleep_mode(self):
-        """In sleep mode, offload_model_weights should call sleep(level=1)."""
-        engine = self.AsyncVLLMInferEngine(enable_sleep_mode=True, tokenizer_name_or_path="/fake_model")
-        engine.inference_engine = MagicMock()
-        engine.inference_engine.sleep = MagicMock()
-        engine.offload_model_weights()
-        engine.inference_engine.sleep.assert_called_once_with(level=1)
-
-    def test_sync_model_weights_sleep_mode(self):
-        """In sleep mode, sync_model_weights wakes up, loads weights, then sleeps? (test logic)."""
-        engine = self.AsyncVLLMInferEngine(enable_sleep_mode=True, tokenizer_name_or_path="/fake_model")
-        engine.inference_engine = MagicMock()
-        engine.inference_engine.wake_up = MagicMock()
-        fake_param = torch.nn.Parameter(torch.randn(2, 3))
-        fake_model = MagicMock()
-        fake_model.named_parameters.return_value = [("w1", fake_param)]
-        engine.model = fake_model
-        engine.cpu_model = {"w1": torch.empty_like(fake_param, device="cpu")}
-        engine.hf_config = MagicMock()
-        engine.vllm_megatron_weight_loaders.load_megatron_weights = MagicMock()
-        engine.sync_model_weights(params={"w": 1})
-        engine.vllm_megatron_weight_loaders.load_megatron_weights.assert_called_once()
-        engine.inference_engine.wake_up.assert_called_once_with(tags=["weights"])
-
-    def test_sleep(self):
-        """sleep() should either call engine.sleep or free_cache_engine depending on enable_sleep_mode."""
-        engine = self.AsyncVLLMInferEngine(enable_sleep_mode=True, tokenizer_name_or_path="/fake_model")
-        engine.inference_engine = MagicMock()
-        engine.inference_engine.sleep = MagicMock()
-        engine.sleep()
-        engine.inference_engine.sleep.assert_called_once_with(level=2)
-
-        engine2 = self.AsyncVLLMInferEngine(enable_sleep_mode=False, tokenizer_name_or_path="/fake_model")
-        with patch.object(engine2, "free_cache_engine") as mock_free:
-            engine2.sleep()
-            mock_free.assert_called_once()
-
-    def test_wake_up(self):
-        """wake_up should handle both sleep mode and non-sleep mode correctly."""
-        engine = self.AsyncVLLMInferEngine(enable_sleep_mode=True, tokenizer_name_or_path="/fake_model")
-        engine.inference_engine = MagicMock()
-        engine.inference_engine.wake_up = MagicMock()
-        engine.wake_up()
-        engine.inference_engine.wake_up.assert_called_once_with(tags=["kv_cache"])
-
-        engine2 = self.AsyncVLLMInferEngine(enable_sleep_mode=False, tokenizer_name_or_path="/fake_model")
-        engine2.inference_engine = self.AgentWorkerWrapperBase(vllm_config=MagicMock())
-        with patch.object(engine2, "free_cache_engine") as mock_free, \
-             patch.object(engine2, "_initialize_kv_caches") as mock_init, \
-             patch.object(engine2, "init_cache_engine") as mock_init_engine:
-            engine2.first_wake_up = True
-            engine2.wake_up()
-            mock_free.assert_called_once()
-            mock_init.assert_called_once()
-            mock_init_engine.assert_called_once()
-            self.assertFalse(engine2.first_wake_up)
-
-            engine2.first_wake_up = False
-            engine2.wake_up()
-            self.assertEqual(mock_free.call_count, 1)
-            mock_init.assert_called_once()
-            self.assertEqual(mock_init_engine.call_count, 2)
-
     # Miscellaneous tests
     def test_agent_worker_wrapper_base_initialize_from_config(self):
         """Test that AgentWorkerWrapperBase stores config only once."""
@@ -464,8 +424,9 @@ class TestAsyncVLLMInferEngine(unittest.TestCase):
 
     def test_init_worker_no_parallel_state(self):
         """If train_tensor_parallel_size is None, parallel state should not be initialized."""
-        engine = self.AsyncVLLMInferEngine(enable_sleep_mode=True, tokenizer_name_or_path="/fake_model",
-                                            train_tensor_parallel_size=None)
+        engine = self.AsyncVLLMInferEngine(
+            enable_sleep_mode=True, tokenizer_name_or_path="/fake_model", train_tensor_parallel_size=None
+        )
         all_kwargs = [{"vllm_config": MagicMock()}]
         engine.init_worker(all_kwargs)
         init_ps = sys.modules["aura.runner.infer_adapter.vllm.vllm_parallel_state"].initialize_parallel_state

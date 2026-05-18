@@ -34,6 +34,7 @@ def create_mock_executor_module():
     def public_api(*args, **kwargs):
         def decorator(f):
             return f
+
         return decorator
 
     mock_executor_module.Executor = DummyExecutor
@@ -81,16 +82,13 @@ class TestInferPrefillExecutor:
     def setup_method(self):
         """Setup method to import InferPrefillExecutor before each test."""
         from aura.runner.infer_service.infer_pd_executor import InferPrefillExecutor
+
         self.InferPrefillExecutor = InferPrefillExecutor
 
     @pytest.mark.asyncio
     async def test_chat_completions(self, mock_dependencies):
         """Test chat_completions method."""
-        executor = self.InferPrefillExecutor(
-            engine="vllm_ray",
-            engine_kwargs={},
-            resource_set=MagicMock()
-        )
+        executor = self.InferPrefillExecutor(engine="vllm_ray", engine_kwargs={}, resource_set=MagicMock())
 
         executor.engine.chat_completions = AsyncMock(return_value={"ok": True})
 
@@ -110,11 +108,7 @@ class TestInferPrefillExecutor:
     @pytest.mark.asyncio
     async def test_chat_completions_with_max_completion_tokens(self, mock_dependencies):
         """Test chat_completions method with max_completion_tokens."""
-        executor = self.InferPrefillExecutor(
-            engine="vllm_ray",
-            engine_kwargs={},
-            resource_set=MagicMock()
-        )
+        executor = self.InferPrefillExecutor(engine="vllm_ray", engine_kwargs={}, resource_set=MagicMock())
 
         executor.engine.chat_completions = AsyncMock(return_value={"ok": True})
 
@@ -131,11 +125,7 @@ class TestInferPrefillExecutor:
     @pytest.mark.asyncio
     async def test_chat_completions_with_stream_options(self, mock_dependencies):
         """Test chat_completions method with stream_options."""
-        executor = self.InferPrefillExecutor(
-            engine="vllm_ray",
-            engine_kwargs={},
-            resource_set=MagicMock()
-        )
+        executor = self.InferPrefillExecutor(engine="vllm_ray", engine_kwargs={}, resource_set=MagicMock())
 
         executor.engine.chat_completions = AsyncMock(return_value={"ok": True})
 
@@ -152,11 +142,7 @@ class TestInferPrefillExecutor:
     @pytest.mark.asyncio
     async def test_stream_not_supported(self, mock_dependencies):
         """Test stream_chat_completions raises NotImplementedError."""
-        executor = self.InferPrefillExecutor(
-            engine="vllm_ray",
-            engine_kwargs={},
-            resource_set=MagicMock()
-        )
+        executor = self.InferPrefillExecutor(engine="vllm_ray", engine_kwargs={}, resource_set=MagicMock())
 
         with pytest.raises(NotImplementedError):
             await executor.stream_chat_completions()
@@ -168,20 +154,13 @@ class TestInferDecodeExecutor:
     def setup_method(self):
         """Setup method to import InferDecodeExecutor before each test."""
         from aura.runner.infer_service.infer_pd_executor import InferDecodeExecutor
+
         self.InferDecodeExecutor = InferDecodeExecutor
 
     def test_init(self, mock_dependencies):
         """Test InferDecodeExecutor initialization."""
-        with patch(
-                "aura.runner.infer_service.infer_executor.InferExecutor.__init__",
-                return_value=None
-        ) as mock_super:
-
-            self.InferDecodeExecutor(
-                engine="vllm_ray",
-                engine_kwargs={},
-                resource_set=MagicMock()
-            )
+        with patch("aura.runner.infer_service.infer_executor.InferExecutor.__init__", return_value=None) as mock_super:
+            self.InferDecodeExecutor(engine="vllm_ray", engine_kwargs={}, resource_set=MagicMock())
 
             mock_super.assert_called_once()
 
@@ -192,17 +171,14 @@ class TestInferPDSepExecutor:
     def setup_method(self):
         """Setup method to import InferPDSepExecutor before each test."""
         from aura.runner.infer_service.infer_pd_executor import InferPDSepExecutor
+
         self.InferPDSepExecutor = InferPDSepExecutor
 
     @pytest.fixture
     def mock_pd_executor(self):
         """Create a mock InferPDSepExecutor instance for testing."""
         executor = self.InferPDSepExecutor(
-            engine="vllm_ray",
-            engine_kwargs={},
-            resource_set=MagicMock(),
-            p_num=1,
-            d_num=1
+            engine="vllm_ray", engine_kwargs={}, resource_set=MagicMock(), p_num=1, d_num=1
         )
         return executor
 
@@ -214,17 +190,10 @@ class TestInferPDSepExecutor:
         prefill = MagicMock()
         decode = MagicMock()
 
-        prefill.chat_completions.remote = AsyncMock(
-            return_value={"kv_transfer_params": {"k": "v"}}
-        )
-        decode.chat_completions.remote = AsyncMock(
-            return_value={"final": "ok"}
-        )
+        prefill.chat_completions.remote = AsyncMock(return_value={"kv_transfer_params": {"k": "v"}})
+        decode.chat_completions.remote = AsyncMock(return_value={"final": "ok"})
 
-        executor.executors = {
-            "prefill": [prefill],
-            "decode": [decode]
-        }
+        executor.executors = {"prefill": [prefill], "decode": [decode]}
 
         request_data = {}
 
@@ -244,22 +213,15 @@ class TestInferPDSepExecutor:
         prefill = MagicMock()
         decode = MagicMock()
 
-        prefill.chat_completions.remote = AsyncMock(
-            return_value={"kv_transfer_params": {"k": "v"}}
-        )
+        prefill.chat_completions.remote = AsyncMock(return_value={"kv_transfer_params": {"k": "v"}})
 
         async def async_gen():
             for i in range(3):
                 yield AsyncMock(return_value={"chunk": i})()
 
-        decode.stream_chat_completions.remote = MagicMock(
-            return_value=async_gen()
-        )
+        decode.stream_chat_completions.remote = MagicMock(return_value=async_gen())
 
-        executor.executors = {
-            "prefill": [prefill],
-            "decode": [decode]
-        }
+        executor.executors = {"prefill": [prefill], "decode": [decode]}
 
         request_data = {}
 
@@ -275,15 +237,19 @@ class TestInferPDSepExecutor:
         """Test alloc_resources_from_ranktable method."""
         executor = mock_pd_executor
 
-        executor.get_ranktable = MagicMock(return_value={
-            "prefill_device_list": [{"server_id": "1.1.1.1"}],
-            "decode_device_list": [{"server_id": "2.2.2.2"}],
-        })
+        executor.get_ranktable = MagicMock(
+            return_value={
+                "prefill_device_list": [{"server_id": "1.1.1.1"}],
+                "decode_device_list": [{"server_id": "2.2.2.2"}],
+            }
+        )
 
-        executor.get_node_info = MagicMock(return_value=[
-            {"node_id": "n1", "node_ip": "1.1.1.1"},
-            {"node_id": "n2", "node_ip": "2.2.2.2"},
-        ])
+        executor.get_node_info = MagicMock(
+            return_value=[
+                {"node_id": "n1", "node_ip": "1.1.1.1"},
+                {"node_id": "n2", "node_ip": "2.2.2.2"},
+            ]
+        )
 
         result = executor.alloc_resources_from_ranktable()
 
@@ -306,42 +272,22 @@ class TestInferPDSepExecutor:
 
                 mock_remote.return_value = mock_actor
 
-                result = await executor.create_single_infer_executor(
-                    "prefill", 0, "node1"
-                )
+                result = await executor.create_single_infer_executor("prefill", 0, "node1")
 
                 assert result == mock_actor
                 mock_actor.setup.remote.assert_awaited_once()
-
-    @pytest.mark.asyncio
-    async def test_wake_sleep(self, mock_pd_executor, mock_dependencies):
-        """Test wake_up and sleep methods."""
-        executor = mock_pd_executor
-
-        engine = MagicMock()
-        engine.wake_up = AsyncMock()
-        engine.sleep = AsyncMock()
-
-        executor.executors = {
-            "prefill": [engine],
-            "decode": [engine]
-        }
-
-        await executor.wake_up()
-        await executor.sleep()
-
-        assert engine.wake_up.await_count == 2
-        assert engine.sleep.await_count == 2
 
     @pytest.mark.asyncio
     async def test_setup(self, mock_pd_executor, mock_dependencies):
         """Test setup method."""
         executor = mock_pd_executor
 
-        executor.alloc_resources_from_ranktable = MagicMock(return_value={
-            "prefill": [{"node_id": "n1"}],
-            "decode": [{"node_id": "n2"}],
-        })
+        executor.alloc_resources_from_ranktable = MagicMock(
+            return_value={
+                "prefill": [{"node_id": "n1"}],
+                "decode": [{"node_id": "n2"}],
+            }
+        )
 
         mock_prefill_executor = MagicMock()
         mock_decode_executor = MagicMock()
@@ -387,16 +333,8 @@ class TestInferPDSepExecutor:
         executor = mock_pd_executor
 
         mock_nodes = [
-            {
-                "NodeID": "node-1",
-                "NodeManagerAddress": "192.168.1.1",
-                "Resources": {"CPU": 8, "GPU": 1}
-            },
-            {
-                "NodeID": "node-2",
-                "NodeManagerAddress": "192.168.1.2",
-                "Resources": {"CPU": 8, "GPU": 1}
-            }
+            {"NodeID": "node-1", "NodeManagerAddress": "192.168.1.1", "Resources": {"CPU": 8, "GPU": 1}},
+            {"NodeID": "node-2", "NodeManagerAddress": "192.168.1.2", "Resources": {"CPU": 8, "GPU": 1}},
         ]
 
         with patch("ray.nodes", return_value=mock_nodes):

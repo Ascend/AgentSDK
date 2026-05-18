@@ -1,38 +1,34 @@
 #!/usr/bin/env python3
-# coding=utf-8
-
+# -*- coding: utf-8 -*-
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
-# 
+#
 # AgentSDK is licensed under Mulan PSL v2.
 # You can use this software according to the terms and conditions of the Mulan PSL v2.
 # You may obtain a copy of Mulan PSL v2 at:
-# 
+#
 #          http://license.coscl.org.cn/MulanPSL2
-# 
+#
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-
-# Standard library imports
 import os
 import time
 import asyncio
 from typing import Optional
 
-# Third-party library imports
 import aiohttp
 
-# Internal imports
 from aura.base.log.loggers import Loggers
 from aura.controllers.utils.utils import DEFAULT_URL_METHOD
 from aura.runner.scheduler.workload import WorkLoadManger, start_workload_update
 
 logger = Loggers(__name__).get_logger()
+
 
 class SchedulerBase:
     """
@@ -100,8 +96,9 @@ class SchedulerBase:
                 address, _ = dp_addr.split('-')
                 req_address = f"{DEFAULT_URL_METHOD}://{address}/v1"
                 async with aiohttp.ClientSession() as session:
-                    await session.post(f"{req_address}/cancel", json={"requests": req_list},
-                                       timeout=aiohttp.ClientTimeout(total=60))
+                    await session.post(
+                        f"{req_address}/cancel", json={"requests": req_list}, timeout=aiohttp.ClientTimeout(total=60)
+                    )
                 logger.info(f"cancel request {req_list}")
                 async with self._lock:
                     self.running_reqs[dp_addr] = []
@@ -113,14 +110,17 @@ class SchedulerBase:
             dp_addr = dp_addr_rank.split('-')[0]
         request_id = self.application_id_to_request_id[application_id]
 
-        logger.info(f"scheduler cancel request for application_id: {application_id}, "
-                    f"request_id: {request_id}, dp_addr: {dp_addr}")
+        logger.info(
+            f"scheduler cancel request for application_id: {application_id}, "
+            f"request_id: {request_id}, dp_addr: {dp_addr}"
+        )
 
         req_address = f"{DEFAULT_URL_METHOD}://{dp_addr}/v1"
         try:
             async with aiohttp.ClientSession() as session:
-                await session.post(f"{req_address}/cancel", json={"requests": request_id},
-                                   timeout=aiohttp.ClientTimeout(total=60))
+                await session.post(
+                    f"{req_address}/cancel", json={"requests": request_id}, timeout=aiohttp.ClientTimeout(total=60)
+                )
         except Exception as e:
             logger.error(f"scheduler cancel request failed: {e}")
 
@@ -130,6 +130,7 @@ class SimpleTrajScheduler(SchedulerBase):
     Scheduling work:
     1. When a trajectory is assigned to a DP, all steps in subsequent epochs are bound to that DP, ensuring affinity.
     """
+
     def __init__(self, addresses: list[str], dp_size: int = 1, workload_inf=None, role=""):
         super().__init__(addresses, dp_size, workload_inf, role)
         self._usage: dict[str, int] = {}
@@ -197,9 +198,9 @@ class LBStepScheduler(SchedulerBase):
         min_ins, ins_workload = min(
             ins_items,
             key=lambda x: (
-                x[1].get_load_score(),           # Primary sort key: load score
-                0 if x[0] == cached_ins else 1   # Secondary sort key: prefer cached instance
-            )
+                x[1].get_load_score(),  # Primary sort key: load score
+                0 if x[0] == cached_ins else 1,  # Secondary sort key: prefer cached instance
+            ),
         )
         return min_ins
 
@@ -212,9 +213,9 @@ class LBStepScheduler(SchedulerBase):
         min_dp, dp_workload = min(
             dp_items,
             key=lambda x: (
-                x[1].get_load_score(),          # Primary sort key: load score
-                0 if x[0] == cached_dp else 1   # Secondary sort key: prefer cached DP
-            )
+                x[1].get_load_score(),  # Primary sort key: load score
+                0 if x[0] == cached_dp else 1,  # Secondary sort key: prefer cached DP
+            ),
         )
         return min_dp
 
@@ -234,6 +235,7 @@ class LBStepScheduler(SchedulerBase):
         ins_addr, dp_rank = dp_addr.split('-')
         self.workload.ins_loads[ins_addr].dp_loads[dp_rank].del_req()
 
+
 class LBTrajScheduler(SchedulerBase):
     """
     Scheduling work:
@@ -252,9 +254,9 @@ class LBTrajScheduler(SchedulerBase):
         min_ins, ins_workload = min(
             ins_items,
             key=lambda x: (
-                x[1].get_load_score(),           # Primary sort key: load score
-                0 if x[0] in cache_ins else 1   # Secondary sort key: prefer cached instance
-            )
+                x[1].get_load_score(),  # Primary sort key: load score
+                0 if x[0] in cache_ins else 1,  # Secondary sort key: prefer cached instance
+            ),
         )
         return min_ins
 
@@ -268,9 +270,9 @@ class LBTrajScheduler(SchedulerBase):
         min_dp, dp_workload = min(
             dp_items,
             key=lambda x: (
-                x[1].get_load_score(),          # Primary sort key: load score
-                0 if x[0] in cache_dp else 1    # Secondary sort key: prefer cached DP
-            )
+                x[1].get_load_score(),  # Primary sort key: load score
+                0 if x[0] in cache_dp else 1,  # Secondary sort key: prefer cached DP
+            ),
         )
         return min_dp
 
@@ -288,8 +290,9 @@ class LBTrajScheduler(SchedulerBase):
                 max_num_seqs = self.workload.ins_loads[ins_addr].max_num_seqs
                 dp_workload = self.workload.ins_loads[ins_addr].dp_loads[dp_rank]
                 # When batch issuing tasks at the initial iteration, prioritize ensuring that all trajectories in the same sample group run on the same DP
-                if ((dp_workload.get_load_score() < max_num_seqs)
-                    and (dp_workload.num_routing_reqs > dp_workload.num_running_reqs)):
+                if (dp_workload.get_load_score() < max_num_seqs) and (
+                    dp_workload.num_routing_reqs > dp_workload.num_running_reqs
+                ):
                     dp_workload.add_req()
                     self.application_id_to_dp[application_id] = dp_addr
                     self.prompt_id_to_dps[prompt_id].add(dp_addr)

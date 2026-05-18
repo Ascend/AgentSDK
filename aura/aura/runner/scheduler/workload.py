@@ -1,24 +1,21 @@
 #!/usr/bin/env python3
-# coding=utf-8
-
+# -*- coding: utf-8 -*-
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
-# 
+#
 # AgentSDK is licensed under Mulan PSL v2.
 # You can use this software according to the terms and conditions of the Mulan PSL v2.
 # You may obtain a copy of Mulan PSL v2 at:
-# 
+#
 #          http://license.coscl.org.cn/MulanPSL2
-# 
+#
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-
-# Standard library imports
 import os
 import asyncio
 import json
@@ -27,15 +24,14 @@ import threading
 from collections import deque
 from typing import Dict
 
-# Third-party library imports
 import aiohttp
 
-# Internal imports
 from aura.base.log.loggers import Loggers
 
 logger = Loggers(__name__).get_logger()
 
 DEFAULT_WORKLOAD_PRINT_CNT = 3
+
 
 class DPWorkLoad:
     def __init__(self):
@@ -129,6 +125,7 @@ class InstanceWorkLoad:
         for dp in self.dp_loads.values():
             dp.add_to_history()
 
+
 class WorkLoadManger:
     def __init__(self, addresses: list[str], dp_size: int, role=""):
         self.ins_loads: dict[str, InstanceWorkLoad] = {addr: InstanceWorkLoad([], dp_size) for addr in addresses}
@@ -162,6 +159,7 @@ class WorkLoadManger:
 
         with open(filename, 'w') as f:
             json.dump(history_data, f, indent=4)
+
 
 async def poll_workload_openai(session: aiohttp.ClientSession, address: str) -> str:
     """
@@ -213,6 +211,7 @@ async def poll_all_instances(session: aiohttp.ClientSession, workloads: WorkLoad
         print(f"[ERROR] Exception in poll_all_instances: {e}")
         return {}
 
+
 async def workload_update_periodically(self, workloads: WorkLoadManger):
     """
     The main asynchronous loop that updates workload periodically.
@@ -239,9 +238,10 @@ async def workload_update_periodically(self, workloads: WorkLoadManger):
                         print_cnt = print_cnt - 1
             except asyncio.CancelledError:
                 logger.warning("[INFO] Workload update loop cancelled.")
-                break # Exit loop if task is cancelled
+                break  # Exit loop if task is cancelled
             except Exception as exp:
                 import traceback
+
                 traceback.print_exc()
                 logger.error(f"[ERROR] Workload update loop exception: {exp}")
 

@@ -1,32 +1,26 @@
 #!/usr/bin/env python3
-# coding=utf-8
-
+# -*- coding: utf-8 -*-
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
-# 
+#
 # AgentSDK is licensed under Mulan PSL v2.
 # You can use this software according to the terms and conditions of the Mulan PSL v2.
 # You may obtain a copy of Mulan PSL v2 at:
-# 
+#
 #          http://license.coscl.org.cn/MulanPSL2
-# 
+#
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-
-# Standard library imports
-import asyncio
 import traceback
 
-# Third-party library imports
 import ray
 from omegaconf import OmegaConf
 
-# Internal imports
 from aura.base.execution.executor_manager import ExecutorManager
 from aura.base.log.loggers import Loggers
 from aura.runner.infer_service.infer_executor import InferExecutor
@@ -39,6 +33,7 @@ class InferManager(ExecutorManager):
     async def setup(self, *args, **kwargs) -> None:
         try:
             from aura.base.conf.conf import AgenticRLConf
+
             conf = AgenticRLConf.load_config()
             conf_kwargs = OmegaConf.to_container(conf)
 
@@ -72,6 +67,7 @@ async def get_or_create_infer_manager():
     manager = ray.remote(InferManager).options(name="InferManager", lifetime="detached").remote()
     await manager.setup.remote()
     return manager
+
 
 def destroy_infer_manager():
     actor_name = "InferManager"

@@ -15,6 +15,7 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
+
 import copy
 import multiprocessing
 import os
@@ -26,8 +27,12 @@ import hydra
 from third_party.rl.mindspeed_rl.mindspeed_rl.config_cls.data_handler_config import DataHandlerConfig
 from third_party.rl.mindspeed_rl.mindspeed_rl.config_cls.validate_config import validate_data_handler_config
 from third_party.rl.mindspeed_rl.mindspeed_rl.datasets.indexed_dataset import IndexedDatasetBuilder
-from third_party.rl.mindspeed_rl.mindspeed_rl.datasets.preprocess_data import merge_datasets, build_splitter, \
-    cut_range_to_subs, handle_subset
+from third_party.rl.mindspeed_rl.mindspeed_rl.datasets.preprocess_data import (
+    merge_datasets,
+    build_splitter,
+    cut_range_to_subs,
+    handle_subset,
+)
 from third_party.rl.mindspeed_rl.mindspeed_rl.utils.tokenizer import get_tokenizer
 from third_party.rl.mindspeed_rl.mindspeed_rl.datasets.data_handler import build_dataset, get_dataset_handler
 from third_party.rl.mindspeed_rl.mindspeed_rl.utils.loggers import Loggers
@@ -48,9 +53,9 @@ def preprocess(config):
         merge_datasets(args)
         return
 
-    tokenizer = get_tokenizer(args.tokenizer_name_or_path,
-                              prompt_type=args.prompt_type,
-                              prompt_type_path=args.prompt_type_path)
+    tokenizer = get_tokenizer(
+        args.tokenizer_name_or_path, prompt_type=args.prompt_type, prompt_type_path=args.prompt_type_path
+    )
     splitter = build_splitter(args)
 
     logger.info(f"building dataset: {args.input}")
@@ -72,8 +77,9 @@ def preprocess(config):
         params_list = []
         for k, subset in enumerate(subsets):
             args_ = copy.deepcopy(args)
-            args_.output_prefix = target_prefix.replace(target_prefixname,
-                                                        f'{str(k).zfill(3)}_of_{str(len(subsets) - 1).zfill(3)}_{target_prefixname}')
+            args_.output_prefix = target_prefix.replace(
+                target_prefixname, f'{str(k).zfill(3)}_of_{str(len(subsets) - 1).zfill(3)}_{target_prefixname}'
+            )
             params = [args_, subset, tokenizer, splitter]
             params_list.append(params)
         pool = multiprocessing.Pool()
@@ -84,8 +90,9 @@ def preprocess(config):
         for key in sub_idx_files[0].keys():
             idx_files = [x[key] for x in sub_idx_files]
             idx_files.sort()
-            target_idx = idx_files[0].replace(f'000_of_{str(len(subsets) - 1).zfill(3)}_{target_prefixname}',
-                                              target_prefixname)
+            target_idx = idx_files[0].replace(
+                f'000_of_{str(len(subsets) - 1).zfill(3)}_{target_prefixname}', target_prefixname
+            )
             target_bin = target_idx.replace('.idx', '.bin')
             idx = IndexedDatasetBuilder(target_bin)
             for idx_file in idx_files:

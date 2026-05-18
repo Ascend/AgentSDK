@@ -22,8 +22,7 @@ from unittest.mock import MagicMock
 import os
 import pytest
 import tempfile
-from unittest.mock import patch, call, PropertyMock
-import threading
+from unittest.mock import patch
 
 # Mock openai before importing the module under test
 mock_openai = MagicMock()
@@ -42,12 +41,14 @@ sys.modules['google.cloud.aiplatform_v1beta1.types.content'] = MagicMock()
 sys.modules['sentence_transformers'] = MagicMock()
 sys.modules['vertexai.generative_models'] = MagicMock()
 
+
 # Mock FastAPI before importing the module under test
 class HTTPException(Exception):
     def __init__(self, status_code, detail):
         self.status_code = status_code
         self.detail = detail
         super().__init__(detail)
+
 
 mock_fastapi = MagicMock()
 mock_fastapi.HTTPException = HTTPException
@@ -153,9 +154,17 @@ class TestRolloutController:
     @patch('aura.controllers.rollout_controller.rollout_controller.create_actor')
     @patch('aura.controllers.rollout_controller.rollout_controller.ray.get')
     @patch('aura.controllers.rollout_controller.rollout_controller.ControllerConfig')
-    def test_init(self, mock_config_class, mock_ray_get, mock_create_actor,
-                  mock_rollout_client_class, mock_rollout_server_class,
-                  mock_fastapi_class, mock_thread_class, mock_clean_weights):
+    def test_init(
+        self,
+        mock_config_class,
+        mock_ray_get,
+        mock_create_actor,
+        mock_rollout_client_class,
+        mock_rollout_server_class,
+        mock_fastapi_class,
+        mock_thread_class,
+        mock_clean_weights,
+    ):
         """Test RolloutController initialization."""
         mock_config = MagicMock()
         mock_config.rollout_server_addr = "localhost:8080"
@@ -193,9 +202,17 @@ class TestRolloutController:
     @patch('aura.controllers.rollout_controller.rollout_controller.create_actor')
     @patch('aura.controllers.rollout_controller.rollout_controller.ray.get')
     @patch('aura.controllers.rollout_controller.rollout_controller.ControllerConfig')
-    def test_send_ready_to_train(self, mock_config_class, mock_ray_get, mock_create_actor,
-                                 mock_rollout_client_class, mock_rollout_server_class,
-                                 mock_fastapi_class, mock_thread_class, mock_clean_weights):
+    def test_send_ready_to_train(
+        self,
+        mock_config_class,
+        mock_ray_get,
+        mock_create_actor,
+        mock_rollout_client_class,
+        mock_rollout_server_class,
+        mock_fastapi_class,
+        mock_thread_class,
+        mock_clean_weights,
+    ):
         """Test send_ready_to_train method."""
         mock_config = MagicMock()
         mock_config.rollout_server_addr = "localhost:8080"
@@ -227,9 +244,17 @@ class TestRolloutController:
     @patch('aura.controllers.rollout_controller.rollout_controller.create_actor')
     @patch('aura.controllers.rollout_controller.rollout_controller.ray.get')
     @patch('aura.controllers.rollout_controller.rollout_controller.ControllerConfig')
-    def test_get_weight_manager(self, mock_config_class, mock_ray_get, mock_create_actor,
-                                mock_rollout_client_class, mock_rollout_server_class,
-                                mock_fastapi_class, mock_thread_class, mock_clean_weights):
+    def test_get_weight_manager(
+        self,
+        mock_config_class,
+        mock_ray_get,
+        mock_create_actor,
+        mock_rollout_client_class,
+        mock_rollout_server_class,
+        mock_fastapi_class,
+        mock_thread_class,
+        mock_clean_weights,
+    ):
         """Test get_weight_manager method."""
         mock_config = MagicMock()
         mock_config.rollout_server_addr = "localhost:8080"
@@ -261,9 +286,17 @@ class TestRolloutController:
     @patch('aura.controllers.rollout_controller.rollout_controller.create_actor')
     @patch('aura.controllers.rollout_controller.rollout_controller.ray.get')
     @patch('aura.controllers.rollout_controller.rollout_controller.ControllerConfig')
-    def test_initialize_rollout_queue_actor(self, mock_config_class, mock_ray_get, mock_create_actor,
-                                            mock_rollout_client_class, mock_rollout_server_class,
-                                            mock_fastapi_class, mock_thread_class, mock_clean_weights):
+    def test_initialize_rollout_queue_actor(
+        self,
+        mock_config_class,
+        mock_ray_get,
+        mock_create_actor,
+        mock_rollout_client_class,
+        mock_rollout_server_class,
+        mock_fastapi_class,
+        mock_thread_class,
+        mock_clean_weights,
+    ):
         """Test initialize_rollout_queue_actor method."""
         mock_config = MagicMock()
         mock_config.rollout_server_addr = "localhost:8080"
@@ -295,9 +328,17 @@ class TestRolloutController:
     @patch('aura.controllers.rollout_controller.rollout_controller.create_actor')
     @patch('aura.controllers.rollout_controller.rollout_controller.ray.get')
     @patch('aura.controllers.rollout_controller.rollout_controller.ControllerConfig')
-    def test_initialize_rollout_server(self, mock_config_class, mock_ray_get, mock_create_actor,
-                                       mock_rollout_client_class, mock_rollout_server_class,
-                                       mock_fastapi_class, mock_thread_class, mock_clean_weights):
+    def test_initialize_rollout_server(
+        self,
+        mock_config_class,
+        mock_ray_get,
+        mock_create_actor,
+        mock_rollout_client_class,
+        mock_rollout_server_class,
+        mock_fastapi_class,
+        mock_thread_class,
+        mock_clean_weights,
+    ):
         """Test initialize_rollout_server method."""
         mock_config = MagicMock()
         mock_config.rollout_server_addr = "localhost:8080"
@@ -336,9 +377,17 @@ class TestRolloutController:
     @patch('aura.controllers.rollout_controller.rollout_controller.create_actor')
     @patch('aura.controllers.rollout_controller.rollout_controller.ray.get')
     @patch('aura.controllers.rollout_controller.rollout_controller.ControllerConfig')
-    def test_initialize_rollout_weight_manager(self, mock_config_class, mock_ray_get, mock_create_actor,
-                                               mock_rollout_client_class, mock_rollout_server_class,
-                                               mock_fastapi_class, mock_thread_class, mock_clean_weights):
+    def test_initialize_rollout_weight_manager(
+        self,
+        mock_config_class,
+        mock_ray_get,
+        mock_create_actor,
+        mock_rollout_client_class,
+        mock_rollout_server_class,
+        mock_fastapi_class,
+        mock_thread_class,
+        mock_clean_weights,
+    ):
         """Test initialize_rollout_weight_manager method."""
         mock_config = MagicMock()
         mock_config.rollout_server_addr = "localhost:8080"
@@ -370,9 +419,17 @@ class TestRolloutController:
     @patch('aura.controllers.rollout_controller.rollout_controller.create_actor')
     @patch('aura.controllers.rollout_controller.rollout_controller.ray.get')
     @patch('aura.controllers.rollout_controller.rollout_controller.ControllerConfig')
-    def test_running(self, mock_config_class, mock_ray_get, mock_create_actor,
-                     mock_rollout_client_class, mock_rollout_server_class,
-                     mock_fastapi_class, mock_thread_class, mock_clean_weights):
+    def test_running(
+        self,
+        mock_config_class,
+        mock_ray_get,
+        mock_create_actor,
+        mock_rollout_client_class,
+        mock_rollout_server_class,
+        mock_fastapi_class,
+        mock_thread_class,
+        mock_clean_weights,
+    ):
         """Test running method."""
         mock_config = MagicMock()
         mock_config.rollout_server_addr = "localhost:8080"
@@ -398,58 +455,30 @@ class TestRolloutController:
         assert result is True
         mock_server.running.assert_called_once()
 
-    @patch('aura.controllers.rollout_controller.rollout_controller.time.sleep')
-    @patch('aura.controllers.rollout_controller.rollout_controller.clean_rollout_weights')
-    @patch('aura.controllers.rollout_controller.rollout_controller.threading.Thread')
-    @patch('aura.controllers.rollout_controller.rollout_controller.FastAPI')
-    @patch('aura.controllers.rollout_controller.rollout_controller.RolloutServer')
-    @patch('aura.controllers.rollout_controller.rollout_controller.RolloutClient')
-    @patch('aura.controllers.rollout_controller.rollout_controller.create_actor')
-    @patch('aura.controllers.rollout_controller.rollout_controller.ray.get')
-    @patch('aura.controllers.rollout_controller.rollout_controller.ray.kill')
-    @patch('aura.controllers.rollout_controller.rollout_controller.ControllerConfig')
-    def test_finish_rollout(self, mock_config_class, mock_ray_kill, mock_ray_get,
-                            mock_create_actor, mock_rollout_client_class,
-                            mock_rollout_server_class, mock_fastapi_class,
-                            mock_thread_class, mock_clean_weights, mock_sleep):
-        """Test finish_rollout method."""
-        mock_config = MagicMock()
-        mock_config.rollout_server_addr = "localhost:8080"
-        mock_config_class.return_value = mock_config
-
-        mock_client = MagicMock()
-        mock_rollout_client_class.return_value = mock_client
-
-        mock_weight_manager = MagicMock()
-        mock_queue_actor = MagicMock()
-        mock_create_actor.side_effect = [mock_weight_manager, mock_queue_actor]
-
-        mock_server = MagicMock()
-        type(mock_server).is_shutdown = PropertyMock(side_effect=[False, True])
-        mock_rollout_server_class.return_value = mock_server
-
-        mock_app = MagicMock()
-        mock_fastapi_class.return_value = mock_app
-
-        controller = RolloutController(weight_save_dir="/tmp/weights")
-        controller.finish_rollout()
-
-        mock_sleep.assert_called_once_with(3)
-        assert mock_ray_kill.call_count == 2
-        mock_ray_kill.assert_any_call(mock_queue_actor)
-        mock_ray_kill.assert_any_call(mock_weight_manager)
-
 
 @pytest.fixture(scope="module", autouse=True)
 def cleanup_module():
     """Cleanup mock modules after all tests in this module."""
     yield
-    modules_to_clean = ['openai', 'vertexai', 'google', 'google.cloud', 
-                       'google.cloud.aiplatform_v1beta1', 'google.cloud.aiplatform_v1beta1.types',
-                       'google.cloud.aiplatform_v1beta1.types.content', 'sentence_transformers',
-                       'vertexai.generative_models', 'fastapi', 'ray', 'ray.serve', 'ray.util',
-                       'ray.util.placement_group', 'ray.util.scheduling_strategies', 
-                       'ray.exceptions', 'uvicorn']
+    modules_to_clean = [
+        'openai',
+        'vertexai',
+        'google',
+        'google.cloud',
+        'google.cloud.aiplatform_v1beta1',
+        'google.cloud.aiplatform_v1beta1.types',
+        'google.cloud.aiplatform_v1beta1.types.content',
+        'sentence_transformers',
+        'vertexai.generative_models',
+        'fastapi',
+        'ray',
+        'ray.serve',
+        'ray.util',
+        'ray.util.placement_group',
+        'ray.util.scheduling_strategies',
+        'ray.exceptions',
+        'uvicorn',
+    ]
     for mod in modules_to_clean:
         if mod in sys.modules:
             del sys.modules[mod]

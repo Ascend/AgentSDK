@@ -4,19 +4,18 @@
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
-# 
+#
 # AgentSDK is licensed under Mulan PSL v2.
 # You can use this software according to the terms and conditions of the Mulan PSL v2.
 # You may obtain a copy of Mulan PSL v2 at:
-# 
+#
 #          http://license.coscl.org.cn/MulanPSL2
-# 
+#
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
-
 
 from aura.base.execution.executor import public_api, Executor
 from aura.base.log.loggers import Loggers
@@ -30,15 +29,19 @@ class InferExecutor(Executor):
 
         if engine == "vllm_ray":
             from aura.runner.infer_service.infer_server.vllm_ray_infer_server import VLLMRayInferServer
+
             self.engine = VLLMRayInferServer(**engine_kwargs)
         elif engine == "vllm_mp":
             from aura.runner.infer_service.infer_server.vllm_mp_infer_server import VLLMMPInferServer
+
             self.engine = VLLMMPInferServer(**engine_kwargs)
         elif engine == "vllm_external":
             from aura.runner.infer_service.infer_server.vllm_external_infer_server import VLLMExternalInferServer
+
             self.engine = VLLMExternalInferServer(**engine_kwargs)
         elif engine == "vllm_proxy":
             from aura.runner.infer_service.infer_server.vllm_proxy_infer_server import VLLMProxyInferServer
+
             self.engine = VLLMProxyInferServer(**engine_kwargs)
         else:
             raise ValueError(f"{engine} is not supported.")
@@ -59,6 +62,7 @@ class InferExecutor(Executor):
             return await self.engine.completions(*args, **kwargs)
         except Exception as e:
             import traceback
+
             traceback.print_exc()
             logger.error(e)
             raise e
@@ -69,6 +73,19 @@ class InferExecutor(Executor):
             return await self.engine.chat_completions(*args, **kwargs)
         except Exception as e:
             import traceback
+
+            traceback.print_exc()
+            logger.error(e)
+            raise e
+
+    @public_api(name="stream_completions", is_stream=True)
+    async def stream_completions(self, *args, **kwargs):
+        try:
+            async for response in self.engine.stream_completions(*args, **kwargs):
+                yield response
+        except Exception as e:
+            import traceback
+
             traceback.print_exc()
             logger.error(e)
             raise e
@@ -80,6 +97,7 @@ class InferExecutor(Executor):
                 yield chat_response
         except Exception as e:
             import traceback
+
             traceback.print_exc()
             logger.error(e)
             raise e
@@ -99,4 +117,12 @@ class InferExecutor(Executor):
     @public_api(name="update_weights")
     async def update_weights(self, *args, **kwargs):
         path = kwargs["path"]
-        await self.engine.collective_rpc("update_weights", args=path)
+        return await self.engine.collective_rpc("update_weights", args=path)
+
+    @public_api(name="vllm_statistics")
+    async def vllm_statistics(self, *args, **kwargs):
+        return await self.engine.collective_rpc("vllm_statistics")
+
+    @public_api(name="reset_prefix_cache")
+    async def reset_prefix_cache(self, *args, **kwargs):
+        await self.engine.reset_prefix_cache()

@@ -37,11 +37,7 @@ from aura.base.utils.globals import (
     INSTANCE_IMAGE_TAG,
     REPORT_DIR,
     ROLLOUT_WEIGHTS_PREFIX,
-    TRAIN_CLUSTER,
-    ROLLOUT_CLUSTER,
-    set_cluster_mode,
-    get_cluster_mode,
-    is_pd_separate
+    is_pd_separate,
 )
 
 
@@ -53,11 +49,11 @@ class TestGlobals:
         assert GCP_LOCATION == "us-central1"
         assert GEMINI_MODEL == "gemini-1.5-pro-002"
         assert OAI_RM_MODEL == "gpt-4o-mini"
-        
+
         # Reward function constants
         assert THOUGHT_DELIMITER_START == "<think>"
         assert THOUGHT_DELIMITER_END == "</think>"
-        
+
         # SWEBench Harness Config
         assert SWEBENCH_DATASET_NAME == "princeton-nlp/SWE-bench_Verified"
         assert MAX_WORKERS == 4
@@ -71,59 +67,33 @@ class TestGlobals:
         assert SPLIT == "test"
         assert INSTANCE_IMAGE_TAG == "latest"
         assert REPORT_DIR == "../.."
-        
+
         # Other constants
         assert ROLLOUT_WEIGHTS_PREFIX == "/rollout"
-        assert TRAIN_CLUSTER == "train"
-        assert ROLLOUT_CLUSTER == "rollout"
-
-    def test_set_and_get_cluster_mode(self):
-        """Test that cluster mode can be set and retrieved correctly."""
-        # Save original environment variable value if it exists
-        original_mode = os.environ.get("CLUSTER_MODE")
-        
-        try:
-            # Test setting and getting cluster mode
-            test_mode = "test_mode"
-            set_cluster_mode(test_mode)
-            assert get_cluster_mode() == test_mode
-            assert os.environ["CLUSTER_MODE"] == test_mode
-            
-            # Test another mode
-            another_mode = "another_mode"
-            set_cluster_mode(another_mode)
-            assert get_cluster_mode() == another_mode
-            assert os.environ["CLUSTER_MODE"] == another_mode
-        finally:
-            # Restore original environment variable
-            if original_mode is not None:
-                os.environ["CLUSTER_MODE"] = original_mode
-            elif "CLUSTER_MODE" in os.environ:
-                del os.environ["CLUSTER_MODE"]
 
     def test_is_pd_separate(self):
         """Test that is_pd_separate function works correctly with different environment variable values."""
         # Save original environment variable value if it exists
         original_use_pd = os.environ.get("USE_PD")
-        
+
         try:
             # Test default value (USE_PD not set)
             if "USE_PD" in os.environ:
                 del os.environ["USE_PD"]
             assert is_pd_separate() is False
-            
+
             # Test USE_PD=0
             os.environ["USE_PD"] = "0"
             assert is_pd_separate() is False
-            
+
             # Test USE_PD=1
             os.environ["USE_PD"] = "1"
             assert is_pd_separate() is True
-            
+
             # Test USE_PD=other values (should be treated as True)
             os.environ["USE_PD"] = "2"
             assert is_pd_separate() is True  # Note: non-zero integers are True when converted to bool
-            
+
             os.environ["USE_PD"] = "true"
             with pytest.raises(ValueError):
                 is_pd_separate()  # Non-numeric values raise ValueError
@@ -133,23 +103,3 @@ class TestGlobals:
                 os.environ["USE_PD"] = original_use_pd
             elif "USE_PD" in os.environ:
                 del os.environ["USE_PD"]
-
-    def test_get_cluster_mode_missing(self):
-        """Test that get_cluster_mode raises KeyError when CLUSTER_MODE is not set."""
-        # Save original environment variable value if it exists
-        original_mode = os.environ.get("CLUSTER_MODE")
-        
-        try:
-            # Ensure environment variable doesn't exist
-            if "CLUSTER_MODE" in os.environ:
-                del os.environ["CLUSTER_MODE"]
-            
-            # Calling get_cluster_mode should raise KeyError
-            with pytest.raises(KeyError):
-                get_cluster_mode()
-        finally:
-            # Restore original environment variable
-            if original_mode is not None:
-                os.environ["CLUSTER_MODE"] = original_mode
-            elif "CLUSTER_MODE" in os.environ:
-                del os.environ["CLUSTER_MODE"]

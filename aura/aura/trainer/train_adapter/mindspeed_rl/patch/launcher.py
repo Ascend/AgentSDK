@@ -13,7 +13,7 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
-# 
+#
 import uuid
 
 import ray
@@ -40,10 +40,9 @@ def create_actor_handlers_patch(self, param: ActorHandlerParams) -> ray.actor.Ac
     return self.worker.options(
         name=f"{actor_class_name}_{param.rank_index}_{param.bundle_index}_{uuid.uuid4().hex[-10:]}",
         scheduling_strategy=PlacementGroupSchedulingStrategy(
-            placement_group=param.placement_group,
-            placement_group_bundle_index=param.bundle_index
+            placement_group=param.placement_group, placement_group_bundle_index=param.bundle_index
         ),
-        runtime_env=runtime_env
+        runtime_env=runtime_env,
     ).remote(
         self.megatron_config,
         self.rl_config,
@@ -54,5 +53,37 @@ def create_actor_handlers_patch(self, param: ActorHandlerParams) -> ray.actor.Ac
         profiler_config=self.profiler_config,
         msprobe_config=self.msprobe_config,
         tokenizer=self.tokenizer,
-        **self.kwargs
+        **self.kwargs,
     )
+
+
+def update_ref_dispatch_size(self, batch_len):
+    actor_train_objs = []
+    for actor in self.actor_handlers:
+        actor_train_objs.append(actor.update_ref_dispatch_size.remote(batch_len))
+    return ray.get(actor_train_objs)
+
+
+def update_actor_logprob_dispatch_size(self, batch_len):
+    actor_train_objs = []
+    for actor in self.actor_handlers:
+        actor_train_objs.append(actor.update_actor_logprob_dispatch_size.remote(batch_len))
+    return ray.get(actor_train_objs)
+
+
+def update_actor_update_dispatch_size(self, batch_len):
+    actor_train_objs = []
+    for actor in self.actor_handlers:
+        actor_train_objs.append(actor.update_actor_update_dispatch_size.remote(batch_len))
+    return ray.get(actor_train_objs)
+
+
+def update_mini_batch_size(self, original_n_samples_per_prompt, new_samples_per_prompt, use_stepwise_advantage):
+    actor_train_objs = []
+    for actor in self.actor_handlers:
+        actor_train_objs.append(
+            actor.update_mini_batch_size.remote(
+                original_n_samples_per_prompt, new_samples_per_prompt, use_stepwise_advantage
+            )
+        )
+    return ray.get(actor_train_objs)

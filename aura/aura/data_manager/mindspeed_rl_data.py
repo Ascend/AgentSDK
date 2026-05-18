@@ -40,9 +40,11 @@ class MindSpeedRLDataManager:
         return status
 
     def get_data(self, experience_consumer_stage, experience_columns, experience_count, get_n_samples=True):
-        batch_data, index = ray.get(self.data_manager.get_experience.remote(experience_consumer_stage,
-                                                                            experience_columns, experience_count,
-                                                                            get_n_samples=get_n_samples))
+        batch_data, index = ray.get(
+            self.data_manager.get_experience.remote(
+                experience_consumer_stage, experience_columns, experience_count, get_n_samples=get_n_samples
+            )
+        )
         logger.info(f'get_transfer_dock_data batch_data: {batch_data.keys()}, {index}')
         if index:
             return batch_data, index
@@ -58,3 +60,6 @@ class MindSpeedRLDataManager:
 
     def update_metrics(self, k, value, cumulate):
         ray.get(self.data_manager.update_metrics.remote(k, value, cumulate=cumulate))
+
+    def reset_experience_len(self, experience_len):
+        self.data_manager.reset_experience_len.remote(experience_len)

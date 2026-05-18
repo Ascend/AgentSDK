@@ -13,7 +13,7 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
-# 
+#
 import os
 import threading
 import time
@@ -42,12 +42,15 @@ from mindspeed_rl.workers.actor_hybrid_worker import (
 from mindspeed_rl.workers.resharding.megatron_off_loader import MegatronOffLoader
 
 from aura.base.log.loggers import Loggers
+from aura.base.accuracy.haco_tool import enable_haco, actor_worker_update_haco
 from aura.runner.infer_adapter.vllm.extension.custom_worker_extensions import (
     resolve_device,
     split_tensors_and_meta,
 )
 
 logger = Loggers(__name__).get_logger()
+
+HAS_HACO = enable_haco(logger)
 
 
 def _do_tensors_save(
@@ -62,7 +65,6 @@ def _do_tensors_save(
         meta_header: Optional metadata header to embed in the safetensors file.
     """
     try:
-        
         logger.info(f"===save tensors to {file_path}")
         if meta_header:
             sf.save_file(params, file_path, metadata=meta_header)
@@ -89,9 +91,7 @@ def async_tensors_save(
         params: Dictionary mapping parameter names to tensor values.
         meta_header: Optional metadata header to embed in the safetensors file.
     """
-    threading.Thread(
-        target=_do_tensors_save, args=(save_dir, file_path, params, meta_header), daemon=True
-    ).start()
+    threading.Thread(target=_do_tensors_save, args=(save_dir, file_path, params, meta_header), daemon=True).start()
     logger.info("===async saving tensor with threading")
 
 
@@ -103,6 +103,7 @@ class AgentActorHybridWorkerBase(ActorHybridWorkerBase):
         super().__init__(*args, **kwargs)
         self.rl_config.zmq_communication = False
         self.continue_infer_running = False
+        self.sentinel = None
 
     def initialize(self) -> None:
         """Set up distributed rank, build model/optimizer, offloader, and inference engine."""
@@ -114,7 +115,8 @@ class AgentActorHybridWorkerBase(ActorHybridWorkerBase):
             self.optimizer,
             megatron_config=self.megatron_config,
             distributed_optimizer=self.distributed_optimizer,
-            float16_optimizer_with_float16_params=self.float16_optimizer_with_float16_params)
+            float16_optimizer_with_float16_params=self.float16_optimizer_with_float16_params,
+        )
 
         if self.generate_config.offload_train_optimizer:
             self.actor_offloader.offload_optimizer()
@@ -124,6 +126,9 @@ class AgentActorHybridWorkerBase(ActorHybridWorkerBase):
             self.actor_offloader.offload_param()
         with replace_torch_compile():
             self.inference_model = self._build_rollout()
+        if self.sentinel is None and HAS_HACO:
+            addr, port = self.get_master_addr_port()
+            self.sentinel = actor_worker_update_haco(addr, model=self.model, optimizer=self.optimizer)
 
         self.actor_profiler = profiler_start(self.profiler_config, self.profiler_config.role)
         MsProbe.config_init(self.msprobe_config)
@@ -150,11 +155,7 @@ class AgentActorHybridWorkerBase(ActorHybridWorkerBase):
         self.state = ActorState.INFER
         end_time = time.time()
         ray.get(
-            self.td.update_metrics.remote(
-                "timing/resharding_to_infer",
-                value=[end_time - start_time],
-                cumulate=True
-            )
+            self.td.update_metrics.remote("timing/resharding_to_infer", value=[end_time - start_time], cumulate=True)
         )
 
     def init_sharding_manager(self) -> None:
@@ -175,8 +176,7 @@ class AgentActorHybridWorkerBase(ActorHybridWorkerBase):
             inference_model=self.inference_model,
             sharding_manager=self.sharding_manager,
             beta=self.rl_config.beta,
-            mini_batch_size_per_dp=self.rl_config.mini_batch_size
-                                   // self.parallel_state.get_data_parallel_world_size(),
+            mini_batch_size_per_dp=self.rl_config.mini_batch_size // self.parallel_state.get_data_parallel_world_size(),
             epochs=self.rl_config.epochs,
             shuffle_mini_batch=self.rl_config.shuffle_mini_batch,
             generate_config=self.generate_config,
@@ -198,7 +198,7 @@ class AgentActorHybridWorkerBase(ActorHybridWorkerBase):
             token_level_loss=self.rl_config.token_level_loss,
             clip_higher_enable=self.rl_config.clip_higher_enable,
             clip_ratio_low=self.rl_config.clip_ratio_low,
-            clip_ratio_high=self.rl_config.clip_ratio_high
+            clip_ratio_high=self.rl_config.clip_ratio_high,
         )
         self.empty_cache()
 
@@ -245,7 +245,8 @@ class AgentActorHybridWorkerBase(ActorHybridWorkerBase):
     def _build_rollout(self) -> Any:
         """Construct and return the asynchronous vLLM inference engine."""
         self.actor_model_config = AutoConfig.from_pretrained(
-            self.megatron_config.tokenizer_name_or_path, trust_remote_code=self.generate_config.trust_remote_code)
+            self.megatron_config.tokenizer_name_or_path, trust_remote_code=self.generate_config.trust_remote_code
+        )
 
         from aura.runner.infer_adapter.vllm.vllm_worker import AsyncVLLMInferEngine
 
@@ -285,11 +286,24 @@ class AgentActorHybridWorkerBase(ActorHybridWorkerBase):
         experience_consumer_stage = 'actor_train'
 
         if self.megatron_config.stage == "ray_dapo":
-            experience_columns = ['responses', 'advantages', 'old_log_prob',
-                                  'input_ids', 'response_length', 'prompt_length']
+            experience_columns = [
+                'responses',
+                'advantages',
+                'old_log_prob',
+                'input_ids',
+                'response_length',
+                'prompt_length',
+            ]
         else:
-            experience_columns = ['responses', 'advantages', 'old_log_prob',
-                                  'ref_log_prob', 'input_ids', 'response_length', 'prompt_length']
+            experience_columns = [
+                'responses',
+                'advantages',
+                'old_log_prob',
+                'ref_log_prob',
+                'input_ids',
+                'response_length',
+                'prompt_length',
+            ]
 
         experience_columns.append("response_mask")
 
@@ -305,15 +319,12 @@ class AgentActorHybridWorkerBase(ActorHybridWorkerBase):
         for param_group in self.optimizer.param_groups:
             learning_rate = param_group['lr']
         ray.get(self.td.update_metrics.remote(key='actor/lr', value=learning_rate))
-        sorted_indexes = self.get_dp_range_indexes(
-            experience_count,
-            use_vllm=False
-        ) if self.rl_config.guarantee_order else None
+        sorted_indexes = (
+            self.get_dp_range_indexes(experience_count, use_vllm=False) if self.rl_config.guarantee_order else None
+        )
 
         actor_update_profiler = profiler_start(
-            self.profiler_config,
-            role="actor_update",
-            profiler_iteration=self.prof_iteration
+            self.profiler_config, role="actor_update", profiler_iteration=self.prof_iteration
         )
 
         MsProbe.debugger_start(self.model[0], tag='actor_update')
@@ -324,22 +335,31 @@ class AgentActorHybridWorkerBase(ActorHybridWorkerBase):
         while self.all_consumed(experience_consumer_stage, sorted_indexes) > 0:
             if not first_dispatch_data_defined:
                 first_dispatch_start_time = time.time()
-            batch_data, index = self.dispatch_transfer_dock_data(experience_consumer_stage,
-                                                                 experience_columns,
-                                                                 experience_count,
-                                                                 self.megatron_config.tensor_model_parallel_size,
-                                                                 self.megatron_config.context_parallel_size,
-                                                                 self.megatron_config.context_parallel_algo,
-                                                                 indexes=sorted_indexes.pop(
-                                                                     0) if self.rl_config.guarantee_order else None,
-                                                                 get_n_samples=self.enable_partial_rollout)
+            batch_data, index = self.dispatch_transfer_dock_data(
+                experience_consumer_stage,
+                experience_columns,
+                experience_count,
+                self.megatron_config.tensor_model_parallel_size,
+                self.megatron_config.context_parallel_size,
+                self.megatron_config.context_parallel_algo,
+                indexes=sorted_indexes.pop(0) if self.rl_config.guarantee_order else None,
+                get_n_samples=self.enable_partial_rollout,
+            )
+
+            ## 2. 保存数据
+            from aura.base.analysis.data_analysis import json_save_data
+
+            json_save_data(batch_data, "update_batch_from_td", self.iteration)
+
             if batch_data and index:
                 if not first_dispatch_data_defined:
-                    ray.get(self.td.update_metrics.remote(
-                        "dispatch_timing(first)/update",
-                        value=[time.time(), first_dispatch_start_time],
-                        cumulate=True
-                    ))
+                    ray.get(
+                        self.td.update_metrics.remote(
+                            "dispatch_timing(first)/update",
+                            value=[time.time(), first_dispatch_start_time],
+                            cumulate=True,
+                        )
+                    )
                     first_dispatch_data_defined = True
 
                 if not start_time_defined:
@@ -348,18 +368,20 @@ class AgentActorHybridWorkerBase(ActorHybridWorkerBase):
                 metrics = self.actor_hybrid.update_actor(batch_data, kl_ctrl)
 
                 self.args.consumed_train_samples += (
-                        self.megatron_config.global_batch_size // self.rl_config.n_samples_per_prompt)
-                self.num_floating_point_operations_so_far += (
-                    num_floating_point_operations(self.args, self.megatron_config.global_batch_size))
-                if (self.parallel_state.is_pipeline_last_stage(ignore_virtual=True) and
-                        self.parallel_state.get_tensor_model_parallel_rank() == 0 and
-                        self.parallel_state.get_context_parallel_rank() == 0):
+                    self.megatron_config.global_batch_size // self.rl_config.n_samples_per_prompt
+                )
+                self.num_floating_point_operations_so_far += num_floating_point_operations(
+                    self.args, self.megatron_config.global_batch_size
+                )
+                if (
+                    self.parallel_state.is_pipeline_last_stage(ignore_virtual=True)
+                    and self.parallel_state.get_tensor_model_parallel_rank() == 0
+                    and self.parallel_state.get_context_parallel_rank() == 0
+                ):
                     ray.get(self.td.update_metrics.remote(value=metrics, cumulate=True))
                     ray.get(
                         self.td.update_metrics.remote(
-                            "timing/update",
-                            value=[round(time.time(), 4), round(start_time, 4)],
-                            cumulate=True
+                            "timing/update", value=[round(time.time(), 4), round(start_time, 4)], cumulate=True
                         )
                     )
 
@@ -370,21 +392,15 @@ class AgentActorHybridWorkerBase(ActorHybridWorkerBase):
         self.prof_iteration += 1
         start_sharding_exit_train = time.time()
         self.sharding_manager.exit_train_mode()
-        sharding_train_interval += (time.time() - start_sharding_exit_train)
+        sharding_train_interval += time.time() - start_sharding_exit_train
         ray.get(
-            self.td.update_metrics.remote(
-                "timing/resharding_to_train",
-                value=[sharding_train_interval],
-                cumulate=True
-            )
+            self.td.update_metrics.remote("timing/resharding_to_train", value=[sharding_train_interval], cumulate=True)
         )
         profiler_step(self.actor_profiler)
         self.continue_infer_running = False
         logger.info("finish actor update")
 
-    def get_meta_and_param_from_dev(
-        self, dev: str, to_cpu: bool
-    ) -> Tuple[Dict[str, torch.Tensor], Optional[Dict[str, str]]]:
+    def get_meta_and_param_from_dev(self, dev: str) -> Tuple[Dict[str, torch.Tensor], Optional[Dict[str, str]]]:
         """Materialise inference parameters on the given device and split into tensors and metadata.
 
         Args:
@@ -396,9 +412,9 @@ class AgentActorHybridWorkerBase(ActorHybridWorkerBase):
         """
         self.onload_infer_params_with_device(dev)
         params = self.sharding_manager.vllm_weight_container.get_infer_params()
-        params = {k: (v.to(torch.float16) if isinstance(v, torch.Tensor) else v) for k, v in params.items()}
-        if to_cpu:
-            params = {k: (v.detach().cpu() if isinstance(v, torch.Tensor) else v) for k, v in params.items()}
+        for k, v in params.items():
+            if isinstance(v, torch.Tensor):
+                params[k] = v.detach().cpu()
 
         tensor_params, meta_header = split_tensors_and_meta(params)
         return tensor_params, meta_header
@@ -428,13 +444,9 @@ class AgentActorHybridWorkerBase(ActorHybridWorkerBase):
         pp_rank = ps.get_pipeline_model_parallel_rank()
         tp_rank = ps.get_tensor_model_parallel_rank()
         ep_rank = None
+        dev = "npu"
         if self.megatron_config.expert_model_parallel_size != 1:
-            dev = "npu"
             ep_rank = ps.get_expert_model_parallel_rank()
-        else:
-            dev = "cpu"
-            if dp_rank != 0:
-                return None
 
         ep_name = f"_ep{ep_rank}" if ep_rank is not None else "_ep0"
         save_dir = os.path.realpath(save_dir)
@@ -444,16 +456,30 @@ class AgentActorHybridWorkerBase(ActorHybridWorkerBase):
         return file_path, dev
 
     @mstx_timer_decorator
-    def prepare_infer_params_to_cpu(self, save_dir: str, to_cpu: bool = True):
+    def prepare_infer_params_to_cpu(self, save_dir: str):
         """Synchronously materialize weights on CPU and free actor buffers."""
         file_path, dev = self.get_file_name_and_dev(save_dir)
 
-        tensor_params, meta_header = self.get_meta_and_param_from_dev(dev, to_cpu)
+        tensor_params, meta_header = self.get_meta_and_param_from_dev(dev)
         self.sharding_manager.offload_infer_params()
 
-        logger.info(f"saving {len(tensor_params)} tensors to {file_path}")
         async_tensors_save(save_dir, file_path, tensor_params, meta_header)
+        logger.info(f"saving {len(tensor_params)} tensors to {file_path} success.")
         return file_path
+
+
+def update_actor_logprob_dispatch_size(self, new_actor_logprob_dispatch_size):
+    # Update the actor log-prob dispatch size by dividing it by the data parallel world size
+    self.rl_config.actor_logprob_dispatch_size = (
+        new_actor_logprob_dispatch_size // self.parallel_state.get_data_parallel_world_size()
+    )
+
+
+def update_mini_batch_size(self, original_n_samples_per_prompt, new_samples_per_prompt, use_stepwise_advantage):
+    # Update the mini-batch size by delegating to the actor_hybrid module
+    self.actor_hybrid.update_mini_batch_size(
+        original_n_samples_per_prompt, new_samples_per_prompt, use_stepwise_advantage
+    )
 
 
 @ray.remote(resources={"NPU": 0.7})

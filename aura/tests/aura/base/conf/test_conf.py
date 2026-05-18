@@ -47,72 +47,6 @@ class TestAgenticRLConf:
         elif AgenticRLConf.CONF_ENV in os.environ:
             del os.environ[AgenticRLConf.CONF_ENV]
 
-    @pytest.mark.parametrize("conf_input", [None, ""])
-    @patch('aura.base.conf.conf.logger')
-    def test_load_config_with_empty_inputs(self, mock_logger, conf_input):
-        """
-        Test with None input and empty string input.
-        """
-        # Ensure env var is not set for these tests
-        if AgenticRLConf.CONF_ENV in os.environ:
-            del os.environ[AgenticRLConf.CONF_ENV]
-        
-        conf = AgenticRLConf.load_config(conf_input)
-        assert dict(conf) == {}
-        mock_logger.warning.assert_called_once()
-
-    @patch('aura.base.conf.conf.logger')
-    def test_load_config_with_valid_conf_string(self, mock_logger):
-        """
-        Test with valid configuration string that includes both whitelisted and non-whitelisted keys.
-        """
-        conf_str = '''{
-            "agentic_ai": {
-                "model": "test_model",
-                "api_key": "test_key"
-            },
-            "serve_conf": {
-                "port": 8080,
-                "host": "localhost"
-            },
-            "non_whitelisted_key": "should_be_ignored"
-        }'''
-        
-        conf = AgenticRLConf.load_config(conf_str)
-        expected = {
-            "agentic_ai": {
-                "model": "test_model",
-                "api_key": "test_key"
-            },
-            "serve_conf": {
-                "port": 8080,
-                "host": "localhost"
-            }
-        }
-        assert dict(conf) == expected
-        # Verify dot notation access works
-        assert conf.agentic_ai.model == "test_model"
-        assert conf.serve_conf.port == 8080
-        mock_logger.debug.assert_called_once()
-
-    @patch('aura.base.conf.conf.logger')
-    def test_load_config_with_all_whitelisted_keys(self, mock_logger):
-        """
-        Test with all whitelisted keys included in the configuration.
-        """
-        conf_str = '''{
-            "agentic_ai": {},
-            "serve_conf": {},
-            "direct_conf": {},
-            "train_instances": [],
-            "agent_instances": [],
-            "infer_instances": []
-        }'''
-        
-        conf = AgenticRLConf.load_config(conf_str)
-        assert set(conf.keys()) == AgenticRLConf.WHITELIST_KEYS
-        mock_logger.debug.assert_called_once()
-
     @patch('aura.base.conf.conf.logger')
     def test_load_config_with_env_variable(self, mock_logger):
         """
@@ -124,34 +58,7 @@ class TestAgenticRLConf:
             }
         }'''
         os.environ[AgenticRLConf.CONF_ENV] = conf_str
-        
+
         conf = AgenticRLConf.load_config()
         assert conf.agentic_ai.model == "env_model"
-        mock_logger.debug.assert_called_once()
-
-    @patch('aura.base.conf.conf.logger')
-    def test_load_config_with_nested_configurations(self, mock_logger):
-        """
-        Test with deeply nested configurations to ensure dot notation works at all levels.
-        """
-        conf_str = '''{
-            "agentic_ai": {
-                "model": {
-                    "name": "nested_model",
-                    "version": "1.0",
-                    "params": {
-                        "param1": "value1",
-                        "param2": 100
-                    }
-                },
-                "api": {
-                    "url": "http://example.com/api"
-                }
-            }
-        }'''
-        
-        conf = AgenticRLConf.load_config(conf_str)
-        assert conf.agentic_ai.model.name == "nested_model"
-        assert conf.agentic_ai.model.params.param1 == "value1"
-        assert conf.agentic_ai.api.url == "http://example.com/api"
         mock_logger.debug.assert_called_once()

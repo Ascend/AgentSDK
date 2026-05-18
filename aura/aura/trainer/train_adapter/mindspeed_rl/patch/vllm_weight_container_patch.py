@@ -13,17 +13,22 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
-# 
+#
 import os
 import torch
 import torch.distributed as dist
 from functools import partial
 
-from mindspeed_rl.workers.resharding.utils import get_tensor_parallel_partition_dim, _build_infer_param_dict, \
-    is_tensor_parallel_param, get_tp_group, is_fake_tp_param
+from mindspeed_rl.workers.resharding.utils import (
+    get_tensor_parallel_partition_dim,
+    _build_infer_param_dict,
+    is_tensor_parallel_param,
+    get_tp_group,
+    is_fake_tp_param,
+)
 from mindspeed_rl.workers.resharding.memory_buffer import (
-    build_experts_memory_buffer, 
-    get_weight_buffer_meta_from_buffer
+    build_experts_memory_buffer,
+    get_weight_buffer_meta_from_buffer,
 )
 from aura.base.log.loggers import Loggers
 from aura.runner.infer_adapter.vllm.extension.custom_worker_extensions import broadcast_if_gpu
@@ -32,7 +37,10 @@ logger = Loggers(__name__).get_logger()
 
 
 def __init__(
-    self, megatron_model, vllm_model, model_config,
+    self,
+    megatron_model,
+    vllm_model,
+    model_config,
     infer_tensor_parallel_size,
     infer_pipeline_parallel_size,
     infer_expert_parallel_size,
@@ -143,21 +151,27 @@ def _validate_parallel_config_patch(self) -> None:
     if self._pp_size < self._infer_pp_size:
         raise ValueError(
             "The training pipeline parallel size should be greater than or equal to the inference pipeline "
-            "parallel size.")
+            "parallel size."
+        )
     if self._pp_size % self._infer_pp_size != 0:
         raise ValueError(
-            "The training pipeline parallel size should be an integer multiple of the inference pipeline parallel "
-            "size.")
+            "The training pipeline parallel size should be an integer multiple of the inference pipeline parallel size."
+        )
     if self._tp_size > self._infer_tp_size and self._tp_size % self._infer_tp_size != 0:
         raise ValueError(
-            "The training tensor parallel size should be an integer multiple of the inference tensor parallel size.")
+            "The training tensor parallel size should be an integer multiple of the inference tensor parallel size."
+        )
     # For tp increase, train_tp * dp >= infer_tp, train_tp * dp % infer_tp == 0
     if self._tp_size < self._infer_tp_size:
-        if (self._world_size // self._pp_size < self._infer_tp_size or
-                (self._world_size // self._pp_size) % self._infer_tp_size != 0):
+        if (
+            self._world_size // self._pp_size < self._infer_tp_size
+            or (self._world_size // self._pp_size) % self._infer_tp_size != 0
+        ):
             raise ValueError(
                 f"Do not support split train tp size {self._tp_size} to infer tp size {self._infer_tp_size} "
-                f"with train dp size {(self._world_size // (self._tp_size * self._pp_size))}.")
+                f"with train dp size {(self._world_size // (self._tp_size * self._pp_size))}."
+            )
+
 
 def split_tp_params_patch(self, param: torch.Tensor, name: str) -> torch.Tensor:
     """Split tensor-parallel parameters for inference.
@@ -192,10 +206,7 @@ def split_tp_params_patch(self, param: torch.Tensor, name: str) -> torch.Tensor:
             gate_splits = torch.chunk(gate, self._infer_tp_size, dim=0)
             up_splits = torch.chunk(up, self._infer_tp_size, dim=0)
 
-            new_params_list = [
-                torch.cat([gate_splits[i], up_splits[i]], dim=0)
-                for i in range(self._infer_tp_size)
-            ]
+            new_params_list = [torch.cat([gate_splits[i], up_splits[i]], dim=0) for i in range(self._infer_tp_size)]
         elif "qkv" in name and self._infer_tp_size > self.model_config.num_key_value_heads:
             g = self.model_config.num_key_value_heads
             partition_dim = get_tensor_parallel_partition_dim(param)
@@ -212,8 +223,7 @@ def split_tp_params_patch(self, param: torch.Tensor, name: str) -> torch.Tensor:
             i = infer_tp_rank_in_group // rep
             j = infer_tp_rank_in_group % rep
             qkv = split_params[i].reshape(repeats + 2, -1, h)
-            return torch.cat([qkv[step * j: step * j + step], qkv[repeats:]],
-                             dim=0).reshape(-1, h)
+            return torch.cat([qkv[step * j : step * j + step], qkv[repeats:]], dim=0).reshape(-1, h)
         else:
             partition_dim = get_tensor_parallel_partition_dim(param)
             infer_params = torch.cat(infer_params, dim=partition_dim)
@@ -230,6 +240,7 @@ def split_tp_params_patch(self, param: torch.Tensor, name: str) -> torch.Tensor:
     infer_tp_rank_in_group = global_rank % self._infer_tp_size
     return param_list[infer_tp_rank_in_group]
 
+
 def _update_weight_buffers_ep_patch(self) -> None:
     """Build temporary expert memory buffers and broadcast expert weights across PP ranks."""
     for cur_pp_rank in range(self._pp_size):
@@ -241,7 +252,8 @@ def _update_weight_buffers_ep_patch(self) -> None:
         for weight_names_per_stage in vpp_stages:
             combined_names_per_pp.extend(weight_names_per_stage)
         self.weight_buffer_meta = self.weight_adaptor.get_weight_buffer_meta(
-            self.vllm_model, combined_names_per_pp,
+            self.vllm_model,
+            combined_names_per_pp,
         )
         self.experts_weight_buffer_meta = get_weight_buffer_meta_from_buffer(
             self.weight_buffer_meta,
@@ -249,9 +261,7 @@ def _update_weight_buffers_ep_patch(self) -> None:
 
         # Build the experts buffer on the same device as the final
         # pp-weight buffer to avoid cross-device copy_
-        target_dev = next(
-            iter(self.weight_buffers[cur_pp_rank].memory_buffers.values())
-        ).data.device
+        target_dev = next(iter(self.weight_buffers[cur_pp_rank].memory_buffers.values())).data.device
         self.experts_memory_buffers = build_experts_memory_buffer(
             self.experts_weight_buffer_meta,
             self.experts_memory_expand_N,
@@ -267,39 +277,35 @@ def _update_weight_buffers_ep_patch(self) -> None:
                 num_layer_list=self._vpp_layer_list,
                 global2local_map=self._global2local_map,
             )
-            name_pairs = sorted(list(set([
-                (
-                    name,
-                    vpp_rank,
-                    self.weight_adaptor.replace_name_i2t(
-                        normal_layer_func(name, vpp_rank=vpp_rank)
-                    ),
+            name_pairs = sorted(
+                list(
+                    set(
+                        [
+                            (
+                                name,
+                                vpp_rank,
+                                self.weight_adaptor.replace_name_i2t(normal_layer_func(name, vpp_rank=vpp_rank)),
+                            )
+                            for vpp_rank, names_per_vpp in enumerate(weight_names_meta)
+                            for name in names_per_vpp
+                        ]
+                    )
                 )
-                for vpp_rank, names_per_vpp in enumerate(weight_names_meta)
-                for name in names_per_vpp
-            ])))
+            )
             true_megatron_model = self._unwrap_megatron_model(self.megatron_model)
 
             # Collect all weights for the current PP rank
             megatron_params_dict = {}
             for vpp_rank in range(self._vpp_size):
-                megatron_params_dict[vpp_rank] = dict(
-                    true_megatron_model[vpp_rank].named_buffers()
-                )
-                megatron_params_dict[vpp_rank].update(
-                    true_megatron_model[vpp_rank].named_parameters()
-                )
-                megatron_params_dict[vpp_rank] = (
-                    self.weight_adaptor.adjust_megatron_param_dict(
-                        megatron_params_dict[vpp_rank], self._tp_size,
-                    )
+                megatron_params_dict[vpp_rank] = dict(true_megatron_model[vpp_rank].named_buffers())
+                megatron_params_dict[vpp_rank].update(true_megatron_model[vpp_rank].named_parameters())
+                megatron_params_dict[vpp_rank] = self.weight_adaptor.adjust_megatron_param_dict(
+                    megatron_params_dict[vpp_rank],
+                    self._tp_size,
                 )
 
             for hf_name, vpp_rank, megatron_name in name_pairs:
-                is_expert_ep = (
-                    (self._infer_ep_size > 1 or self._ep_size > 1)
-                    and "mlp.experts" in megatron_name
-                )
+                is_expert_ep = (self._infer_ep_size > 1 or self._ep_size > 1) and "mlp.experts" in megatron_name
                 if is_expert_ep:
                     megatron_param = megatron_params_dict[vpp_rank][megatron_name]
                     dtype = self.experts_weight_buffer_meta[hf_name]['dtype']
@@ -311,7 +317,8 @@ def _update_weight_buffers_ep_patch(self) -> None:
         for dtype, experts_memory_buffer in self.experts_memory_buffers.items():
             broadcast_if_gpu(
                 experts_memory_buffer.data,
-                src=global_src, group=self._pp_group,
+                src=global_src,
+                group=self._pp_group,
             )
             ep_expand_rank = self._rank // self._ep_size
 
@@ -320,22 +327,25 @@ def _update_weight_buffers_ep_patch(self) -> None:
                 index = ep_expand_rank % self.experts_memory_expand_N
                 experts_tensor = experts_memory_buffer.get_by_name(name)
 
-                target_device = (
-                    self.weight_buffers[cur_pp_rank]
-                    .memory_buffers[dtype].data.device
-                )
+                target_device = self.weight_buffers[cur_pp_rank].memory_buffers[dtype].data.device
                 if experts_tensor.device != target_device:
                     experts_tensor = experts_tensor.to(
-                        target_device, non_blocking=False,
+                        target_device,
+                        non_blocking=False,
                     )
                 experts_tensor_reshape = experts_tensor.view(shape)
                 weight_tensor_infer = experts_tensor_reshape[index]
                 self.weight_buffers[cur_pp_rank].copy_by_name(name, weight_tensor_infer)
 
             # Release the experts buffer for this dtype
+            experts_memory_buffer = None
             self.experts_memory_buffers[dtype] = None
 
+            for memory_buffer in self.experts_memory_buffers.values():
+                memory_buffer = None
+
         self.experts_memory_buffers = None
+
 
 def _collect_name_pairs_for_pp(self, pp_rank: int) -> list:
     """Collect sorted (hf_name, vpp_rank, megatron_name) triples for a PP rank."""
@@ -344,15 +354,21 @@ def _collect_name_pairs_for_pp(self, pp_rank: int) -> list:
     normal_layer_func = partial(
         self.weight_adaptor.global2local_layer,
         num_layer_list=self._vpp_layer_list,
-        global2local_map=self._global2local_map
+        global2local_map=self._global2local_map,
     )
-    name_pairs = sorted(list(set([
-        (name, vpp_rank,
-        self.weight_adaptor.replace_name_i2t(normal_layer_func(name, vpp_rank=vpp_rank)))
-        for vpp_rank, names_per_vpp in enumerate(weight_names_meta)
-        for name in names_per_vpp
-    ])))
+    name_pairs = sorted(
+        list(
+            set(
+                [
+                    (name, vpp_rank, self.weight_adaptor.replace_name_i2t(normal_layer_func(name, vpp_rank=vpp_rank)))
+                    for vpp_rank, names_per_vpp in enumerate(weight_names_meta)
+                    for name in names_per_vpp
+                ]
+            )
+        )
+    )
     return name_pairs
+
 
 def _get_simple_ep_params(self) -> dict:
     """
@@ -401,24 +417,24 @@ def _get_simple_ep_params(self) -> dict:
         param = megatron_params_dict[vpp_rank][megatron_name]
 
         # Gather TP if train_TP>1 to materialize full param (still local PP slice).
-        is_expert = ("mlp.experts" in megatron_name)  # w13 / w2
+        is_expert = "mlp.experts" in megatron_name  # w13 / w2
         is_w13 = ("w13_weight" in hf_name) or ("weight1" in megatron_name)
-        is_w2  = ("w2_weight"  in hf_name) or ("weight2" in megatron_name)
+        is_w2 = ("w2_weight" in hf_name) or ("weight2" in megatron_name)
 
         if is_expert and (is_w13 or is_w2):
             # Save EXACT training 2-D layout
             #   w13: (H, E_local * per)
             #   w2 : (E_local * per, H)
-            out[hf_name] = param.detach().clone()   # <— no extra reshape here
+            out[hf_name] = param.detach().clone()  # <— no extra reshape here
 
             if self._ep_size > 1:
-                axis = 1 if is_w13 else 0          # w13 experts along columns; w2 along rows
-                E    = int(num_local_experts)
+                axis = 1 if is_w13 else 0  # w13 experts along columns; w2 along rows
+                E = int(num_local_experts)
                 slices_meta[hf_name] = {
                     "axis": int(axis),
-                    "offset": int(expert_offset),   # rank * E_local
-                    "length": int(E),               # E_local
-                    "stride": 1,                    # contiguous experts
+                    "offset": int(expert_offset),  # rank * E_local
+                    "length": int(E),  # E_local
+                    "stride": 1,  # contiguous experts
                     "layout": "contiguous",
                 }
         else:
@@ -443,6 +459,7 @@ def _get_simple_ep_params(self) -> dict:
         "slices": slices_meta,  # per-tensor slice specs for experts
     }
     return out
+
 
 def get_infer_params_patch(self) -> dict:
     """Collect and reshape all training weights into inference-ready parameters."""

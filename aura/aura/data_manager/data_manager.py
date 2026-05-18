@@ -17,12 +17,12 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-from aura.data_manager.data_registry import data_manager_class
+from aura.data_manager.data_registry import get_data_manager_instance
 
 
 class DataManager:
     def __init__(self, train_backend, service_mode="train"):
-        self.data_manager_instance = data_manager_class(train_backend, service_mode)()
+        self.data_manager_instance = get_data_manager_instance(train_backend, service_mode)
 
     def sync_init_data_manager(self, data_manager):
         self.data_manager_instance.sync_init_data_manager(data_manager)
@@ -31,8 +31,9 @@ class DataManager:
         return self.data_manager_instance.all_consumed(experience_consumer_stage)
 
     def get_data(self, experience_consumer_stage, experience_columns, experience_count, get_n_samples=True):
-        return self.data_manager_instance.get_data(experience_consumer_stage,
-                                                   experience_columns, experience_count, get_n_samples)
+        return self.data_manager_instance.get_data(
+            experience_consumer_stage, experience_columns, experience_count, get_n_samples
+        )
 
     def put_data(self, output, index, metric=None):
         self.data_manager_instance.put_data(output, index, metric)
@@ -61,3 +62,6 @@ class DataManager:
     def get_pad_token_id_info(self) -> dict:
         pad_token_id = getattr(self.data_manager_instance, '_pad_token_id', None)
         return pad_token_id
+
+    def reset_experience_len(self, experience_len):
+        self.data_manager_instance.reset_experience_len(experience_len)

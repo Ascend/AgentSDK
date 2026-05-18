@@ -14,12 +14,12 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
-# 
+#
 import asyncio
-import datetime
+import time
 import json
 import os
-from typing import Any
+from typing import Any, List
 
 import numpy as np
 import torch
@@ -27,6 +27,7 @@ from omegaconf import DictConfig
 
 from aura.base.log.loggers import Loggers
 from aura.runner.agent_engine_wrapper.base_engine_wrapper import AgentTask
+from aura.runner.agent_engine_wrapper.vaee_v2.vaee_types import Trajectory, Episode
 from aura.runner.infer_router import InferRouter
 from verl import DataProto
 from verl.experimental.agent_loop import AgentLoopManager
@@ -35,9 +36,7 @@ from verl.utils import hf_tokenizer
 logger = Loggers(__name__).get_logger()
 
 
-async def launch_server(
-    infer_service: str, model_name: str, chat_server_list: list[str]
-) -> None:
+async def launch_server(infer_service: str, model_name: str, chat_server_list: list[str]) -> None:
     """Launch inference servers for the given chat server addresses.
 
     Args:
@@ -45,24 +44,16 @@ async def launch_server(
         model_name: Model identifier to serve.
         chat_server_list: List of host:port strings for chat servers.
     """
-    chat_server_list = [
-        f"http://{chat_server}"
-        for chat_server in chat_server_list
-    ]
+    chat_server_list = [f"http://{chat_server}" for chat_server in chat_server_list]
 
+    logger.info(f"======launch_server chat_server={chat_server_list}")
     infer_router = await InferRouter.create()
     await infer_router.launch_server(
-        model_name=infer_service,
-        kwargs_list=[{
-            "model_name": model_name,
-            "chat_server": chat_server_list
-        }]
+        model_name=infer_service, kwargs_list=[{"model_name": model_name, "chat_server": chat_server_list}]
     )
 
 
-async def create_tasks(
-    agent_service: str, prompts: DataProto, n_samples_per_prompt: int
-) -> list[AgentTask]:
+async def create_tasks(agent_service: str, prompts: DataProto, n_samples_per_prompt: int) -> list[AgentTask]:
     """Build AgentTask objects from a DataProto prompt batch.
 
     Args:
@@ -74,9 +65,8 @@ async def create_tasks(
         List of AgentTask instances ready for trajectory generation.
     """
     agent_tasks = []
-    known_fields = ["index", "global_steps", "raw_prompt", "reward_model", "extra_info"]
-
     for idx in range(len(prompts)):
+        known_fields = ["index", "global_steps", "raw_prompt", "reward_model", "extra_info"]
         index = prompts.non_tensor_batch["index"][idx] if "index" in prompts.non_tensor_batch else idx
         global_steps = prompts.meta_info["global_steps"]
         problem = prompts.non_tensor_batch["raw_prompt"][idx][0]["content"]
@@ -113,7 +103,7 @@ async def create_tasks(
     return agent_tasks
 
 
-async def generate_trajectory(agent_task: AgentTask) -> dict:
+async def generate_trajectory(agent_task: AgentTask, addresses, server_handles) -> dict:
     """Generate a single trajectory via the AgentRouter.
 
     Args:
@@ -125,13 +115,13 @@ async def generate_trajectory(agent_task: AgentTask) -> dict:
     from aura.runner.agent_router import AgentRouter
 
     router = await AgentRouter.create()
-    trajectory = await router.generate_trajectory(agent_task, mode='Token')
+    trajectory = await router.generate_trajectory(
+        agent_task, mode='Token', addresses=addresses, server_handles=server_handles
+    )
     return trajectory
 
 
-async def transform_trajectories_to_batch(
-    config: Any, tokenizer: Any, trajectories: list[dict]
-) -> DataProto:
+async def transform_trajectories_to_batch(config: Any, tokenizer: Any, trajectories: list[dict]) -> DataProto:
     """Convert raw trajectory dicts into a padded DataProto batch.
 
     Tensor layout:
@@ -157,6 +147,7 @@ async def transform_trajectories_to_batch(
     all_logprobs_list = []
     traj_scores = []
     chat_completions = []
+    cancel_logprobs = False
 
     for traj in trajectories:
         prompt_id = traj["prompt_id"]
@@ -169,7 +160,10 @@ async def transform_trajectories_to_batch(
             )
         all_initial_tokens_list.append(prompt_tokens)
         all_response_tokens_list.append(response_tokens)
-        all_logprobs_list.append(torch.tensor(traj["logprobs"]))
+        if "logprobs" in traj and len(traj["logprobs"]) != 0 and not cancel_logprobs:
+            all_logprobs_list.append(torch.tensor(traj["logprobs"]))
+        else:
+            cancel_logprobs = True
         all_masks_list.append(traj["response_masks"])
         traj_scores.append(traj["trajectory_reward"])
         chat_completions.append(traj["chat_completions"])
@@ -208,11 +202,13 @@ async def transform_trajectories_to_batch(
         if 0 <= last_valid_idx < score_batch.shape[1]:
             score_batch[idx, last_valid_idx] = traj_score
 
-    rollout_log_probs_batch = torch.nn.utils.rnn.pad_sequence(
-        all_logprobs_list,
-        batch_first=True,
-        padding_value=0.0,
-    )
+    rollout_log_probs_batch = None
+    if not cancel_logprobs:
+        rollout_log_probs_batch = torch.nn.utils.rnn.pad_sequence(
+            all_logprobs_list,
+            batch_first=True,
+            padding_value=0.0,
+        )
 
     batch_tensors = {
         "input_ids": input_ids_list,
@@ -222,10 +218,11 @@ async def transform_trajectories_to_batch(
         "prompts": prompts_batch,
         "token_level_rewards": score_batch,
         "response_mask": traj_mask,
-        "rollout_log_probs": rollout_log_probs_batch,
         "rm_scores": score_batch,
     }
 
+    if not cancel_logprobs:
+        batch_tensors["rollout_log_probs"] = rollout_log_probs_batch
     batch = DataProto.from_dict(tensors=batch_tensors)
     batch.non_tensor_batch["uid"] = np.array(all_prompt_ids)
     batch.meta_info["timing"] = {}
@@ -233,23 +230,173 @@ async def transform_trajectories_to_batch(
     return batch
 
 
+async def transform_episodes_to_batch(tokenizer, trajectories: List[Trajectory], task_id_list) -> DataProto:
+    combined = sorted(zip(task_id_list, trajectories))
+    task_id_list, trajectories = map(list, zip(*combined))
+
+    all_prompt_ids = []
+    all_prompt_tokens_list = []
+    all_response_tokens_list = []
+    all_masks_list = []
+    all_logprobs_list = []
+    traj_scores = []
+    step_nums = []
+    is_last_step = []  # steps中的最后一个step是否是 整个trajectory中的最后一个step
+    cancel_logprobs = False
+
+    for i in range(0, len(trajectories)):
+        task_id = task_id_list[i]  # TODO: 调整不确定待调整，目标是保证每个prompt的唯一性
+        traj = trajectories[i]
+        steps = traj.steps
+
+        # step mode
+        if False:  # TODO: 这里先写成False强制token模式，待后续完善可改为traj.is_cumulative
+            for step in steps:
+                all_prompt_ids.append(task_id)
+                all_prompt_tokens_list.append(torch.tensor(step.prompt_ids, dtype=torch.long))
+                all_response_tokens_list.append(torch.tensor(step.response_ids, dtype=torch.long))
+                all_masks_list.append(torch.tensor([1] * len(step.response_ids), dtype=torch.long))
+                if step.logprobs is not None and len(step.logprobs) != 0 and not cancel_logprobs:
+                    all_logprobs_list.append(torch.tensor(step.logprobs))
+                else:
+                    cancel_logprobs = True
+            step_nums.append(len(steps))
+            all_prompt_ids.extend([task_id for _ in range(len(steps))])
+            is_last_step.extend([False for _ in range(len(steps))])
+            is_last_step[-1] = True
+        # token mode
+        else:
+            all_prompt_ids.append(task_id)
+            all_prompt_tokens_list.append(torch.tensor(steps[0].prompt_ids, dtype=torch.long))
+
+            # 计算response_masks: response部分填充1，tool部分填充0，tool由本轮prompt减上一轮的（prompt+response)形成
+            # 计算logprobs: response部分保持原有logprobs，tool部分填充0，如果有logprobs值为None的就放弃计算，直接返回[]
+            response_tokens = []
+            response_masks = []
+            logprobs = []
+            for j in range(len(steps)):
+                response_tokens.extend(steps[j].response_ids)
+                response_masks.extend([1] * len(steps[j].response_ids))
+                if steps[j].logprobs is not None and len(steps[j].logprobs) != 0 and not cancel_logprobs:
+                    logprobs.extend(steps[j].logprobs)
+                else:
+                    cancel_logprobs = True
+                if j < len(steps) - 1:
+                    prefix_len = len(steps[j].prompt_ids) + len(steps[j].response_ids)
+                    tool_tokens = steps[j + 1].prompt_ids[prefix_len:]
+                    response_tokens.extend(tool_tokens)
+                    response_masks.extend([0] * len(tool_tokens))
+                    if not cancel_logprobs:
+                        logprobs.extend([0] * len(tool_tokens))
+            all_response_tokens_list.append(torch.tensor(response_tokens, dtype=torch.long))
+            all_masks_list.append(torch.tensor(response_masks, dtype=torch.long))
+            if not cancel_logprobs:
+                all_logprobs_list.append(torch.tensor(logprobs))
+
+        traj_scores.append(traj.reward)
+
+    # reverse the list and create tensors, pad, then flip to achieve left padding
+    prompts_batch = torch.nn.utils.rnn.pad_sequence(
+        [torch.flip(i, dims=[0]) for i in all_prompt_tokens_list],
+        batch_first=True,
+        padding_value=tokenizer.pad_token_id,
+    ).flip(dims=[1])
+
+    response_batch = torch.nn.utils.rnn.pad_sequence(
+        all_response_tokens_list,
+        batch_first=True,
+        padding_value=tokenizer.pad_token_id,
+    )
+
+    input_ids_list = torch.concat([prompts_batch, response_batch], dim=1)
+
+    prompt_length_list = []
+    for prompt in all_prompt_tokens_list:
+        prompt_length_list.append(torch.tensor([len(prompt)]))
+
+    traj_mask = torch.nn.utils.rnn.pad_sequence(all_masks_list, batch_first=True, padding_value=0)
+    trajectory_batch = torch.concat([prompts_batch, response_batch], dim=1)
+    attention_mask = torch.where(trajectory_batch != tokenizer.pad_token_id, 1, 0)
+
+    # Compute position_ids
+    position_ids = (torch.cumsum(attention_mask, dim=1) - 1) * attention_mask
+
+    # Place all rewards to last response token
+    score_batch = torch.zeros_like(response_batch, dtype=torch.float32)
+
+    prompt_length = prompts_batch.shape[1]
+    valid_response_length_sequences = attention_mask[:, prompt_length:].sum(dim=-1)
+
+    if False:  # TODO: 这里先写成False强制token模式，待后续完善可改为traj.is_cumulative或者其它
+        step_index = 0
+        for i, traj_score in enumerate(traj_scores):
+            step_num = step_nums[i]
+            for _ in range(step_num):
+                last_valid_idx = valid_response_length_sequences[step_index] - 1
+                if 0 <= last_valid_idx < score_batch.shape[1]:
+                    score_batch[step_index, last_valid_idx] = traj_score
+                step_index += 1
+    else:
+        for i, traj_score in enumerate(traj_scores):
+            last_valid_idx = valid_response_length_sequences[i] - 1
+            if 0 <= last_valid_idx < score_batch.shape[1]:
+                score_batch[i, last_valid_idx] = traj_score
+    if all_logprobs_list:
+        rollout_log_probs_batch = torch.nn.utils.rnn.pad_sequence(
+            all_logprobs_list,
+            batch_first=True,
+            padding_value=0.0,
+        )
+
+    batch_tensors = {
+        "input_ids": input_ids_list,  # 无pad，长短不一
+        "attention_mask": attention_mask,
+        "position_ids": position_ids,
+        "responses": response_batch,  # 右pad
+        "prompts": prompts_batch,  # 左pad
+        "token_level_rewards": score_batch,  # 右pad，只有在长度那一位有值为score其余为0
+        "response_mask": traj_mask,  # 形状与responses一样，右pad 0
+        "rm_scores": score_batch,
+    }
+    if not cancel_logprobs:
+        batch_tensors["rollout_log_probs"] = rollout_log_probs_batch
+
+    batch = DataProto.from_dict(tensors=batch_tensors)
+    batch.non_tensor_batch["uid"] = np.array(all_prompt_ids)  # idxs
+    if False:  # TODO: 这里先写成False强制token模式，待后续完善可改为traj.is_cumulative或者其它
+        batch.non_tensor_batch["is_last_step"] = np.array(is_last_step)
+
+    batch.meta_info["timing"] = {}
+    logger.info(f"transform_episodes_to_batch: {batch=}")
+    return batch
+
+
 class HybridAgentLoopManager(AgentLoopManager):
     """Agent loop manager for hybrid (sync rollout + async agent) training mode."""
 
-    def __init__(self, config: DictConfig, *args, **kwargs) -> None:
-        super().__init__(config=config, *args, **kwargs)
-        self.chat_server_list = self.server_addresses
+    def __init__(self, config: DictConfig, *args, **kwargs):
+        kwargs.pop('config', None)
+        super().__init__(config, *args, **kwargs)
         self.tokenizer = hf_tokenizer(config.actor_rollout_ref.model.path, trust_remote_code=True)
-        self.iteration = 0
-        self.traj_output_path = config.extras.traj_output_path
 
-        asyncio.run(launch_server(
+    async def _initialize_llm_servers(self) -> None:
+        """重写此方法，在父类设置 server_addresses 后执行 hybrid 初始化"""
+        await super()._initialize_llm_servers()  # 先让父类设置 server_addresses
+
+        # hybrid 特有初始化
+        self.chat_server_list = self.server_addresses
+        self.tokenizer = hf_tokenizer(self.config.actor_rollout_ref.model.path, trust_remote_code=True)
+        self.iteration = 0
+        self.traj_output_path = self.config.extras.traj_output_path
+        self.perf_timestamp = time.strftime("%Y%m%d_%H%M%S", time.localtime())
+
+        await launch_server(
             infer_service=self.config.extras.infer_service,
             model_name=self.config.actor_rollout_ref.model.path,
-            chat_server_list=self.chat_server_list
-        ))
+            chat_server_list=self.chat_server_list,
+        )
 
-    def _init_agent_loop_workers(self) -> None:
+    async def _init_agent_loop_workers(self) -> None:
         """Override: no separate agent loop workers needed in hybrid mode."""
         pass
 
@@ -269,19 +416,33 @@ class HybridAgentLoopManager(AgentLoopManager):
         Returns:
             DataProto batch assembled from generated trajectories.
         """
-        agent_tasks = await create_tasks(
-            config.extras.agent_service, prompts, config.actor_rollout_ref.rollout.n
-        )
-        futures = [
-            asyncio.create_task(generate_trajectory(task))
-            for task in agent_tasks
-        ]
-        trajectory_list = [await future for future in futures]
+        agent_tasks = await create_tasks(config.extras.agent_service, prompts, config.actor_rollout_ref.rollout.n)
+        if hasattr(config.extras, "chat_interface") and config.extras.chat_interface == "generate":
+            futures = [
+                asyncio.create_task(generate_trajectory(task, self.chat_server_list, self.server_handles))
+                for task in agent_tasks
+            ]
+        else:
+            futures = [
+                asyncio.create_task(generate_trajectory(task, self.chat_server_list, None)) for task in agent_tasks
+            ]
+        episode_list = []
+        task_id_list = []
+        trajectory_list = []
+        for f in futures:
+            episode_list.append(await f)
 
-        if self.traj_output_path is not None:
-            self.write_file(trajectory_list, prefix="trajectories")
-
-        result = await transform_trajectories_to_batch(config, tokenizer, trajectory_list)
+        if isinstance(episode_list[0], Episode):
+            for episode in episode_list:
+                task_id_list.append(int(episode.task_id.split("-")[0]))
+                trajectory_list.extend(episode.trajectories)  # FIXME: 假设每个episode只有一个trajectories
+            if self.traj_output_path is not None:
+                self.write_file(trajectory_list, prefix="trajectories")
+            result = await transform_episodes_to_batch(tokenizer, trajectory_list, task_id_list)
+        else:
+            if self.traj_output_path is not None:
+                self.write_file(episode_list, prefix="trajectories")
+            result = await transform_trajectories_to_batch(config, tokenizer, episode_list)
         return result
 
     def generate_sequences(self, prompts: DataProto) -> DataProto:
@@ -293,13 +454,7 @@ class HybridAgentLoopManager(AgentLoopManager):
         Returns:
             DataProto batch with generated trajectories.
         """
-        self.iteration = prompts.meta_info["global_steps"]
-        logger.info(f"iteration: {self.iteration}, generate_sequences: {len(prompts)=}, {prompts=}")
-        self.wake_up()
-
         output = asyncio.run(self.async_generate_sequences(self.config, prompts, self.tokenizer))
-
-        self.sleep()
 
         logger.info(f"generate_sequences: {len(output)=}, {output=}")
         return output
@@ -323,6 +478,7 @@ class HybridAgentLoopManager(AgentLoopManager):
             data_dict: Data to serialize (may contain Tensors).
             prefix: Filename prefix for the output JSON file.
         """
+
         def convert_to_string(value: Any) -> Any:
             if isinstance(value, torch.Tensor):
                 return str(value.tolist())
@@ -336,12 +492,9 @@ class HybridAgentLoopManager(AgentLoopManager):
         add_iter = {"iteration": self.iteration, f"{prefix}": data_dict}
         data_str = convert_to_string(add_iter)
 
-        output_file = f'rollout_{prefix}_{int(datetime.datetime.now().timestamp())}.json'
-        output_path = os.path.realpath(os.path.join(self.traj_output_path, output_file))
-
-        file_descriptor = os.open(output_path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
-        with os.fdopen(file_descriptor, 'a') as file_handle:
-            json.dump(data_str, file_handle, indent=4, ensure_ascii=False)
-            file_handle.write('\n')
+        output_file = f'rollout_{prefix}_{int(self.perf_timestamp)}.json'
+        with open(os.path.join(self.traj_output_path, output_file), 'a') as f:
+            json.dump(data_str, f, indent=4, ensure_ascii=False)
+            f.write('\n')
 
         logger.info(f'write_file {output_file} in iteration {self.iteration} done')

@@ -4,13 +4,13 @@
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
-# 
+#
 # AgentSDK is licensed under Mulan PSL v2.
 # You can use this software according to the terms and conditions of the Mulan PSL v2.
 # You may obtain a copy of Mulan PSL v2 at:
-# 
+#
 #          http://license.coscl.org.cn/MulanPSL2
-# 
+#
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
@@ -27,25 +27,27 @@ import ray
 from ray.util.scheduling_strategies import NodeAffinitySchedulingStrategy
 
 # Internal imports
-from aura.base.execution.executor import public_api, Executor 
+from aura.base.execution.executor import public_api, Executor
 from aura.base.log.loggers import Loggers
 from aura.runner.infer_service.infer_executor import InferExecutor
 
 logger = Loggers(__name__).get_logger()
+
 
 class InferPrefillExecutor(InferExecutor):
     def __init__(self, engine, engine_kwargs, *args, **kwargs):
         enforce_eager = engine_kwargs.get("enforce_eager", True)
         kv_transfer_config = engine_kwargs.get("kv_transfer_config", None)
         if kv_transfer_config is None:
-            kv_transfer_config = {"kv_connector": "LLMDataDistCMgrConnector",
-                                  "kv_buffer_device": "npu",
-                                  "kv_role": "kv_producer",
-                                  "kv_parallel_size": 1,
-                                  "kv_port": "20001",
-                                  "engine_id": "0",
-                                  "kv_connector_module_path": "vllm_ascend.distributed.llmdatadist_c_mgr_connector"
-                                 }
+            kv_transfer_config = {
+                "kv_connector": "LLMDataDistCMgrConnector",
+                "kv_buffer_device": "npu",
+                "kv_role": "kv_producer",
+                "kv_parallel_size": 1,
+                "kv_port": "20001",
+                "engine_id": "0",
+                "kv_connector_module_path": "vllm_ascend.distributed.llmdatadist_c_mgr_connector",
+            }
         engine_kwargs["kv_transfer_config"] = kv_transfer_config
         engine_kwargs["enforce_eager"] = enforce_eager
 
@@ -65,7 +67,7 @@ class InferPrefillExecutor(InferExecutor):
             "remote_engine_id": None,
             "remote_block_ids": None,
             "remote_host": None,
-            "remote_port": None
+            "remote_port": None,
         }
         req_data["stream"] = False
         req_data["max_tokens"] = 1
@@ -90,18 +92,20 @@ class InferDecodeExecutor(InferExecutor):
         enforce_eager = engine_kwargs.get("enforce_eager", True)
         kv_transfer_config = engine_kwargs.get("kv_transfer_config", None)
         if kv_transfer_config is None:
-            kv_transfer_config = {"kv_connector": "LLMDataDistCMgrConnector",
-                                  "kv_buffer_device": "npu",
-                                  "kv_role": "kv_consumer",
-                                  "kv_parallel_size": 1,
-                                  "kv_port": "20001",
-                                  "engine_id": "0",
-                                  "kv_connector_module_path": "vllm_ascend.distributed.llmdatadist_c_mgr_connector"
-                                  }
+            kv_transfer_config = {
+                "kv_connector": "LLMDataDistCMgrConnector",
+                "kv_buffer_device": "npu",
+                "kv_role": "kv_consumer",
+                "kv_parallel_size": 1,
+                "kv_port": "20001",
+                "engine_id": "0",
+                "kv_connector_module_path": "vllm_ascend.distributed.llmdatadist_c_mgr_connector",
+            }
         engine_kwargs["kv_transfer_config"] = kv_transfer_config
         engine_kwargs["enforce_eager"] = enforce_eager
 
         super().__init__(engine, engine_kwargs, *args, **kwargs)
+
 
 class InferPDSepExecutor(Executor):
     def __init__(self, engine, engine_kwargs, *args, **kwargs):
@@ -131,33 +135,35 @@ class InferPDSepExecutor(Executor):
     async def create_single_infer_executor(self, pd_role, resource_index, node_id):
         # get current resource set
         curr_resource_set = self.resource_set.model_copy()
-        curr_resource_set.info = self.resource_set.info[resource_index: resource_index+1]
-        curr_resource_set.bundles = self.resource_set.bundles[resource_index: resource_index+1]
+        curr_resource_set.info = self.resource_set.info[resource_index : resource_index + 1]
+        curr_resource_set.bundles = self.resource_set.bundles[resource_index : resource_index + 1]
         executor_class = InferPrefillExecutor if pd_role == "prefill" else InferDecodeExecutor
 
         # create executor
-        scheduling_strategy = NodeAffinitySchedulingStrategy(
-            node_id=node_id,
-            soft=False
+        scheduling_strategy = NodeAffinitySchedulingStrategy(node_id=node_id, soft=False)
+        infer_executor_ref = (
+            ray.remote(executor_class)
+            .options(
+                scheduling_strategy=scheduling_strategy,
+            )
+            .remote(resource_set=curr_resource_set, engine=self.engine_name, engine_kwargs=self.engine_kwargs)
         )
-        infer_executor_ref = ray.remote(executor_class).options(
-            scheduling_strategy=scheduling_strategy,
-        ).remote(resource_set=curr_resource_set, engine=self.engine_name, engine_kwargs=self.engine_kwargs)
         await infer_executor_ref.setup.remote()
 
         return infer_executor_ref
-    
+
     # todo: 先手动生成ranktable，后续考虑集成到代码中，一键启动
     # Get ranktable
     def get_ranktable(self):
         import json
+
         file_path = os.getenv("DISAGGREGATED_PREFILL_RANK_TABLE_PATH", None)
         if file_path is None:
             raise ValueError("Can't find ranktable file, please set DISAGGREGATED_PREFILL_RANK_TABLE_PATH")
         with open(file_path, "r") as f:
             ranktable = json.load(f)
         return ranktable
-    
+
     # Get which nodes PD are deployed on from ranktable
     def alloc_resources_from_ranktable(self):
         ranktable = self.get_ranktable()
@@ -183,11 +189,12 @@ class InferPDSepExecutor(Executor):
         if decode_set:
             raise ValueError("decode set is not empty, there are insufficient nodes for deploying the decode.")
         return selected_nodes
-    
+
     # Resource allocation, kept for now
     # allocate resources for P/D instances
     def alloc_resources(self):
         from aura.base.conf.conf import AgenticRLConf
+
         conf = AgenticRLConf.load_config()
         num_npus_per_node = 8 if os.getenv("ASCEND_PLATFORM", "A2") == "A2" else 16
         node_info = self.get_node_info()
@@ -198,15 +205,17 @@ class InferPDSepExecutor(Executor):
             total_npus = int(instance_conf.resource_info[0]["NPU"])
             alloc_nodes = int(executor_num * (total_npus / num_npus_per_node))
             if alloc_nodes > len(node_info):
-                raise ValueError(f"Resources are insufficient. executor {instance_conf.role} requires {alloc_nodes} nodes, but the total num of nodes is {len(node_info)}")
+                raise ValueError(
+                    f"Resources are insufficient. executor {instance_conf.role} requires {alloc_nodes} nodes, but the total num of nodes is {len(node_info)}"
+                )
             selected_nodes[instance_conf.role] = node_info[:alloc_nodes]
             node_info = node_info[alloc_nodes:]
 
         return selected_nodes
-    
+
     # get node info in ray
     def get_node_info(self):
-        node_info_list = [] # {node_ip: resources}
+        node_info_list = []  # {node_ip: resources}
         nodes = ray.nodes()
         for node in nodes:
             node_info_dict = {}
@@ -214,9 +223,8 @@ class InferPDSepExecutor(Executor):
             node_info_dict["node_ip"] = node["NodeManagerAddress"]
             node_info_dict["resources"] = node["Resources"]
             node_info_list.append(node_info_dict)
-        
-        return node_info_list
 
+        return node_info_list
 
     @public_api(name="chat_completions")
     async def chat_completions(self, *args, **kwargs):
@@ -249,12 +257,12 @@ class InferPDSepExecutor(Executor):
 
     @public_api(name="wake_up")
     async def wake_up(self, *args, **kwargs):
-        for pd_role, server_engines in self.executors.items():
+        for pd_role, server_engines in self.executors.items:
             for engine in server_engines:
                 await engine.wake_up(*args, **kwargs)
 
     @public_api(name="sleep")
     async def sleep(self, *args, **kwargs):
-        for pd_role, server_engines in self.executors.items():
+        for pd_role, server_engines in self.executors.items:
             for engine in server_engines:
                 await engine.sleep(*args, **kwargs)
