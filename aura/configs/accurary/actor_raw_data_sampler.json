@@ -2,7 +2,7 @@
   "enable": true,
   "sampler": {
     "type": "toggled_model",
-    "host_name": "172.18.4.219",
+    "host_name": "0.0.0.0",
     "world_size": 32,
     "forward_backward": "forward",
     "param_activation": "activation",

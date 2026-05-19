@@ -37,9 +37,9 @@
 #
 #   python load_balance_proxy_server_example.py \
 #     --host 0.0.0.0 --port 9000 \
-#     --prefiller-hosts 127.0.0.1 127.0.0.1 \
+#     --prefiller-hosts 0.0.0.0 0.0.0.0 \
 #     --prefiller-ports 8100 8101 \
-#     --decoder-hosts 127.0.0.1 127.0.0.1 \
+#     --decoder-hosts 0.0.0.0 0.0.0.0 \
 #     --decoder-ports 8200 8201
 #
 # This will start the proxy on port 9000, load balancing between two prefiller

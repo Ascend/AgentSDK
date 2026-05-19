@@ -114,7 +114,7 @@ bash examples/grpo/start_search_r1_agent_rl.sh
 
    主要可配置项包括
    **[可选]多机/单机配置**:```integrated_grpo_trainer_qwen25_7b_4node_search_r1_new_gbs256_nq_hotpot.yaml```
-   **[必须]工具调用服务地址**：```export SEARCH_R1_SERVICE_URL=http://0.0.0.0:8000/retrieve```
+   **[必须]工具调用服务地址**：```export SEARCH_R1_SERVICE_URL=http://127.0.0.1:8000/retrieve```
    **[可选]训练时reward计算方式(默认为subem)**：```export COMPUTE_REWARD_FUNC="subem" # subem | em```
 2. **master节点启动**
 
@@ -214,9 +214,9 @@ python eval.py
 ## 5. AgenticRL5.0 运行SearchR1
 
 (1) **设置已有的GPU工具服务**
-在容器内```export SEARCH_R1_SERVICE_URL=http://10.44.101.107:8000/retrieve```，也可以直接在代码里面修改（agents\search_r1_agent\environment\search_tool.py），**免得启动任务后忘记**
+在容器内```export SEARCH_R1_SERVICE_URL=http://127.0.0.1:8000/retrieve```，也可以直接在代码里面修改（agents\search_r1_agent\environment\search_tool.py），**免得启动任务后忘记**
 (2) **确定数据集**
-    数据集路径为```/models/z00943413/AgenticRL_5.0/dataset/nq_hotpot/nq_hotpotqa_train_transformed/rl```
+    数据集路径为```/path/to/data/dataset/nq_hotpot/nq_hotpotqa_train_transformed/rl```
 (3) **参考配置**
    着重PD分离的多机配置：以跑Qwen3-30B-A3B-Instruct-2507的MOE模型，one-step, 2T(2个训练节点)为例，参考运行配置：```direct_p1d1t2_qwen3_30b2507_SearchR1_train_one_step_off.yaml```,以及基础配置```base_integrated_grpo_trainer_search_r1_qwen3_30b.yaml```，**大部分参数非必要可以不用动。经常修改的主要有以下**：
 
@@ -274,7 +274,7 @@ python eval.py
 - PD分离模式下镜像要使用agentic-rl-a2-vllm-011:4.0.1,不然vLLM拉起失败
 - PD分离模式下runtime_env里面VLLM的版本需要修改为0.11.0
 - PD分离模式下所有节点有不同的日志，其中训练日志重定向了，vLLM日志未重定向,DEBUG时需要注意
-- PD分离模式下运行脚本中在炼丹炉上需要将所有的```VC_WORKER_HOSTS```修改为```VC_TASK_HOSTS```,在云道上使用```VC_WORKER_HOSTS```
+- PD分离模式下运行脚本中在上需要将所有的```VC_WORKER_HOSTS```修改为```VC_TASK_HOSTS```,在云道上使用```VC_WORKER_HOSTS```
 - 内嵌vLLM mp方式下，若是权重读取超时可以增加collect_rpc任务超时时间到1000，在```aura/runner/infer_service/infer_server/vllm_mp_infer_server.py```中353行
 - 注意max_model_len是vLLM启动脚本中硬编码的```vllm_serve.sh```外部设置可能没作用
 
@@ -286,7 +286,7 @@ python eval.py
   - 多机裸机拉起：
       主节点：```sh run_start_in_local.sh --config-name xxx.yaml --is-master true --master-addr x.x.x.x:6000 --ray-port 6000```
       工作节点：```sh run_start_in_local.sh --config-name xxx.yaml --is-master false--master-addr x.x.x.x:6000 --ray-port 6000```
-  - 炼丹炉环境多机拉起参考以下脚本：
+  - 环境多机拉起参考以下脚本：
 
       ```bash
         #!/bin/bash
@@ -338,7 +338,7 @@ python eval.py
 
   ###################################################################################
   # 待修改配置如下:
-  #export VC_TASK_HOSTS="7.242.99.212,7.242.102.234,7.242.96.196"
+  #export VC_TASK_HOSTS="127.0.0.1"
   MASTER_TRAIN_INDEX=2 #TODO 写成第一个训练的节点的索引，训练节点在后，推理节点在前,从0索引开始，比如1p1d2t,此值为2
   CONFIG_NAME=direct_p1d1t2_qwen3_4b_train_one_step_off_searchR1 #TODO 对应的配置文件
   export VLLM_VERSION=0.11.0
@@ -358,4 +358,4 @@ python eval.py
   export ENABLE_TENSOR_SIMILARITY_CHECK=true #TODO 开启
   ```
 
-  在炼丹炉运行脚本```start_roma_vllm_proxy_pd.sh```
+  在运行脚本```start_roma_vllm_proxy_pd.sh```

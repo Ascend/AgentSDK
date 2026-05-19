@@ -16,7 +16,7 @@ function usage()
     echo "                      --local_node_rank <rank>"
     echo ""
     echo "Example:"
-    echo "  bash vllm_serve.sh  --host 10.50.89.139 --port 20012 --master_addr 10.50.89.139 --local_node_rank 0 --role prefill --engine_id 0"
+    echo "  bash vllm_serve.sh  --host 0.0.0.0 --port 20012 --master_addr 0.0.0.0 --local_node_rank 0 --role prefill --engine_id 0"
     exit 1
 }
 

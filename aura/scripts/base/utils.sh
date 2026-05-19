@@ -67,7 +67,7 @@ function replace_domain_task_hosts_to_ips()
 
 function get_is_config_shared_filesystem()
 {
-  # 炼丹炉是配置VC_TASK_HOSTS, 云道是配置VC_WORKER_HOSTS
+  # 是配置VC_TASK_HOSTS, 云道是配置VC_WORKER_HOSTS
   if [[ -n "${VC_TASK_HOSTS}" ]]; then
     export VC_WORKER_HOSTS=${VC_TASK_HOSTS}
     export IS_SHARED_CONF=1
@@ -107,7 +107,7 @@ function check_env()
 
 function config_vc_hosts()
 {
-  # 炼丹炉配置使用的是VC_TASK_HOSTS, 云道配置使用的是VC_WORKER_HOSTS
+  # 配置使用的是VC_TASK_HOSTS, 云道配置使用的是VC_WORKER_HOSTS
   if [[ -n "${VC_TASK_HOSTS}" || -n "${VC_WORKER_HOSTS}" ]]; then
     log_warn "use global \"VC_TASK_HOSTS | VC_WORKER_HOSTS\" configure"
     return

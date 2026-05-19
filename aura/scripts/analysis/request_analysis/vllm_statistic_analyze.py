@@ -157,7 +157,7 @@ def filter_worker_pid(filename):
 
     if result:
         extracted = result.group(1)
-        return extracted  # 输出: 10.50.89.104 IntegratedWorker pid=43131
+        return extracted  # 输出: 0.0.0.0 IntegratedWorker pid=43131
     return filename
 
 

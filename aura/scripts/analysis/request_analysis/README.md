@@ -54,7 +54,7 @@
     - 示例格式：
 
       ```text
-      2025-12-10 11:58:24,436|INFO|router.py|chat():208|trajectory performance status, chat start time:1765339104.436777, appID:48-183753f1-2011-4a8f-9824-2908e58733ea681391, address:172.16.7.88:60549-4, request_id:48-183753f1-2011-4a8f-9824-2908e58733ea681391--2
+      2025-12-10 11:58:24,436|INFO|router.py|chat():208|trajectory performance status, chat start time:1765339104.436777, appID:48-183753f1-2011-4a8f-9824-2908e58733ea681391, address:0.0.0.0:60549-4, request_id:48-183753f1-2011-4a8f-9824-2908e58733ea681391--2
       ```
 
 #### 输出文件

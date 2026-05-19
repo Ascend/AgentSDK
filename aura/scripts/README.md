@@ -85,7 +85,7 @@ clean_old_ckpt=0 # 首次训练前，建议清空default_local_dir下不需要�
 
 ```shell
 # 修改模型权重路径
-infer_mode_path: /models/z00823655/agenticrl/person/Qwen35_27B
+infer_mode_path: /path/to/aura/person/Qwen35_27B
 ```
 
 #### 推理如需扩充实例，配置如下
@@ -126,7 +126,7 @@ weight_save_dir: ${hydra:runtime.cwd}/weights/
 
 --- 模型原始权重路径 ----
 ## 不能在weight_save_dir目录下 | 路径必须包含模型名称 | 不能以"/"结尾
-path: /models/z00823655/agenticrl/person/Qwen35_27B
+path: /path/to/aura/person/Qwen35_27B
 
 ---  以save_freq间隔保存的ckpt路径 ---
 ## 不能在weight_save_dir目录下 | 须是真实路径，续训脚本不识别引用参数${hydra:runtime.cwd}
@@ -134,7 +134,7 @@ default_local_dir: ./outputs/save_ckpt/
 
 --- 数据集路径 ---
 ## 不能在weight_save_dir目录下
-train_data_path: /models/z00823655/agenticrl/person/dtn_code_data/rl
+train_data_path: /path/to/aura/person/dtn_code_data/rl
 
 --- Aura框架AEE生成的轨迹数据保存路径 ---
 ## 不能在weight_save_dir目录下
@@ -196,7 +196,7 @@ path: /xxx/resume/qwenxxx_5 # 修改为自定义的转换权重路径
 
 ```shell
 source /root/.bashrc;
-cd /models/g00898995/code/0417_AgenticRL;
+cd /path/to/aura;
 export MASTER_TRAIN_INDEX=1;
 bash scripts/start_rl_with_verl_vllm.sh;
 ```
@@ -207,7 +207,7 @@ bash scripts/start_rl_with_verl_vllm.sh;
 
 ```shell
 source /root/.bashrc;
-cd /models/g00898995/code/0417_AgenticRL;
+cd /path/to/aura;
 export MASTER_TRAIN_INDEX=1;
 bash scripts/start_rl_with_resume_verl.sh;
 ```

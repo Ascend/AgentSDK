@@ -42,7 +42,7 @@ verl_conf:
   extras:
     agent_service: ${agent_instances.0.name}  # 依赖的 AGENT 服务名称（默认为 `agent_instances` 的第一个）
     infer_service: ${infer_instances.0.name}  # 依赖的 INFER 服务名称（默认为 `infer_instances` 的第一个）
-    traj_output_path: /Temp/bucket-siye-green-guiyang-code/MindForge-Coder/x00962718/TrainingOutput/qwen3_32b/2026_03_26_verl_r2e_fsdp_bb
+    traj_output_path: /Temp/bucket-siye-green-guiyang-code/0.0.0.0/TrainingOutput/qwen3_32b/2026_03_26_verl_r2e_fsdp_bb
   algorithm:
     adv_estimator: rloo   # from deepswe 5
     norm_adv_by_std_in_grpo:  False   # from deepswe 3
@@ -119,11 +119,11 @@ verl_conf:
     save_freq: 1
     default_local_dir: /home/ma-user/modelarts/outputs/train_url_0/
     resume_mode: disable # disable / auto (load from default_local_dir) / resume_path  (load from resume_from_path)
-    resume_from_path: /Temp/bucket-siye-green-guiyang-code/MindForge-Coder/x00962718/TrainingOutput/qwen3_32b/2026_03_26_verl_r2e_fsdp_bb/ckpts
+    resume_from_path: /Temp/bucket-siye-green-guiyang-code/0.0.0.0/TrainingOutput/qwen3_32b/2026_03_26_verl_r2e_fsdp_bb/ckpts
     test_freq: 1000
     total_epochs: 1000
     logger: ['console','mlflow']
-    rollout_data_dir: /Temp/bucket-siye-green-guiyang-code/MindForge-Coder/x00962718/TrainingOutput/qwen3_32b/2026_03_26_verl_r2e_fsdp_bb
+    rollout_data_dir: /Temp/bucket-siye-green-guiyang-code/0.0.0.0/TrainingOutput/qwen3_32b/2026_03_26_verl_r2e_fsdp_bb
 
 train_instances:
   - name: RL-QWEN-32B-R2E-FSDP
@@ -163,30 +163,30 @@ agent_instances:
           scaffold: r2egym
           dataset: r2e-gym-subset
           tool_timeout: 5400
-          task_metadat_dir: /Temp/bucket-siye-green-guiyang-code/MindForge-Coder/x00962718/TrainingOutput/qwen3_32b/2026_03_26_verl_r2e_fsdp_bb
+          task_metadat_dir: /Temp/bucket-siye-green-guiyang-code/MindForge-Coder/TrainingOutput/qwen3_32b/2026_03_26_verl_r2e_fsdp_bb
           harness: harness.r2e_blackbox_harness.R2EBlackBoxHarness
           tokenizer_path: /Temp/bucket-siye-green-guiyang-code/MindForge-Coder/models/Qwen3-32B
         agent_args:
           scaffold: r2egym
           overlong_filter: True
         traj_proxy_args:
-          infer_url: "http://7.242.105.47"
+          infer_url: "http://0.0.0.0"
         agent_proxy_args:
           agent_addr: ""
-          traj_addr: "http://7.242.105.47"
+          traj_addr: "http://0.0.0.0"
           scaffold: r2egym
           dataset: r2e-gym-subset
           harness: harness.r2e_blackbox_harness.R2EBlackBoxHarness
         tokenizer: /Temp/bucket-siye-green-guiyang-code/MindForge-Coder/models/Qwen3-32B
         traj_reward_func: "aura.runner.agent_engine_wrapper.vaee_v2.default_traj_refine_reward_func.default_traj_reward_func"
-      traj_proxy_url: "http://7.242.105.47"
-      agent_proxy_url: "http://100.105.162.81:28124"
+      traj_proxy_url: "http://0.0.0.0"
+      agent_proxy_url: "http://0.0.0.0:28124"
       infer_service_params: # 每轮对话时的 sampling params
         top_p: 1
         temperature: 1.0
         max_tokens: 4096
         model: ${infer_instances.0.name} # 依赖的 INFER 服务名称（默认为 `infer_instances` 的第一个）
-      trajectory_save_dir: /Temp/bucket-siye-green-guiyang-code/MindForge-Coder/x00962718/TrainingOutput/qwen3_32b/2026_03_26_verl_r2e_fsdp_bb
+      trajectory_save_dir: /Temp/bucket-siye-green-guiyang-code/0.0.0.0/TrainingOutput/qwen3_32b/2026_03_26_verl_r2e_fsdp_bb
     resource_info: [ ]
 
 # =============================================================

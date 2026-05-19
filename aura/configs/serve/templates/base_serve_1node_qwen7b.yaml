@@ -52,7 +52,7 @@ infer_instances:
         host: 0.0.0.0
         port: 8333
         model_name: Qwen2.5-7B-Instruct
-        model: /opt/DPC/models/l00619320/code/AGENTIC_RL_WS/AgenticRL_Binary_Files/models/Qwen2.5-7B-Instruct
+        model: /path/to/models/Qwen2.5-7B-Instruct
         tensor_parallel_size: 4
         gpu_memory_utilization: 0.7
         max_model_len: 128

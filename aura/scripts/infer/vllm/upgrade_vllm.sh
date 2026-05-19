@@ -20,12 +20,9 @@ function set_proxy_env()
 {
   git config --global --unset http.proxy
   git config --global --unset https.proxy
-  git config --global http.https://github.com.proxy "http://10.50.113.120:3128"
   git config --global http.sslVerify false
   git config --global https.sslVerify false
 
-  export http_proxy="http://10.50.113.120:3128"
-  export https_proxy=${http_proxy}
 }
 
 function clear_proxy_env()

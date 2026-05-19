@@ -1,6 +1,6 @@
 input: /home/w00610567/dataset/cs/transformed/
-tokenizer_name_or_path: /opt/DPC/models/l00619320/weights/Qwen2.5-7B-Instruct/
-output_prefix: /opt/DPC/models/w00610567/dataset/cs/large/rl
+tokenizer_name_or_path: /opt/DPC/path/to/weights/Qwen2.5-7B-Instruct/
+output_prefix: /opt/DPC/path/to/datasets/cs/large/rl
 handler_name: R1AlpacaStyleInstructionHandler
 tokenizer_type: HuggingFaceTokenizer
 workers: 8

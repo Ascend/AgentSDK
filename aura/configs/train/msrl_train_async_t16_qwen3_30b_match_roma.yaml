@@ -35,11 +35,11 @@ msrl_conf:
   megatron_training:
     global_batch_size: 8
     train_iters: 10
-    tokenizer_name_or_path: /models/g00898995/model/Qwen3-30B-A3B-Instruct-2507
-    data_path: /models/g00898995/data/deepscaler_math_01/rl
+    tokenizer_name_or_path: /path/to/models/Qwen3-30B-A3B-Instruct-2507
+    data_path: /path/to/data/deepscaler_math_01/rl
     dataset_additional_keys: [ 'labels' ]
   actor_config:
-    load: /models/g00898995/weights/qwen3_30b_t4e2p1
+    load: /path/to/weights/qwen3_30b_t4e2p1
     save: ${hydra:runtime.cwd}/outputs/ckpts/qwen3_30b
     tensor_model_parallel_size: 4
     expert_model_parallel_size: 2
@@ -142,9 +142,9 @@ infer_instances:
       engine_kwargs:
         # 以下参数为 vLLMInferServer 初始化参数
         # vllm_proxy模式不需要手动配置, 给下列默认配置即可, 启动脚本会自动修改
-        chat_server: "http://127.0.0.1:8080"
-        prefill_server_list: ["http://127.0.0.1:20012"]
-        decode_server_list: ["http://127.0.0.1:20012"]
+        chat_server: "http://0.0.0.0:8080"
+        prefill_server_list: ["http://0.0.0.0:20012"]
+        decode_server_list: ["http://0.0.0.0:20012"]
         model_name: Qwen3-30B-A3B-Instruct-2507
         tensor_parallel_size: 0
         data_parallel_size: 0

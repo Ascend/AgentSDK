@@ -30,7 +30,6 @@ dos2unix ${root_dir}/third_party/${requirements_file}
 
 git config --global --unset http.proxy
 git config --global --unset https.proxy
-git config --global http.https://github.com.proxy 'http://10.50.113.120:3128'
 git config --global http.sslVerify false
 git config --global https.sslVerify false
 
