@@ -48,6 +48,10 @@ from verl.utils.debug import marked_timer
 from verl.utils.metric import reduce_metrics
 from verl.utils.rollout_skip import RolloutSkip
 
+from aura.base.log.loggers import Loggers
+
+logger = Loggers(__name__).get_logger()
+
 
 class HybridTrainer(RayPPOTrainer):
     """PPO trainer extended with hybrid agent-loop rollout and precision-aware batch handling."""
@@ -63,7 +67,7 @@ class HybridTrainer(RayPPOTrainer):
 
         from verl.utils.tracking import Tracking
 
-        logger = Tracking(
+        tracker = Tracking(
             project_name=self.config.trainer.project_name,
             experiment_name=self.config.trainer.experiment_name,
             default_backend=self.config.trainer.logger,
@@ -85,7 +89,7 @@ class HybridTrainer(RayPPOTrainer):
             if not val_metrics:
                 raise ValueError(f"{val_metrics=}")
             pprint(f"Initial validation metrics: {val_metrics}")
-            logger.log(data=val_metrics, step=self.global_steps)
+            tracker.log(data=val_metrics, step=self.global_steps)
             if self.config.trainer.get("val_only", False):
                 return
 
@@ -424,7 +428,7 @@ class HybridTrainer(RayPPOTrainer):
                     self.train_dataloader.sampler.update(batch=batch)
 
                 # TODO: make a canonical logger that supports various backend
-                logger.log(data=metrics, step=self.global_steps)
+                tracker.log(data=metrics, step=self.global_steps)
 
                 progress_bar.update(1)
                 self.global_steps += 1
