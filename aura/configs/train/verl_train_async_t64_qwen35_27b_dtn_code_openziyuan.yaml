@@ -28,7 +28,7 @@ direct_conf:
 hydra:
   searchpath:
     - file:///verl/verl/trainer/config
-    - file:///models/z00823655/agenticrl/person/Aura_5.0/configs/train/verl_conf
+    - file:///path/to/aura/configs/train/verl_conf
 
 defaults:
   - fully_async_ppo_trainer
@@ -46,7 +46,7 @@ verl_conf:
     weight_save_dir: ${hydra:runtime.cwd}/weights/
     consumed_train_samples: 0 # 已处理的样本数量 断点续传？
     data_loader:
-      train_data_path: /models/z00823655/agenticrl/person/dtn_code_data/rl
+      train_data_path: /path/to/aura/person/dtn_code_data/rl
       split: 100,0,0
       seq_length: 8192
       train_iters: ${verl_conf.total_train_steps}
@@ -64,7 +64,7 @@ verl_conf:
     train_batch_size: 4
   actor_rollout_ref:
     model:
-      path: /models/z00823655/agenticrl/person/Qwen35_35B_A3B
+      path: /path/to/aura/person/Qwen35_35B_A3B
       use_remove_padding: True
       enable_gradient_checkpointing: True
       enable_activation_offload: False
@@ -180,7 +180,7 @@ train_instances:
         hybrid_batch_num: 1
         wait_available_weight_timeout: -1
         # 该配置临时添加 目前数据不支持qwen35格式, 暂时用25格式解析
-        llm_tokenizer_path: /models/l00649956/models/Qwen2.5-7B-Instruct
+        llm_tokenizer_path: /path/to/models/Qwen2.5-7B-Instruct
       agent_service: ${agent_instances.0.name}  # 依赖的 AGENT 服务名称（默认为 `agent_instances` 的第一个）
       infer_service: ${infer_instances.0.name}  # 依赖的 INFER 服务名称（默认为 `infer_instances` 的第一个）
     resource_info: [ ]  # MSRL 训练采用 RAY 实现资源分配，在 Executor 层不做资源限制
@@ -232,9 +232,9 @@ infer_instances:
       engine_kwargs:
         # 以下参数为 vLLMInferServer 初始化参数
         # vllm_proxy模式不需要手动配置, 给下列默认配置即可, 启动脚本会自动修改
-        chat_server: "http://127.0.0.1:8080"
-        prefill_server_list: ["http://127.0.0.1:20012"]
-        decode_server_list: ["http://127.0.0.1:20012"]
+        chat_server: "http://0.0.0.0:8080"
+        prefill_server_list: ["http://0.0.0.0:20012"]
+        decode_server_list: ["http://0.0.0.0:20012"]
         model_name: Qwen3.5-35B-A3B
         tensor_parallel_size: 0
         data_parallel_size: 0

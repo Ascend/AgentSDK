@@ -1,46 +1,37 @@
 # v5.0.0断点续训部署指导——以Math、Qwen2.5—7B、proxy模式（vllm外接+pd分离）场景为例
 
-## 炼丹炉环境部署介绍
+## 环境部署介绍
 
 ### 0 代码准备
 
 ```shell
-# agentic-rl镜像内配置代理
-echo '100.95.17.174 codehub-dg-y.huawei.com' >> /etc/hosts
-unset http_proxy
-unset https_proxy
-export no_proxy=127.0.0.1,localhost,local,.local,huawei.com
-git config --global --unset http.proxy
-git config --global --unset https.proxy
-# agentic-rl镜像内共享盘下载codehub5.0代码
-git clone -b v5.0.0-dev https://codehub-dg-y.huawei.com/GTS_AlgTech/KlgGraphAlg/AING/AgenticRL.git
+# 下载aura代码后
 # third_party三方库代码下载
 bash download_third_party.sh
 ```
 
 ### 1 镜像准备
 
-炼丹炉平台 镜像名称：agentic-rl-a2-vllm-011 镜像版本 ：4.0.2（已有）
+平台 镜像名称：xxxx 镜像版本 ：xxx //TODO
 
 ### 2 启动训练任务
 
-炼丹炉任务参考：train-qwen7b-retraintest-v22 （3机910B）
-https://10.50.113.124:38443/portal-web/portal/homepage.html#GDE.Manas.studio.system-docker-runner.dockerRunnerIndexMenu
+//TODO
 
-#### 2.1 炼丹炉参数配置
+#### 2.1 参数配置
 
 ##### 2.1.1 : Qwen2.5-7B模型路径
 
 ```shell
-huggingface原始权重: /models/l00649956/models/Qwen2.5-7B-Instruct
-megatron格式tp4pp2权重: /models/w00623271/original_ckpts/Qwen2.5-7B-Instruct-mcore-tp4pp2
-tokenizer路径: /models/l00649956/models/Qwen2.5-7B-Instruct
+huggingface原始权重: /path/to/models/Qwen2.5-7B-Instruct
+megatron格式tp4pp2权重: /path/to/original_ckpts/Qwen2.5-7B-Instruct-mcore-tp4pp2
+tokenizer路径: /path/to/models/Qwen2.5-7B-Instruct
 ```
 
 ##### 2.1.2 : Math数据集路径
 
 ```shell
-数据集路径: /models/g00898995/dataset/deepscaler_math_01/rl
+数据集路径: /path/to/datasets/deepscaler_math_01/rl
 ```
 
 ##### 2.1.3 : PD分离相关配置及脚本（2机16卡推理1P1D + 1机8卡训练 + 混合批次优化开启）
@@ -56,7 +47,7 @@ msrl模版配置（勿改）: configs/msrl_conf/base_integrated_grpo_trainer_tem
 ##### 2.1.4 : 任务启动命令
 
 ```shell
-cd /models/g00898995/AgenticRL_retrain/AgenticRL;
+cd /path/to/aura_retrain/AgenticRL;
 bash examples/grpo_retrain/start_checkpoint_resume_vllm_proxy.sh | tee /models/xxx/retrain/xxx.log
 ```
 
@@ -72,7 +63,7 @@ MAX_RETRIES=100 # 自定义：retry次数
 RETRY_COUNT=1 # 默认1开始，勿修改
 DEFAULT_START_SH="start_roma_vllm_proxy_pd_resume.sh" # 须修改: 5.0启动脚本(vllm外挂)
 DEFAULT_YAML="direct_p1d1_qwen25_7b_train_one_step_off" # 须修改: 主要配置文件，非msrl_conf，覆盖运行脚本参数文件
-DEFAULT_LOG_PATH="/models/g00898995/retrain/logs" # 须修改: 续训监控日志路径
+DEFAULT_LOG_PATH="/models/retrain/logs" # 须修改: 续训监控日志路径
 DEFAULT_CLEAR_CKPT="0" # 是否开启续训清理非最新saveckpt 0:关闭 1:开启
 DEFAULT_CLEAR_ALL_CKPT="0" # 是否开启首次清理所有saveckpt 0:关闭 1:开启
 MASTER_TRAIN_INDEX=2 # 须修改: 训练主节点index
@@ -101,13 +92,13 @@ msrl_conf:
     global_batch_size: 8
     train_iters: 100
     save_interval: 2 # 须修改：开启混合批次时，最好是2的倍数
-    tokenizer_name_or_path: /models/l00649956/models/Qwen2.5-7B-Instruct
-    data_path: /models/g00898995/dataset/deepscaler_math_01/rl
+    tokenizer_name_or_path: /path/to/models/Qwen2.5-7B-Instruct
+    data_path: /path/to/datasets/deepscaler_math_01/rl
     dataset_additional_keys: ['labels']
   actor_config:
-    #ori_train_model_path:/models/w00623271/original_ckpts/Qwen2.5-7B-Instruct-mcore-tp4pp2
-    load: /models/w00623271/original_ckpts/Qwen2.5-7B-Instruct-mcore-tp4pp2 # 须修改
-    save: /models/g00898995/retrain/save_ckpts/qwen25_7b # 须修改：注意save路径不放重要数据，续训程序DEFAULT_CLEAR_ALL_CKPT开启后会清空目录
+    #ori_train_model_path:/path/to/original_ckpts/Qwen2.5-7B-Instruct-mcore-tp4pp2
+    load: /path/to/original_ckpts/Qwen2.5-7B-Instruct-mcore-tp4pp2 # 须修改
+    save: /models/retrain/save_ckpts/qwen25_7b # 须修改：注意save路径不放重要数据，续训程序DEFAULT_CLEAR_ALL_CKPT开启后会清空目录
     finetune: true # 续训开始前为true
     tensor_model_parallel_size: 4
     pipeline_model_parallel_size: 2
@@ -116,7 +107,7 @@ msrl_conf:
     init_num_group_batches: 2
     hybrid_batch_num: 2
     enable_version_control: true
-    weight_save_dir: /models/g00898995/retrain/update_weight/qwen25_7b #
+    weight_save_dir: /models/retrain/update_weight/qwen25_7b #
     ckpt_delta: 1
 ```
 
@@ -129,7 +120,7 @@ msrl_conf:
 # 相关待修改配置如下:（其他省略）
 MASTER_TRAIN_INDEX=2   # 须修改：train/rollout集群master主节点idx
 CONFIG_NAME=direct_p1d1_qwen25_7b_train_one_step_off_resume  # 配置文件：会被外层start_checkpoint_resume_vllm_proxy.sh的覆盖
-export MODEL_PATH=/models/l00649956/models/Qwen2.5-7B-Instruct #须修改：推理hf模型权重路径
+export MODEL_PATH=/path/to/models/Qwen2.5-7B-Instruct #须修改：推理hf模型权重路径
 export SERVED_MODEL_NAME=Qwen2.5-7B-Instruct #须修改
 export PREFILL_INSTANCE_COUNT=1    # 须修改：PD分离时表示P实例的个数
 # set DECODE_INSTANCE_COUNT to 0 if USE_PD is 0

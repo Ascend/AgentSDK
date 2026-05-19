@@ -35,11 +35,11 @@ msrl_conf:
   megatron_training:
     global_batch_size: 8
     train_iters: 10
-    tokenizer_name_or_path: /opt/DPC/models/x00805158/models/Qwen3-30B-A3B
-    data_path: /opt/DPC/models/z00943413/sandbox_data_convert_v1/rl
+    tokenizer_name_or_path: /opt/DPC/path/to/models/Qwen3-30B-A3B
+    data_path: /opt/DPC/path/to/data/rl
     dataset_additional_keys: [ 'labels' ]
   actor_config:
-    load: /opt/DPC/models/z00943413/dummy/
+    load: /opt/DPC/path/to/data/
     save: ${hydra:runtime.cwd}/outputs/ckpts/qwen3_30b
     tensor_model_parallel_size: 4
     expert_model_parallel_size: 2
@@ -131,8 +131,8 @@ agent_instances:
         max_tokens: 128
         model: ${infer_instances.0.name} # 依赖的 INFER 服务名称（默认为 `infer_instances` 的第一个）
       trajectory_save_dir: ${hydra:runtime.cwd}/outputs
-      traj_proxy_url: "http://7.246.80.32:12301"
-      agent_proxy_url: "http://100.105.162.81:28124"
+      traj_proxy_url: "http://0.0.0.0:12301"
+      agent_proxy_url: "http://0.0.0.0:28124"
     resource_info: [ ]
 
 
@@ -150,8 +150,8 @@ infer_instances:
       engine_kwargs:
         # 以下参数为 vLLMInferServer 初始化参数
         # vllm_proxy模式不需要手动配置, 给下列默认配置即可, 启动脚本会自动修改
-        chat_server: "http://7.242.102.234:8080"
-        prefill_server_list: ["http://7.242.102.234:20012"]
+        chat_server: "http://0.0.0.0:8080"
+        prefill_server_list: ["http://0.0.0.0:20012"]
         decode_server_list: []
         model_name: Qwen3-30B-A3B
         tensor_parallel_size: 4

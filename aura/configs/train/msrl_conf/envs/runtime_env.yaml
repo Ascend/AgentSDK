@@ -38,7 +38,7 @@ env_vars:
   # 指定使能 CPU 绑核
   CPU_AFFINITY_CONF: '1'
   # COC指定环境变量
-  LCAL_COMM_ID: '127.0.0.1:27001'
+  LCAL_COMM_ID: '0.0.0.0:27001'
   # Deepseek模型相关配置
   # VLLM_ASCEND_MLA_PA: '1'
   # one step off模式下，针对MoE模型的EP模式，MoE模型需要设置为true

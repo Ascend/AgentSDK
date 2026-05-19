@@ -29,7 +29,7 @@ data:
       assistant_tag: assistant
 
     preprocess_parameters:
-      model_name_or_path: &HF_MODEL_LOAD_PATH /models/z00823655/agenticrl/person/Qwen35_27B
+      model_name_or_path: &HF_MODEL_LOAD_PATH /path/to/aura/person/Qwen35_27B
       use_fast_tokenizer: true
       split_special_tokens: false
       image_max_pixels: 262144
@@ -98,7 +98,7 @@ training:
   no_load_rng: true  # Do not load RNG state; remove if loading is needed.
   no_save_optim: true  # Do not save optimizer state; remove if saving is needed.
   no_save_rng: true  # Do not save RNG state; remove if saving is needed.
-  load: /models/g00898995/model/DCP_Qwen35_27B
+  load: /path/to/models/DCP_Qwen35_27B
   save: ./save_path
   use_deter_comp: false
   load_rank0_and_broadcast: true

@@ -28,7 +28,7 @@ direct_conf:
 hydra:
   searchpath:
     - file:///verl/verl/trainer/config
-    - file:///models/z00823655/agenticrl/person/Aura_5.0_122B/configs/train/verl_conf
+    - file:///path/to/aura/configs/train/verl_conf
 
 defaults:
   - fully_async_ppo_trainer
@@ -46,7 +46,7 @@ verl_conf:
     weight_save_dir: ${hydra:runtime.cwd}/weights_122b/
     consumed_train_samples: 0 # 已处理的样本数量 断点续传？
     data_loader:
-      train_data_path: /models/z00823655/agenticrl/person/dtn_code_data/rl
+      train_data_path: /path/to/aura/person/dtn_code_data/rl
       split: 100,0,0
       seq_length: 8192
       train_iters: ${verl_conf.total_train_steps}
@@ -64,7 +64,7 @@ verl_conf:
     train_batch_size: 32
   actor_rollout_ref:
     model:
-      path: /models/z00823655/agenticrl/person/Qwen35_122B_A10B
+      path: /path/to/aura/person/Qwen35_122B_A10B
       use_remove_padding: True
       enable_gradient_checkpointing: True
     hybrid_engine: False
@@ -154,7 +154,7 @@ train_instances:
         actor_rollout_dispatch_size: 256  # Rollout一次处理的数量 = gbs * n ?  最大是总样本数16*8/推理实例数2 且是n_samples_per_prompt的倍数
         validate_n_samples: ${verl_conf.extras.validate_num_samples}
         traj_output_path: ${hydra:runtime.cwd}/outputs/
-        tokenizer_name_or_path: /models/l00649956/models/Qwen2.5-7B-Instruct # ${verl_conf.actor_rollout_ref.model.path}
+        tokenizer_name_or_path: /path/to/models/Qwen2.5-7B-Instruct # ${verl_conf.actor_rollout_ref.model.path}
         dataset_additional_keys: ${verl_conf.extras.data_loader.dataset_additional_keys}
         global_batch_size: ${verl_conf.extras.data_loader.global_batch_size}
         weight_save_dir: ${verl_conf.extras.weight_save_dir}
@@ -219,9 +219,9 @@ infer_instances:
       engine_kwargs:
         # 以下参数为 vLLMInferServer 初始化参数
         # vllm_proxy模式不需要手动配置, 给下列默认配置即可, 启动脚本会自动修改
-        chat_server: "http://127.0.0.1:8080"
-        prefill_server_list: ["http://127.0.0.1:20012"]
-        decode_server_list: ["http://127.0.0.1:20012"]
+        chat_server: "http://0.0.0.0:8080"
+        prefill_server_list: ["http://0.0.0.0:20012"]
+        decode_server_list: ["http://0.0.0.0:20012"]
         model_name: Qwen3.5-122B-A10B
         tensor_parallel_size: 0
         data_parallel_size: 0

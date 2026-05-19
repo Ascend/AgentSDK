@@ -16,7 +16,7 @@ def save_trajectory(trajectory):
     import os
     from datetime import datetime
 
-    output_path = r"/data/c30040028/codes/AgenticRL/output"
+    output_path = r"/data/codes/AgenticRL/output"
     file_path = os.path.join(output_path, f'trajectory_{datetime.strftime(datetime.now(), "%m%d%H%M")}.pkl')
 
     with open(file_path, 'wb') as f:
@@ -40,7 +40,7 @@ if __name__ == "__main__":
         env_class=DTNEnvironment,
         env_args=env_args,
         engine_name="openai",
-        rollout_engine_args={"base_url": "http://10.50.112.169:8000/v1", "api_key": "None"},
+        rollout_engine_args={"base_url": "http://0.0.0.0:8000/v1", "api_key": "None"},
         tokenizer=tokenizer,
         sampling_params=sampling_params,
         max_response_length=1024 * 96,

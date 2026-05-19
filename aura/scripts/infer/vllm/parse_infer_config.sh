@@ -229,7 +229,7 @@ function get_infer_configs_for_shared_filesystem()
       return
   fi
 
-  # 兼容炼丹炉续训脚本 第一个推理节点写推理配置和清理配置
+  # 兼容续训脚本 第一个推理节点写推理配置和清理配置
   if [ -z "$START_RESUME_FLAG" ] || [ "$START_RESUME_FLAG" = "false" ]; then
     log_info "START_RESUME_FLAG: $START_RESUME_FLAG | clean old infer config files ..."
     if [[ ${VC_TASK_INDEX} -eq 0 ]]; then

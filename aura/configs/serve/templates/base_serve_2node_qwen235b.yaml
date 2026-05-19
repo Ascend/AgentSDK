@@ -52,7 +52,7 @@ infer_instances:
         host: 0.0.0.0
         port: 8333
         model_name: Qwen3-235B-BF16
-        model: /opt/DPC/models/l30060498/models/Qwen3-235B-BF16
+        model: /path/to/models/Qwen3-235B-BF16
         tensor_parallel_size: 8
         data_parallel_size: 2
         data_parallel_size_local: 1

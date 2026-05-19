@@ -15,13 +15,13 @@ MEGA_CP_SIZE = 2
 MEGA_LD_RANKS = [[0, 1, 2, 3], [4, 5, 6, 7], [8, 9, 10, 11], [12, 13, 14, 15]]
 MEGA_LAYER_NAME = "model_0.module.module.output_layer_forward"
 # Node IP of each tp rank group
-MEGA_IPS = ["172.18.5.15", "172.18.5.15", "172.18.4.246", "172.18.4.246"]
+MEGA_IPS = ["0.0.0.0", "0.0.0.0", "0.0.0.0", "0.0.0.0"]
 
 # vLLM side setting
 VLLM_DP_SIZE = 2
 # only need to pick one rank from each tp group
 VLLM_LD_RANKS = [[0], [4]]
-VLLM_IPS = ["172.18.4.166", "172.18.4.166"]
+VLLM_IPS = ["0.0.0.0", "0.0.0.0"]
 VLLM_LAYER_NAME = "logits_processor_forward"
 STEP = [3]
 INTERACTION_TIME = 1

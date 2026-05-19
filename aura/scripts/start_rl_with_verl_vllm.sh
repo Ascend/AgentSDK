@@ -20,7 +20,7 @@ fi
 export RL_TRAIN_BACKEND="verl"
 export ACLNN_ALLOW_RUNTIME_CACHE=1
 
-# 炼丹炉配置使用的是VC_TASK_HOSTS
+# 配置使用的是VC_TASK_HOSTS
 # 云道配置使用的是VC_WORKER_HOSTS
 # 本地调测使用hosts文件配置
 config_vc_hosts
@@ -37,7 +37,7 @@ log_info "============================================================"
 check_env
 
 # 集群IP, 如果是集群域名, 需要转换成IP, 并配置集群相关信息(训练和推理集群IP等)
-# 炼丹炉是配置VC_TASK_HOSTS, 云道是配置VC_WORKER_HOSTS
+# 是配置VC_TASK_HOSTS, 云道是配置VC_WORKER_HOSTS
 prepare_cluster_info
 
 log_info "after parsing domain, VC_WORKER_HOSTS: ${VC_WORKER_HOSTS}"

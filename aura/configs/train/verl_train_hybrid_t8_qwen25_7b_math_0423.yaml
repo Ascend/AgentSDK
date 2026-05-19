@@ -23,7 +23,7 @@ direct_conf:
 hydra:
   searchpath:
     - file:///verl/verl/trainer/config
-    - file:///models/x00805158/AgenticRL-vaee/configs/train/verl_conf
+    - file:///path/to/aura-vaee/configs/train/verl_conf
 
 defaults:
   - ppo_trainer
@@ -45,7 +45,7 @@ verl_conf:
     infer_service: ${infer_instances.0.name}  # 依赖的 INFER 服务名称（默认为 `infer_instances` 的第一个）
     server_addresses: ${infer_instances.0.executor_kwargs.engine_kwargs.chat_server}
     data_loader:
-      train_data_path: /models/x00805158/data/origin_math_train_convert_v1/rl
+      train_data_path: /path/to/data/origin_math_train_convert_v1/rl
       split: 100,0,0
       seq_length: 8192
       train_iters: ${verl_conf.total_train_steps}
@@ -58,15 +58,15 @@ verl_conf:
       is_pairwise_dataset: false
   total_train_steps: 200
   data:
-    train_files: /models/x00805158/data/train.parquet
-    val_files: /models/x00805158/data/test.parquet
+    train_files: /path/to/data/train.parquet
+    val_files: /path/to/data/test.parquet
     train_batch_size: 16
     max_prompt_length: 4096
     max_response_length: 32768
     filter_overlong_prompts: True
   actor_rollout_ref:
     model:
-      path: /models/x00805158/models/Qwen2.5-7B-Instruct
+      path: /path/to/models/Qwen2.5-7B-Instruct
       use_remove_padding: True
       enable_gradient_checkpointing: True
       enable_activation_offload: False
@@ -200,7 +200,7 @@ train_instances:
         hybrid_batch_num: 1
         wait_available_weight_timeout: -1
         # 该配置临时添加 目前数据不支持qwen35格式, 暂时用25格式解析
-        llm_tokenizer_path: /models/x00805158/models/Qwen2.5-7B-Instruct
+        llm_tokenizer_path: /path/to/models/Qwen2.5-7B-Instruct
       agent_service: ${agent_instances.0.name}  # 依赖的 AGENT 服务名称（默认为 `agent_instances` 的第一个）
       infer_service: ${infer_instances.0.name}  # 依赖的 INFER 服务名称（默认为 `infer_instances` 的第一个）
     resource_info: [ ]  # MSRL 训练采用 RAY 实现资源分配，在 Executor 层不做资源限制

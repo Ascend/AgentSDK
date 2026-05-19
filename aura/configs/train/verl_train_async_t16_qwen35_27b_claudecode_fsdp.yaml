@@ -28,7 +28,7 @@ direct_conf:
 hydra:
   searchpath:
     - file:///verl/verl/trainer/config
-    - file:///models/w00951248/AgenticRL_5.0.0/AgenticRL/configs/train/verl_conf
+    - file:///path/to/aura/configs/train/verl_conf
 
 defaults:
   - fully_async_ppo_trainer
@@ -46,7 +46,7 @@ verl_conf:
     weight_save_dir: ${hydra:runtime.cwd}/weights/
     consumed_train_samples: 0 # 已处理的样本数量 断点续传？
     data_loader:
-      train_data_path: /models/w00951248/data/srcon/converted/v0429/srcon
+      train_data_path: /path/to/data/srcon/converted/v0429/srcon
       split: 100,0,0
       seq_length: 8192
       train_iters: ${verl_conf.total_train_steps}
@@ -64,7 +64,7 @@ verl_conf:
     train_batch_size: 8
   actor_rollout_ref:
     model:
-      path: /models/z00823655/agenticrl/person/Qwen35_27B
+      path: /path/to/aura/person/Qwen35_27B
       use_remove_padding: True
       enable_gradient_checkpointing: True
       enable_activation_offload: False
@@ -184,7 +184,7 @@ train_instances:
         hybrid_batch_num: 1
         wait_available_weight_timeout: -1
         # 该配置临时添加 目前数据不支持qwen35格式, 暂时用25格式解析
-        llm_tokenizer_path: /models/z00823655/agenticrl/person/Qwen35_27B
+        llm_tokenizer_path: /path/to/aura/person/Qwen35_27B
       agent_service: ${agent_instances.0.name}  # 依赖的 AGENT 服务名称（默认为 `agent_instances` 的第一个）
       infer_service: ${infer_instances.0.name}  # 依赖的 INFER 服务名称（默认为 `infer_instances` 的第一个）
     resource_info: [ ]  # MSRL 训练采用 RAY 实现资源分配，在 Executor 层不做资源限制
@@ -222,8 +222,8 @@ agent_instances:
         max_tokens: 8192 #8192
         model: ${infer_instances.0.name} # 依赖的 INFER 服务名称（默认为 `infer_instances` 的第一个）
       trajectory_save_dir: ${hydra:runtime.cwd}/outputs
-      traj_proxy_url: "http://7.246.81.72:12345" # 网优专有traj_proxy_url
-      agent_proxy_url: "http://100.105.162.51:8217"
+      traj_proxy_url: "http://0.0.0.0:12345" # 网优专有traj_proxy_url
+      agent_proxy_url: "http://0.0.0.0:8217"
       traj_proxy_run_id: "app-003"
     resource_info: [ ]
 
@@ -242,8 +242,8 @@ infer_instances:
       engine_kwargs:
         # 以下参数为 vLLMInferServer 初始化参数
         # vllm_proxy模式不需要手动配置, 给下列默认配置即可, 启动脚本会自动修改
-        chat_server: "http://172.16.4.2:8080"
-        prefill_server_list: ["http://172.16.4.2:20012"]
+        chat_server: "http://0.0.0.0:8080"
+        prefill_server_list: ["http://0.0.0.0:20012"]
         decode_server_list: []
         model_name: Qwen3.5-27B
         tensor_parallel_size: 4

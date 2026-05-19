@@ -5,7 +5,7 @@ vllm_version: 0.13.0
 infer_model_name: Qwen3-235B-thinking-2507
 
 # 模型权重路径
-infer_mode_path: /models/g00898995/model/Qwen3-235B-thinking-2507
+infer_mode_path: /path/to/models/Qwen3-235B-thinking-2507
 
 # 是否开启专家并行, MOE模型默认需要开启, Dense模型需要关闭
 enable_expert_parallel: true

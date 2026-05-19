@@ -35,13 +35,13 @@ msrl_conf:
   megatron_training:
     global_batch_size: 8
     train_iters: 3
-    tokenizer_name_or_path: /models/l00649956/models/Qwen2.5-7B-Instruct
-    data_path: /models/l00649956/TrainingOutput/v0728_rca_58case_2tool_6turn_qwq/data/data_bin/rl
+    tokenizer_name_or_path: /path/to/models/Qwen2.5-7B-Instruct
+    data_path: /path/to/TrainingOutput/v0728_rca_58case_2tool_6turn_qwq/data/data_bin/rl
     dataset_additional_keys: [ 'labels' ]
 
   actor_config:
-    load: /models/l00649956/save_ckpts/qwen25_7b/Qwen2.5-7B-Instruct-mcore-tp4pp1/
-    save: /models/z00823655/TrainingOutput/test/ckpts
+    load: /path/to/save_ckpts/qwen25_7b/Qwen2.5-7B-Instruct-mcore-tp4pp1/
+    save: /path/to/TrainingOutput/test/ckpts
     tensor_model_parallel_size: 4
     expert_model_parallel_size: 1
     pipeline_model_parallel_size: 1
@@ -67,7 +67,7 @@ msrl_conf:
     # one step off配置
     init_num_group_batches: 2
     max_queue_size: 6
-    weight_save_dir: /models/z00823655/weights/qwen25_7B
+    weight_save_dir: /path/to/weights/qwen25_7B
     update_weights_interval: 1
     ckpt_delta: 1
     data_optimized: false

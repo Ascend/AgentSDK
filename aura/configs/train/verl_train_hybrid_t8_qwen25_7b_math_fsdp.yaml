@@ -28,7 +28,7 @@ direct_conf:
 hydra:
   searchpath:
     - file:///verl/verl/trainer/config
-    - file:///nas_lhf/yeyuming/AgenticRL_3/AgenticRL-v5.0.0-dev/configs/train/verl_conf
+    - file:///path/to/aura/configs/train/verl_conf
 
 defaults:
   - ppo_trainer
@@ -44,8 +44,8 @@ verl_conf:
 
   total_train_steps: 200
   data:
-    train_files: /nas_lhf/yeyuming/verl_0.7.1_math/train.parquet
-    val_files: /nas_lhf/yeyuming/verl_0.7.1_math/train.parquet
+    train_files: /path/to/data/train.parquet
+    val_files: /path/to/data//val.parquet
     train_batch_size: 16
     max_prompt_length: 4096
     max_response_length: 32768
@@ -53,7 +53,7 @@ verl_conf:
     truncation: 'error'
   actor_rollout_ref:
     model:
-      path: /nas_lhf/lihefei/AgenticRL_Binary_Files/models/Qwen2.5-7B-Instruct
+      path: /path/to/models/Qwen2.5-7B-Instruct
       use_remove_padding: True
       enable_gradient_checkpointing: True
       enable_activation_offload: False
