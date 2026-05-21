@@ -1,0 +1,100 @@
+# =============================================================================
+# OpenClaw App Image - Layer 2（继承 Layer 1 + 执行官方构建）
+# =============================================================================
+# 功能：
+#   - 继承 Layer 1 (openclaw-base) 的基础设施
+#   - 执行 OpenClaw 源码构建（pnpm install + build）
+#   - 支持浏览器安装
+#
+# 构建参数：
+#   OPENCLAW_VERSION        → OpenClaw 版本
+#   OPENCLAW_INSTALL_BROWSER → 是否安装浏览器（默认 1）
+#   OPENCLAW_EXTENSIONS     → 扩展插件列表（空格分隔）
+#   NPM_REGISTRY           → npm 镜像地址
+#
+# 构建顺序：
+#   1. docker build -t openclaw-base:X.Y.Z -f Dockerfile.openclaw-base .
+#   2. docker build -t openclaw:X.Y.Z -f Dockerfile.openclaw-app .
+#   3. docker build -t openclaw:X.Y.Z-plus -f Dockerfile.openclaw-overlay .
+# =============================================================================
+
+# ── 继承 Layer 1 base ────────────────────────────────────────────────────────
+ARG OPENCLAW_BASE_IMAGE=openclaw-base:2026.4.1
+FROM ${OPENCLAW_BASE_IMAGE}
+
+LABEL org.opencontainers.image.title="OpenClaw App"
+LABEL org.opencontainers.image.description="OpenClaw with build tools"
+LABEL org.openclaw.layer="app"
+LABEL org.openclaw.version="${OPENCLAW_VERSION:-2026.4.1}"
+
+USER root
+
+WORKDIR /app
+
+# ── OpenClaw 源码构建 ────────────────────────────────────────────────────────
+# npm 镜像（解决 Docker Desktop 网络问题）
+ARG NPM_REGISTRY=https://registry.npmmirror.com
+RUN npm config set registry ${NPM_REGISTRY}
+
+# pnpm store 指向 /app/.pnpm-store
+RUN mkdir -p /app/.pnpm-store
+
+# 复制 OpenClaw 源码（构建上下文）
+COPY --chown=root:root package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
+COPY --chown=root:root ui/package.json ./ui/package.json
+COPY --chown=root:root patches/ ./patches/
+COPY --chown=root:root scripts/ ./scripts/
+
+# 扩展包（可选）
+ARG OPENCLAW_EXTENSIONS=""
+ARG OPENCLAW_BUNDLED_PLUGIN_DIR=extensions
+RUN if [ -n "$OPENCLAW_EXTENSIONS" ] && [ -d "extensions" ]; then \
+        mkdir -p "${OPENCLAW_BUNDLED_PLUGIN_DIR}" && \
+        for ext in $OPENCLAW_EXTENSIONS; do \
+          if [ -f "extensions/$ext/package.json" ]; then \
+            cp -r "extensions/$ext" "${OPENCLAW_BUNDLED_PLUGIN_DIR}/$ext"; \
+          fi; \
+        done; \
+    fi
+
+# pnpm install
+RUN NODE_OPTIONS=--max-old-space-size=1536 \
+    pnpm install --frozen-lockfile --store-dir /app/.pnpm-store
+
+# 复制其余源码
+COPY --chown=root:root . .
+
+# /app/extensions 目录设为 world-readable
+RUN chmod -R o+rX /app/extensions 2>/dev/null || true
+
+# OpenClaw 构建
+RUN pnpm canvas:a2ui:bundle || \
+    (mkdir -p src/canvas-host/a2ui && \
+     echo "/* A2UI bundle unavailable */" > src/canvas-host/a2ui/a2ui.bundle.js && \
+     echo "stub" > src/canvas-host/a2ui/.bundle.hash && \
+     rm -rf vendor/a2ui apps/shared/OpenClawKit/Tools/CanvasA2UI 2>/dev/null || true)
+
+RUN pnpm build:docker
+ENV OPENCLAW_PREFER_PNPM=1
+RUN pnpm ui:build
+
+# 裁剪类型声明文件和 source map
+RUN CI=true pnpm prune --prod && \
+    find dist -type f \( -name '*.d.ts' -o -name '*.d.mts' -o -name '*.d.cts' -o -name '*.map' \) -delete 2>/dev/null || true
+
+# ── 安装 Playwright Chromium ─────────────────────────────────────────────────
+ARG OPENCLAW_INSTALL_BROWSER=1
+RUN if [ "${OPENCLAW_INSTALL_BROWSER}" = "1" ]; then \
+        mkdir -p /home/node/.cache/ms-playwright && \
+        PLAYWRIGHT_BROWSERS_PATH=/home/node/.cache/ms-playwright \
+        node /app/node_modules/playwright-core/cli.js install --with-deps chromium 2>/dev/null || \
+        npx --yes playwright install chromium 2>/dev/null || true; \
+        chown -R node:node /home/node/.cache/ms-playwright; \
+    fi
+
+# ── 切换到 node 用户 ─────────────────────────────────────────────────────────
+USER node
+WORKDIR /app
+
+# 启动命令（官方一致）
+CMD ["node", "/app/dist/index.js"]
