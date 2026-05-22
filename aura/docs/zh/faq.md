@@ -7,25 +7,44 @@
 启动Agent SDK后，出现如下报错信息。
 
 ```text
-...
-socket.gaierror: [Errno -3] Temporary failure in name resolution
-...
+eth0: error fetching interface information: Device not found
+[ERROR] [ 26-05-21 10:47:56 ] can not get IP from eth0
 ```
 
 **原因分析<a name="section19494183319186"></a>**
 
-获取本地ip是通过socket.gethostbyname(socket.gethostname())获取的，在容器中运行时，需要修改hostname为容器hostname。
+系统默认通过环境变量 DEFAULT_SOCKET_IFNAME（默认值为 eth0）来获取本地IP。当前报错是因为在 ifconfig 中无法找到名为 eth0 的虚拟网桥，导致无法解析出正确的本地IP地址。
 
 **解决方案<a name="section137992561914"></a>**
 
-查看hostname，并通过设置/etc/hosts解决问题。
+请检查您容器内的网络配置，并将环境变量 DEFAULT_SOCKET_IFNAME 的值修改为当前环境中实际存在的、且包含正确本地IP的虚拟网桥名称（例如 br0 或其他自定义网桥名）。
 
-```shell
-# 查看hostname
-hostname
-# 修改/etc/hosts
-echo "127.0.0.1 $(hostname)" >> /etc/hosts
-```
+具体示例如下：
+
+1. 执行 ifconfig 命令，查看网络配置：
+
+    ```shell
+    ifconfig
+    ```
+
+2. 假设得到打印信息（部分）为：
+
+    ```text
+    docker0: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
+            inet 172.17.0.1  netmask 255.255.0.0  broadcast 172.17.255.255
+
+    enp189s0f0: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
+            inet 192.168.0.1  netmask 255.255.0.0  broadcast 192.168.255.255
+
+    enp189s0f1: flags=4099<UP,BROADCAST,MULTICAST>  mtu 1500
+            inet 192.168.100.100  netmask 255.255.255.0  broadcast 192.168.100.255
+    ```
+
+3. 假设本地IP为 192.168.0.1，那么指向本地IP对应虚拟网桥的值即为 enp189s0f0 ，即需要执行：
+
+    ```shell
+    export DEFAULT_SOCKET_IFNAME=enp189s0f0
+    ```
 
 ## 提示换行符不识别<a name="ZH-CN_TOPIC_0000002470393856"></a>
 
@@ -34,9 +53,7 @@ echo "127.0.0.1 $(hostname)" >> /etc/hosts
 启动Agent SDK后，出现如下报错信息。
 
 ```text
-...
 $'\r': command not found
-...
 ```
 
 **原因分析<a name="section19494183319186"></a>**
@@ -52,31 +69,29 @@ shell脚本在不同操作系统间的换行符可能不同，导致解析错误
 find /path/to/AgentSDK -type f -name "*.sh" -exec dos2unix {} +
 ```
 
-## Tensor 尺寸不一致<a name="ZH-CN_TOPIC_0000002470393856"></a>
+## IP地址或端口已被绑定<a name="ZH-CN_TOPIC_0000002470393856"></a>
 
 **问题现象<a name="section108091832161719"></a>**
 
-启动 Agent SDK ，训练一定步数后，出现如下报错信息：
+启动 Agent SDK后，出现如下报错信息：
 
 ```text
-RuntimeError: The size of tensor a(4096) must match the size of tensor b (3747) at non-singleton dimension 1.
+RuntimeError: createHCCLCommOrigin:build/CMakeFiles/torch_npu.dir/compiler_depend.ts:2314 HCCL function error: HcclGetRootInfo(&hcclID)，error code is 7
+ERR02200 DIST call hccl api failed
+Failed to bind the IP port. Reason: The IP address and port have been bound already.
 ```
 
 **原因分析<a name="section19494183319186"></a>**
 
-未对 verl 应用补丁（patch），导致张量尺寸计算错误。
+HCCL端口被其他进程占用，导致出现IP地址和端口已经被绑定的HCCL错误。
 
 **解决方案<a name="section137992561914"></a>**
 
-下载并应用 rllm 提供的 verl 补丁文件：
+设置环境变量，更换HCCL端口：
 
 ```shell
-# 下载补丁文件
-wget -P /verl https://raw.githubusercontent.com/rllm-org/rllm/b5b9760fc3d7208d368f21dcd3e12f4f7eddfdc7/rllm/experimental/fully_async/verl_dp_actor.patch
-
-# 应用补丁
-cd /verl
-patch -p1 < /verl/verl_dp_actor.patch
+export HCCL_HOST_SOCKET_PORT_RANGE=60000-60100
+export HCCL_NPU_SOCKET_PORT_RANGE=61000-61050
 ```
 
 ## 提示uid不一致<a name="ZH-CN_TOPIC_0000002470393856"></a>

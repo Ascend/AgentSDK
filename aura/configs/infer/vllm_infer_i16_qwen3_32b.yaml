@@ -1,5 +1,5 @@
 # vllm版本信息
-vllm_version: 0.17.0
+vllm_version: 0.16.0
 
 # 模型名称
 infer_model_name: Qwen3-32B
