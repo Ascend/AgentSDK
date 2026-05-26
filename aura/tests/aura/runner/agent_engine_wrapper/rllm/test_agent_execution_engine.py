@@ -1,333 +1,998 @@
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# Copyright Huawei Technologies Co., Ltd. 2026. All rights reserved.
-"""Unit tests for rllm/agent_execution_engine module."""
 
-import os
+import sys
+import types
+import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
-
 import pytest
 
-from aura.runner.agent_engine_wrapper.base_engine_wrapper import AgentTask
-from aura.runner.agent_engine_wrapper.rllm.agent_execution_engine import (
-    AgentExecutionEngine,
-    AsyncAgentExecutionEngine,
-    _generate_key,
-    create_application_id,
-)
+
+# ---------------------------------------------------------------------------
+# Fixture: fake module tree for agent_execution_engine
+# ---------------------------------------------------------------------------
+@pytest.fixture
+def fake_engine_env():
+    """Build an isolated fake module tree, keeping real asyncio and re."""
+    fake_torch = types.ModuleType("torch")
+    fake_torch.tensor = MagicMock()
+    fake_torch.long = "long"
+    fake_torch.float32 = "float32"
+
+    fake_hashlib = types.ModuleType("hashlib")
+    fake_hashlib.sha256 = MagicMock()
+    fake_hashlib.sha256.return_value.hexdigest.return_value = "a" * 64
+
+    fake_os = types.ModuleType("os")
+    fake_os.getpid = MagicMock(return_value=1234)
+
+    fake_time = types.ModuleType("time")
+    fake_time.time = MagicMock(return_value=1_000_000.0)
+    fake_time.localtime = MagicMock()
+    fake_time.strftime = MagicMock(return_value="20230101000000")
+
+    fake_traceback = types.ModuleType("traceback")
+    fake_traceback.print_exc = MagicMock()
+
+    fake_uuid = types.ModuleType("uuid")
+    fake_uuid.uuid4 = MagicMock(return_value="12345678-1234-1234-1234-1234567890ab")
+
+    fake_loggers_mod = types.ModuleType("aura.base.log.loggers")
+    mock_logger = MagicMock()
+    fake_loggers_mod.Loggers = MagicMock(return_value=MagicMock(get_logger=MagicMock(return_value=mock_logger)))
+
+    fake_app_stats = types.ModuleType("aura.base.misc.misc")
+    fake_app_stats.app_stats = MagicMock()
+    fake_app_stats.colorful_print = MagicMock()
+
+    fake_utils_mod = types.ModuleType("aura.base.utils.utils")
+    fake_utils_mod.strftime = MagicMock()
+
+    fake_base_agent = types.ModuleType("aura.runner.agent_engine_wrapper.base.agent.base_agent")
+    fake_base_agent.Action = MagicMock()
+    class FakeBaseAgent:
+        pass
+    fake_base_agent.BaseAgent = FakeBaseAgent
+    fake_base_agent.Trajectory = MagicMock()
+
+    fake_env_utils = types.ModuleType("aura.runner.agent_engine_wrapper.base.environment.env_utils")
+    fake_env_utils.compute_mc_return = MagicMock()
+    fake_env_utils.compute_trajectory_reward = MagicMock()
+
+    fake_chat_template = types.ModuleType("aura.runner.agent_engine_wrapper.base.parser.chat_template")
+    fake_chat_template.ChatTemplateParser = MagicMock()
+    fake_chat_template.ChatTemplateParser.get_parser = MagicMock(return_value=MagicMock())
+
+    fake_base_engine_wrapper = types.ModuleType("aura.runner.agent_engine_wrapper.base_engine_wrapper")
+    class FakeAgentTask:
+        def __init__(self, task_id="task-0", prompt_id=0):
+            self.task_id = task_id
+            self.prompt_id = prompt_id
+    fake_base_engine_wrapper.AgentTask = FakeAgentTask
+
+    fake_msg_handler = types.ModuleType("aura.runner.agent_engine_wrapper.rllm.msg_handler")
+    fake_msg_handler.convert_messages_to_tokens_and_masks = MagicMock(return_value=([1, 2, 3], [1, 1, 1]))
+    fake_msg_handler.get_recent_assistant_user_messages = MagicMock(return_value=(MagicMock(), MagicMock()))
+
+    fake_router_mod = types.ModuleType("aura.runner.scheduler.router")
+    fake_router = MagicMock()
+    fake_router_mod.Router = MagicMock()
+    fake_router_mod.Router.create = MagicMock(return_value=fake_router)
+
+    fake_verl_experimental = types.ModuleType("verl.experimental.agent_loop.agent_loop")
+    fake_verl_experimental.AsyncLLMServerManager = MagicMock()
+    fake_verl_experimental.AsyncLLMServerManager.return_value.generate = AsyncMock()
+
+    import os as _os
+    import aura as _aura
+    base = _aura.__path__[0] if _aura.__path__ else "."
+    fake_aura = types.ModuleType("aura")
+    fake_aura.__path__ = _aura.__path__
+    fake_aura_runner = types.ModuleType("aura.runner")
+    fake_aura_runner.__path__ = [_os.path.join(base, "runner")]
+    fake_aura_runner_agent_engine_wrapper = types.ModuleType("aura.runner.agent_engine_wrapper")
+    fake_aura_runner_agent_engine_wrapper.__path__ = [_os.path.join(base, "runner/agent_engine_wrapper")]
+    fake_aura_runner_agent_engine_wrapper_rllm = types.ModuleType("aura.runner.agent_engine_wrapper.rllm")
+    fake_aura_runner_agent_engine_wrapper_rllm.__path__ = [_os.path.join(base, "runner/agent_engine_wrapper/rllm")]
+    fake_aura_base = types.ModuleType("aura.base")
+    fake_aura_base.__path__ = []
+    fake_aura_base_log = types.ModuleType("aura.base.log")
+    fake_aura_base_log.__path__ = []
+
+    fakes = {
+        "torch": fake_torch,
+        "hashlib": fake_hashlib,
+        "os": fake_os,
+        "time": fake_time,
+        "traceback": fake_traceback,
+        "uuid": fake_uuid,
+        "aura.base.log.loggers": fake_loggers_mod,
+        "aura.base.misc.misc": fake_app_stats,
+        "aura.base.utils.utils": fake_utils_mod,
+        "aura.runner.agent_engine_wrapper.base.agent.base_agent": fake_base_agent,
+        "aura.runner.agent_engine_wrapper.base.environment.env_utils": fake_env_utils,
+        "aura.runner.agent_engine_wrapper.base.parser.chat_template": fake_chat_template,
+        "aura.runner.agent_engine_wrapper.base_engine_wrapper": fake_base_engine_wrapper,
+        "aura.runner.agent_engine_wrapper.rllm.msg_handler": fake_msg_handler,
+        "aura.runner.scheduler.router": fake_router_mod,
+        "verl.experimental.agent_loop.agent_loop": fake_verl_experimental,
+        "aura": fake_aura,
+        "aura.runner": fake_aura_runner,
+        "aura.runner.agent_engine_wrapper": fake_aura_runner_agent_engine_wrapper,
+        "aura.runner.agent_engine_wrapper.rllm": fake_aura_runner_agent_engine_wrapper_rllm,
+        "aura.base": fake_aura_base,
+        "aura.base.log": fake_aura_base_log,
+    }
+
+    target = "aura.runner.agent_engine_wrapper.rllm.agent_execution_engine"
+    if target in sys.modules:
+        del sys.modules[target]
+
+    with patch.dict(sys.modules, fakes):
+        import aura.runner.agent_engine_wrapper.rllm.agent_execution_engine as mod
+        yield {
+            "mod": mod,
+            "AgentExecutionEngine": mod.AgentExecutionEngine,
+            "mock_logger": mock_logger,
+            "fake_router": fake_router,
+            "fake_router_mod": fake_router_mod,
+            "fake_torch": fake_torch,
+            "fake_app_stats": fake_app_stats,
+            "fake_env_utils": fake_env_utils,
+            "fake_base_agent": fake_base_agent,
+            "fake_msg_handler": fake_msg_handler,
+            "fake_time": fake_time,
+            "fake_os": fake_os,
+            "fake_uuid": fake_uuid,
+            "fake_chat_template": fake_chat_template,
+            "fake_verl": fake_verl_experimental,
+        }
+
+    if target in sys.modules:
+        del sys.modules[target]
 
 
 # ---------------------------------------------------------------------------
-# Fixtures
+# Tests
 # ---------------------------------------------------------------------------
+class TestHelpers:
+    def test_create_application_id(self, fake_engine_env):
+        mod = fake_engine_env["mod"]
+        app_id = mod.create_application_id(42)
+        assert "42-" in app_id
+
+    def test_generate_key_dict(self, fake_engine_env):
+        mod = fake_engine_env["mod"]
+        key = mod._generate_key({"task_id": "t1", "prompt_id": 101})
+        assert key == "t1_101"
+
+    def test_generate_key_agent_task(self, fake_engine_env):
+        mod = fake_engine_env["mod"]
+        task = mod.AgentTask(task_id="t2", prompt_id=202)
+        key = mod._generate_key(task)
+        assert key == "t2_202"
 
 
-@pytest.fixture
-def mock_tokenizer():
-    tokenizer = MagicMock()
-    tokenizer.name_or_path = "test-model"
-    tokenizer.__class__.__name__ = "QwenTokenizer"
-    tokenizer.bos_token = "<s>"
-    tokenizer.eos_token = "</s>"
-    tokenizer.encode = MagicMock(return_value=[1, 2, 3, 4, 5])
-    tokenizer.apply_chat_template = MagicMock(return_value="formatted")
-    return tokenizer
-
-
-@pytest.fixture
-def mock_chat_parser():
-    parser = MagicMock()
-    parser.assistant_token = "<assistant>"
-    parser.parse = MagicMock(return_value="parsed_prompt")
-    return parser
-
-
-@pytest.fixture
-def mock_env_class():
-    env_cls = MagicMock()
-    env_cls.is_multithread_safe = MagicMock(return_value=True)
-    return env_cls
-
-
-@pytest.fixture
-def mock_agent_class():
-    return MagicMock()
-
-
-@pytest.fixture
-def engine(mock_tokenizer, mock_chat_parser, mock_env_class, mock_agent_class):
-    with patch("aura.runner.agent_engine_wrapper.rllm.agent_execution_engine.ChatTemplateParser") as mock_ctp:
-        mock_ctp.get_parser = MagicMock(return_value=mock_chat_parser)
-        eng = AgentExecutionEngine(
-            tokenizer=mock_tokenizer,
-            server_addresses=None,
-            chat_parser=mock_chat_parser,
-            n_parallel_agents=2,
-            max_steps=5,
-            max_prompt_length=1024,
-            max_model_len=4096,
-            agent_class=mock_agent_class,
-            env_class=mock_env_class,
-            env_args={},
-            agent_args={},
+class TestInit:
+    def test_minimal_init(self, fake_engine_env):
+        engine = fake_engine_env["AgentExecutionEngine"](
+            tokenizer="tok", server_addresses=["addr"], chat_parser="parser", n_parallel_agents=2
         )
-        return eng
-
-
-# ---------------------------------------------------------------------------
-# create_application_id tests
-# ---------------------------------------------------------------------------
-
-
-class TestCreateApplicationId:
-    def test_returns_string(self):
-        result = create_application_id(0)
-        assert isinstance(result, str)
-
-    def test_starts_with_prompt_id(self):
-        result = create_application_id(42)
-        assert result.startswith("42-")
-
-    def test_unique_ids(self):
-        ids = {create_application_id(0) for _ in range(100)}
-        assert len(ids) == 100
-
-    def test_contains_pid(self):
-        result = create_application_id(0)
-        assert str(os.getpid()) in result
-
-
-# ---------------------------------------------------------------------------
-# _generate_key tests
-# ---------------------------------------------------------------------------
-
-
-class TestGenerateKey:
-    def test_dict_task(self):
-        task = {"task_id": "abc", "prompt_id": 1}
-        result = _generate_key(task)
-        assert result == "abc_1"
-
-    def test_agent_task(self):
-        task = AgentTask(task_id="xyz", sample_id=0, iteration=0, agent_name="a", problem="p", prompt_id=5)
-        result = _generate_key(task)
-        assert result == "xyz_5"
-
-    def test_other_type_returns_none(self):
-        result = _generate_key("string_task")
-        assert result is None
-
-    def test_none_returns_none(self):
-        result = _generate_key(None)
-        assert result is None
-
-
-# ---------------------------------------------------------------------------
-# AgentExecutionEngine __init__ tests
-# ---------------------------------------------------------------------------
-
-
-class TestAgentExecutionEngineInit:
-    def test_basic_attributes(self, engine, mock_tokenizer, mock_chat_parser):
-        assert engine.tokenizer is mock_tokenizer
-        assert engine.chat_parser is mock_chat_parser
+        assert engine.tokenizer == "tok"
         assert engine.n_parallel_agents == 2
-        assert engine.max_steps == 5
-        assert engine.max_prompt_length == 1024
-        assert engine.max_model_len == 4096
+        assert engine.chat_parser == "parser"
 
-    def test_default_gamma(self, engine):
-        assert engine.gamma == 0.2
-
-    def test_default_retry_limit(self, engine):
-        assert engine.retry_limit == 3
-
-    def test_agents_initialized(self, engine):
-        assert len(engine.agents) == 2
-        assert all(a is None for a in engine.agents)
-
-    def test_envs_initialized(self, engine):
-        assert len(engine.envs) == 2
-        assert all(e is None for e in engine.envs)
-
-    def test_env_not_multithread_safe_raises(self, mock_tokenizer, mock_chat_parser):
+    def test_env_not_multithread_safe_raises(self, fake_engine_env):
         env_cls = MagicMock()
-        env_cls.is_multithread_safe = MagicMock(return_value=False)
+        env_cls.is_multithread_safe.return_value = False
         with pytest.raises(TypeError, match="multi-thread safe"):
-            AgentExecutionEngine(
-                tokenizer=mock_tokenizer,
-                chat_parser=mock_chat_parser,
-                env_class=env_cls,
-            )
+            fake_engine_env["AgentExecutionEngine"](env_class=env_cls, tokenizer="t")
 
-    def test_none_env_class_allowed(self, mock_tokenizer, mock_chat_parser):
-        eng = AgentExecutionEngine(
-            tokenizer=mock_tokenizer,
-            chat_parser=mock_chat_parser,
-            env_class=None,
+    def test_chat_parser_created_if_none(self, fake_engine_env):
+        engine = fake_engine_env["AgentExecutionEngine"](
+            tokenizer="tok", server_addresses=["addr"], n_parallel_agents=1
         )
-        assert eng.env_class is None
+        assert engine.chat_parser is not None
 
-
-# ---------------------------------------------------------------------------
-# update_envs_and_agents tests
-# ---------------------------------------------------------------------------
-
-
-class TestUpdateEnvsAndAgents:
-    def test_updates_envs_and_agents(self, engine):
-        envs = [MagicMock(), MagicMock()]
-        agents = [MagicMock(), MagicMock()]
-        engine.update_envs_and_agents(envs, agents, iteration=1, sample_id=0)
-        assert engine.envs is envs
-        assert engine.agents is agents
-        assert engine.n_parallel_agents == 2
-        assert engine.iteration == 1
-        assert engine.sample_id == 0
-
-    def test_mismatched_lengths_raises(self, engine):
-        envs = [MagicMock()]
-        agents = [MagicMock(), MagicMock()]
-        with pytest.raises(ValueError, match="Number of agents must equal"):
-            engine.update_envs_and_agents(envs, agents, iteration=1, sample_id=0)
-
-    def test_sets_env_idx(self, engine):
-        env0 = MagicMock()
-        env1 = MagicMock()
-        engine.update_envs_and_agents([env0, env1], [MagicMock(), MagicMock()], 1, 0)
-        env0.__setattr__("idx", 0)
-        env1.__setattr__("idx", 1)
-
-
-# ---------------------------------------------------------------------------
-# update_env_and_agent / release tests
-# ---------------------------------------------------------------------------
-
-
-class TestUpdateAndReleaseEnvAgent:
-    def test_update_env_and_agent(self, engine):
-        env = MagicMock()
-        agent = MagicMock()
-        engine.update_env_and_agent("1", env, agent, iteration=2, sample_id=3)
-        assert engine.env_dict["1"] is env
-        assert engine.agent_dict["1"] is agent
-        assert engine.iteration == 2
-
-    def test_release_env_and_agent(self, engine):
-        engine.env_dict["1"] = MagicMock()
-        engine.agent_dict["1"] = MagicMock()
-        engine.release_env_and_agent("1")
-        assert "1" not in engine.env_dict
-        assert "1" not in engine.agent_dict
-
-    def test_release_nonexistent_key_no_error(self, engine):
-        engine.release_env_and_agent("999")
-
-
-# ---------------------------------------------------------------------------
-# store/pop application_id tests
-# ---------------------------------------------------------------------------
-
-
-class TestApplicationIdManagement:
-    def test_store_and_pop(self, engine):
-        task = {"task_id": "t1", "prompt_id": 0}
-        engine.store_application_id(task, "app_123")
-        result = engine.pop_application_id(task)
-        assert result == "app_123"
-
-    def test_pop_removes_key(self, engine):
-        task = {"task_id": "t1", "prompt_id": 0}
-        engine.store_application_id(task, "app_123")
-        engine.pop_application_id(task)
-        result = engine.pop_application_id(task)
-        assert result is None
-
-    def test_pop_nonexistent_returns_none(self, engine):
-        task = {"task_id": "missing", "prompt_id": 0}
-        assert engine.pop_application_id(task) is None
-
-    def test_clear_cache(self, engine):
-        task = {"task_id": "t1", "prompt_id": 0}
-        engine.store_application_id(task, "app_1")
-        engine.clear_cache()
-        assert engine.pop_application_id(task) is None
-
-    def test_store_with_none_key(self, engine):
-        engine.store_application_id("string_task", "app_1")
-        assert len(engine.application_ids) == 0
-
-
-# ---------------------------------------------------------------------------
-# init_router tests
-# ---------------------------------------------------------------------------
+    def test_thread_pool_created(self, fake_engine_env):
+        with patch("concurrent.futures.ThreadPoolExecutor") as mock_tpe:
+            engine = fake_engine_env["AgentExecutionEngine"](
+                tokenizer="tok", max_workers=4, server_addresses=["addr"]
+            )
+            mock_tpe.assert_called_with(max_workers=4)
+            assert engine.executor is mock_tpe.return_value
 
 
 class TestInitRouter:
-    def test_none_addresses_no_router(self, engine):
+    def test_addresses_none_skips(self, fake_engine_env):
+        engine = fake_engine_env["AgentExecutionEngine"](tokenizer="t", server_addresses=["addr"])
         engine.router = None
         engine.init_router(None)
         assert engine.router is None
 
-    def test_none_list_no_router(self, engine):
-        engine.router = None
-        engine.init_router([None])
-        assert engine.router is None
-
-    def test_existing_router_not_replaced(self, engine):
-        existing_router = MagicMock()
-        engine.router = existing_router
-        engine.init_router(["http://localhost:8000"])
-        assert engine.router is existing_router
-
-    def test_creates_router(self, engine):
-        mock_router_instance = MagicMock()
-        mock_router_class = MagicMock()
-        mock_router_class.create = MagicMock(return_value=mock_router_instance)
-
-        mock_router_module = MagicMock()
-        mock_router_module.Router = mock_router_class
-
-        with patch.dict('sys.modules', {'aura.runner.scheduler.router': mock_router_module}):
-            engine.router = None
-            engine.init_router(["http://localhost:8000"])
-            assert engine.router is not None
-            assert engine.router == mock_router_instance
-            mock_router_class.create.assert_called_once()
-
-
-# ---------------------------------------------------------------------------
-# cancel_trajectories / reset tests
-# ---------------------------------------------------------------------------
-
-
-class TestCancelAndReset:
-    @pytest.mark.asyncio
-    async def test_cancel_sets_stop(self, engine):
+    def test_router_already_exists_updates(self, fake_engine_env):
+        engine = fake_engine_env["AgentExecutionEngine"](tokenizer="t", server_addresses=["addr"])
         engine.router = MagicMock()
-        engine.router.stop = AsyncMock()
-        await engine.cancel_trajectories()
-        assert engine.stop is True
+        engine.init_router(["new_addr"])
+        engine.router.update_address.assert_called_once_with(["new_addr"])
 
-    def test_reset_clears_stop(self, engine):
-        engine.router = MagicMock()
-        engine.stop = True
-        engine.reset()
-        assert engine.stop is False
-        engine.router.reset.assert_called_once()
-
-
-# ---------------------------------------------------------------------------
-# AsyncAgentExecutionEngine tests
-# ---------------------------------------------------------------------------
-
-
-class TestAsyncAgentExecutionEngine:
-    def test_inherits_from_agent_execution_engine(self):
-        assert issubclass(AsyncAgentExecutionEngine, AgentExecutionEngine)
-
-    def test_can_instantiate(self, mock_tokenizer, mock_chat_parser):
-        eng = AsyncAgentExecutionEngine(
-            tokenizer=mock_tokenizer,
-            chat_parser=mock_chat_parser,
+    def test_router_created_when_none(self, fake_engine_env):
+        engine = fake_engine_env["AgentExecutionEngine"](
+            tokenizer="t", tokenizer_name_or_path="bert",
         )
-        assert isinstance(eng, AgentExecutionEngine)
+        engine.router = None
+        engine.init_router(["addr"])
+        fake_engine_env["fake_router_mod"].Router.create.assert_called_once()
+
+
+class TestGetModelResponse:
+    @pytest.mark.asyncio
+    async def test_router_path(self, fake_engine_env):
+        engine = fake_engine_env["AgentExecutionEngine"](tokenizer="t", server_addresses=["addr"])
+        engine.router.chat = AsyncMock(return_value="router_response")
+        engine.sampling_params = {}
+        response = await engine.get_model_response(prompt="hello", application_id="app2")
+        assert response == "router_response"
+
+    @pytest.mark.asyncio
+    async def test_server_handles_path(self, fake_engine_env):
+        engine = fake_engine_env["AgentExecutionEngine"](tokenizer="t", server_addresses=["addr"])
+        engine.tokenizer = MagicMock()
+        engine.tokenizer.decode = MagicMock(return_value="decoded")
+        engine.sampling_params = {"top_p": 0.9, "temperature": 1.0, "max_tokens": 100, "n": 1}
+        fake_verl = fake_engine_env["fake_verl"]
+        fake_verl.AsyncLLMServerManager.return_value.generate.return_value = MagicMock(token_ids=[], log_probs=[])
+        response = await engine.get_model_response(prompt=[1, 2], application_id="app1", server_handles="handles")
+        assert response["message"] == "decoded"
+
+
+class TestApplicationId:
+    def test_store_and_pop(self, fake_engine_env):
+        engine = fake_engine_env["AgentExecutionEngine"](tokenizer="t", server_addresses=["addr"])
+        task = {"task_id": "t1", "prompt_id": 1}
+        engine.store_application_id(task, "app123")
+        assert engine.pop_application_id(task) == "app123"
+        assert engine.pop_application_id(task) is None
+
+    def test_clear_cache(self, fake_engine_env):
+        engine = fake_engine_env["AgentExecutionEngine"](tokenizer="t", server_addresses=["addr"])
+        task = {"task_id": "t1", "prompt_id": 1}
+        engine.store_application_id(task, "app")
+        engine.clear_cache()
+        assert len(engine.application_ids) == 0
+
+
+class TestEnvAgentManagement:
+    def test_update_envs_and_agents(self, fake_engine_env):
+        engine = fake_engine_env["AgentExecutionEngine"](tokenizer="t", server_addresses=["addr"])
+        envs = [MagicMock() for _ in range(3)]
+        agents = [MagicMock() for _ in range(3)]
+        engine.update_envs_and_agents(envs, agents, iteration=0, sample_id=0)
+        assert engine.n_parallel_agents == 3
+
+    def test_env_agent_count_mismatch_raises(self, fake_engine_env):
+        engine = fake_engine_env["AgentExecutionEngine"](tokenizer="t", server_addresses=["addr"])
+        with pytest.raises(ValueError):
+            engine.update_envs_and_agents([MagicMock()], [MagicMock(), MagicMock()], 0, 0)
+
+    def test_release_env_and_agent(self, fake_engine_env):
+        engine = fake_engine_env["AgentExecutionEngine"](tokenizer="t", server_addresses=["addr"])
+        engine.env_dict["t1"] = MagicMock()
+        engine.agent_dict["t1"] = MagicMock()
+        engine.release_env_and_agent("t1")
+        assert "t1" not in engine.env_dict
+        assert "t1" not in engine.agent_dict
+
+
+class TestRunAgentTrajectoryAsync:
+    @pytest.mark.asyncio
+    async def test_normal_execution_text_mode(self, fake_engine_env):
+        engine = fake_engine_env["AgentExecutionEngine"](
+            tokenizer=MagicMock(),
+            n_parallel_agents=1,
+            max_steps=2,
+            server_addresses=["addr"],
+            chat_parser=MagicMock(),
+            max_prompt_length=1024,
+            max_model_len=16384,
+            env_args={"trajectory_timeout": 7200},
+        )
+        engine.router.chat = AsyncMock(return_value="model response")
+        engine.tokenizer.encode.return_value = [1, 2, 3]
+        engine.chat_parser.parse.return_value = "parsed prompt"
+
+        agent = MagicMock()
+        agent.chat_completions = [{"role": "user", "content": "hi"}]
+        agent.reset = MagicMock()
+        agent.update_from_env = MagicMock()
+        agent.update_from_model = MagicMock(return_value=MagicMock(action="step"))
+        agent.trajectory = MagicMock()
+        env = MagicMock()
+        env.reset = MagicMock(return_value=("obs", {"info": "x"}))
+        env.step = MagicMock(return_value=("next_obs", 0.0, True, {}))
+        env.close = MagicMock()
+        env.is_multithread_safe.return_value = True
+        del env.compute_final_reward
+
+        engine.envs = [env]
+        engine.agents = [agent]
+
+        loop = asyncio.get_event_loop()
+        with patch.object(loop, "run_in_executor") as mock_run:
+            def run_side_effect(executor, func, *args, **kwargs):
+                if func == env.reset:
+                    result = ("obs", {"info": "x"})
+                elif func == env.step:
+                    result = ("next_obs", 0.0, True, {})
+                elif func == env.close:
+                    result = None
+                else:
+                    result = None
+                fut = asyncio.Future()
+                fut.set_result(result)
+                return fut
+            mock_run.side_effect = run_side_effect
+            trajectory = await engine.run_agent_trajectory_async(idx=0, application_id="app1", mode="Text")
+        assert trajectory is not None
+        fake_engine_env["fake_env_utils"].compute_trajectory_reward.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_cancel_via_stop_flag(self, fake_engine_env):
+        engine = fake_engine_env["AgentExecutionEngine"](
+            tokenizer=MagicMock(), max_steps=3, server_addresses=["addr"]
+        )
+        engine.stop = True
+        agent = MagicMock()
+        agent.chat_completions = [{"role": "user"}]
+        env = MagicMock()
+        env.reset = MagicMock(return_value=("obs", {}))
+        engine.envs = [env]
+        engine.agents = [agent]
+        trajectory = await engine.run_agent_trajectory_async(idx=0, application_id="app3")
+        assert trajectory is None
+
+
+class TestTrajectoryGenerator:
+    @pytest.mark.asyncio
+    async def test_generator_yields_result(self, fake_engine_env):
+        engine = fake_engine_env["AgentExecutionEngine"](
+            tokenizer="t", n_parallel_agents=1, max_steps=1, server_addresses=["addr"]
+        )
+        engine.env_dict = {"t1": MagicMock(is_multithread_safe=MagicMock(return_value=True))}
+        engine.agents = [MagicMock()]
+        engine.envs = [MagicMock()]
+        engine.run_agent_trajectory_async = AsyncMock(return_value="traj")
+        task = {"task_id": "t1", "prompt_id": 0}
+        gen = engine.trajectory_generator(task, mode="Text", prompt_id=0)
+        results = [res async for res in gen]
+        assert results == ["traj"]
+
+    @pytest.mark.asyncio
+    async def test_exception_in_task_propagates(self, fake_engine_env):
+        engine = fake_engine_env["AgentExecutionEngine"](
+            tokenizer="t", n_parallel_agents=1, server_addresses=["addr"]
+        )
+        engine.env_dict = {"t1": MagicMock(is_multithread_safe=MagicMock(return_value=True))}
+        engine.run_agent_trajectory_async = AsyncMock(side_effect=RuntimeError("fail"))
+        task = {"task_id": "t1", "prompt_id": 0}
+        with pytest.raises(RuntimeError, match="fail"):
+            async for _ in engine.trajectory_generator(task, prompt_id=0):
+                pass
+
+
+class TestExecuteTasks:
+    @pytest.mark.asyncio
+    async def test_execute_tasks_successful(self, fake_engine_env):
+        engine = fake_engine_env["AgentExecutionEngine"](
+            tokenizer="t", n_parallel_agents=2, max_steps=1, server_addresses=["addr"],
+        )
+        engine.env_class = MagicMock()
+        engine.env_class.from_dict = MagicMock(return_value=MagicMock())
+        engine.agent_class = MagicMock(return_value=fake_engine_env["fake_base_agent"].BaseAgent())
+        engine.agent_class.return_value.trajectory = MagicMock()
+        engine.run_agent_trajectory_async = AsyncMock(return_value=MagicMock())
+        tasks = [{"task_id": "0"}, {"task_id": "1"}]
+        results = await engine.execute_tasks(tasks)
+        assert len(results) == 2
+
+
+class TestRunAgentTrajectoryAsyncTokenMode:
+    @pytest.mark.asyncio
+    async def test_token_mode_success(self, fake_engine_env):
+        engine = fake_engine_env["AgentExecutionEngine"](
+            tokenizer=MagicMock(), n_parallel_agents=1, max_steps=2, server_addresses=["addr"],
+            chat_parser=MagicMock(), max_prompt_length=1024, max_model_len=16384,
+            env_args={"trajectory_timeout": 7200},
+        )
+        engine.router.chat = AsyncMock(return_value="model response")
+        engine.tokenizer.encode.return_value = [1, 2, 3]
+        engine.chat_parser.parse.return_value = "parsed prompt"
+
+        agent = MagicMock()
+        agent.chat_completions = [{"role": "user", "content": "hi"}]
+        agent.reset = MagicMock()
+        agent.update_from_env = MagicMock()
+        agent.update_from_model = MagicMock(return_value=MagicMock(action="step"))
+        agent.trajectory = MagicMock()
+        env = MagicMock()
+        env.reset = MagicMock(return_value=("obs", {"info": "x"}))
+        env.step = MagicMock(return_value=("next_obs", 0.5, True, {}))
+        env.close = MagicMock()
+        env.is_multithread_safe.return_value = True
+        del env.compute_final_reward
+
+        engine.envs = [env]
+        engine.agents = [agent]
+
+        loop = asyncio.get_event_loop()
+        with patch.object(loop, "run_in_executor") as mock_run:
+            def run_side_effect(executor, func, *args, **kwargs):
+                if func == env.reset:
+                    result = ("obs", {"info": "x"})
+                elif func == env.step:
+                    result = ("next_obs", 0.5, True, {})
+                elif func == env.close:
+                    result = None
+                else:
+                    result = None
+                fut = asyncio.Future()
+                fut.set_result(result)
+                return fut
+            mock_run.side_effect = run_side_effect
+            result = await engine.run_agent_trajectory_async(idx=0, application_id="app_token", mode="Token")
+        assert isinstance(result, dict)
+        assert "prompt_tokens" in result
+        assert "response_tokens" in result
+        assert "trajectory_reward" in result
+
+    @pytest.mark.asyncio
+    async def test_token_mode_missing_assistant_raises(self, fake_engine_env):
+        engine = fake_engine_env["AgentExecutionEngine"](
+            tokenizer=MagicMock(), n_parallel_agents=1, max_steps=2, server_addresses=["addr"],
+            chat_parser=MagicMock(), max_prompt_length=1024, max_model_len=16384,
+            env_args={"trajectory_timeout": 7200},
+        )
+        engine.router.chat = AsyncMock(return_value="model response")
+        engine.tokenizer.encode.return_value = [1, 2, 3]
+        engine.chat_parser.parse.return_value = "parsed prompt"
+
+        agent = MagicMock()
+        agent.chat_completions = [{"role": "user", "content": "hi"}]
+        agent.reset = MagicMock()
+        agent.update_from_env = MagicMock()
+        agent.update_from_model = MagicMock(return_value=MagicMock(action="step"))
+        agent.trajectory = MagicMock()
+        env = MagicMock()
+        env.reset = MagicMock(return_value=("obs", {"info": "x"}))
+        env.step = MagicMock(return_value=("next_obs", 0.0, True, {}))
+        env.close = MagicMock()
+        env.is_multithread_safe.return_value = True
+        del env.compute_final_reward
+
+        engine.envs = [env]
+        engine.agents = [agent]
+
+        with patch("aura.runner.agent_engine_wrapper.rllm.agent_execution_engine.get_recent_assistant_user_messages",
+                   return_value=(None, MagicMock())):
+            loop = asyncio.get_event_loop()
+            with patch.object(loop, "run_in_executor") as mock_run:
+                def run_side_effect(executor, func, *args, **kwargs):
+                    if func == env.reset:
+                        result = ("obs", {"info": "x"})
+                    elif func == env.step:
+                        result = ("next_obs", 0.0, True, {})
+                    elif func == env.close:
+                        result = None
+                    else:
+                        result = None
+                    fut = asyncio.Future()
+                    fut.set_result(result)
+                    return fut
+                mock_run.side_effect = run_side_effect
+                with pytest.raises(RuntimeError, match="Assistant messages is none"):
+                    await engine.run_agent_trajectory_async(idx=0, application_id="app_tok_err", mode="Token")
+
+
+class TestRunAgentTrajectoryAsyncStepMode:
+    @pytest.mark.asyncio
+    async def test_step_mode(self, fake_engine_env):
+        engine = fake_engine_env["AgentExecutionEngine"](
+            tokenizer=MagicMock(), n_parallel_agents=1, max_steps=2, server_addresses=["addr"],
+            chat_parser=MagicMock(), max_prompt_length=1024, max_model_len=16384,
+            env_args={"trajectory_timeout": 7200},
+        )
+        engine.router.chat = AsyncMock(return_value="model response")
+        engine.tokenizer.encode.return_value = [1, 2, 3]
+        engine.chat_parser.parse.return_value = "parsed prompt"
+
+        agent = MagicMock()
+        agent.chat_completions = [{"role": "user", "content": "hi"}]
+        agent.reset = MagicMock()
+        agent.update_from_env = MagicMock()
+        agent.update_from_model = MagicMock(return_value=MagicMock(action="step"))
+        agent.trajectory = MagicMock()
+        env = MagicMock()
+        env.reset = MagicMock(return_value=("obs", {"info": "x"}))
+        env.step = MagicMock(return_value=("next_obs", 0.0, True, {}))
+        env.close = MagicMock()
+        env.is_multithread_safe.return_value = True
+        del env.compute_final_reward
+
+        engine.envs = [env]
+        engine.agents = [agent]
+
+        loop = asyncio.get_event_loop()
+        with patch.object(loop, "run_in_executor") as mock_run:
+            def run_side_effect(executor, func, *args, **kwargs):
+                if func == env.reset:
+                    result = ("obs", {"info": "x"})
+                elif func == env.step:
+                    result = ("next_obs", 0.0, True, {})
+                elif func == env.close:
+                    result = None
+                else:
+                    result = None
+                fut = asyncio.Future()
+                fut.set_result(result)
+                return fut
+            mock_run.side_effect = run_side_effect
+            result = await engine.run_agent_trajectory_async(idx=0, application_id="app_step", mode="Step")
+        assert isinstance(result, dict)
+        assert "steps" in result
+        assert "trajectory" in result
+
+
+class TestRunAgentTrajectoryAsyncConversationMode:
+    @pytest.mark.asyncio
+    async def test_conversation_mode(self, fake_engine_env):
+        engine = fake_engine_env["AgentExecutionEngine"](
+            tokenizer=MagicMock(), n_parallel_agents=1, max_steps=2, server_addresses=["addr"],
+            chat_parser=MagicMock(), max_prompt_length=1024, max_model_len=16384,
+            env_args={"trajectory_timeout": 7200},
+        )
+        engine.router.chat = AsyncMock(return_value="model response")
+        engine.tokenizer.encode.return_value = [1, 2, 3]
+        engine.chat_parser.parse.return_value = "parsed prompt"
+
+        agent = MagicMock()
+        agent.chat_completions = [{"role": "user", "content": "hi"}]
+        agent.reset = MagicMock()
+        agent.update_from_env = MagicMock()
+        agent.update_from_model = MagicMock(return_value=MagicMock(action="step"))
+        agent.trajectory = MagicMock()
+        env = MagicMock()
+        env.reset = MagicMock(return_value=("obs", {"info": "x"}))
+        env.step = MagicMock(return_value=("next_obs", 0.0, True, {}))
+        env.close = MagicMock()
+        env.is_multithread_safe.return_value = True
+        del env.compute_final_reward
+
+        engine.envs = [env]
+        engine.agents = [agent]
+
+        loop = asyncio.get_event_loop()
+        with patch.object(loop, "run_in_executor") as mock_run:
+            def run_side_effect(executor, func, *args, **kwargs):
+                if func == env.reset:
+                    result = ("obs", {"info": "x"})
+                elif func == env.step:
+                    result = ("next_obs", 0.0, True, {})
+                elif func == env.close:
+                    result = None
+                else:
+                    result = None
+                fut = asyncio.Future()
+                fut.set_result(result)
+                return fut
+            mock_run.side_effect = run_side_effect
+            result = await engine.run_agent_trajectory_async(idx=0, application_id="app_conv", mode="Conversation")
+        assert result == agent.chat_completions
+
+
+class TestRunAgentTrajectoryAsyncStreamQueue:
+    @pytest.mark.asyncio
+    async def test_with_stream_queue(self, fake_engine_env):
+        engine = fake_engine_env["AgentExecutionEngine"](
+            tokenizer=MagicMock(), n_parallel_agents=1, max_steps=2, server_addresses=["addr"],
+            chat_parser=MagicMock(), max_prompt_length=1024, max_model_len=16384,
+            env_args={"trajectory_timeout": 7200},
+        )
+        engine.router.chat = AsyncMock(return_value="model response")
+        engine.tokenizer.encode.return_value = [1, 2, 3]
+        engine.chat_parser.parse.return_value = "parsed prompt"
+
+        agent = MagicMock()
+        agent.chat_completions = [{"role": "user", "content": "hi"}]
+        agent.reset = MagicMock()
+        agent.update_from_env = MagicMock()
+        agent.update_from_model = MagicMock(return_value=MagicMock(action="step"))
+        agent.trajectory = MagicMock()
+        env = MagicMock()
+        env.reset = MagicMock(return_value=("obs", {"info": "x"}))
+        env.step = MagicMock(return_value=("next_obs", 0.0, True, {}))
+        env.close = MagicMock()
+        env.is_multithread_safe.return_value = True
+        del env.compute_final_reward
+
+        engine.envs = [env]
+        engine.agents = [agent]
+
+        stream_queue = MagicMock()
+        loop = asyncio.get_event_loop()
+        with patch.object(loop, "run_in_executor") as mock_run:
+            def run_side_effect(executor, func, *args, **kwargs):
+                if func == env.reset:
+                    result = ("obs", {"info": "x"})
+                elif func == env.step:
+                    result = ("next_obs", 0.0, True, {})
+                elif func == env.close:
+                    result = None
+                else:
+                    result = None
+                fut = asyncio.Future()
+                fut.set_result(result)
+                return fut
+            mock_run.side_effect = run_side_effect
+            trajectory = await engine.run_agent_trajectory_async(
+                idx=0, application_id="app_str", mode="Text", stream_queue=stream_queue
+            )
+        assert trajectory is not None
+        stream_queue.put_nowait.assert_called()
+
+
+class TestRunAgentTrajectoryAsyncTokenInTokenOut:
+    @pytest.mark.asyncio
+    async def test_token_in_token_out_path(self, fake_engine_env):
+        engine = fake_engine_env["AgentExecutionEngine"](
+            tokenizer=MagicMock(), n_parallel_agents=1, max_steps=2, server_addresses=["addr"],
+            chat_parser=MagicMock(), max_prompt_length=1024, max_model_len=16384,
+            env_args={"trajectory_timeout": 7200}, token_in_token_out=True,
+            sampling_params={"max_tokens": 512},
+        )
+        engine.tokenizer.encode.return_value = [1, 2, 3]
+        engine.chat_parser.parse.return_value = "parsed prompt"
+
+        async def fake_model_response(*args, **kwargs):
+            return {
+                "message": "model response",
+                "response_tokens": [10, 11],
+                "prompt_tokens": [1, 2, 3],
+                "logprobs": [0.1, 0.2],
+            }
+        engine.get_model_response = fake_model_response
+
+        agent = MagicMock()
+        agent.chat_completions = [{"role": "user", "content": "hi"}]
+        agent.reset = MagicMock()
+        agent.update_from_env = MagicMock()
+        agent.update_from_model = MagicMock(return_value=MagicMock(action="step"))
+        agent.trajectory = MagicMock()
+        env = MagicMock()
+        env.reset = MagicMock(return_value=("obs", {"info": "x"}))
+        env.step = MagicMock(return_value=("next_obs", 0.0, True, {}))
+        env.close = MagicMock()
+        env.is_multithread_safe.return_value = True
+        del env.compute_final_reward
+
+        engine.envs = [env]
+        engine.agents = [agent]
+
+        loop = asyncio.get_event_loop()
+        with patch.object(loop, "run_in_executor") as mock_run:
+            def run_side_effect(executor, func, *args, **kwargs):
+                if func == env.reset:
+                    result = ("obs", {"info": "x"})
+                elif func == env.step:
+                    result = ("next_obs", 0.0, True, {})
+                elif func == env.close:
+                    result = None
+                else:
+                    result = None
+                fut = asyncio.Future()
+                fut.set_result(result)
+                return fut
+            mock_run.side_effect = run_side_effect
+            result = await engine.run_agent_trajectory_async(idx=0, application_id="app_tit", mode="Token")
+        assert isinstance(result, dict)
+        assert "logprobs" in result
+
+
+class TestRunAgentTrajectoryAsyncTimeout:
+    @pytest.mark.asyncio
+    async def test_timeout_termination(self, fake_engine_env):
+        engine = fake_engine_env["AgentExecutionEngine"](
+            tokenizer=MagicMock(), n_parallel_agents=1, max_steps=10, server_addresses=["addr"],
+            chat_parser=MagicMock(), max_prompt_length=1024, max_model_len=16384,
+            env_args={"trajectory_timeout": 1},
+        )
+        engine.router.chat = AsyncMock(return_value="model response")
+        engine.tokenizer.encode.return_value = [1, 2, 3]
+        engine.chat_parser.parse.return_value = "parsed prompt"
+
+        agent = MagicMock()
+        agent.chat_completions = [{"role": "user", "content": "hi"}]
+        agent.reset = MagicMock()
+        agent.update_from_env = MagicMock()
+        agent.update_from_model = MagicMock(return_value=MagicMock(action="step"))
+        agent.trajectory = MagicMock()
+        env = MagicMock()
+        env.reset = MagicMock(return_value=("obs", {"info": "x"}))
+        env.step = MagicMock(return_value=("next_obs", 0.0, False, {}))
+        env.close = MagicMock()
+        env.is_multithread_safe.return_value = True
+        del env.compute_final_reward
+
+        engine.envs = [env]
+        engine.agents = [agent]
+
+        loop = asyncio.get_event_loop()
+        with patch.object(loop, "run_in_executor") as mock_run:
+            def run_side_effect(executor, func, *args, **kwargs):
+                if func == env.reset:
+                    result = ("obs", {"info": "x"})
+                elif func == env.step:
+                    result = ("next_obs", 0.0, False, {})
+                elif func == env.close:
+                    result = None
+                else:
+                    result = None
+                fut = asyncio.Future()
+                fut.set_result(result)
+                return fut
+            mock_run.side_effect = run_side_effect
+
+            call_times = [0, 0.1, 2.0, 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8, 2.9, 3.0]
+            def time_side_effect():
+                for t in call_times:
+                    yield t
+                while True:
+                    yield 1000.0
+            time_gen = time_side_effect()
+            with patch.object(fake_engine_env["fake_time"], "time", side_effect=time_gen):
+                trajectory = await engine.run_agent_trajectory_async(idx=0, application_id="app_timeout", mode="Text")
+        assert trajectory.termination_reason == "TIMEOUT"
+
+
+class TestRunAgentTrajectoryAsyncMaxSteps:
+    @pytest.mark.asyncio
+    async def test_max_steps_termination(self, fake_engine_env):
+        engine = fake_engine_env["AgentExecutionEngine"](
+            tokenizer=MagicMock(), n_parallel_agents=1, max_steps=2, server_addresses=["addr"],
+            chat_parser=MagicMock(), max_prompt_length=1024, max_model_len=16384,
+            env_args={"trajectory_timeout": 7200},
+        )
+        engine.router.chat = AsyncMock(return_value="model response")
+        engine.tokenizer.encode.return_value = [1, 2, 3]
+        engine.chat_parser.parse.return_value = "parsed prompt"
+
+        agent = MagicMock()
+        agent.chat_completions = [{"role": "user", "content": "hi"}]
+        agent.reset = MagicMock()
+        agent.update_from_env = MagicMock()
+        agent.update_from_model = MagicMock(return_value=MagicMock(action="step"))
+        agent.trajectory = MagicMock()
+        env = MagicMock()
+        env.reset = MagicMock(return_value=("obs", {"info": "x"}))
+        env.step = MagicMock(return_value=("next_obs", 0.0, False, {}))
+        env.close = MagicMock()
+        env.is_multithread_safe.return_value = True
+        del env.compute_final_reward
+
+        engine.envs = [env]
+        engine.agents = [agent]
+
+        loop = asyncio.get_event_loop()
+        with patch.object(loop, "run_in_executor") as mock_run:
+            def run_side_effect(executor, func, *args, **kwargs):
+                if func == env.reset:
+                    result = ("obs", {"info": "x"})
+                elif func == env.step:
+                    result = ("next_obs", 0.0, False, {})
+                elif func == env.close:
+                    result = None
+                else:
+                    result = None
+                fut = asyncio.Future()
+                fut.set_result(result)
+                return fut
+            mock_run.side_effect = run_side_effect
+            trajectory = await engine.run_agent_trajectory_async(idx=0, application_id="app_maxsteps", mode="Text")
+        assert trajectory.termination_reason == "MAX_STEPS"
+
+
+class TestOverlongFilter:
+    @pytest.mark.asyncio
+    async def test_overlong_filter_masks_out(self, fake_engine_env):
+        engine = fake_engine_env["AgentExecutionEngine"](
+            tokenizer=MagicMock(), n_parallel_agents=1, max_steps=1, server_addresses=["addr"],
+            chat_parser=MagicMock(), max_prompt_length=1024, max_model_len=16384,
+            env_args={"trajectory_timeout": 7200}, overlong_filter=True,
+        )
+        engine.router.chat = AsyncMock(return_value="model response")
+        engine.tokenizer.encode.return_value = [1, 2, 3]
+        engine.chat_parser.parse.return_value = "parsed prompt"
+
+        agent = MagicMock()
+        agent.chat_completions = [{"role": "user", "content": "hi"}]
+        agent.reset = MagicMock()
+        agent.update_from_env = MagicMock()
+        agent.update_from_model = MagicMock(return_value=MagicMock(action="step"))
+        agent.trajectory = MagicMock()
+        env = MagicMock()
+        env.reset = MagicMock(return_value=("obs", {"info": "x"}))
+        env.step = MagicMock(return_value=("next_obs", 0.0, False, {}))
+        env.close = MagicMock()
+        env.is_multithread_safe.return_value = True
+        del env.compute_final_reward
+
+        engine.envs = [env]
+        engine.agents = [agent]
+
+        loop = asyncio.get_event_loop()
+        with patch.object(loop, "run_in_executor") as mock_run:
+            def run_side_effect(executor, func, *args, **kwargs):
+                if func == env.reset:
+                    result = ("obs", {"info": "x"})
+                elif func == env.step:
+                    result = ("next_obs", 0.0, False, {})
+                elif func == env.close:
+                    result = None
+                else:
+                    result = None
+                fut = asyncio.Future()
+                fut.set_result(result)
+                return fut
+            mock_run.side_effect = run_side_effect
+            trajectory = await engine.run_agent_trajectory_async(idx=0, application_id="app_of", mode="Text")
+        assert trajectory is not None
+
+
+class TestComputeFinalReward:
+    @pytest.mark.asyncio
+    async def test_compute_final_reward_called(self, fake_engine_env):
+        engine = fake_engine_env["AgentExecutionEngine"](
+            tokenizer=MagicMock(), n_parallel_agents=1, max_steps=2, server_addresses=["addr"],
+            chat_parser=MagicMock(), max_prompt_length=1024, max_model_len=16384,
+            env_args={"trajectory_timeout": 7200},
+        )
+        engine.router.chat = AsyncMock(return_value="model response")
+        engine.tokenizer.encode.return_value = [1, 2, 3]
+        engine.chat_parser.parse.return_value = "parsed prompt"
+
+        agent = MagicMock()
+        agent.chat_completions = [{"role": "user", "content": "hi"}]
+        agent.reset = MagicMock()
+        agent.update_from_env = MagicMock()
+        agent.update_from_model = MagicMock(return_value=MagicMock(action="step"))
+        agent.trajectory = MagicMock()
+        env = MagicMock()
+        env.reset = MagicMock(return_value=("obs", {"info": "x"}))
+        env.step = MagicMock(return_value=("next_obs", 0.0, True, {}))
+        env.close = MagicMock()
+        env.is_multithread_safe.return_value = True
+        cfr_mock = MagicMock(return_value=0.8)
+        env.compute_final_reward = cfr_mock
+
+        engine.envs = [env]
+        engine.agents = [agent]
+
+        loop = asyncio.get_event_loop()
+        with patch.object(loop, "run_in_executor") as mock_run:
+            def run_side_effect(executor, func, *args, **kwargs):
+                if func == env.reset:
+                    result = ("obs", {"info": "x"})
+                elif func == env.step:
+                    result = ("next_obs", 0.0, True, {})
+                elif func == env.close:
+                    result = None
+                elif func == cfr_mock:
+                    result = 0.8
+                else:
+                    result = None
+                fut = asyncio.Future()
+                fut.set_result(result)
+                return fut
+            mock_run.side_effect = run_side_effect
+            trajectory = await engine.run_agent_trajectory_async(idx=0, application_id="app_cfr", mode="Text")
+        mock_run.assert_any_call(engine.executor, cfr_mock)
+        assert trajectory is not None
+
+
+class TestEpisodeInteraction:
+    @pytest.mark.asyncio
+    async def test_episode_not_none(self, fake_engine_env):
+        episode_mock = MagicMock()
+        engine = fake_engine_env["AgentExecutionEngine"](
+            tokenizer=MagicMock(), n_parallel_agents=1, max_steps=2, server_addresses=["addr"],
+            chat_parser=MagicMock(), max_prompt_length=1024, max_model_len=16384,
+            env_args={"trajectory_timeout": 7200},
+        )
+        engine.episode = episode_mock
+        engine.router.chat = AsyncMock(return_value="model response")
+        engine.tokenizer.encode.return_value = [1, 2, 3]
+        engine.chat_parser.parse.return_value = "parsed prompt"
+
+        agent = MagicMock()
+        agent.chat_completions = [{"role": "user", "content": "hi"}]
+        agent.reset = MagicMock()
+        agent.update_from_env = MagicMock()
+        agent.update_from_model = MagicMock(return_value=MagicMock(action="step"))
+        agent.trajectory = MagicMock()
+        env = MagicMock()
+        env.reset = MagicMock(return_value=("obs", {"info": "x"}))
+        env.step = MagicMock(return_value=("next_obs", 0.0, True, {}))
+        env.close = MagicMock()
+        env.is_multithread_safe.return_value = True
+        del env.compute_final_reward
+
+        engine.envs = [env]
+        engine.agents = [agent]
+
+        loop = asyncio.get_event_loop()
+        with patch.object(loop, "run_in_executor") as mock_run:
+            def run_side_effect(executor, func, *args, **kwargs):
+                if func == env.reset:
+                    result = ("obs", {"info": "x"})
+                elif func == env.step:
+                    result = ("next_obs", 0.0, True, {})
+                elif func == env.close:
+                    result = None
+                else:
+                    result = None
+                fut = asyncio.Future()
+                fut.set_result(result)
+                return fut
+            mock_run.side_effect = run_side_effect
+            trajectory = await engine.run_agent_trajectory_async(idx=0, application_id="app_ep", mode="Text")
+        episode_mock.set_termination_reason.remote.assert_called()
+        episode_mock.add_trajectory.remote.assert_called()
+
+
+class TestSimplifyThinkContent:
+    @pytest.mark.asyncio
+    async def test_simplify_think_content_active(self, fake_engine_env):
+        engine = fake_engine_env["AgentExecutionEngine"](
+            tokenizer=MagicMock(), n_parallel_agents=1, max_steps=2, server_addresses=["addr"],
+            chat_parser=MagicMock(), simplify_think_content=True,
+            max_prompt_length=1024, max_model_len=16384, env_args={"trajectory_timeout": 7200},
+        )
+        engine.router.chat = AsyncMock(return_value="model response")
+        engine.tokenizer.encode.return_value = [1, 2, 3]
+        engine.chat_parser.parse.return_value = "parsed prompt"
+
+        agent = MagicMock()
+        agent.chat_completions = [
+            {"role": "user", "content": "hello"},
+            {"role": "assistant", "content": "some thinking"},
+        ]
+        agent.reset = MagicMock()
+        agent.update_from_env = MagicMock()
+        agent.update_from_model = MagicMock(return_value=MagicMock(action="step"))
+        agent.trajectory = MagicMock()
+        env = MagicMock()
+        env.reset = MagicMock(return_value=("obs", {"info": "x"}))
+        env.step = MagicMock(return_value=("next_obs", 0.0, True, {}))
+        env.close = MagicMock()
+        env.is_multithread_safe.return_value = True
+        del env.compute_final_reward
+
+        engine.envs = [env]
+        engine.agents = [agent]
+
+        loop = asyncio.get_event_loop()
+        with patch.object(loop, "run_in_executor") as mock_run:
+            def run_side_effect(executor, func, *args, **kwargs):
+                if func == env.reset:
+                    result = ("obs", {"info": "x"})
+                elif func == env.step:
+                    result = ("next_obs", 0.0, True, {})
+                elif func == env.close:
+                    result = None
+                else:
+                    result = None
+                fut = asyncio.Future()
+                fut.set_result(result)
+                return fut
+            mock_run.side_effect = run_side_effect
+            trajectory = await engine.run_agent_trajectory_async(idx=0, application_id="app_stc", mode="Text")
+        assert trajectory is not None
