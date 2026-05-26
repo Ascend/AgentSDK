@@ -1,4 +1,0 @@
-[run]
-omit =
-    */train_adapter/mindspeed_rl/*
-    */train_adapter/omni_rl/*
