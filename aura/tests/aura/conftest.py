@@ -1,3 +1,21 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+#
+# AgentSDK is licensed under Mulan PSL v2.
+# You can use this software according to the terms and conditions of the Mulan PSL v2.
+# You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
 import sys
 import pytest
 from unittest.mock import MagicMock, AsyncMock, patch
@@ -7,13 +25,13 @@ from unittest.mock import MagicMock, AsyncMock, patch
 def mock_requests():
     """Mock requests module for testing"""
     mock_requests = MagicMock()
-    
+
     def mock_get(url, **kwargs):
         return MagicMock(status_code=200, json=lambda: {})
-    
+
     def mock_post(url, **kwargs):
         return MagicMock(status_code=200, json=lambda: {})
-    
+
     mock_requests.get = mock_get
     mock_requests.post = mock_post
 
@@ -25,23 +43,23 @@ def mock_requests():
 def mock_aiohttp():
     """Mock aiohttp module for testing"""
     mock_aiohttp = MagicMock()
-    
+
     class MockClientSession:
         def __init__(self):
             pass
-        
+
         async def __aenter__(self):
             return self
-        
+
         async def __aexit__(self, *args):
             pass
-        
+
         async def get(self, url):
             return MagicMock()
-        
+
         async def post(self, url, json=None):
             return MagicMock()
-    
+
     mock_aiohttp.ClientSession = MockClientSession
 
     with patch.dict(sys.modules, {"aiohttp": mock_aiohttp}):
@@ -52,19 +70,19 @@ def mock_aiohttp():
 def mock_pydantic():
     """Mock pydantic module for testing"""
     mock_pydantic = MagicMock()
-    
+
     class MockBaseModel:
         def __init__(self, **kwargs):
             for key, value in kwargs.items():
                 setattr(self, key, value)
-        
+
         def dict(self):
             return {k: v for k, v in self.__dict__.items() if not k.startswith('_')}
-        
+
         def json(self):
             import json
             return json.dumps(self.dict())
-    
+
     mock_pydantic.BaseModel = MockBaseModel
     mock_pydantic.Field = lambda default=None, **kwargs: default
 
@@ -94,51 +112,51 @@ def mock_torch():
 def mock_fastapi():
     """Mock fastapi module for testing"""
     mock_fastapi = MagicMock()
-    
+
     class MockHTTPException(Exception):
         def __init__(self, status_code, detail=""):
             self.status_code = status_code
             self.detail = detail
             super().__init__(detail)
-    
+
     class MockRequest:
         def __init__(self):
             self.json = AsyncMock(return_value={})
-    
+
     class MockFastAPI:
         def __init__(self):
             self.routes = []
             self.include_router = MagicMock()
-        
+
         def add_api_route(self, path, endpoint, methods=None):
             self.routes.append(MagicMock(path=path, methods=methods or set()))
-        
+
         def get(self, path):
             def decorator(func):
                 self.routes.append(MagicMock(path=path, methods={"GET"}))
                 return func
             return decorator
-        
+
         def post(self, path):
             def decorator(func):
                 self.routes.append(MagicMock(path=path, methods={"POST"}))
                 return func
             return decorator
-    
+
     class MockAPIRouter:
         def __init__(self, prefix=""):
             self.prefix = prefix
             self.routes = []
-        
+
         def add_api_route(self, path, endpoint, methods=None):
             self.routes.append(MagicMock(path=path, methods=methods or set()))
-        
+
         def post(self, path):
             def decorator(func):
                 self.routes.append(MagicMock(path=path, methods={"POST"}))
                 return func
             return decorator
-    
+
     mock_fastapi.Request = MockRequest
     mock_fastapi.FastAPI = MockFastAPI
     mock_fastapi.APIRouter = MockAPIRouter
@@ -158,11 +176,11 @@ def mock_fastapi():
 def mock_sse_starlette():
     """Mock sse_starlette module for testing"""
     mock_sse = MagicMock()
-    
+
     class MockEventSourceResponse:
         def __init__(self, content):
             self.content = content
-    
+
     mock_sse.EventSourceResponse = MockEventSourceResponse
 
     with patch.dict(sys.modules, {"sse_starlette": mock_sse}):
