@@ -33,23 +33,6 @@ def mock_dependencies(monkeypatch):
     mock_vllm_v1_spec_decode = MagicMock()
     mock_vllm_v1_metrics_loggers = MagicMock()
 
-    class MockPrefixCachingMetrics:
-        def __init__(self):
-            self.hit_rate = 0.0
-
-        def observe(self, stats):
-            pass
-
-    class MockSpecDecodingLogging:
-        def observe(self, stats):
-            pass
-
-        def log(self, log_fn):
-            pass
-
-    class MockSpecDecodingProm:
-        pass
-
     class MockIterationStats:
         pass
 
@@ -58,11 +41,10 @@ def mock_dependencies(monkeypatch):
 
     mock_vllm_config.SupportsMetricsInfo = MagicMock
     mock_vllm_config.VllmConfig = MagicMock
-    mock_vllm_v1_core.PrefixCachingMetrics = MockPrefixCachingMetrics
+    mock_vllm_v1_core.PrefixCachingMetrics = MagicMock()
     mock_vllm_v1_metrics.IterationStats = MockIterationStats
     mock_vllm_v1_metrics.SchedulerStats = MockSchedulerStats
-    mock_vllm_v1_spec_decode.SpecDecodingLogging = MockSpecDecodingLogging
-    mock_vllm_v1_spec_decode.SpecDecodingProm = MockSpecDecodingProm
+    mock_vllm_v1_spec_decode.SpecDecodingLogging = MagicMock()
     mock_vllm_v1_metrics_loggers.StatLoggerBase = object
 
     monkeypatch.setitem(sys.modules, "vllm", mock_vllm)
@@ -79,12 +61,9 @@ def mock_dependencies(monkeypatch):
     monkeypatch.delitem(sys.modules, "aura.runner.scheduler.load_stat", raising=False)
 
     yield {
-        "MockPrefixCachingMetrics": MockPrefixCachingMetrics,
-        "MockSpecDecodingLogging": MockSpecDecodingLogging,
         "MockIterationStats": MockIterationStats,
         "MockSchedulerStats": MockSchedulerStats,
     }
-
 
 class TestVllmLogStatsPeriodically:
 
@@ -226,8 +205,8 @@ class TestWorkloadStatLogger:
         MockSchedulerStats = mock_dependencies["MockSchedulerStats"]
 
         mock_scheduler_stats = MagicMock(spec=MockSchedulerStats)
-        mock_scheduler_stats.prefix_cache_stats = None
-        mock_scheduler_stats.spec_decoding_stats = None
+        mock_scheduler_stats.prefix_cache_stats = MagicMock()
+        mock_scheduler_stats.spec_decoding_stats = MagicMock()
         mock_iteration_stats = MagicMock()
 
         with patch.object(logger_instance, '_track_iteration_stats') as mock_track:
@@ -240,8 +219,8 @@ class TestWorkloadStatLogger:
         MockSchedulerStats = mock_dependencies["MockSchedulerStats"]
 
         mock_scheduler_stats = MagicMock(spec=MockSchedulerStats)
-        mock_scheduler_stats.prefix_cache_stats = None
-        mock_scheduler_stats.spec_decoding_stats = None
+        mock_scheduler_stats.prefix_cache_stats = MagicMock()
+        mock_scheduler_stats.spec_decoding_stats = MagicMock()
 
         with patch.object(logger_instance, '_track_iteration_stats') as mock_track:
             logger_instance.record(mock_scheduler_stats, None)
@@ -261,7 +240,8 @@ class TestWorkloadStatLogger:
         logger_instance.last_scheduler_stats.num_waiting_reqs = 2
         logger_instance.last_scheduler_stats.kv_cache_usage = 0.75
 
-        logger_instance.prefix_caching_metrics.hit_rate = 0.8
+        logger_instance.prefix_caching_metrics.aggregated_query_hit = 80
+        logger_instance.prefix_caching_metrics.aggregated_query_total = 100
 
         logger_instance.log()
 
@@ -285,8 +265,6 @@ class TestWorkloadStatLogger:
         logger_instance.last_scheduler_stats.num_running_reqs = 0
         logger_instance.last_scheduler_stats.num_waiting_reqs = 0
         logger_instance.last_scheduler_stats.kv_cache_usage = 0.0
-
-        logger_instance.prefix_caching_metrics.hit_rate = 0.0
 
         logger_instance.spec_decoding_logging.log = MagicMock()
 

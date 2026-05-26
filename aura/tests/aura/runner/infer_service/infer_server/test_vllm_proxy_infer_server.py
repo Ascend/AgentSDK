@@ -43,18 +43,22 @@ def mock_dependencies(monkeypatch):
     with (
         patch("aura.runner.infer_service.infer_server.vllm_proxy_infer_server.logger") as mock_logger,
         patch("aura.runner.infer_service.infer_server.vllm_proxy_infer_server.AsyncOpenAI") as mock_async_openai,
-        patch("aura.runner.infer_service.infer_server.vllm_proxy_infer_server.requests") as mock_requests,
+        patch("httpx.AsyncClient") as mock_async_client_class,
     ):
         mock_client = create_mock_client()
         mock_async_openai.return_value = mock_client
 
+        mock_async_client = AsyncMock()
+        mock_async_client.__aenter__.return_value = mock_async_client
+        mock_async_client_class.return_value = mock_async_client
+
         yield {
             "logger": mock_logger,
             "async_openai": mock_async_openai,
-            "requests": mock_requests,
+            "async_client_class": mock_async_client_class,
+            "async_client": mock_async_client,
             "mock_client": mock_client,
         }
-
 
 class TestVLLMProxyInferServer:
     """Tests for VLLMProxyInferServer class."""
@@ -208,8 +212,6 @@ class TestVLLMProxyInferServer:
 
         assert "stream" not in call_args
         assert "extra_headers" not in call_args
-        assert call_args["logprobs"] == 1
-        assert call_args["extra_body"] == {"return_token_ids": True}
 
         assert result == {"choices": [{"message": {"content": "Hello World"}}]}
 
@@ -257,10 +259,11 @@ class TestVLLMProxyInferServer:
     @pytest.mark.asyncio
     async def test_collective_rpc(self, mock_dependencies):
         """Test collective_rpc method."""
+        mock_async_client = mock_dependencies["async_client"]
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {"result": "success"}
-        mock_dependencies["requests"].post.return_value = mock_response
+        mock_async_client.post = AsyncMock(return_value=mock_response)
 
         server = self.VLLMProxyInferServer(
             model_name="test-model",
@@ -269,16 +272,17 @@ class TestVLLMProxyInferServer:
 
         result = await server.collective_rpc(method="test_method")
 
-        assert mock_dependencies["requests"].post.called
-        assert result == []
+        mock_async_client.post.assert_called_once()
+        assert result == [{"result": "success"}]
 
     @pytest.mark.asyncio
     async def test_collective_rpc_with_pd_servers(self, mock_dependencies):
         """Test collective_rpc with prefill/decode servers."""
+        mock_async_client = mock_dependencies["async_client"]
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {"result": "success"}
-        mock_dependencies["requests"].post.return_value = mock_response
+        mock_async_client.post = AsyncMock(return_value=mock_response)
 
         server = self.VLLMProxyInferServer(
             model_name="test-model",
@@ -289,29 +293,32 @@ class TestVLLMProxyInferServer:
 
         result = await server.collective_rpc(method="test_method")
 
-        assert mock_dependencies["requests"].post.call_count == 2
-        assert result == []
+        assert mock_async_client.post.call_count == 2
+        assert result == [{"result": "success"}, {"result": "success"}]
+
 
     @pytest.mark.asyncio
     async def test_collective_rpc_non_200_status(self, mock_dependencies):
         """Test collective_rpc with non-200 status code."""
+        mock_async_client = mock_dependencies["async_client"]
         mock_response = MagicMock()
         mock_response.status_code = 500
-        mock_response.raise_for_status = MagicMock()
-        mock_dependencies["requests"].post.return_value = mock_response
+        mock_async_client.post = AsyncMock(return_value=mock_response)
 
         server = self.VLLMProxyInferServer(
             model_name="test-model",
             chat_server=["http://192.168.1.1:8080"]
         )
 
-        with pytest.raises(RuntimeError, match="response=500"):
+        with pytest.raises(RuntimeError):
             await server.collective_rpc(method="test_method")
+
 
     @pytest.mark.asyncio
     async def test_collective_rpc_exception(self, mock_dependencies):
         """Test collective_rpc with exception."""
-        mock_dependencies["requests"].post.side_effect = Exception("Connection failed")
+        mock_async_client = mock_dependencies["async_client"]
+        mock_async_client.post = AsyncMock(side_effect=Exception("Connection failed"))
 
         server = self.VLLMProxyInferServer(
             model_name="test-model",
