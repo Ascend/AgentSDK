@@ -15,1158 +15,766 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
-
-import unittest
-from unittest.mock import patch, MagicMock
 import sys
-import os
-import importlib
-import importlib.util
-
-os.environ['ENABLE_VLLM_STAT'] = 'true'
-os.environ['PROFILING_FORWARD'] = '1'
-os.environ['PROFILING_SAMPLE_PROB'] = '100'
+import types
+from unittest.mock import MagicMock, patch, PropertyMock
+import pytest
 
 
-class TestPatchModelRunnerV1(unittest.TestCase):
-    """Test patch_model_runner_v1.py module"""
+class DummyTensor:
+    def __init__(self, value=None):
+        self.value = value if value is not None else []
+        self.shape = [1]
 
-    @classmethod
-    def setUpClass(cls):
-        """Set up test environment for the entire test class"""
-        cls._setup_mocks()
-        cls._import_module_under_test()
+    def item(self):
+        return self.value if not isinstance(self.value, list) else 1
 
-    @classmethod
-    def tearDownClass(cls):
-        """Clean up test environment for the entire test class"""
-        cls._cleanup_mocks()
+    def tolist(self):
+        return self.value if isinstance(self.value, list) else [self.value]
 
-    @classmethod
-    def _setup_mocks(cls):
-        """Setup mock objects for torch, numpy, vllm, vllm_ascend"""
-        cls.mock_torch = MagicMock()
+    def tolists(self):
+        return self.tolist()
 
-        def mock_inference_mode(*args, **kwargs):
-            if len(args) == 1 and callable(args[0]):
-                return args[0]
-            else:
+    def copy_(self, *args, **kwargs):
+        return self
 
-                def decorator(func):
-                    return func
+    def zero_(self):
+        return self
 
-                return decorator
+    def fill_(self, *args, **kwargs):
+        return self
 
-        cls.mock_torch.inference_mode = mock_inference_mode
-        cls.mock_torch._dynamo = MagicMock()
-        cls.mock_torch._dynamo.cache_size = MagicMock()
-        cls.mock_torch.distributed = MagicMock()
+    def contiguous(self):
+        return self
 
-        cls.mock_numpy = MagicMock()
+    def flatten(self):
+        return self
 
-        cls.mock_vllm = MagicMock()
+    def numpy(self):
+        return self.value
 
-        cls.mock_vllm_config_module = MagicMock()
-        cls.mock_vllm_config_module.CompilationLevel = MagicMock()
-        cls.mock_vllm_config_module.CUDAGraphMode = MagicMock()
-        cls.mock_vllm_config_module.VllmConfig = MagicMock()
+    def __getitem__(self, item):
+        return DummyTensor()
 
-        cls.mock_parallel_state = MagicMock()
-        cls.mock_dp_group = MagicMock()
-        cls.mock_dp_group.cpu_group = MagicMock()
-        cls.mock_dp_group.device_group = MagicMock()
-        cls.mock_parallel_state.get_dp_group.return_value = cls.mock_dp_group
-        cls.mock_pp_group = MagicMock()
-        cls.mock_pp_group.is_first_rank = True
-        cls.mock_pp_group.is_last_rank = True
-        cls.mock_parallel_state.get_pp_group.return_value = cls.mock_pp_group
-        cls.mock_parallel_state.get_tp_group.return_value = MagicMock()
-        cls.mock_parallel_state.is_global_first_rank.return_value = True
+    def __setitem__(self, key, value):
+        pass
 
-        cls.mock_vllm_utils = MagicMock()
-        cls.mock_vllm_utils.cdiv.return_value = 1
+    def __len__(self):
+        return len(self.value) if isinstance(self.value, list) else 1
 
-        cls.mock_vllm_sequence = MagicMock()
 
-        cls.mock_vllm_v1 = MagicMock()
+class DummyContext:
+    def __enter__(self):
+        return self
 
-        cls.mock_vllm_outputs = MagicMock()
-        cls.mock_vllm_outputs.EMPTY_MODEL_RUNNER_OUTPUT = MagicMock()
-        cls.mock_vllm_outputs.ModelRunnerOutput = MagicMock()
+    def __exit__(self, exc_type, exc, tb):
+        return False
 
-        cls.mock_vllm_kv_connector = MagicMock()
-        cls.mock_vllm_kv_connector.KVConnectorOutput = MagicMock()
 
-        cls.mock_vllm_kv_transfer = MagicMock()
-        cls.mock_vllm_kv_transfer.has_kv_transfer_group.return_value = False
-        cls.mock_vllm_kv_transfer.get_kv_transfer_group.return_value = MagicMock()
+@pytest.fixture
+def fake_model_runner_env():
+    # ---- Fake torch ----
+    fake_torch = types.ModuleType("torch")
+    fake_torch.float32 = "float32"
+    fake_torch.int32 = "int32"
+    fake_torch.int64 = "int64"
+    fake_torch.Tensor = MagicMock
+    fake_torch.device = MagicMock
+    fake_torch.tensor = MagicMock(side_effect=lambda *a, **k: DummyTensor())
+    fake_torch.cat = MagicMock(side_effect=lambda *a, **k: DummyTensor())
+    fake_torch.max = MagicMock(return_value=DummyTensor(10))
+    fake_torch.zeros = MagicMock(side_effect=lambda *a, **k: DummyTensor())
+    fake_torch.from_numpy = MagicMock(side_effect=lambda x: DummyTensor(x))
+    fake_torch.index_select = MagicMock()
 
-        cls.mock_vllm_forward_context = MagicMock()
-        cls.mock_vllm_forward_context.BatchDescriptor = MagicMock()
+    def inference_mode_factory(*args, **kwargs):
+        def decorator(fn):
+            return fn
+        return decorator
+    fake_torch.inference_mode = inference_mode_factory
 
-        cls.mock_vllm_logger = MagicMock()
+    fake_torch.nn = types.ModuleType("torch.nn")
+    fake_torch.nn.functional = MagicMock()
+    fake_torch.Generator = MagicMock
 
-        cls.mock_vllm_ascend = MagicMock()
+    fake_torch.distributed = types.ModuleType("torch.distributed")
+    fake_torch.distributed.all_reduce = MagicMock()
+    fake_torch.distributed.barrier = MagicMock()
 
-        cls.mock_vllm_ascend_utils = MagicMock()
-        cls.mock_vllm_ascend_utils.vllm_version_is.return_value = False
-        cls.mock_vllm_ascend_utils.lmhead_tp_enable.return_value = False
+    fake_torch_dynamo = types.ModuleType("torch._dynamo")
+    fake_torch_dynamo.__path__ = []
+    fake_torch_dynamo_cache_size = types.ModuleType("torch._dynamo.cache_size")
+    fake_torch._dynamo = fake_torch_dynamo
 
-        cls.mock_vllm_ascend_forward_context = MagicMock()
-        cls.mock_vllm_ascend_forward_context.set_ascend_forward_context = MagicMock(return_value=MagicMock())
+    # ---- Fake numpy ----
+    fake_numpy = types.ModuleType("numpy")
+    fake_numpy.ndarray = MagicMock
+    fake_numpy.int32 = "int32"
+    fake_numpy.array = MagicMock(return_value=MagicMock())
+    fake_numpy.empty = MagicMock(return_value=MagicMock())
+    fake_numpy.cumsum = MagicMock(return_value=MagicMock())
+    fake_numpy.repeat = MagicMock(return_value=MagicMock())
+    fake_numpy.add = MagicMock()
+    fake_numpy.where = MagicMock()
+    fake_numpy.all = MagicMock(return_value=True)
 
-        cls.mock_vllm_ascend_attention = MagicMock()
-        cls.mock_vllm_ascend_attention.AscendAttentionState = MagicMock()
-        cls.mock_vllm_ascend_attention.AscendAttentionState.DecodeOnly = "DecodeOnly"
-        cls.mock_vllm_ascend_attention.AscendAttentionState.Prefill = "Prefill"
+    # ---- Fake vllm ----
+    fake_vllm = types.ModuleType("vllm")
+    fake_vllm.__path__ = []
+    fake_vllm_config = types.ModuleType("vllm.config")
+    class CUDAGraphMode:
+        NONE = 0
+        PIECEWISE = 1
+        FULL = 2
+    fake_vllm_config.CUDAGraphMode = CUDAGraphMode
+    fake_vllm_config.VllmConfig = MagicMock
+    fake_vllm_sequence = types.ModuleType("vllm.sequence")
+    class FakeIntermediateTensors:
+        def __init__(self, **kwargs):
+            for k, v in kwargs.items():
+                setattr(self, k, v)
+    fake_vllm_sequence.IntermediateTensors = FakeIntermediateTensors
+    fake_vllm_v1 = types.ModuleType("vllm.v1")
+    fake_vllm_v1.__path__ = []
+    fake_vllm_v1_outputs = types.ModuleType("vllm.v1.outputs")
+    fake_vllm_v1_outputs.EMPTY_MODEL_RUNNER_OUTPUT = object()
+    fake_vllm_v1_outputs.ModelRunnerOutput = MagicMock
+    fake_vllm_v1_worker = types.ModuleType("vllm.v1.worker")
+    fake_vllm_v1_worker.__path__ = []
+    fake_vllm_v1_worker_kv = types.ModuleType("vllm.v1.worker.kv_connector_model_runner_mixin")
+    fake_vllm_v1_worker_kv.KVConnectorOutput = MagicMock
+    fake_vllm_v1_spec_decode = types.ModuleType("vllm.v1.spec_decode.metadata")
+    fake_vllm_v1_spec_decode.SpecDecodeMetadata = MagicMock
+    fake_vllm_distributed = types.ModuleType("vllm.distributed")
+    fake_vllm_distributed.__path__ = []
+    fake_vllm_distributed_parallel_state = types.ModuleType("vllm.distributed.parallel_state")
+    fake_vllm_distributed_parallel_state.get_dp_group = MagicMock()
+    fake_vllm_distributed_parallel_state.get_pp_group = MagicMock()
+    fake_vllm_distributed_parallel_state.get_tp_group = MagicMock()
+    fake_vllm_distributed_kv_transfer = types.ModuleType("vllm.distributed.kv_transfer")
+    fake_vllm_distributed_kv_transfer.get_kv_transfer_group = MagicMock()
+    fake_vllm_distributed_kv_transfer.has_kv_transfer_group = MagicMock(return_value=False)
+    fake_vllm_forward_context = types.ModuleType("vllm.forward_context")
+    fake_vllm_forward_context.BatchDescriptor = MagicMock
+    fake_vllm_sampling_params = types.ModuleType("vllm.sampling_params")
+    class FakeSamplingType:
+        RANDOM_SEED = 1
+        GREEDY = 0
+    fake_vllm_sampling_params.SamplingType = FakeSamplingType
+    fake_vllm_model_executor = types.ModuleType("vllm.model_executor.models.interfaces_base")
+    fake_vllm_model_executor.VllmModelForPooling = MagicMock
+    fake_vllm_model_executor_layers = types.ModuleType("vllm.model_executor.layers.rotary_embedding")
+    fake_vllm_model_executor_layers.MRotaryEmbedding = MagicMock
+    fake_vllm_logger = types.ModuleType("vllm.logger")
+    fake_vllm_logger.logger = MagicMock()
+    fake_vllm_logger.init_logger = MagicMock(return_value=MagicMock())
+    fake_vllm_utils = types.ModuleType("vllm.utils")
+    fake_vllm_utils.cdiv = lambda a,b: (a+b-1)//b
+    fake_vllm_utils.merge_async_iterators = MagicMock()
 
-        cls.mock_vllm_ascend_mtp_proposer = MagicMock()
-        cls.mock_vllm_ascend_eagle_proposer = MagicMock()
+    # ---- Fake vllm_ascend ----
+    fake_vllm_ascend = types.ModuleType("vllm_ascend")
+    fake_vllm_ascend.__path__ = []
+    fake_vllm_ascend_utils = types.ModuleType("vllm_ascend.utils")
+    class FakeProfileExecuteDuration:
+        def capture_async(self, *args, **kwargs):
+            return DummyContext()
+        def pop_captured_sync(self):
+            return {"prepare": 1.0, "forward": 2.0}
+    fake_vllm_ascend_utils.ProfileExecuteDuration = FakeProfileExecuteDuration
+    fake_vllm_ascend_utils.lmhead_tp_enable = MagicMock(return_value=False)
+    fake_vllm_ascend_utils.vllm_version_is = MagicMock(return_value=False)
+    fake_vllm_ascend_worker = types.ModuleType("vllm_ascend.worker")
+    fake_vllm_ascend_worker.__path__ = []
+    fake_vllm_ascend_worker_model_runner_v1 = types.ModuleType("vllm_ascend.worker.model_runner_v1")
+    class NPUModelRunner:
+        execute_model = None
+        _dummy_run = None
+        _generate_process_reqs_hidden_states = None
+        _prepare_inputs = None
+        _update_states = None
+    fake_vllm_ascend_worker_model_runner_v1.NPUModelRunner = NPUModelRunner
+    fake_vllm_ascend_worker_npu_input_batch = types.ModuleType("vllm_ascend.worker.npu_input_batch")
+    fake_vllm_ascend_worker_npu_input_batch.CachedRequestState = MagicMock
+    fake_vllm_ascend_ascend_forward_context = types.ModuleType("vllm_ascend.ascend_forward_context")
+    fake_vllm_ascend_ascend_forward_context.set_ascend_forward_context = lambda *a, **k: DummyContext()
+    fake_vllm_ascend_attention = types.ModuleType("vllm_ascend.attention.attention_v1")
+    class FakeAscendAttentionState:
+        DecodeOnly = 1
+        SpecDecoding = 2
+    fake_vllm_ascend_attention.AscendAttentionState = FakeAscendAttentionState
+    fake_vllm_ascend_attention.AscendMetadata = MagicMock
+    fake_vllm_ascend_attention_mla = types.ModuleType("vllm_ascend.attention.mla_v1")
+    fake_vllm_ascend_attention_mla.AscendMLAMetadata = MagicMock
+    fake_vllm_ascend_torchair = types.ModuleType("vllm_ascend.torchair.torchair_attention")
+    fake_vllm_ascend_torchair.AscendTorchairMetadata = MagicMock
+    fake_vllm_ascend_torchair_mla = types.ModuleType("vllm_ascend.torchair.torchair_mla")
+    fake_vllm_ascend_torchair_mla.AscendMLATorchairMetadata = MagicMock
+    fake_vllm_ascend_attention_utils = types.ModuleType("vllm_ascend.attention.utils")
+    fake_vllm_ascend_attention_utils.AscendCommonAttentionMetadata = MagicMock
+    fake_vllm_ascend_worker_mtp_proposer = types.ModuleType("vllm_ascend.worker.mtp_proposer_v1")
+    fake_vllm_ascend_worker_eagle_proposer = types.ModuleType("vllm_ascend.worker.eagle_proposer_v1")
+    class FakeMtpProposer:
+        pass
+    class FakeEagleProposer:
+        pass
+    fake_vllm_ascend_worker_mtp_proposer.MtpProposer = FakeMtpProposer
+    fake_vllm_ascend_worker_eagle_proposer.EagleProposer = FakeEagleProposer
 
-        class MockNPUModelRunner:
-            def __init__(self, *args, **kwargs):
-                self.original_init_called = True
+    # ---- Fake comm modules ----
+    fake_comm_exec_stat = types.ModuleType("aura.runner.infer_adapter.vllm.patch.comm.vllm_execute_stat")
+    class StatTimeUtil:
+        def __init__(self):
+            self.last_time = 0.0
+        def get_duration(self):
+            return 0.1
+    class StatPhase:
+        prepare_input_time = "prepare_input"
+        with_prefill = "with_prefill"
+        attn_state = "attn_state"
+        num_actual_tokens = "num_actual_tokens"
+        batch_num = "batch_num"
+        seq_lens = "seq_lens"
+        aclgraph_dispatcher_time = "aclgraph_dispatcher"
+        forward_time = "forward"
+        kvconnectoroutput_time = "kvconnectoroutput"
+        post_process_compute_logits_time = "post_compute_logits"
+        post_samper_logits_slice_time = "logits_slice"
+        post_process_sampler_time = "sampler"
+        post_process_other_time = "other"
+        post_process_time = "post_process"
+        pop_captured_sync_time = "pop_captured"
+        prepare_copy_bt_time = "copy_bt"
+        prepare_get_tokens_time = "get_tokens"
+        prepare_pad_tokens_time = "pad_tokens"
+        prepare_sync_meta_time = "sync_meta"
+        prepare_set_lora_time = "set_lora"
+        prepare_pos_cpu_time = "pos_cpu"
+        prepare_mrope_time = "mrope"
+        prepare_pos_npu_time = "pos_npu"
+        prepare_slot_map_time = "slot_map"
+        prepare_atten_mask_time = "atten_mask"
+        prepare_seq_len_time = "seq_len"
+        prepare_attn_meta_time = "attn_meta"
+        prepare_inputids_cpu_time = "inputids_cpu"
+        prepare_copy_inputids_time = "copy_inputids"
+        prepare_inputsembeds_time = "inputsembeds"
+        prepare_slice_inputids_time = "slice_inputids"
+        prepare_update_ids_and_pos_time = "update_ids_pos"
+        prepare_inter_tensors_time = "inter_tensors"
+        prepare_logits_indice_time = "logits_indice"
+        prepare_specdeco_meta_time = "specdeco_meta"
+        prepare_lmhead_logits_indices_time = "lmhead_logits_indices"
+        prepare_remove_reqs_time = "remove_reqs"
+        prepare_add_reqs_time = "add_reqs"
+        prepare_update_states_time = "update_states"
+        prepare_other_states_time = "other_states"
+        is_profiling = "is_profiling"
+        is_dummy_run = "is_dummy_run"
+        post_samper_sample_topk_topp_apply_time = "apply"
+        post_samper_sample_topk_topp_logits_log_softmax_time = "log_softmax"
+        post_samper_sample_topk_topp_probs_softmax_time = "probs_softmax"
+        post_samper_sample_topk_topp_random_sample_time = "random_sample"
+    fake_comm_exec_stat.StatTimeUtil = StatTimeUtil
+    fake_comm_exec_stat.vllm_output_statics = MagicMock()
+    fake_comm_exec_stat.StatPhase = StatPhase
 
-            def _sync_metadata_across_dp(self, *args, **kwargs):
-                return (args[0], None, args[1], args[2])
+    fake_comm_profiling = types.ModuleType("aura.runner.infer_adapter.vllm.patch.comm.npu_model_profiling")
+    fake_comm_profiling.run_model_with_profiling = MagicMock()
 
-            def execute_model(self, *args, **kwargs):
-                return self.mock_vllm_outputs.EMPTY_MODEL_RUNNER_OUTPUT
+    # ---- Fake os ----
+    fake_os = types.ModuleType("os")
+    fake_os.getenv = MagicMock(return_value="False")
+    fake_os.environ = MagicMock()
+    fake_os.environ.get = MagicMock(return_value="0")
 
-            def dummy_run(self, *args, **kwargs):
-                return self.mock_torch.tensor([1.0])
+    # ---- Aura packages ----
+    import os as _os
+    import aura as _aura
+    real_aura_path = _aura.__path__
+    base_path = real_aura_path[0] if real_aura_path else "."
+    fake_aura = types.ModuleType("aura")
+    fake_aura.__path__ = real_aura_path
+    fake_aura_runner = types.ModuleType("aura.runner")
+    fake_aura_runner.__path__ = [_os.path.join(base_path, "runner")]
+    fake_aura_runner_infer_adapter = types.ModuleType("aura.runner.infer_adapter")
+    fake_aura_runner_infer_adapter.__path__ = [_os.path.join(base_path, "runner/infer_adapter")]
+    fake_vllm_pkg = types.ModuleType("aura.runner.infer_adapter.vllm")
+    fake_vllm_pkg.__path__ = [_os.path.join(base_path, "runner/infer_adapter/vllm")]
+    fake_patch_pkg = types.ModuleType("aura.runner.infer_adapter.vllm.patch")
+    fake_patch_pkg.__path__ = [_os.path.join(base_path, "runner/infer_adapter/vllm/patch")]
+    fake_0_10_2_pkg = types.ModuleType("aura.runner.infer_adapter.vllm.patch.patch_0_10_2")
+    fake_0_10_2_pkg.__path__ = [_os.path.join(base_path, "runner/infer_adapter/vllm/patch/patch_0_10_2")]
+    fake_comm_pkg = types.ModuleType("aura.runner.infer_adapter.vllm.patch.comm")
+    fake_comm_pkg.__path__ = []
 
-            def _update_states(self, *args, **kwargs):
-                pass
+    fakes = {
+        "torch": fake_torch,
+        "torch.distributed": fake_torch.distributed,
+        "torch._dynamo": fake_torch_dynamo,
+        "torch._dynamo.cache_size": fake_torch_dynamo_cache_size,
+        "torch.nn": fake_torch.nn,
+        "numpy": fake_numpy,
+        "vllm": fake_vllm,
+        "vllm.config": fake_vllm_config,
+        "vllm.sequence": fake_vllm_sequence,
+        "vllm.v1": fake_vllm_v1,
+        "vllm.v1.outputs": fake_vllm_v1_outputs,
+        "vllm.v1.worker": fake_vllm_v1_worker,
+        "vllm.v1.worker.kv_connector_model_runner_mixin": fake_vllm_v1_worker_kv,
+        "vllm.v1.spec_decode.metadata": fake_vllm_v1_spec_decode,
+        "vllm.distributed": fake_vllm_distributed,
+        "vllm.distributed.parallel_state": fake_vllm_distributed_parallel_state,
+        "vllm.distributed.kv_transfer": fake_vllm_distributed_kv_transfer,
+        "vllm.forward_context": fake_vllm_forward_context,
+        "vllm.sampling_params": fake_vllm_sampling_params,
+        "vllm.model_executor.models.interfaces_base": fake_vllm_model_executor,
+        "vllm.model_executor.layers.rotary_embedding": fake_vllm_model_executor_layers,
+        "vllm.logger": fake_vllm_logger,
+        "vllm.utils": fake_vllm_utils,
+        "vllm_ascend": fake_vllm_ascend,
+        "vllm_ascend.utils": fake_vllm_ascend_utils,
+        "vllm_ascend.worker": fake_vllm_ascend_worker,
+        "vllm_ascend.worker.model_runner_v1": fake_vllm_ascend_worker_model_runner_v1,
+        "vllm_ascend.worker.npu_input_batch": fake_vllm_ascend_worker_npu_input_batch,
+        "vllm_ascend.ascend_forward_context": fake_vllm_ascend_ascend_forward_context,
+        "vllm_ascend.attention.attention_v1": fake_vllm_ascend_attention,
+        "vllm_ascend.attention.mla_v1": fake_vllm_ascend_attention_mla,
+        "vllm_ascend.torchair.torchair_attention": fake_vllm_ascend_torchair,
+        "vllm_ascend.torchair.torchair_mla": fake_vllm_ascend_torchair_mla,
+        "vllm_ascend.attention.utils": fake_vllm_ascend_attention_utils,
+        "vllm_ascend.worker.mtp_proposer_v1": fake_vllm_ascend_worker_mtp_proposer,
+        "vllm_ascend.worker.eagle_proposer_v1": fake_vllm_ascend_worker_eagle_proposer,
+        "aura.runner.infer_adapter.vllm.patch.comm.vllm_execute_stat": fake_comm_exec_stat,
+        "aura.runner.infer_adapter.vllm.patch.comm.npu_model_profiling": fake_comm_profiling,
+        "os": fake_os,
+        "aura": fake_aura,
+        "aura.runner": fake_aura_runner,
+        "aura.runner.infer_adapter": fake_aura_runner_infer_adapter,
+        "aura.runner.infer_adapter.vllm": fake_vllm_pkg,
+        "aura.runner.infer_adapter.vllm.patch": fake_patch_pkg,
+        "aura.runner.infer_adapter.vllm.patch.patch_0_10_2": fake_0_10_2_pkg,
+        "aura.runner.infer_adapter.vllm.patch.comm": fake_comm_pkg,
+    }
 
-            def _prepare_inputs(self, *args, **kwargs):
-                pass
+    fake_vllm.__path__ = []
+    fake_vllm_ascend.__path__ = []
 
-            def _generate_process_reqs_hidden_states(self, *args, **kwargs):
-                pass
+    yield {
+        "fakes": fakes,
+        "NPUModelRunner": NPUModelRunner,
+        "CUDAGraphMode": CUDAGraphMode,
+        "vllm_output_statics": fake_comm_exec_stat.vllm_output_statics,
+        "StatPhase": StatPhase,
+        "vllm_version_is": fake_vllm_ascend_utils.vllm_version_is,
+        "os": fake_os,
+    }
 
-            def _generate_dummy_run_hidden_states(self, *args, **kwargs):
-                return self.mock_torch.tensor([1.0])
 
-            def _build_attention_metadata(self, *args, **kwargs):
-                return MagicMock()
+def import_module(fake_model_runner_env, env_getenv="False", env_prof="0", env_prob="100", version_01011=False):
+    module_name = "aura.runner.infer_adapter.vllm.patch.patch_0_10_2.patch_model_runner_v1"
+    if module_name in sys.modules:
+        del sys.modules[module_name]
 
-            def _select_moe_comm_method(self, *args, **kwargs):
-                return "all_reduce"
+    fake_model_runner_env["os"].getenv.return_value = env_getenv
+    fake_model_runner_env["os"].environ.get.side_effect = lambda k, d: {
+        "PROFILING_FORWARD": env_prof,
+        "PROFILING_SAMPLE_PROB": env_prob,
+    }.get(k, d)
 
-            def maybe_dummy_run_with_lora(self, *args, **kwargs):
-                return MagicMock()
+    if version_01011:
+        fake_model_runner_env["vllm_version_is"].side_effect = lambda x: x in ("0.10.1.1", "0.10.1")
+    else:
+        fake_model_runner_env["vllm_version_is"].side_effect = lambda x: False
 
-        MockNPUModelRunner.mock_vllm_outputs = cls.mock_vllm_outputs
-        MockNPUModelRunner.mock_torch = cls.mock_torch
+    fakes = fake_model_runner_env["fakes"]
+    with patch.dict(sys.modules, fakes):
+        import aura.runner.infer_adapter.vllm.patch.patch_0_10_2.patch_model_runner_v1 as mod
+    return mod
 
-        cls.mock_vllm_ascend_model_runner = MagicMock()
-        cls.mock_vllm_ascend_model_runner.NPUModelRunner = MockNPUModelRunner
 
-        cls.mock_vllm_execute_stat = MagicMock()
-        cls.mock_vllm_execute_stat.StatTimeUtil = MagicMock
-        cls.mock_vllm_execute_stat.vllm_output_statics = MagicMock()
-        cls.mock_vllm_execute_stat.StatPhase = MagicMock()
-        cls.mock_vllm_execute_stat.vllm_output_statics.set_cur_requestid_stepid = MagicMock()
-        cls.mock_vllm_execute_stat.vllm_output_statics.add_stat = MagicMock()
-        cls.mock_vllm_execute_stat.vllm_output_statics.set_stat = MagicMock()
-        cls.mock_vllm_execute_stat.vllm_output_statics.set_step_finish_time = MagicMock()
+def make_self_mock(fake_env):
+    CUDAGraphMode = fake_env["CUDAGraphMode"]
+    self = MagicMock()
+    self.device = "npu:0"
+    self.vllm_config = MagicMock()
+    self.vllm_config.model_config = MagicMock()
+    self.vllm_config.model_config.enforce_eager = False
+    self.vllm_config.model_config.use_mla = False
+    self.vllm_config.model_config.max_model_len = 4096
+    self.vllm_config.kv_transfer_config = None
+    self.parallel_config = MagicMock()
+    self.parallel_config.distributed_executor_backend = "torchrun"
+    self.scheduler_config = MagicMock()
+    self.scheduler_config.max_num_seqs = 100
+    self.scheduler_config.max_num_batched_tokens = 2048
+    self.dp_size = 1
+    self.dp_rank = 0
+    self.stat_step = 0
+    self.input_batch = MagicMock()
+    self.input_batch.req_ids = []
+    self.input_batch.req_id_to_index = {}
+    self.input_batch.num_reqs = 0
+    self.requests = {}
+    self.model = MagicMock()
+    self.sampler = MagicMock()
+    self.rejection_sampler = MagicMock()
+    self.speculative_config = None
+    self.drafter = None
+    self.attn_state = None
+    self.use_aux_hidden_state_outputs = False
+    self.is_kv_producer = False
+    self.lora_config = None
+    self.is_multimodal_model = False
+    self.uses_mrope = False
+    self.in_profile_run = False
+    self.reserved_mc2_mask = None
+    self.graph_pad_size = -1
+    self.decode_token_per_req = 1
+    self.uniform_decode_query_len = 1
+    self.mc2_tokens_capacity = 256
+    self.attn_metadata_builder = MagicMock()
+    self.aclgraph_dispatcher = MagicMock()
+    self.aclgraph_dispatcher.dispatch.return_value = (CUDAGraphMode.NONE, MagicMock())
+    return self
 
-        cls.mock_npu_model_profiling = MagicMock()
-        cls.mock_npu_model_profiling.run_model_with_profiling = MagicMock(return_value=cls.mock_torch.tensor([1.0]))
 
-        cls.mock_datetime = MagicMock()
+class TestModelRunnerInit:
+    @pytest.fixture(autouse=True)
+    def setup(self, fake_model_runner_env):
+        self.env = fake_model_runner_env
+        self.mod = import_module(self.env)
 
-        cls.mock_profile_execution = MagicMock()
-        cls.mock_profile_execution.capture_async.return_value = MagicMock()
-        cls.mock_profile_execution.pop_captured_sync.return_value = {}
+    def test_init_calls_original_and_sets_fields(self):
+        NPUModelRunner = self.env["NPUModelRunner"]
+        original_init = self.mod.original_model_runner_init
+        original_init_mock = MagicMock()
+        self.mod.original_model_runner_init = original_init_mock
 
-        cls.modules_patcher = patch.dict(
-            'sys.modules',
-            {
-                'torch': cls.mock_torch,
-                'torch._dynamo': cls.mock_torch._dynamo,
-                'torch._dynamo.cache_size': cls.mock_torch._dynamo.cache_size,
-                'torch.distributed': cls.mock_torch.distributed,
-                'numpy': cls.mock_numpy,
-                'vllm': cls.mock_vllm,
-                'vllm.config': cls.mock_vllm_config_module,
-                'vllm.distributed.parallel_state': cls.mock_parallel_state,
-                'vllm.utils': cls.mock_vllm_utils,
-                'vllm.sequence': cls.mock_vllm_sequence,
-                'vllm.v1': cls.mock_vllm_v1,
-                'vllm.v1.outputs': cls.mock_vllm_outputs,
-                'vllm.v1.worker.kv_connector_model_runner_mixin': cls.mock_vllm_kv_connector,
-                'vllm.distributed.kv_transfer': cls.mock_vllm_kv_transfer,
-                'vllm.forward_context': cls.mock_vllm_forward_context,
-                'vllm.logger': cls.mock_vllm_logger,
-                'vllm_ascend': cls.mock_vllm_ascend,
-                'vllm_ascend.utils': cls.mock_vllm_ascend_utils,
-                'vllm_ascend.ascend_forward_context': cls.mock_vllm_ascend_forward_context,
-                'vllm_ascend.attention.attention_v1': cls.mock_vllm_ascend_attention,
-                'vllm_ascend.worker.mtp_proposer_v1': cls.mock_vllm_ascend_mtp_proposer,
-                'vllm_ascend.worker.eagle_proposer_v1': cls.mock_vllm_ascend_eagle_proposer,
-                'vllm_ascend.worker.model_runner_v1': cls.mock_vllm_ascend_model_runner,
-                'aura.runner.infer_adapter.vllm.patch.comm.vllm_execute_stat': cls.mock_vllm_execute_stat,
-                'aura.runner.infer_adapter.vllm.patch.comm.npu_model_profiling': cls.mock_npu_model_profiling,
-                'datetime': cls.mock_datetime,
-            },
+        self_mock = make_self_mock(self.env)
+        vllm_config = MagicMock()
+        device = MagicMock()
+        self.mod.model_runner_init(self_mock, vllm_config, device)
+
+        original_init_mock.assert_called_once_with(self_mock, vllm_config, device)
+        assert self_mock.mc2_tokens_capacity == 256
+        assert self_mock.stat_step == 0
+        self.env["fakes"]["torch.distributed"].barrier.assert_called()
+
+
+class TestSyncMetadataAcrossDP:
+    @pytest.fixture(autouse=True)
+    def setup(self, fake_model_runner_env):
+        self.env = fake_model_runner_env
+        self.mod = import_module(self.env)
+
+    def test_dp_size_1(self):
+        self_mock = make_self_mock(self.env)
+        self_mock.dp_size = 1
+        res = self.mod.sync_metadata_across_dp(self_mock, 10, True, True)
+        assert res == (10, None, True, True)
+
+    def test_dp_size_greater_than_1(self):
+        self_mock = make_self_mock(self.env)
+        self_mock.dp_size = 4
+        self_mock.dp_rank = 2
+
+        dp_group_mock = MagicMock()
+        dp_group_mock.cpu_group = "cpu_group"
+        self.env["fakes"]["vllm.distributed.parallel_state"].get_dp_group.return_value = dp_group_mock
+
+        num_tokens_tensor_mock = MagicMock()
+        packed_tensor_mock = MagicMock()
+        flags_tensor_mock = [1, 0]
+
+        packed_tensor_mock.__getitem__.side_effect = lambda idx: (
+            num_tokens_tensor_mock if idx == slice(None, -2) else flags_tensor_mock
         )
-        cls.modules_patcher.start()
 
-    @classmethod
-    def _import_module_under_test(cls):
-        """Import the module under test after mocks are set up"""
-        test_file_dir = os.path.dirname(os.path.abspath(__file__))
-        project_root = os.path.abspath(os.path.join(test_file_dir, '..', '..', '..', '..', '..', '..', '..'))
-        sys.path.append(project_root)
+        with patch.object(self.mod.torch, "cat", return_value=packed_tensor_mock), \
+             patch.object(self.mod.torch, "max", return_value=DummyTensor(10)):
+            res = self.mod.sync_metadata_across_dp(self_mock, 10, True, True)
 
-        spec = importlib.util.spec_from_file_location(
-            'patch_model_runner_v1',
-            os.path.join(
-                project_root,
-                'aura',
-                'runner',
-                'infer_adapter',
-                'vllm',
-                'patch',
-                'patch_0_10_2',
-                'patch_model_runner_v1.py',
-            ),
-        )
-        cls.patch_model_runner_v1 = importlib.util.module_from_spec(spec)
-        sys.modules['patch_model_runner_v1'] = cls.patch_model_runner_v1
-        spec.loader.exec_module(cls.patch_model_runner_v1)
+        max_tokens, after_pad, wp, ebo = res
+        assert max_tokens == 10
+        assert after_pad is not None
+        assert wp is True
+        assert ebo is True
 
-    @classmethod
-    def _cleanup_mocks(cls):
-        """Clean up mock patches"""
-        cls.modules_patcher.stop()
 
-    def setUp(self):
-        """Set up test environment"""
-        self.mock_torch.distributed.reset_mock()
-        self.mock_torch.distributed.barrier.reset_mock()
-        self.mock_torch.distributed.all_reduce.reset_mock()
-        self.mock_vllm_kv_transfer.has_kv_transfer_group.reset_mock()
-        self.mock_vllm_kv_transfer.has_kv_transfer_group.return_value = False
-        self.mock_vllm_ascend_utils.vllm_version_is.reset_mock()
-        self.mock_vllm_ascend_utils.vllm_version_is.side_effect = None
-        self.mock_vllm_ascend_utils.vllm_version_is.return_value = False
+class TestExecuteModelPatch:
+    @pytest.fixture(autouse=True)
+    def setup(self, fake_model_runner_env):
+        self.env = fake_model_runner_env
+        self.mod = import_module(self.env, env_getenv="true")
 
-        self.mock_pp_group.is_last_rank = True
-        self.mock_pp_group.is_first_rank = True
+    def test_no_scheduled_tokens_no_kv_transfer(self):
+        self_mock = make_self_mock(self.env)
+        scheduler_output = MagicMock()
+        scheduler_output.total_num_scheduled_tokens = 0
+        self.env["fakes"]["vllm.distributed.kv_transfer"].has_kv_transfer_group.return_value = False
 
-        self.mock_self = MagicMock()
-        self.mock_vllm_config = MagicMock()
-        self.mock_device = MagicMock()
-        self.mock_scheduler_output = MagicMock()
+        result = self.mod.execute_model_patch(self_mock, scheduler_output)
+        assert result is self.env["fakes"]["vllm.v1.outputs"].EMPTY_MODEL_RUNNER_OUTPUT
 
-        self.mock_self.dp_size = 1
-        self.mock_self.dp_rank = 0
-        self.mock_self.parallel_config = MagicMock()
-        self.mock_self.parallel_config.tensor_parallel_size = 2
-        self.mock_self.parallel_config.distributed_executor_backend = "not_external_launcher"
-        self.mock_self.vllm_config = MagicMock()
-        self.mock_self.model_config = MagicMock()
-        self.mock_self.model_config.max_model_len = 1024
-        self.mock_self.model = MagicMock()
-        self.mock_self.model.return_value = self.mock_torch.tensor([1.0])
-        self.mock_self.model.compute_logits = MagicMock(return_value=self.mock_torch.tensor([[1.0]]))
-        self.mock_self.model.make_empty_intermediate_tensors = MagicMock(return_value={})
-        self.mock_self.device = "npu:0"
-        self.mock_self.input_batch = MagicMock()
-        self.mock_self.input_batch.req_ids = ["req1", "req2"]
-        self.mock_self.input_batch.num_reqs = 2
-        self.mock_self.input_batch.num_tokens_no_spec = [1, 1]
-        self.mock_self.input_batch.token_ids_cpu = MagicMock()
-        self.mock_self.input_batch.num_tokens = [1, 1]
-        self.mock_self.input_batch.req_id_to_index = {"req1": 0, "req2": 1}
-        self.mock_self.input_batch.pooling_params = None
-        self.mock_self.input_batch.sampling_metadata = MagicMock()
-        self.mock_self.input_batch.generators = {}
-        self.mock_self.sampler = MagicMock()
-        self.mock_self.rejection_sampler = MagicMock()
-        self.mock_self.requests = {"req1": MagicMock(), "req2": MagicMock()}
-        self.mock_self.requests["req1"].output_token_ids = []
-        self.mock_self.requests["req2"].output_token_ids = []
-        self.mock_self.requests["req1"].num_computed_tokens = 1
-        self.mock_self.requests["req2"].num_computed_tokens = 1
-        self.mock_self.requests["req1"].num_tokens = 5
-        self.mock_self.requests["req2"].num_tokens = 5
+    def test_no_scheduled_tokens_with_kv_transfer(self):
+        self_mock = make_self_mock(self.env)
+        self_mock.kv_connector_no_forward = MagicMock(return_value="kv_result")
+        scheduler_output = MagicMock()
+        scheduler_output.total_num_scheduled_tokens = 0
+        self.env["fakes"]["vllm.distributed.kv_transfer"].has_kv_transfer_group.return_value = True
 
-        mock_sampler_output = MagicMock()
-        mock_sampler_output.logprobs_tensors = None
-        mock_sampler_output.sampled_token_ids = self.mock_torch.tensor([[100], [200]])
-        self.mock_self.sampler.return_value = mock_sampler_output
+        result = self.mod.execute_model_patch(self_mock, scheduler_output)
+        assert result == "kv_result"
 
-        self.mock_self.reserved_mc2_mask = None
-        self.mock_self.moe_comm_method = "all_reduce"
-        self.mock_self.aclgraph_dispatcher = MagicMock()
-        self.mock_self.aclgraph_dispatcher.dispatch = MagicMock(return_value=(None, MagicMock()))
-        self.mock_self.with_prefill = False
-        self.mock_self.is_kv_producer = False
-        self.mock_self.use_aux_hidden_state_outputs = False
-        self.mock_self.input_ids = self.mock_torch.tensor([1, 2, 3])
-        self.mock_self.positions = self.mock_torch.tensor([1, 2, 3])
-        self.mock_self.mrope_positions = self.mock_torch.tensor([[1, 2, 3]])
-        self.mock_self.inputs_embeds = self.mock_torch.tensor([[1.0], [2.0], [3.0]])
-        self.mock_self.scheduler_config = MagicMock()
-        self.mock_self.scheduler_config.max_num_batched_tokens = 1024
-        self.mock_self.scheduler_config.max_num_seqs = 10
-        self.mock_self.decode_token_per_req = 1
-        self.mock_self.uniform_decode_query_len = 1
-        self.mock_self.intermediate_tensors = None
-        self.mock_self.in_profile_run = False
-        self.mock_self.speculative_config = None
-        self.mock_self.use_spec_decode = False
-        self.mock_self.drafter = None
-        self.mock_self.lora_config = None
-        self.mock_self.is_multimodal_model = False
-        self.mock_self.uses_mrope = False
-        self.mock_self.dtype = self.mock_torch.float32
+    def test_normal_execution_returns_model_runner_output(self):
+        self_mock = make_self_mock(self.env)
+        self_mock.input_batch.req_ids = ["req1"]
+        self_mock.input_batch.num_reqs = 1
+        self_mock.input_batch.sampling_metadata = MagicMock()
+        self_mock.input_batch.token_ids_cpu = MagicMock()
+        self_mock.input_batch.num_tokens_no_spec = [0]
+        self_mock.input_batch.num_tokens = [0]
+        self_mock.requests = {"req1": MagicMock()}
+        self_mock.requests["req1"].num_computed_tokens = 0
+        self_mock.requests["req1"].num_tokens = 1
+        self_mock.requests["req1"].output_token_ids = []
+        self_mock._prepare_inputs = MagicMock(return_value=(
+            MagicMock(), MagicMock(), MagicMock(), 10, MagicMock(), 10,
+            MagicMock(), None, MagicMock(), None, MagicMock()
+        ))
+        self_mock._generate_process_reqs_hidden_states = MagicMock(return_value=MagicMock())
+        self_mock.model.compute_logits = MagicMock(return_value=MagicMock())
+        self_mock.sampler = MagicMock()
+        self_mock.sampler.return_value = MagicMock()
+        self_mock.sampler.return_value.sampled_token_ids = MagicMock()
+        self_mock.sampler.return_value.logprobs_tensors = None
+        self_mock._get_prompt_logprobs_dict = MagicMock(return_value={})
+        self_mock.apply_grammar_bitmask = MagicMock()
+        self_mock._pool_v010 = MagicMock()
+        self_mock._pool = MagicMock()
+        self_mock.maybe_setup_kv_connector = MagicMock()
+        self_mock.maybe_wait_for_kv_save = MagicMock()
+        self_mock.get_finished_kv_transfer = MagicMock(return_value=(None, None))
+        self_mock._select_moe_comm_method = MagicMock(return_value=None)
+        self_mock.propose_draft_token_ids = MagicMock(return_value=[])
+        self_mock._draft_token_ids = []
+        scheduler_output = MagicMock()
+        scheduler_output.total_num_scheduled_tokens = 1
+        scheduler_output.num_scheduled_tokens = {"req1": 1}
+        scheduler_output.grammar_bitmask = None
+        scheduler_output.scheduled_spec_decode_tokens = {}
+        self.env["fakes"]["vllm.distributed.kv_transfer"].has_kv_transfer_group.return_value = False
+        self.env["fakes"]["vllm_ascend.utils"].lmhead_tp_enable.return_value = False
 
-        self.mock_scheduler_output.total_num_scheduled_tokens = 0
-        self.mock_scheduler_output.num_scheduled_tokens = {"req1": 1, "req2": 1}
-        self.mock_scheduler_output.grammar_bitmask = None
+        result = self.mod.execute_model_patch(self_mock, scheduler_output)
+        assert isinstance(result, MagicMock)
 
-    def test_model_runner_init(self):
-        """Test model_runner_init function"""
-        self.patch_model_runner_v1.model_runner_init(self.mock_self, self.mock_vllm_config, self.mock_device)
+    def test_execute_model_patch_apply_grammar_bitmask(self):
+        self_mock = make_self_mock(self.env)
 
-        self.assertEqual(self.mock_self.mc2_tokens_capacity, 256)
-        self.mock_torch.distributed.barrier.assert_called_once_with(group=self.mock_dp_group.cpu_group)
-        self.assertEqual(self.mock_self.stat_step, 0)
+        self_mock.input_batch.req_ids = ["req1"]
+        self_mock.input_batch.num_reqs = 1
+        self_mock.input_batch.sampling_metadata = MagicMock()
+        self_mock.input_batch.token_ids_cpu = MagicMock()
+        self_mock.input_batch.num_tokens_no_spec = [0]
+        self_mock.input_batch.num_tokens = [0]
+        self_mock.input_batch.pooling_params = None
+        self_mock.attn_state = "decode"
 
-    def test_sync_metadata_across_dp_single_dp(self):
-        """Test sync_metadata_across_dp function with single DP rank"""
-        self.mock_self.dp_size = 1
+        req = MagicMock()
+        req.num_computed_tokens = 0
+        req.num_tokens = 1
+        req.output_token_ids = []
+        self_mock.requests = {"req1": req}
 
-        result = self.patch_model_runner_v1.sync_metadata_across_dp(self.mock_self, 10, True, False)
+        logits_mock = MagicMock()
+        self_mock._prepare_inputs = MagicMock(return_value=(
+            MagicMock(), MagicMock(), MagicMock(), 10, MagicMock(), 10,
+            MagicMock(), None, MagicMock(), None, MagicMock()
+        ))
+        self_mock._generate_process_reqs_hidden_states = MagicMock(return_value=MagicMock())
+        self_mock.model.compute_logits = MagicMock(return_value=logits_mock)
+        sampler_output = MagicMock()
+        sampler_output.sampled_token_ids = MagicMock()
+        sampler_output.logprobs_tensors = None
+        self_mock.sampler = MagicMock(return_value=sampler_output)
+        self_mock._get_prompt_logprobs_dict = MagicMock(return_value={})
+        self_mock.apply_grammar_bitmask = MagicMock()
+        self_mock._pool_v010 = MagicMock()
+        self_mock._pool = MagicMock()
+        self_mock.maybe_setup_kv_connector = MagicMock()
+        self_mock.maybe_wait_for_kv_save = MagicMock()
+        self_mock.get_finished_kv_transfer = MagicMock(return_value=(None, None))
+        self_mock._select_moe_comm_method = MagicMock(return_value=None)
+        self_mock.propose_draft_token_ids = MagicMock(return_value=[])
+        self_mock._draft_token_ids = []
 
-        self.assertEqual(result, (10, None, True, False))
-        self.mock_torch.distributed.all_reduce.assert_not_called()
-        self.mock_torch.distributed.barrier.assert_not_called()
+        scheduler_output = MagicMock()
+        scheduler_output.total_num_scheduled_tokens = 1
+        scheduler_output.num_scheduled_tokens = {"req1": 1}
+        scheduler_output.grammar_bitmask = MagicMock()
+        scheduler_output.scheduled_spec_decode_tokens = {}
 
-    def test_sync_metadata_across_dp_multiple_dp(self):
-        """Test sync_metadata_across_dp function with multiple DP ranks"""
-        self.mock_self.dp_size = 2
-        self.mock_self.dp_rank = 0
+        self.env["fakes"]["vllm.distributed.kv_transfer"].has_kv_transfer_group.return_value = False
+        self.env["fakes"]["vllm.distributed.parallel_state"].get_pp_group.return_value.is_last_rank = True
 
-        mock_tensor = MagicMock()
-        self.mock_torch.tensor.return_value = mock_tensor
-        self.mock_torch.cat.return_value = mock_tensor
-
-        mock_max_result = MagicMock()
-        mock_max_result.item.return_value = 20
-        self.mock_torch.max.return_value = mock_max_result
-
-        mock_tensor.__getitem__.return_value = mock_tensor
-        mock_tensor.__bool__.return_value = True
-
-        result = self.patch_model_runner_v1.sync_metadata_across_dp(self.mock_self, 10, True, False)
-
-        self.assertEqual(result[0], 20)
-        self.mock_torch.distributed.all_reduce.assert_called_once()
-        self.mock_torch.distributed.barrier.assert_called_once_with(group=self.mock_dp_group.device_group)
-
-    def test_execute_model_patch_empty_batch(self):
-        """Test execute_model_patch function with empty batch"""
-        self.mock_scheduler_output.total_num_scheduled_tokens = 0
-        self.mock_self._update_states = MagicMock()
-
-        self.patch_model_runner_v1.execute_model_patch(self.mock_self, self.mock_scheduler_output)
-
-        self.mock_self._update_states.assert_called_once_with(self.mock_scheduler_output)
-
-    def test_execute_model_patch_with_kv_transfer(self):
-        """Test execute_model_patch function with empty batch and kv transfer"""
-        self.mock_vllm_kv_transfer.has_kv_transfer_group.return_value = True
-
-        self.mock_scheduler_output.total_num_scheduled_tokens = 0
-        self.mock_self._update_states = MagicMock()
-        self.mock_self.kv_connector_no_forward = MagicMock()
-
-        self.patch_model_runner_v1.execute_model_patch(self.mock_self, self.mock_scheduler_output)
-
-        self.mock_self.kv_connector_no_forward.assert_called_once_with(self.mock_scheduler_output)
+        self.mod.execute_model_patch(self_mock, scheduler_output)
+        self_mock.apply_grammar_bitmask.assert_called()
 
     def test_execute_model_patch_with_kv_connector_output(self):
-        """Test execute_model_patch function with kv_connector_output"""
-        self.mock_scheduler_output.total_num_scheduled_tokens = 10
-        self.mock_self._update_states = MagicMock()
-        self.mock_self._prepare_inputs = MagicMock(
-            return_value=(
-                MagicMock(),
-                MagicMock(),
-                MagicMock(),
-                MagicMock(),
-                MagicMock(),
-                MagicMock(),
-                MagicMock(),
-                MagicMock(),
-                MagicMock(),
-                MagicMock(),
-                MagicMock(),
-            )
+        self_mock = make_self_mock(self.env)
+
+        self_mock.input_batch.req_ids = ["r1"]
+        self_mock.input_batch.req_id_to_index = {"r1": 0}
+        self_mock.input_batch.num_reqs = 1
+        self_mock.input_batch.sampling_metadata = MagicMock()
+        self_mock.input_batch.num_tokens_no_spec = [0]
+        self_mock.input_batch.num_tokens = [0]
+        self_mock.input_batch.vocab_size = 100
+
+        req_state = MagicMock()
+        req_state.num_computed_tokens = 0
+        req_state.num_tokens = 1
+        req_state.output_token_ids = []
+
+        self_mock.requests = {"r1": req_state}
+
+        attn_meta = MagicMock()
+        attn_meta.attn_state = "decode"
+        attn_meta.num_actual_tokens = 1
+        attn_meta.seq_lens = DummyTensor([1])
+
+        logits_indices = DummyTensor([0])
+
+        self_mock._prepare_inputs.return_value = (
+            attn_meta,
+            DummyTensor(),
+            [1],
+            1,
+            DummyTensor(),
+            1,
+            logits_indices,
+            None,
+            DummyTensor(),
+            None,
+            None,
         )
-        self.mock_self._select_moe_comm_method = MagicMock(return_value="all_reduce")
-        self.mock_self.aclgraph_dispatcher.dispatch = MagicMock(return_value=(None, MagicMock()))
-        self.mock_self.maybe_setup_kv_connector = MagicMock()
-        self.mock_self._generate_process_reqs_hidden_states = MagicMock(return_value=MagicMock())
-        self.mock_self.maybe_wait_for_kv_save = MagicMock()
-        self.mock_self.get_finished_kv_transfer = MagicMock(return_value=(MagicMock(), MagicMock()))
 
-        self.mock_parallel_state.get_pp_group().is_last_rank = True
-        self.mock_self.parallel_config.distributed_executor_backend = "not_external_launcher"
+        hidden_states = DummyTensor([1])
+        self_mock._generate_process_reqs_hidden_states.return_value = hidden_states
 
-        self.patch_model_runner_v1.execute_model_patch(self.mock_self, self.mock_scheduler_output)
+        logits = DummyTensor([1])
+        self_mock.model.compute_logits.return_value = logits
 
-        self.mock_self.get_finished_kv_transfer.assert_called_once_with(self.mock_scheduler_output)
+        sampler_output = MagicMock()
+        sampler_output.sampled_token_ids = DummyTensor([[10]])
+        sampler_output.logprobs_tensors = None
 
-    def test_execute_model_patch_use_aux_hidden_states(self):
-        """Test execute_model_patch function with use_aux_hidden_state_outputs=True"""
-        self.mock_scheduler_output.total_num_scheduled_tokens = 10
-        self.mock_self._update_states = MagicMock()
+        self_mock.sampler.return_value = sampler_output
+        self_mock._get_prompt_logprobs_dict.return_value = {}
 
-        mock_attn_metadata = MagicMock()
-        mock_attn_metadata.attn_state = MagicMock()
-        mock_attn_metadata.num_actual_tokens = 10
-        mock_attn_metadata.seq_lens = MagicMock()
-        mock_attn_metadata.seq_lens.shape = [2]
-        mock_attn_metadata.seq_lens.tolist.return_value = [5, 5]
+        self_mock._select_moe_comm_method.return_value = None
 
-        self.mock_self._prepare_inputs = MagicMock(
-            return_value=(
-                mock_attn_metadata,
-                MagicMock(),
-                MagicMock(),
-                MagicMock(),
-                MagicMock(),
-                MagicMock(),
-                MagicMock(),
-                MagicMock(),
-                MagicMock(),
-                MagicMock(),
-                MagicMock(),
-            )
-        )
-        self.mock_self._select_moe_comm_method = MagicMock(return_value="all_reduce")
-        self.mock_self.aclgraph_dispatcher.dispatch = MagicMock(return_value=(None, MagicMock()))
-        self.mock_self.maybe_setup_kv_connector = MagicMock()
+        self_mock.get_finished_kv_transfer.return_value = ("send", "recv")
 
-        mock_hidden_states = MagicMock()
-        mock_aux_hidden_states = MagicMock()
-        self.mock_self._generate_process_reqs_hidden_states = MagicMock(
-            return_value=(mock_hidden_states, mock_aux_hidden_states)
-        )
-        self.mock_self.maybe_wait_for_kv_save = MagicMock()
-        self.mock_self.get_finished_kv_transfer = MagicMock(return_value=(None, None))
+        self_mock.maybe_setup_kv_connector = MagicMock()
+        self_mock.maybe_wait_for_kv_save = MagicMock()
 
-        self.mock_self.use_aux_hidden_state_outputs = True
+        scheduler_output = MagicMock()
+        scheduler_output.total_num_scheduled_tokens = 1
+        scheduler_output.num_scheduled_tokens = {"r1": 1}
+        scheduler_output.scheduled_spec_decode_tokens = {}
+        scheduler_output.grammar_bitmask = None
 
-        self.mock_parallel_state.get_pp_group().is_last_rank = True
-
-        self.patch_model_runner_v1.execute_model_patch(self.mock_self, self.mock_scheduler_output)
-
-        self.assertEqual(self.mock_self.use_aux_hidden_state_outputs, True)
-
-    def test_dummy_run_with_stat(self):
-        """Test dummy_run_with_stat function"""
-        self.mock_self._sync_metadata_across_dp = MagicMock(return_value=(10, MagicMock(), True, False))
-        self.mock_self._select_moe_comm_method = MagicMock(return_value="all_reduce")
-        self.mock_self._build_attention_metadata = MagicMock()
-        self.mock_self.maybe_dummy_run_with_lora = MagicMock(return_value=MagicMock())
-        self.mock_self.is_multimodal_model = False
-        self.mock_self.uses_mrope = False
-        self.mock_self.is_kv_producer = False
-
-        self.mock_self.input_ids = MagicMock()
-        self.mock_self.positions = MagicMock()
-        self.mock_self.mrope_positions = MagicMock()
-        self.mock_self.inputs_embeds = MagicMock()
-        self.mock_self.model = MagicMock()
-        self.mock_self.intermediate_tensors = None
-
-        self.mock_parallel_state.get_pp_group().is_first_rank = True
-        self.mock_parallel_state.get_pp_group().is_last_rank = True
-
-        self.mock_self.uniform_decode_query_len = 1
-        self.mock_self.scheduler_config.max_num_batched_tokens = 1024
-        self.mock_self.scheduler_config.max_num_seqs = 10
-        self.mock_self.decode_token_per_req = 1
-        self.mock_self.lora_config = None
-        self.mock_self.dtype = self.mock_torch.float32
-        self.mock_self.device = "npu:0"
-
-        self.mock_vllm_utils.cdiv.return_value = 5
-
-        self.patch_model_runner_v1.dummy_run_with_stat(self.mock_self, 10, with_prefill=True)
-
-        self.mock_self._sync_metadata_across_dp.assert_called_once()
-        self.mock_self._select_moe_comm_method.assert_called_once()
-        self.mock_self._build_attention_metadata.assert_called_once()
-
-    def test_dummy_run_with_stat_uniform_decode(self):
-        """Test dummy_run_with_stat function with uniform_decode=True"""
-        self.mock_self._sync_metadata_across_dp = MagicMock(return_value=(10, MagicMock(), False, False))
-        self.mock_self._select_moe_comm_method = MagicMock(return_value="all_reduce")
-        self.mock_self._build_attention_metadata = MagicMock()
-        self.mock_self.maybe_dummy_run_with_lora = MagicMock(return_value=MagicMock())
-        self.mock_self.is_multimodal_model = False
-        self.mock_self.uses_mrope = False
-        self.mock_self.is_kv_producer = False
-
-        self.mock_self.input_ids = MagicMock()
-        self.mock_self.positions = MagicMock()
-        self.mock_self.mrope_positions = MagicMock()
-        self.mock_self.inputs_embeds = MagicMock()
-        self.mock_self.model = MagicMock()
-        self.mock_self.intermediate_tensors = None
-
-        self.mock_parallel_state.get_pp_group().is_first_rank = True
-        self.mock_parallel_state.get_pp_group().is_last_rank = True
-
-        self.mock_self.uniform_decode_query_len = 2
-        self.mock_self.scheduler_config.max_num_batched_tokens = 1024
-        self.mock_self.scheduler_config.max_num_seqs = 10
-        self.mock_self.decode_token_per_req = 1
-        self.mock_self.lora_config = None
-        self.mock_self.dtype = self.mock_torch.float32
-        self.mock_self.device = "npu:0"
-
-        self.mock_vllm_utils.cdiv.return_value = 5
-
-        self.patch_model_runner_v1.dummy_run_with_stat(self.mock_self, 10, with_prefill=False, uniform_decode=True)
-
-        self.mock_self._sync_metadata_across_dp.assert_called_once()
-        self.mock_self._select_moe_comm_method.assert_called_once()
-        self.mock_self._build_attention_metadata.assert_called_once()
-
-    def test_dummy_run_with_stat_uniform_decode_remainder(self):
-        """Test dummy_run_with_stat function with uniform_decode=True and remainder"""
-        self.mock_self._sync_metadata_across_dp = MagicMock(return_value=(11, MagicMock(), False, False))
-        self.mock_self._select_moe_comm_method = MagicMock(return_value="all_reduce")
-        self.mock_self._build_attention_metadata = MagicMock()
-        self.mock_self.maybe_dummy_run_with_lora = MagicMock(return_value=MagicMock())
-        self.mock_self.is_multimodal_model = False
-        self.mock_self.uses_mrope = False
-        self.mock_self.is_kv_producer = False
-
-        self.mock_self.input_ids = MagicMock()
-        self.mock_self.positions = MagicMock()
-        self.mock_self.mrope_positions = MagicMock()
-        self.mock_self.inputs_embeds = MagicMock()
-        self.mock_self.model = MagicMock()
-        self.mock_self.intermediate_tensors = None
-
-        self.mock_parallel_state.get_pp_group().is_first_rank = True
-        self.mock_parallel_state.get_pp_group().is_last_rank = True
-
-        self.mock_self.uniform_decode_query_len = 2
-        self.mock_self.scheduler_config.max_num_batched_tokens = 1024
-        self.mock_self.scheduler_config.max_num_seqs = 10
-        self.mock_self.decode_token_per_req = 1
-        self.mock_self.lora_config = None
-        self.mock_self.dtype = self.mock_torch.float32
-        self.mock_self.device = "npu:0"
-
-        self.mock_vllm_utils.cdiv.return_value = 6
-
-        self.patch_model_runner_v1.dummy_run_with_stat(self.mock_self, 11, with_prefill=False, uniform_decode=True)
-
-        self.mock_self._sync_metadata_across_dp.assert_called_once()
-        self.mock_self._select_moe_comm_method.assert_called_once()
-        self.mock_self._build_attention_metadata.assert_called_once()
-
-    def test_dummy_run_with_stat_kv_producer(self):
-        """Test dummy_run_with_stat function with is_kv_producer=True"""
-        self.mock_self._sync_metadata_across_dp = MagicMock(return_value=(10, MagicMock(), False, False))
-        self.mock_self._select_moe_comm_method = MagicMock(return_value="all_reduce")
-        self.mock_self._build_attention_metadata = MagicMock()
-        self.mock_self.maybe_dummy_run_with_lora = MagicMock(return_value=MagicMock())
-        self.mock_self.is_multimodal_model = False
-        self.mock_self.uses_mrope = False
-        self.mock_self.is_kv_producer = True
-
-        self.mock_self.input_ids = MagicMock()
-        self.mock_self.positions = MagicMock()
-        self.mock_self.mrope_positions = MagicMock()
-        self.mock_self.inputs_embeds = MagicMock()
-        self.mock_self.model = MagicMock()
-        self.mock_self.intermediate_tensors = None
-
-        self.mock_parallel_state.get_pp_group().is_first_rank = True
-        self.mock_parallel_state.get_pp_group().is_last_rank = True
-
-        self.mock_self.uniform_decode_query_len = 1
-        self.mock_self.scheduler_config.max_num_batched_tokens = 1024
-        self.mock_self.scheduler_config.max_num_seqs = 10
-        self.mock_self.decode_token_per_req = 1
-        self.mock_self.lora_config = None
-        self.mock_self.dtype = self.mock_torch.float32
-        self.mock_self.device = "npu:0"
-
-        self.mock_vllm_utils.cdiv.return_value = 5
-
-        self.patch_model_runner_v1.dummy_run_with_stat(self.mock_self, 10, with_prefill=False)
-
-        self.mock_self._sync_metadata_across_dp.assert_called_once()
-        self.mock_self._select_moe_comm_method.assert_called_once()
-        self.mock_self._build_attention_metadata.assert_called_once()
-
-    def test_dummy_run_with_stat_multimodal(self):
-        """Test dummy_run_with_stat function with multimodal model"""
-        self.mock_self._sync_metadata_across_dp = MagicMock(return_value=(10, MagicMock(), True, False))
-        self.mock_self._select_moe_comm_method = MagicMock(return_value="all_reduce")
-        self.mock_self._build_attention_metadata = MagicMock()
-        self.mock_self.maybe_dummy_run_with_lora = MagicMock(return_value=MagicMock())
-        self.mock_self.is_multimodal_model = True
-        self.mock_self.uses_mrope = False
-        self.mock_self.is_kv_producer = False
-
-        self.mock_self.input_ids = MagicMock()
-        self.mock_self.positions = MagicMock()
-        self.mock_self.mrope_positions = MagicMock()
-        self.mock_self.inputs_embeds = MagicMock()
-        self.mock_self.model = MagicMock()
-        self.mock_self.intermediate_tensors = None
-
-        self.mock_parallel_state.get_pp_group().is_first_rank = True
-        self.mock_parallel_state.get_pp_group().is_last_rank = True
-
-        self.mock_self.uniform_decode_query_len = 1
-        self.mock_self.scheduler_config.max_num_batched_tokens = 1024
-        self.mock_self.scheduler_config.max_num_seqs = 10
-        self.mock_self.decode_token_per_req = 1
-        self.mock_self.lora_config = None
-        self.mock_self.dtype = self.mock_torch.float32
-        self.mock_self.device = "npu:0"
-
-        self.mock_vllm_utils.cdiv.return_value = 5
-
-        self.patch_model_runner_v1.dummy_run_with_stat(self.mock_self, 10, with_prefill=True)
-
-        self.mock_self._sync_metadata_across_dp.assert_called_once()
-        self.mock_self._select_moe_comm_method.assert_called_once()
-        self.mock_self._build_attention_metadata.assert_called_once()
-
-    def test_dummy_run_with_stat_mrope(self):
-        """Test dummy_run_with_stat function with mrope positions"""
-        self.mock_self._sync_metadata_across_dp = MagicMock(return_value=(10, MagicMock(), False, False))
-        self.mock_self._select_moe_comm_method = MagicMock(return_value="all_reduce")
-        self.mock_self._build_attention_metadata = MagicMock()
-        self.mock_self.maybe_dummy_run_with_lora = MagicMock(return_value=MagicMock())
-        self.mock_self.is_multimodal_model = False
-        self.mock_self.uses_mrope = True
-        self.mock_self.is_kv_producer = False
-
-        self.mock_self.input_ids = MagicMock()
-        self.mock_self.positions = MagicMock()
-        self.mock_self.mrope_positions = MagicMock()
-        self.mock_self.inputs_embeds = MagicMock()
-        self.mock_self.model = MagicMock()
-        self.mock_self.intermediate_tensors = None
-
-        self.mock_parallel_state.get_pp_group().is_first_rank = True
-        self.mock_parallel_state.get_pp_group().is_last_rank = True
-
-        self.mock_self.uniform_decode_query_len = 1
-        self.mock_self.scheduler_config.max_num_batched_tokens = 1024
-        self.mock_self.scheduler_config.max_num_seqs = 10
-        self.mock_self.decode_token_per_req = 1
-        self.mock_self.lora_config = None
-        self.mock_self.dtype = self.mock_torch.float32
-        self.mock_self.device = "npu:0"
-
-        self.mock_vllm_utils.cdiv.return_value = 5
-
-        self.patch_model_runner_v1.dummy_run_with_stat(self.mock_self, 10, with_prefill=False)
-
-        self.mock_self._sync_metadata_across_dp.assert_called_once()
-        self.mock_self._select_moe_comm_method.assert_called_once()
-        self.mock_self._build_attention_metadata.assert_called_once()
-
-    def test_dummy_run_with_stat_non_first_pp_rank(self):
-        """Test dummy_run_with_stat function with non-first PP rank"""
-        self.mock_self._sync_metadata_across_dp = MagicMock(return_value=(10, MagicMock(), True, False))
-        self.mock_self._select_moe_comm_method = MagicMock(return_value="all_reduce")
-        self.mock_self._build_attention_metadata = MagicMock()
-        self.mock_self.maybe_dummy_run_with_lora = MagicMock(return_value=MagicMock())
-        self.mock_self.is_multimodal_model = False
-        self.mock_self.uses_mrope = False
-        self.mock_self.is_kv_producer = False
-
-        self.mock_self.input_ids = MagicMock()
-        self.mock_self.positions = MagicMock()
-        self.mock_self.mrope_positions = MagicMock()
-        self.mock_self.inputs_embeds = MagicMock()
-
-        mock_empty_intermediate_tensors = {"test": MagicMock()}
-        self.mock_self.model = MagicMock()
-        self.mock_self.model.make_empty_intermediate_tensors.return_value = mock_empty_intermediate_tensors
-
-        self.mock_self.intermediate_tensors = None
-
-        self.mock_parallel_state.get_pp_group().is_first_rank = False
-        self.mock_parallel_state.get_pp_group().is_last_rank = False
-
-        self.mock_self.uniform_decode_query_len = 1
-        self.mock_self.scheduler_config.max_num_batched_tokens = 1024
-        self.mock_self.scheduler_config.max_num_seqs = 10
-        self.mock_self.decode_token_per_req = 1
-        self.mock_self.lora_config = None
-        self.mock_self.dtype = self.mock_torch.float32
-        self.mock_self.device = "npu:0"
-
-        self.mock_vllm_utils.cdiv.return_value = 5
-
-        self.patch_model_runner_v1.dummy_run_with_stat(self.mock_self, 10, with_prefill=True)
-
-        self.mock_self._sync_metadata_across_dp.assert_called_once()
-        self.mock_self._select_moe_comm_method.assert_called_once()
-        self.mock_self._build_attention_metadata.assert_called_once()
-        self.mock_self.model.make_empty_intermediate_tensors.assert_called_once()
-
-    def test_dummy_run_with_stat_non_first_pp_rank_existing_tensors(self):
-        """Test dummy_run_with_stat function with non-first PP rank and existing intermediate_tensors"""
-        self.mock_self._sync_metadata_across_dp = MagicMock(return_value=(10, MagicMock(), True, False))
-        self.mock_self._select_moe_comm_method = MagicMock(return_value="all_reduce")
-        self.mock_self._build_attention_metadata = MagicMock()
-        self.mock_self.maybe_dummy_run_with_lora = MagicMock(return_value=MagicMock())
-        self.mock_self.is_multimodal_model = False
-        self.mock_self.uses_mrope = False
-        self.mock_self.is_kv_producer = False
-
-        self.mock_self.input_ids = MagicMock()
-        self.mock_self.positions = MagicMock()
-        self.mock_self.mrope_positions = MagicMock()
-        self.mock_self.inputs_embeds = MagicMock()
-
-        self.mock_self.model = MagicMock()
-
-        self.mock_self.intermediate_tensors = {"test": MagicMock()}
-
-        self.mock_parallel_state.get_pp_group().is_first_rank = False
-        self.mock_parallel_state.get_pp_group().is_last_rank = False
-
-        self.mock_self.uniform_decode_query_len = 1
-        self.mock_self.scheduler_config.max_num_batched_tokens = 1024
-        self.mock_self.scheduler_config.max_num_seqs = 10
-        self.mock_self.decode_token_per_req = 1
-        self.mock_self.lora_config = None
-        self.mock_self.dtype = self.mock_torch.float32
-        self.mock_self.device = "npu:0"
-
-        self.mock_vllm_utils.cdiv.return_value = 5
-
-        self.patch_model_runner_v1.dummy_run_with_stat(self.mock_self, 10, with_prefill=True)
-
-        self.mock_self._sync_metadata_across_dp.assert_called_once()
-        self.mock_self._select_moe_comm_method.assert_called_once()
-        self.mock_self._build_attention_metadata.assert_called_once()
-        self.mock_self.model.make_empty_intermediate_tensors.assert_not_called()
-
-    def test_execute_model_patch_pooling_v010(self):
-        """Test execute_model_patch function with pooling for v0.10.1 version"""
-        self.mock_scheduler_output.total_num_scheduled_tokens = 10
-        self.mock_self._update_states = MagicMock()
-        self.mock_self._prepare_inputs = MagicMock(
-            return_value=(
-                MagicMock(),
-                MagicMock(),
-                MagicMock(),
-                MagicMock(),
-                MagicMock(),
-                MagicMock(),
-                MagicMock(),
-                MagicMock(),
-                MagicMock(),
-                MagicMock(),
-                MagicMock(),
-            )
-        )
-        self.mock_self._select_moe_comm_method = MagicMock(return_value="all_reduce")
-        self.mock_self.aclgraph_dispatcher.dispatch = MagicMock(return_value=(None, MagicMock()))
-        self.mock_self.maybe_setup_kv_connector = MagicMock()
-        self.mock_self._generate_process_reqs_hidden_states = MagicMock(return_value=MagicMock())
-        self.mock_self.maybe_wait_for_kv_save = MagicMock()
-        self.mock_self.get_finished_kv_transfer = MagicMock(return_value=(None, None))
-
-        self.mock_self.input_batch.pooling_params = MagicMock()
-
-        self.mock_vllm_ascend_utils.vllm_version_is.side_effect = lambda v: v in ["0.10.1.1", "0.10.1"]
-
-        self.mock_parallel_state.get_pp_group().is_last_rank = True
-        self.mock_self.parallel_config.distributed_executor_backend = "not_external_launcher"
-
-        self.mock_self._pool_v010 = MagicMock()
-
-        self.patch_model_runner_v1.execute_model_patch(self.mock_self, self.mock_scheduler_output)
-
-        self.mock_self._pool_v010.assert_called_once()
-
-    def test_execute_model_patch_pooling_non_v010(self):
-        """Test execute_model_patch function with pooling for non-v0.10.1 version"""
-        self.mock_scheduler_output.total_num_scheduled_tokens = 10
-        self.mock_self._update_states = MagicMock()
-        self.mock_self._prepare_inputs = MagicMock(
-            return_value=(
-                MagicMock(),
-                MagicMock(),
-                MagicMock(),
-                MagicMock(),
-                MagicMock(),
-                MagicMock(),
-                MagicMock(),
-                MagicMock(),
-                MagicMock(),
-                MagicMock(),
-                MagicMock(),
-            )
-        )
-        self.mock_self._select_moe_comm_method = MagicMock(return_value="all_reduce")
-        self.mock_self.aclgraph_dispatcher.dispatch = MagicMock(return_value=(None, MagicMock()))
-        self.mock_self.maybe_setup_kv_connector = MagicMock()
-        self.mock_self._generate_process_reqs_hidden_states = MagicMock(return_value=MagicMock())
-        self.mock_self.maybe_wait_for_kv_save = MagicMock()
-        self.mock_self.get_finished_kv_transfer = MagicMock(return_value=(None, None))
-
-        self.mock_self.input_batch.pooling_params = MagicMock()
-
-        self.mock_vllm_ascend_utils.vllm_version_is.return_value = False
-
-        self.mock_parallel_state.get_pp_group().is_last_rank = True
-        self.mock_self.parallel_config.distributed_executor_backend = "not_external_launcher"
-
-        self.mock_self._pool = MagicMock()
-
-        self.patch_model_runner_v1.execute_model_patch(self.mock_self, self.mock_scheduler_output)
-
-        self.mock_self._pool.assert_called_once()
-
-    def test_execute_model_patch_normal(self):
-        """Test execute_model_patch function with normal execution"""
-        self.mock_scheduler_output.total_num_scheduled_tokens = 2
-        self.mock_self._update_states = MagicMock()
-        self.mock_self._prepare_inputs = MagicMock(
-            return_value=(
-                MagicMock(attn_state="DecodeOnly", num_actual_tokens=2, seq_lens=self.mock_torch.tensor([1, 1])),
-                MagicMock(),
-                self.mock_numpy.array([1, 1]),
-                2,
-                None,
-                None,
-                MagicMock(),
-                None,
-                MagicMock(),
-                None,
-                None,
-            )
-        )
-        self.mock_self._generate_process_reqs_hidden_states = MagicMock(return_value=self.mock_torch.tensor([[1.0]]))
-        self.mock_self.model.compute_logits = MagicMock(return_value=self.mock_torch.tensor([[1.0]]))
-        self.mock_self._get_prompt_logprobs_dict = MagicMock(return_value={})
-        self.mock_self.rejection_sampler.parse_output = MagicMock(return_value=[[100], [200]])
-        self.mock_self.get_finished_kv_transfer = MagicMock(return_value=(None, None))
-        self.mock_self._select_moe_comm_method = MagicMock(return_value="all_reduce")
-        self.mock_self.aclgraph_dispatcher = MagicMock()
-        self.mock_self.aclgraph_dispatcher.dispatch = MagicMock(return_value=(None, MagicMock()))
-        self.mock_self.maybe_setup_kv_connector = MagicMock()
-        self.mock_self.maybe_wait_for_kv_save = MagicMock()
-        self.mock_self.attn_state = "DecodeOnly"
-        self.mock_self._draft_token_ids = None
-
-        self.patch_model_runner_v1.execute_model_patch(self.mock_self, self.mock_scheduler_output)
-
-        self.mock_self._update_states.assert_called_once_with(self.mock_scheduler_output)
-        self.mock_self._prepare_inputs.assert_called_once()
-        self.mock_self._generate_process_reqs_hidden_states.assert_called_once()
-        self.mock_self.model.compute_logits.assert_called_once()
-        self.mock_self.sampler.assert_called_once()
+        result = self.mod.execute_model_patch(self_mock, scheduler_output)
+        assert result is not None
 
     def test_execute_model_patch_spec_decode(self):
-        """Test execute_model_patch function with speculative decode"""
-        self.mock_scheduler_output.total_num_scheduled_tokens = 2
-        self.mock_self._update_states = MagicMock()
+        self_mock = make_self_mock(self.env)
 
-        mock_spec_decode_metadata = MagicMock()
-        mock_spec_decode_metadata.bonus_logits_indices = [0]
-        mock_spec_decode_metadata.target_logits_indices = [1]
-        mock_spec_decode_metadata.logits_indices = [0, 1]
+        self_mock.input_batch.req_ids = ["r1"]
+        self_mock.input_batch.req_id_to_index = {"r1": 0}
+        self_mock.input_batch.num_reqs = 1
+        self_mock.input_batch.sampling_metadata = MagicMock()
+        self_mock.input_batch.num_tokens_no_spec = [0]
+        self_mock.input_batch.num_tokens = [0]
+        self_mock.input_batch.vocab_size = 100
 
-        self.mock_self._prepare_inputs = MagicMock(
-            return_value=(
-                MagicMock(attn_state="DecodeOnly", num_actual_tokens=2, seq_lens=self.mock_torch.tensor([1, 1])),
-                MagicMock(),
-                self.mock_numpy.array([1, 1]),
-                2,
-                None,
-                None,
-                MagicMock(),
-                mock_spec_decode_metadata,
-                MagicMock(),
-                None,
-                None,
-            )
-        )
-        self.mock_self._generate_process_reqs_hidden_states = MagicMock(
-            return_value=self.mock_torch.tensor([[1.0], [2.0]])
-        )
-        self.mock_self.model.compute_logits = MagicMock(return_value=self.mock_torch.tensor([[1.0], [2.0]]))
-        self.mock_self._get_prompt_logprobs_dict = MagicMock(return_value={})
-        self.mock_self.rejection_sampler.parse_output = MagicMock(return_value=[[100], [200]])
-        self.mock_self.get_finished_kv_transfer = MagicMock(return_value=(None, None))
-        self.mock_self._select_moe_comm_method = MagicMock(return_value="all_reduce")
-        self.mock_self.aclgraph_dispatcher = MagicMock()
-        self.mock_self.aclgraph_dispatcher.dispatch = MagicMock(return_value=(None, MagicMock()))
-        self.mock_self.rejection_sampler = MagicMock(return_value=self.mock_torch.tensor([400]))
-        self.mock_self.maybe_setup_kv_connector = MagicMock()
-        self.mock_self.maybe_wait_for_kv_save = MagicMock()
-        self.mock_self.attn_state = "DecodeOnly"
-        self.mock_self._draft_token_ids = None
+        req_state = MagicMock()
+        req_state.num_computed_tokens = 0
+        req_state.num_tokens = 1
+        req_state.output_token_ids = []
 
-        self.patch_model_runner_v1.execute_model_patch(self.mock_self, self.mock_scheduler_output)
+        self_mock.requests = {"r1": req_state}
 
-        self.mock_self._update_states.assert_called_once_with(self.mock_scheduler_output)
-        self.mock_self._prepare_inputs.assert_called_once()
-        self.mock_self._generate_process_reqs_hidden_states.assert_called_once()
-        self.mock_self.model.compute_logits.assert_called_once()
-        self.mock_self.sampler.assert_called_once()
-        self.mock_self.rejection_sampler.assert_called_once()
+        spec_meta = MagicMock()
+        spec_meta.bonus_logits_indices = [0]
+        spec_meta.target_logits_indices = [0]
+        spec_meta.logits_indices = [0]
 
-    def test_execute_model_patch_with_aux_hidden_states(self):
-        """Test execute_model_patch function with aux hidden states"""
-        self.mock_scheduler_output.total_num_scheduled_tokens = 2
-        self.mock_self._update_states = MagicMock()
-        self.mock_self.use_aux_hidden_state_outputs = True
+        attn_meta = MagicMock()
+        attn_meta.attn_state = "spec"
+        attn_meta.num_actual_tokens = 1
+        attn_meta.seq_lens = DummyTensor([1])
 
-        self.mock_self._prepare_inputs = MagicMock(
-            return_value=(
-                MagicMock(attn_state="DecodeOnly", num_actual_tokens=2, seq_lens=self.mock_torch.tensor([1, 1])),
-                MagicMock(),
-                self.mock_numpy.array([1, 1]),
-                2,
-                None,
-                None,
-                MagicMock(),
-                None,
-                MagicMock(),
-                None,
-                None,
-            )
+        self_mock._prepare_inputs.return_value = (
+            attn_meta,
+            DummyTensor(),
+            [1],
+            1,
+            DummyTensor(),
+            1,
+            DummyTensor([0]),
+            spec_meta,
+            DummyTensor(),
+            None,
+            None,
         )
 
-        mock_hidden_states = MagicMock()
-        mock_aux_hidden_states = MagicMock()
-        self.mock_self._generate_process_reqs_hidden_states = MagicMock(
-            return_value=(mock_hidden_states, mock_aux_hidden_states)
-        )
+        logits = DummyTensor([1])
+        self_mock._generate_process_reqs_hidden_states.return_value = DummyTensor([1])
+        self_mock.model.compute_logits.return_value = logits
 
-        self.mock_self.model.compute_logits = MagicMock(return_value=self.mock_torch.tensor([[1.0]]))
-        self.mock_self._get_prompt_logprobs_dict = MagicMock(return_value={})
-        self.mock_self.rejection_sampler.parse_output = MagicMock(return_value=[[100], [200]])
-        self.mock_self.get_finished_kv_transfer = MagicMock(return_value=(None, None))
-        self.mock_self._select_moe_comm_method = MagicMock(return_value="all_reduce")
-        self.mock_self.aclgraph_dispatcher = MagicMock()
-        self.mock_self.aclgraph_dispatcher.dispatch = MagicMock(return_value=(None, MagicMock()))
-        self.mock_self.maybe_setup_kv_connector = MagicMock()
-        self.mock_self.maybe_wait_for_kv_save = MagicMock()
-        self.mock_self.attn_state = "DecodeOnly"
-        self.mock_self._draft_token_ids = None
+        sampler_output = MagicMock()
+        sampler_output.sampled_token_ids = DummyTensor([[2]])
+        sampler_output.logprobs_tensors = None
 
-        self.patch_model_runner_v1.execute_model_patch(self.mock_self, self.mock_scheduler_output)
+        self_mock.sampler.return_value = sampler_output
+        self_mock.rejection_sampler.return_value = DummyTensor([[3]])
+        self_mock.rejection_sampler.parse_output.return_value = [[3]]
 
-        self.mock_self._update_states.assert_called_once_with(self.mock_scheduler_output)
-        self.mock_self._generate_process_reqs_hidden_states.assert_called_once()
-        self.mock_self.model.compute_logits.assert_called_once_with(mock_hidden_states[MagicMock()], None)
+        self_mock._get_prompt_logprobs_dict.return_value = {}
+        self_mock._select_moe_comm_method.return_value = None
+        self_mock.get_finished_kv_transfer.return_value = (None, None)
 
-    def test_execute_model_patch_with_broadcast_pp(self):
-        """Test execute_model_patch function with broadcast pp output"""
-        self.mock_scheduler_output.total_num_scheduled_tokens = 2
-        self.mock_self._update_states = MagicMock()
+        scheduler_output = MagicMock()
+        scheduler_output.total_num_scheduled_tokens = 1
+        scheduler_output.num_scheduled_tokens = {"r1": 1}
+        scheduler_output.scheduled_spec_decode_tokens = {"r1": [1]}
+        scheduler_output.grammar_bitmask = None
 
-        self.mock_self.parallel_config.distributed_executor_backend = "external_launcher"
-        self.mock_pp_group.ranks = [0, 1]
-
-        self.mock_self._prepare_inputs = MagicMock(
-            return_value=(
-                MagicMock(attn_state="DecodeOnly", num_actual_tokens=2, seq_lens=self.mock_torch.tensor([1, 1])),
-                MagicMock(),
-                self.mock_numpy.array([1, 1]),
-                2,
-                None,
-                None,
-                MagicMock(),
-                None,
-                MagicMock(),
-                None,
-                None,
-            )
-        )
-
-        self.mock_self._generate_process_reqs_hidden_states = MagicMock(return_value=self.mock_torch.tensor([[1.0]]))
-        self.mock_self.model.compute_logits = MagicMock(return_value=self.mock_torch.tensor([[1.0]]))
-        self.mock_self._get_prompt_logprobs_dict = MagicMock(return_value={})
-        self.mock_self.rejection_sampler.parse_output = MagicMock(return_value=[[100], [200]])
-        self.mock_self.get_finished_kv_transfer = MagicMock(return_value=(None, None))
-        self.mock_self._select_moe_comm_method = MagicMock(return_value="all_reduce")
-        self.mock_self.aclgraph_dispatcher = MagicMock()
-        self.mock_self.aclgraph_dispatcher.dispatch = MagicMock(return_value=(None, MagicMock()))
-        self.mock_self.maybe_setup_kv_connector = MagicMock()
-        self.mock_self.maybe_wait_for_kv_save = MagicMock()
-        self.mock_self.attn_state = "DecodeOnly"
-        self.mock_self._draft_token_ids = None
-
-        mock_broadcast_data = {"logits": self.mock_torch.tensor([[1.0]])}
-        self.mock_pp_group.broadcast_tensor_dict.return_value = mock_broadcast_data
-
-        self.patch_model_runner_v1.execute_model_patch(self.mock_self, self.mock_scheduler_output)
-
-        self.mock_self._update_states.assert_called_once_with(self.mock_scheduler_output)
-        self.mock_pp_group.broadcast_tensor_dict.assert_called_once()
-
-    def test_execute_model_patch_with_pooling_params(self):
-        """Test execute_model_patch function with pooling_params"""
-        self.mock_scheduler_output.total_num_scheduled_tokens = 2
-        self.mock_self._update_states = MagicMock()
-
-        self.mock_self.input_batch.pooling_params = MagicMock()
-        self.mock_self._pool = MagicMock(return_value=self.mock_vllm_outputs.ModelRunnerOutput())
-
-        self.mock_self._prepare_inputs = MagicMock(
-            return_value=(
-                MagicMock(attn_state="DecodeOnly", num_actual_tokens=2, seq_lens=self.mock_torch.tensor([1, 1])),
-                MagicMock(),
-                self.mock_numpy.array([1, 1]),
-                2,
-                None,
-                None,
-                MagicMock(),
-                None,
-                MagicMock(),
-                None,
-                None,
-            )
-        )
-
-        self.mock_self._generate_process_reqs_hidden_states = MagicMock(return_value=self.mock_torch.tensor([[1.0]]))
-        self.mock_self.get_finished_kv_transfer = MagicMock(return_value=(None, None))
-        self.mock_self._select_moe_comm_method = MagicMock(return_value="all_reduce")
-        self.mock_self.aclgraph_dispatcher = MagicMock()
-        self.mock_self.aclgraph_dispatcher.dispatch = MagicMock(return_value=(None, MagicMock()))
-        self.mock_self.maybe_setup_kv_connector = MagicMock()
-        self.mock_self.maybe_wait_for_kv_save = MagicMock()
-        self.mock_self.attn_state = "DecodeOnly"
-
-        self.mock_parallel_state.get_pp_group().is_last_rank = True
-
-        self.patch_model_runner_v1.execute_model_patch(self.mock_self, self.mock_scheduler_output)
-
-        self.mock_self._update_states.assert_called_once_with(self.mock_scheduler_output)
-        self.mock_self._pool.assert_called_once()
-
-    def test_execute_model_patch_with_grammar_bitmask(self):
-        """Test execute_model_patch function with grammar bitmask"""
-        self.mock_scheduler_output.total_num_scheduled_tokens = 2
-        self.mock_scheduler_output.grammar_bitmask = MagicMock()
-        self.mock_self._update_states = MagicMock()
-        self.mock_self.apply_grammar_bitmask = MagicMock(return_value=self.mock_torch.tensor([[1.0]]))
-
-        self.mock_self._prepare_inputs = MagicMock(
-            return_value=(
-                MagicMock(attn_state="DecodeOnly", num_actual_tokens=2, seq_lens=self.mock_torch.tensor([1, 1])),
-                MagicMock(),
-                self.mock_numpy.array([1, 1]),
-                2,
-                None,
-                None,
-                MagicMock(),
-                None,
-                MagicMock(),
-                None,
-                None,
-            )
-        )
-
-        self.mock_self._generate_process_reqs_hidden_states = MagicMock(return_value=self.mock_torch.tensor([[1.0]]))
-        self.mock_self.model.compute_logits = MagicMock(return_value=self.mock_torch.tensor([[1.0]]))
-        self.mock_self._get_prompt_logprobs_dict = MagicMock(return_value={})
-        self.mock_self.rejection_sampler.parse_output = MagicMock(return_value=[[100], [200]])
-        self.mock_self.get_finished_kv_transfer = MagicMock(return_value=(None, None))
-        self.mock_self._select_moe_comm_method = MagicMock(return_value="all_reduce")
-        self.mock_self.aclgraph_dispatcher = MagicMock()
-        self.mock_self.aclgraph_dispatcher.dispatch = MagicMock(return_value=(None, MagicMock()))
-        self.mock_self.maybe_setup_kv_connector = MagicMock()
-        self.mock_self.maybe_wait_for_kv_save = MagicMock()
-        self.mock_self.attn_state = "DecodeOnly"
-        self.mock_self._draft_token_ids = None
-
-        self.patch_model_runner_v1.execute_model_patch(self.mock_self, self.mock_scheduler_output)
-
-        self.mock_self._update_states.assert_called_once_with(self.mock_scheduler_output)
-        self.mock_self.apply_grammar_bitmask.assert_called_once_with(
-            self.mock_scheduler_output, self.mock_torch.tensor([[1.0]])
-        )
-
-    def test_dummy_run_basic(self):
-        """Test dummy_run function with basic configuration"""
-        self.mock_self.dp_size = 1
-        self.mock_self.with_prefill = False
-        self.mock_self._sync_metadata_across_dp = MagicMock(return_value=(10, None, False, False))
-        self.mock_self._build_attention_metadata = MagicMock()
-        self.mock_self._select_moe_comm_method = MagicMock(return_value="all_reduce")
-        self.mock_self.aclgraph_dispatcher = MagicMock()
-        self.mock_self.aclgraph_dispatcher.dispatch = MagicMock(return_value=(None, MagicMock()))
-        self.mock_self.maybe_dummy_run_with_lora = MagicMock()
-        self.mock_self.is_multimodal_model = False
-        self.mock_self.uses_mrope = False
-        self.mock_self.input_ids = MagicMock()
-        self.mock_self.positions = MagicMock()
-        self.mock_self.scheduler_config = MagicMock()
-        self.mock_self.scheduler_config.max_num_batched_tokens = 1024
-        self.mock_self.scheduler_config.max_num_seqs = 10
-        self.mock_self.decode_token_per_req = 1
-        self.mock_self.uniform_decode_query_len = 1
-        self.mock_self.intermediate_tensors = None
-        self.mock_self.model.make_empty_intermediate_tensors = MagicMock(return_value={})
-        self.mock_self._generate_dummy_run_hidden_states = MagicMock(return_value=self.mock_torch.tensor([1.0]))
-
-        self.patch_model_runner_v1.dummy_run(self.mock_self, 10)
-
-        self.mock_self._sync_metadata_across_dp.assert_called_once()
-        self.mock_self._select_moe_comm_method.assert_called_once_with(10)
-        self.mock_self._build_attention_metadata.assert_called_once()
-
-    def test_dummy_run_kv_producer(self):
-        """Test dummy_run function when node is a KV producer"""
-        self.mock_self.dp_size = 1
-        self.mock_self.with_prefill = False
-        self.mock_self.is_kv_producer = True
-        self.mock_self._sync_metadata_across_dp = MagicMock(return_value=(10, None, True, False))
-        self.mock_self._build_attention_metadata = MagicMock()
-        self.mock_self._select_moe_comm_method = MagicMock(return_value="all_reduce")
-        self.mock_self.aclgraph_dispatcher = MagicMock()
-        self.mock_self.aclgraph_dispatcher.dispatch = MagicMock(return_value=(None, MagicMock()))
-        self.mock_self.maybe_dummy_run_with_lora = MagicMock()
-        self.mock_self.is_multimodal_model = False
-        self.mock_self.uses_mrope = False
-        self.mock_self.input_ids = MagicMock()
-        self.mock_self.positions = MagicMock()
-        self.mock_self.scheduler_config = MagicMock()
-        self.mock_self.scheduler_config.max_num_batched_tokens = 1024
-        self.mock_self.scheduler_config.max_num_seqs = 10
-        self.mock_self.decode_token_per_req = 1
-        self.mock_self.uniform_decode_query_len = 1
-        self.mock_self.intermediate_tensors = None
-        self.mock_self.model.make_empty_intermediate_tensors = MagicMock(return_value={})
-        self.mock_self._generate_dummy_run_hidden_states = MagicMock(return_value=self.mock_torch.tensor([1.0]))
-
-        self.patch_model_runner_v1.dummy_run(self.mock_self, 10)
-
-        self.mock_self._sync_metadata_across_dp.assert_called_once()
-        self.mock_self._build_attention_metadata.assert_called_once()
+        result = self.mod.execute_model_patch(self_mock, scheduler_output)
+        assert result is not None
 
 
-if __name__ == '__main__':
-    unittest.main()
+class TestPrepareInputsPatch:
+    @pytest.fixture(autouse=True)
+    def setup(self, fake_model_runner_env):
+        self.env = fake_model_runner_env
+        self.mod = import_module(self.env)
+
+    def test_prepare_inputs_invalid_total_tokens(self):
+        self_mock = make_self_mock(self.env)
+        scheduler_output = MagicMock()
+        scheduler_output.total_num_scheduled_tokens = 0
+        with pytest.raises(ValueError):
+            self.mod._prepare_inputs_patch(self_mock, scheduler_output)
+
+    def test_prepare_inputs_invalid_num_reqs(self):
+        self_mock = make_self_mock(self.env)
+        scheduler_output = MagicMock()
+        scheduler_output.total_num_scheduled_tokens = 1
+        self_mock.input_batch.num_reqs = 0
+        with pytest.raises(ValueError):
+            self.mod._prepare_inputs_patch(self_mock, scheduler_output)

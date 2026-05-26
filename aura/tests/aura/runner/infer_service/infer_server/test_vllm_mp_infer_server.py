@@ -15,12 +15,67 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
+import sys
+import types
+from unittest.mock import MagicMock
+
+_original_modules = {}
+
+_PACKAGES_TO_MOCK = {
+    "vllm": {},
+    "vllm.v1": {},
+    "vllm.v1.engine": {},
+    "vllm.v1.metrics": {},
+    "vllm.v1.metrics.stats": {},
+}
+
+_PLAIN_MODULES_TO_MOCK = [
+    "vllm.v1.engine.async_llm",
+    "vllm.entrypoints",
+    "vllm.entrypoints.openai",
+    "vllm.entrypoints.openai.protocol",
+    "vllm.entrypoints.openai.serving_chat",
+    "vllm.entrypoints.openai.serving_models",
+    "vllm.config",
+    "aura.base.utils.run_env",
+    "aura.runner.scheduler.load_stat",
+]
+
+for mod_name in list(_PACKAGES_TO_MOCK.keys()) + _PLAIN_MODULES_TO_MOCK:
+    _original_modules[mod_name] = sys.modules.get(mod_name)
+
+for pkg_name in _PACKAGES_TO_MOCK:
+    if pkg_name not in sys.modules:
+        pkg = types.ModuleType(pkg_name)
+        pkg.__path__ = []
+        sys.modules[pkg_name] = pkg
+
+stats_mod = sys.modules["vllm.v1.metrics.stats"]
+stats_mod.IterationStats = MagicMock()
+stats_mod.SchedulerStats = MagicMock()
+
+for mod_name in _PLAIN_MODULES_TO_MOCK:
+    if mod_name not in sys.modules:
+        sys.modules[mod_name] = MagicMock()
+
+sys.modules["aura.base.utils.run_env"].get_vllm_version = MagicMock(return_value="0.0.0")
+sys.modules["aura.runner.scheduler.load_stat"].parse_prometheus_text_to_json = MagicMock(return_value=({}, {}))
+
+
+def teardown_module():
+    for mod_name in _original_modules:
+        orig = _original_modules[mod_name]
+        if orig is None:
+            sys.modules.pop(mod_name, None)
+        else:
+            sys.modules[mod_name] = orig
+
+
 import json
 import os
 import pytest
-import sys
 import threading
-from unittest.mock import patch, MagicMock, AsyncMock
+from unittest.mock import patch, AsyncMock
 
 
 # =========================
@@ -67,7 +122,8 @@ class TestHelperFunctions:
         mock_process = MagicMock()
         mock_process.pid = 1234
         mock_process.poll.return_value = None
-        mock_process.stdout.readline.side_effect = [b'output\n', b'']
+        mock_process.stdout = MagicMock()
+        mock_process.stdout.__iter__.return_value = iter(['output\n'])
         mock_popen.return_value = mock_process
 
         out_buffer = []
@@ -90,11 +146,13 @@ class TestHelperFunctions:
         mock_process = MagicMock()
         mock_process.pid = 1234
         mock_process.poll.return_value = None
-        mock_process.stdout.readline.side_effect = [b'output\n', b'']
+        mock_process.stdout.__iter__.return_value = iter([b'output\n', b''])
         mock_popen.return_value = mock_process
 
         out_buffer = []
         self.start_cmd(["cmd"], out_buffer)
+
+        assert out_buffer == [b'output\n', b'']
 
         cleanup = mock_atexit.register.call_args[0][0]
         cleanup()
@@ -108,7 +166,8 @@ class TestHelperFunctions:
         mock_process = MagicMock()
         mock_process.pid = 1234
         mock_process.poll.return_value = None
-        mock_process.stdout.readline.side_effect = KeyboardInterrupt()
+        mock_process.stdout = MagicMock()
+        mock_process.stdout.__iter__.side_effect = KeyboardInterrupt()
         mock_popen.return_value = mock_process
 
         out_buffer = []
@@ -120,13 +179,13 @@ class TestHelperFunctions:
     @patch('aura.runner.infer_service.infer_server.vllm_mp_infer_server.logger')
     @patch.dict('os.environ', {'ASCEND_RT_VISIBLE_DEVICES': '3,1,2'})
     def test_start_cmd_exception(self, mock_logger, mock_popen):
-        mock_popen.side_effect = Exception("启动失败")
+        mock_popen.side_effect = Exception("error when launching")
 
         out_buffer = []
         self.start_cmd(["cmd"], out_buffer)
 
         mock_logger.error.assert_called_once()
-        assert "启动失败" in mock_logger.error.call_args[0][0]
+        assert "error when launching" in mock_logger.error.call_args[0][0]
 
     def test_map_dict_to_cli_args(self):
         params = {
