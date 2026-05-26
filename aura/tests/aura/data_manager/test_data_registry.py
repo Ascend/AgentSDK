@@ -18,74 +18,220 @@
 # -------------------------------------------------------------------------
 
 import sys
-import unittest
+import types
 from unittest.mock import MagicMock, patch
+import pytest
+
 
 # ---------------------------------------------------------------------------
-# Module-level mocks  (BEFORE importing the code under test)
-#
-# data_registry.py imports:
-#   - InferDataManager  (from infer_data -> Loggers, RolloutClient + transitive deps)
-#   - MindSpeedRLDataManager (from mindspeed_rl_data -> ray, Loggers, data_transform)
-#   - VerlDataManager (from verl_data -> torch, numpy, verl)
+# Fixture: fake module tree for data_registry
 # ---------------------------------------------------------------------------
-mock_ray = MagicMock()
-mock_torch = MagicMock()
-mock_np = MagicMock()
-mock_verl = MagicMock()
-mock_requests = MagicMock()
+@pytest.fixture
+def fake_registry_env():
+    """Build an isolated fake module tree for data_registry."""
 
-mock_loggers_module = MagicMock()
-mock_loggers_module.Loggers.return_value.get_logger.return_value = MagicMock()
+    # ---- fake threading ----
+    fake_threading = types.ModuleType("threading")
 
-mock_base_utils_module = MagicMock()
-mock_base_utils_module.singleton = lambda cls: cls
+    class FakeLock:
+        def __enter__(self):
+            pass
 
-mock_rollout_queue_module = MagicMock()
-mock_rollout_client_module = MagicMock()
-mock_controller_config_module = MagicMock()
-mock_http_status_module = MagicMock()
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            pass
 
-mock_controller_utils_module = MagicMock()
-mock_controller_utils_module.DEFAULT_SLEEP_TIME = 2
-mock_controller_utils_module.READ_TIMEOUT = 600
-mock_controller_utils_module.DEFAULT_URL_METHOD = "http"
-mock_controller_utils_module.MAX_TIMEOUT = 1800
+    fake_threading.Lock = FakeLock
 
-mock_data_transform_module = MagicMock()
+    # ---- fake ray ----
+    fake_ray = types.ModuleType("ray")
 
-with patch.dict(
-    sys.modules,
-    {
-        'ray': mock_ray,
-        'torch': mock_torch,
-        'torch.distributed': mock_torch.distributed,
-        'numpy': mock_np,
-        'verl': mock_verl,
-        'requests': mock_requests,
-        'aura.base.log.loggers': mock_loggers_module,
-        'aura.base.utils.utils': mock_base_utils_module,
-        'aura.controllers.rollout_controller.rollout_queue': mock_rollout_queue_module,
-        'aura.controllers.rollout_controller.rollout_client': mock_rollout_client_module,
-        'aura.controllers.utils.controller_config': mock_controller_config_module,
-        'aura.controllers.utils.http_status': mock_http_status_module,
-        'aura.controllers.utils.utils': mock_controller_utils_module,
-        'aura.data_manager.data_transform': mock_data_transform_module,
-    },
-):
-    from aura.data_manager.data_registry import DataManagerRegistry
+    def ray_remote(cls):
+        """Decorator that adds options classmethod and keeps the class intact."""
+        cls.options = lambda **kw: cls
+        cls.remote = lambda *args, **kwargs: cls(*args, **kwargs)
+        return cls
+
+    fake_ray.remote = ray_remote
+    fake_ray.get_actor = MagicMock()
+    fake_ray.get = MagicMock()
+
+    # ---- fake aura.data_manager submodules ----
+    fake_infer_data = types.ModuleType("aura.data_manager.infer_data")
+    fake_infer_data.InferDataManager = MagicMock()
+
+    fake_msrl_data = types.ModuleType("aura.data_manager.mindspeed_rl_data")
+    fake_msrl_data.MindSpeedRLDataManager = MagicMock()
+
+    fake_verl_data = types.ModuleType("aura.data_manager.verl_data")
+    fake_verl_data.VerlDataManager = MagicMock()
+
+    # ---- aura packages to locate the real file ----
+    import os
+    import aura as _aura
+    base = _aura.__path__[0] if _aura.__path__ else "."
+    fake_aura = types.ModuleType("aura")
+    fake_aura.__path__ = _aura.__path__
+    fake_aura_data_manager = types.ModuleType("aura.data_manager")
+    fake_aura_data_manager.__path__ = [os.path.join(base, "data_manager")]
+
+    fakes = {
+        "threading": fake_threading,
+        "ray": fake_ray,
+        "aura.data_manager.infer_data": fake_infer_data,
+        "aura.data_manager.mindspeed_rl_data": fake_msrl_data,
+        "aura.data_manager.verl_data": fake_verl_data,
+        "aura": fake_aura,
+        "aura.data_manager": fake_aura_data_manager,
+    }
+
+    target = "aura.data_manager.data_registry"
+    if target in sys.modules:
+        del sys.modules[target]
+
+    with patch.dict(sys.modules, fakes):
+        import aura.data_manager.data_registry as mod
+        yield {
+            "mod": mod,
+            "fake_ray": fake_ray,
+            "fake_infer_data": fake_infer_data,
+            "fake_msrl_data": fake_msrl_data,
+            "fake_verl_data": fake_verl_data,
+        }
+
+    if target in sys.modules:
+        del sys.modules[target]
 
 
-class TestDataManagerRegistry(unittest.TestCase):
-    """Tests for DataManagerRegistry, module-level registry, and data_manager_class."""
-
-    # ---- DataManagerRegistry basics ----------------------------------------
-
-    def test_registry_init_empty(self):
-        """A fresh registry has an empty internal dict."""
-        r = DataManagerRegistry()
-        self.assertEqual(r._registry, {})
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+def make_actor():
+    """Instantiate a DataManagerRegistryActor for testing."""
+    from aura.data_manager.data_registry import DataManagerRegistryActor
+    return DataManagerRegistryActor()
 
 
-if __name__ == '__main__':
-    unittest.main()
+# ---------------------------------------------------------------------------
+# Tests for DataManagerRegistry
+# ---------------------------------------------------------------------------
+class TestDataManagerRegistry:
+    def test_register_and_get(self, fake_registry_env):
+        """Register an instance and retrieve it by (backend, mode) key."""
+        mod = fake_registry_env["mod"]
+        reg = mod.DataManagerRegistry()
+        instance = MagicMock()
+        reg.register("verl", "train", instance)
+        assert reg.get_instance("verl", "train") is instance
+        assert reg.get_instance("verl", "infer") is None
+
+
+# ---------------------------------------------------------------------------
+# Tests for DataManagerRegistryActor
+# ---------------------------------------------------------------------------
+class TestDataManagerRegistryActor:
+    def test_initialization(self, fake_registry_env):
+        """Actor attributes are properly initialised."""
+        actor = make_actor()
+        assert isinstance(actor.registry, fake_registry_env["mod"].DataManagerRegistry)
+        assert actor.registry_done is False
+        assert actor.msrl_data_instance is None
+        assert actor.verl_data_instance is None
+        assert actor.infer_data_instance is None
+
+    def test_register_msrl_first_time(self, fake_registry_env):
+        """First call registers mindspore RL and infer instances, sets done flag."""
+        actor = make_actor()
+        actor.registry_msrl_data_manager()
+
+        assert actor.registry_done is True
+        # Check instances were created
+        fake_registry_env["fake_msrl_data"].MindSpeedRLDataManager.assert_called_once()
+        fake_registry_env["fake_infer_data"].InferDataManager.assert_called_once()
+        # Check registry entries
+        assert actor.registry.get_instance("mindspeed_rl", "train") is actor.msrl_data_instance
+        assert actor.registry.get_instance("mindspeed_rl", "infer") is actor.infer_data_instance
+
+    def test_register_msrl_second_call_skips(self, fake_registry_env):
+        """Second call to register_msrl is a no-op."""
+        actor = make_actor()
+        actor.registry_done = True
+        # Reset mock counts to verify they are not called again
+        fake_registry_env["fake_msrl_data"].MindSpeedRLDataManager.reset_mock()
+        fake_registry_env["fake_infer_data"].InferDataManager.reset_mock()
+
+        actor.registry_msrl_data_manager()
+        fake_registry_env["fake_msrl_data"].MindSpeedRLDataManager.assert_not_called()
+        fake_registry_env["fake_infer_data"].InferDataManager.assert_not_called()
+
+    def test_register_verl_first_time(self, fake_registry_env):
+        """First call registers verl and infer instances, sets done flag."""
+        actor = make_actor()
+        actor.registry_verl_data_manager()
+
+        assert actor.registry_done is True
+        fake_registry_env["fake_verl_data"].VerlDataManager.assert_called_once()
+        fake_registry_env["fake_infer_data"].InferDataManager.assert_called_once()
+        assert actor.registry.get_instance("verl", "train") is actor.verl_data_instance
+        assert actor.registry.get_instance("verl", "infer") is actor.infer_data_instance
+
+    def test_register_verl_second_call_skips(self, fake_registry_env):
+        """Second call to register_verl is a no-op."""
+        actor = make_actor()
+        actor.registry_done = True
+        fake_registry_env["fake_verl_data"].VerlDataManager.reset_mock()
+        fake_registry_env["fake_infer_data"].InferDataManager.reset_mock()
+
+        actor.registry_verl_data_manager()
+        fake_registry_env["fake_verl_data"].VerlDataManager.assert_not_called()
+        fake_registry_env["fake_infer_data"].InferDataManager.assert_not_called()
+
+    def test_get_instance_delegates(self, fake_registry_env):
+        """get_instance calls through to the internal registry."""
+        actor = make_actor()
+        mock_reg = MagicMock()
+        actor.registry = mock_reg
+        mock_reg.get_instance.return_value = "result"
+        result = actor.get_instance("verl", "infer")
+        mock_reg.get_instance.assert_called_once_with("verl", "infer")
+        assert result == "result"
+
+
+# ---------------------------------------------------------------------------
+# Tests for global helper functions
+# ---------------------------------------------------------------------------
+class TestGlobalFunctions:
+    def test_get_data_manager_actor(self, fake_registry_env):
+        """get_data_manager_actor returns the result of .options().remote()."""
+        mod = fake_registry_env["mod"]
+        mock_actor = MagicMock()
+        # Patch options to return a mock that has .remote returning mock_actor
+        mock_options = MagicMock()
+        mock_options.remote.return_value = mock_actor
+        with patch.object(mod.DataManagerRegistryActor, 'options', return_value=mock_options):
+            result = mod.get_data_manager_actor()
+            assert result is mock_actor
+            mod.DataManagerRegistryActor.options.assert_called_once_with(
+                name="data_register_actor",
+                namespace="register_raygroup",
+                lifetime="detached",
+            )
+
+    def test_get_data_manager_instance(self, fake_registry_env):
+        """get_data_manager_instance obtains actor and calls get_instance.remote."""
+        mod = fake_registry_env["mod"]
+        fake_ray = fake_registry_env["fake_ray"]
+
+        # Setup a mock actor with get_instance.remote returning an object ref
+        mock_actor = MagicMock()
+        mock_actor.get_instance.remote.return_value = "object_ref"
+
+        fake_ray.get_actor.return_value = mock_actor
+        fake_ray.get.return_value = "final_instance"
+
+        result = mod.get_data_manager_instance("verl", "train")
+        fake_ray.get_actor.assert_called_once_with(
+            "data_register_actor", namespace="register_raygroup"
+        )
+        mock_actor.get_instance.remote.assert_called_once_with("verl", "train")
+        fake_ray.get.assert_called_once_with("object_ref")
+        assert result == "final_instance"
