@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-# coding=utf-8
+# -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
@@ -8,7 +9,7 @@
 # You can use this software according to the terms and conditions of the Mulan PSL v2.
 # You may obtain a copy of Mulan PSL v2 at:
 #
-#        http://license.coscl.org.cn/MulanPSL2
+#          http://license.coscl.org.cn/MulanPSL2
 #
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
@@ -18,47 +19,69 @@
 
 import sys
 import importlib.util
-from unittest.mock import MagicMock
+import types
+from unittest.mock import MagicMock, patch
 import pytest
-import io
-from unittest.mock import patch, call
 import requests
 
-# Mock openai before importing the module under test
+_original_modules = {}
+
+
+def _mock_and_save(name, mock):
+    _original_modules[name] = sys.modules.get(name)
+    sys.modules[name] = mock
+
+
+# --------------------------
+# Mock openai / google / vertexai
+# --------------------------
 mock_openai = MagicMock()
 mock_openai.__spec__ = importlib.util.spec_from_loader('openai', loader=None)
-sys.modules['openai'] = mock_openai
+_mock_and_save('openai', mock_openai)
 
-# Mock vertexai and google.cloud before importing the module under test
-sys.modules['vertexai'] = MagicMock()
-sys.modules['google'] = MagicMock()
-sys.modules['google.cloud'] = MagicMock()
-sys.modules['google.cloud.aiplatform_v1beta1'] = MagicMock()
-sys.modules['google.cloud.aiplatform_v1beta1.types'] = MagicMock()
-sys.modules['google.cloud.aiplatform_v1beta1.types.content'] = MagicMock()
+_mock_and_save('vertexai', MagicMock())
+_mock_and_save('google', MagicMock())
+_mock_and_save('google.cloud', MagicMock())
+_mock_and_save('google.cloud.aiplatform_v1beta1', MagicMock())
+_mock_and_save('google.cloud.aiplatform_v1beta1.types', MagicMock())
+_mock_and_save('google.cloud.aiplatform_v1beta1.types.content', MagicMock())
+_mock_and_save('sentence_transformers', MagicMock())
+_mock_and_save('vertexai.generative_models', MagicMock())
 
-# Mock sentence_transformers before importing the module under test
-sys.modules['sentence_transformers'] = MagicMock()
-sys.modules['vertexai.generative_models'] = MagicMock()
 
-# Mock ray before importing the module under test
-mock_ray = MagicMock()
+# --------------------------
+# Mock ray as a REAL package module
+# --------------------------
+mock_ray = types.ModuleType("ray")
+mock_ray.__path__ = []  # make it a package
 mock_ray.remote = lambda func_or_class: func_or_class
 mock_ray.get = MagicMock(return_value=None)
 mock_ray.get_actor = MagicMock()
 mock_ray.kill = MagicMock()
 mock_ray.is_initialized = MagicMock(return_value=True)
 mock_ray.available_resources = MagicMock(return_value={"CPU": 8})
+_mock_and_save("ray", mock_ray)
 
-sys.modules['ray'] = mock_ray
+# ray.dag is imported in ray.shutdown() at exit in some environments
+mock_ray_dag = types.ModuleType("ray.dag")
+mock_ray_dag.__path__ = []
+_mock_and_save("ray.dag", mock_ray_dag)
 
+mock_ray_dag_compiled = types.ModuleType("ray.dag.compiled_dag_node")
+mock_ray_dag_compiled._shutdown_all_compiled_dags = lambda: None
+_mock_and_save("ray.dag.compiled_dag_node", mock_ray_dag_compiled)
+
+
+# --------------------------
+# Import target after mocks
+# --------------------------
 from aura.controllers.rollout_controller.rollout_client import (
     send_ready_to_train_remote,
     send_outputs_to_train_server_remote,
     RolloutClient,
 )
 from aura.controllers.utils.http_status import HTTP_OK_200
-from aura.controllers.utils.utils import DEFAULT_SLEEP_TIME, READ_TIMEOUT, DEFAULT_URL_METHOD
+from aura.controllers.utils.utils import DEFAULT_SLEEP_TIME, DEFAULT_URL_METHOD
 
 
 class TestSendReadyToTrainRemote:
@@ -356,14 +379,12 @@ class TestRolloutClient:
 
 @pytest.fixture(scope="module", autouse=True)
 def cleanup_module():
-    """Reset singleton and cleanup mock modules after all tests in this module."""
+    """Reset singleton and restore original modules after all tests in this module."""
     yield
     if hasattr(RolloutClient, '__wrapped__'):
         RolloutClient.__wrapped__ = None
-    modules_to_clean = ['openai', 'vertexai', 'google', 'google.cloud', 
-                       'google.cloud.aiplatform_v1beta1', 'google.cloud.aiplatform_v1beta1.types',
-                       'google.cloud.aiplatform_v1beta1.types.content', 'sentence_transformers',
-                       'vertexai.generative_models', 'ray']
-    for mod in modules_to_clean:
-        if mod in sys.modules:
-            del sys.modules[mod]
+    for mod_name, original_module in _original_modules.items():
+        if original_module is None:
+            sys.modules.pop(mod_name, None)
+        else:
+            sys.modules[mod_name] = original_module

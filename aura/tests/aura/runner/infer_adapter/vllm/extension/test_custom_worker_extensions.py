@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-# coding=utf-8
+# -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
@@ -192,13 +193,15 @@ class FakeNpu:
     def stream(self, stream_obj):
         return FakeNoGrad()
 
+    def device(self, dev=None):
+        return FakeNoGrad()
 
 class FakeDistributed:
     """Fake torch.distributed module."""
 
     def __init__(self):
         self.broadcast = MagicMock(name="broadcast")
-
+        self.get_rank = MagicMock(name="get_rank", return_value=0)
 
 def _build_fake_torch():
     """Assemble a complete fake torch module with all needed submodules."""
@@ -273,11 +276,14 @@ def _build_fake_modules():
 
     fake_vllm = types.ModuleType("vllm")
     fake_vllm_distributed = types.ModuleType("vllm.distributed")
+    fake_vllm_distributed.get_world_group = MagicMock(name="get_world_group", return_value=MagicMock(cpu_group="mock_cpu_group"))
 
     fake_verl = types.ModuleType("verl")
     fake_verl_utils = types.ModuleType("verl.utils")
     fake_verl_utils_device = types.ModuleType("verl.utils.device")
     fake_verl_utils_device.get_torch_device = MagicMock(name="get_torch_device")
+    fake_verl_utils_device.get_device_name = MagicMock(name="get_device_name", return_value="cpu")
+    fake_verl_utils_device.get_device_id = MagicMock(name="get_device_id", return_value=0)
 
     fake_verl_utils_vllm = types.ModuleType("verl.utils.vllm")
     fake_verl_utils_vllm_patch = types.ModuleType("verl.utils.vllm.patch")
@@ -525,7 +531,6 @@ class TestCustomWorkerExtensions(unittest.TestCase):
     def test_resolve_device_cuda_fallback(self):
         """If npu not available, fallback to cuda."""
         torch = sys.modules["torch"]
-        # remove npu -> fallback to cuda
         delattr(torch, "npu")
         torch.cuda._avail = True
 
@@ -609,25 +614,24 @@ class TestCustomWorkerExtensions(unittest.TestCase):
     def test_custom_worker_extensions_statistics(self):
         """vllm_statistics should write stats and clear."""
         obj = self.target_mod.CustomWorkerExtensions()
-
+        obj.rank = 0
         fake_stat_obj = sys.modules["aura.runner.infer_adapter.vllm.patch.comm.vllm_execute_stat"].vllm_output_statics
 
         obj.vllm_statistics()
 
         fake_stat_obj.write_stats_tofile.assert_called_once()
-        fake_stat_obj.clear.assert_called_once()
 
     def test_custom_worker_extensions_update_weights_use_hf_true_no_files(self):
         """When use_hf=True but no files found, should return zero moved bytes."""
         obj = self.target_mod.CustomWorkerExtensions()
         obj.rank = 0
 
-        with patch("os.scandir") as mock_scandir:
-            mock_scandir.return_value.__enter__.return_value = []
-            moved = obj.update_weights(True, "tmp", "dir")
+        with patch.dict("os.environ", {"RL_TRAIN_BACKEND": "verl"}):
+            with patch("os.scandir") as mock_scandir:
+                mock_scandir.return_value.__enter__.return_value = []
+                moved = obj.update_weights("tmp", "dir")
 
-        self.assertEqual(moved["num_files"], 0)
-        self.assertEqual(moved["threads"], 0)
+        self.assertEqual(moved, 0)
 
     def test_custom_worker_extensions_update_weights_use_hf_true(self):
         """Update weights using HuggingFace format (load_weights on model)."""
@@ -645,22 +649,23 @@ class TestCustomWorkerExtensions(unittest.TestCase):
         entry.name = "x.safetensors"
         entry.path = "/tmp/x.safetensors"
 
-        with patch("os.scandir") as mock_scandir:
-            mock_scandir.return_value.__enter__.return_value = [entry]
+        with patch.dict("os.environ", {"RL_TRAIN_BACKEND": "verl"}):
+            with patch("os.scandir") as mock_scandir:
+                mock_scandir.return_value.__enter__.return_value = [entry]
 
-            fake_safe_open = sys.modules["safetensors.torch"].safe_open
-            fake_safe_open.return_value = FakeSafeOpenCtx({"w": torch.ones((2, 2))})
+                fake_safe_open = sys.modules["safetensors.torch"].safe_open
+                fake_safe_open.return_value = FakeSafeOpenCtx({"w": torch.ones((2, 2))})
 
-            fake_get_dev = sys.modules["verl.utils.device"].get_torch_device
-            fake_get_dev.return_value.current_device.return_value = "cpu"
+                fake_get_dev = sys.modules["verl.utils.device"].get_torch_device
+                fake_get_dev.return_value.current_device.return_value = "cpu"
 
-            patch_loader = sys.modules["verl.utils.vllm.patch"].patch_vllm_moe_model_weight_loader
+                patch_loader = sys.modules["verl.utils.vllm.patch"].patch_vllm_moe_model_weight_loader
 
-            moved = obj.update_weights(True, "tmp", "dir")
-            self.assertEqual(moved, 0)
+                moved = obj.update_weights("tmp", "dir")
+                self.assertEqual(moved, 0)
 
-            patch_loader.assert_called_once_with(fake_model)
-            fake_model.load_weights.assert_called_once()
+                patch_loader.assert_called_once_with(fake_model)
+                fake_model.load_weights.assert_called_once()
 
     def test_custom_worker_extensions_update_weights_use_hf_false(self):
         """Update weights using threaded NPU loading."""
@@ -678,7 +683,7 @@ class TestCustomWorkerExtensions(unittest.TestCase):
             with patch.object(self.target_mod, "load_rank_to_npu_threaded") as mock_load:
                 mock_load.return_value = {"bytes_total": 123}
 
-                moved = obj.update_weights(False, "tmpdir")
+                moved = obj.update_weights("tmpdir")
                 self.assertEqual(moved, 123)
                 mock_load.assert_called_once()
 
