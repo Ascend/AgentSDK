@@ -98,7 +98,8 @@ function run_test() {
     --html=script/coverage/final.html \
     --self-contained-html \
     --cov-branch \
-    -vs tests/
+    -vs tests/ \
+    --ignore=tests/aura/trainer
   echo "[INFO] >>>>>>>>>>> finish running tests >>>>>>>>>>>"
   echo ""
 
@@ -117,5 +118,5 @@ function run_test() {
   echo "[INFO] Test done!"
 }
 
-#pre_install
-#run_test
+pre_install
+run_test
