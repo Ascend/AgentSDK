@@ -15,227 +15,349 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
-
-import importlib
-import importlib.util
-import os
 import sys
-import unittest
+import types
 from unittest.mock import MagicMock, patch
+import pytest
 
 
-class TestPatchAttention(unittest.TestCase):
-    """Test the patch_attention.py module"""
+# ---------------------------------------------------------------------------
+# Fixture: fake module tree for patch_attention (0.9.1)
+# ---------------------------------------------------------------------------
+@pytest.fixture
+def fake_attention_env():
+    fake_torch = types.ModuleType("torch")
+    fake_torch.int32 = "int32"
+    fake_torch.int = "int"
+    fake_torch.float32 = "float32"
+    fake_torch.Tensor = MagicMock
+    fake_torch.max = MagicMock()
+    fake_torch.sum = MagicMock(return_value=10)
+    fake_torch.zeros = MagicMock(return_value=MagicMock())
+    fake_torch.index_select = MagicMock(return_value=MagicMock())
+    fake_torch.cat = MagicMock(return_value=MagicMock())
 
-    @classmethod
-    def setUpClass(cls):
-        """Set up test environment for the entire test class"""
-        cls._setup_mocks()
-        cls._import_module_under_test()
+    fake_vllm = types.ModuleType("vllm")
+    fake_vllm.__path__ = []
+    fake_vllm_attention = types.ModuleType("vllm.attention")
+    fake_vllm_attention.__path__ = []
+    fake_vllm_attention_backends = types.ModuleType("vllm.attention.backends")
+    fake_vllm_attention_backends.__path__ = []
+    fake_vllm_attention_backends_utils = types.ModuleType("vllm.attention.backends.utils")
+    fake_vllm_attention_backends_utils.PAD_SLOT_ID = -1
 
-    @classmethod
-    def tearDownClass(cls):
-        """Clean up test environment for the entire test class"""
-        cls._cleanup_mocks()
+    fake_vllm_utils = types.ModuleType("vllm.utils")
+    fake_vllm_utils.async_tensor_h2d = MagicMock(return_value=MagicMock())
+    fake_vllm_utils.make_tensor_with_pad = MagicMock(return_value=MagicMock())
 
-    @classmethod
-    def _setup_mocks(cls):
-        """Setup mock objects for numpy, torch, torchair, vllm, and vllm_ascend"""
-        cls.mock_numpy = MagicMock()
+    fake_vllm_ascend = types.ModuleType("vllm_ascend")
+    fake_vllm_ascend.__path__ = []
+    fake_vllm_ascend_attention = types.ModuleType("vllm_ascend.attention")
+    fake_vllm_ascend_attention.__path__ = []
+    fake_vllm_ascend_attention_attention = types.ModuleType("vllm_ascend.attention.attention")
 
-        cls.mock_torch = MagicMock()
-        cls.mock_torch.float32 = "float32"
-        cls.mock_torch.tensor = MagicMock()
+    class AscendMetadata:
+        def __init__(self, **kwargs):
+            for k, v in kwargs.items():
+                setattr(self, k, v)
 
-        cls.mock_torchair = MagicMock()
-        cls.mock_torchair._contrib = MagicMock()
-        cls.mock_torchair._contrib.custom_torch_ops = MagicMock()
+    class AscendMetadataBuilder:
+        _attn_mask_builder = MagicMock()
+        _attn_mask_builder.get_attn_mask = MagicMock()
 
-        cls.mock_vllm = MagicMock()
-        cls.mock_vllm.attention = MagicMock()
-        cls.mock_vllm.attention.backends = MagicMock()
-        cls.mock_vllm_attention_backends_utils = MagicMock()
-        cls.mock_vllm.attention.backends.utils = cls.mock_vllm_attention_backends_utils
-        cls.mock_vllm_attention_backends_utils.PAD_SLOT_ID = -1
-        cls.mock_vllm_attention_backends_utils.is_block_tables_empty = MagicMock(return_value=False)
+    class AttentionMaskBuilder:
+        pass
 
-        cls.mock_vllm_utils = MagicMock()
-        cls.mock_vllm.utils = cls.mock_vllm_utils
-        cls.mock_vllm_utils.async_tensor_h2d = MagicMock(
-            side_effect=lambda x, dtype, device, pin_memory: cls.mock_torch.tensor(x, dtype=dtype, device=device))
-        cls.mock_vllm_utils.make_tensor_with_pad = MagicMock(
-            side_effect=lambda x, pad, dtype, device: cls.mock_torch.tensor(x, dtype=dtype, device=device))
+    fake_vllm_ascend_attention_attention.AscendMetadataBuilder = AscendMetadataBuilder
+    fake_vllm_ascend_attention_attention.AscendMetadata = AscendMetadata
+    fake_vllm_ascend_attention_attention.AttentionMaskBuilder = AttentionMaskBuilder
 
-        cls.mock_vllm_ascend = MagicMock()
-        cls.mock_vllm_ascend.attention = MagicMock()
-        cls.mock_vllm_ascend_attention = MagicMock()
-        cls.mock_vllm_ascend.attention.attention = cls.mock_vllm_ascend_attention
+    import os
+    import aura as _aura
+    real_aura_path = _aura.__path__
+    base_path = real_aura_path[0] if real_aura_path else "."
 
-        class MockAscendMetadata:
-            def __init__(self, **kwargs):
-                self.__dict__.update(kwargs)
+    fake_aura = types.ModuleType("aura")
+    fake_aura.__path__ = real_aura_path
+    fake_aura_runner = types.ModuleType("aura.runner")
+    fake_aura_runner.__path__ = [os.path.join(base_path, "runner")]
+    fake_aura_runner_infer_adapter = types.ModuleType("aura.runner.infer_adapter")
+    fake_aura_runner_infer_adapter.__path__ = [os.path.join(base_path, "runner/infer_adapter")]
+    fake_vllm_pkg = types.ModuleType("aura.runner.infer_adapter.vllm")
+    fake_vllm_pkg.__path__ = [os.path.join(base_path, "runner/infer_adapter/vllm")]
+    fake_patch_pkg = types.ModuleType("aura.runner.infer_adapter.vllm.patch")
+    fake_patch_pkg.__path__ = [os.path.join(base_path, "runner/infer_adapter/vllm/patch")]
+    fake_0_9_1_pkg = types.ModuleType("aura.runner.infer_adapter.vllm.patch.patch_0_9_1")
+    fake_0_9_1_pkg.__path__ = [os.path.join(base_path, "runner/infer_adapter/vllm/patch/patch_0_9_1")]
 
-        cls.mock_vllm_ascend_attention.AscendMetadata = MockAscendMetadata
+    fakes = {
+        "torch": fake_torch,
+        "vllm": fake_vllm,
+        "vllm.attention": fake_vllm_attention,
+        "vllm.attention.backends": fake_vllm_attention_backends,
+        "vllm.attention.backends.utils": fake_vllm_attention_backends_utils,
+        "vllm.utils": fake_vllm_utils,
+        "vllm_ascend": fake_vllm_ascend,
+        "vllm_ascend.attention": fake_vllm_ascend_attention,
+        "vllm_ascend.attention.attention": fake_vllm_ascend_attention_attention,
+        "aura": fake_aura,
+        "aura.runner": fake_aura_runner,
+        "aura.runner.infer_adapter": fake_aura_runner_infer_adapter,
+        "aura.runner.infer_adapter.vllm": fake_vllm_pkg,
+        "aura.runner.infer_adapter.vllm.patch": fake_patch_pkg,
+        "aura.runner.infer_adapter.vllm.patch.patch_0_9_1": fake_0_9_1_pkg,
+    }
 
-        cls.modules_patcher = patch.dict('sys.modules', {
-            'numpy': cls.mock_numpy,
-            'torch': cls.mock_torch,
-            'torchair': cls.mock_torchair,
-            'torchair._contrib': cls.mock_torchair._contrib,
-            'torchair._contrib.custom_torch_ops': cls.mock_torchair._contrib.custom_torch_ops,
-            'vllm': cls.mock_vllm,
-            'vllm.attention': cls.mock_vllm.attention,
-            'vllm.attention.backends': cls.mock_vllm.attention.backends,
-            'vllm.attention.backends.utils': cls.mock_vllm_attention_backends_utils,
-            'vllm.utils': cls.mock_vllm_utils,
-            'vllm_ascend': cls.mock_vllm_ascend,
-            'vllm_ascend.attention': cls.mock_vllm_ascend.attention,
-            'vllm_ascend.attention.attention': cls.mock_vllm_ascend_attention,
-        })
-        cls.modules_patcher.start()
+    fake_vllm.__path__ = []
+    fake_vllm_ascend.__path__ = []
 
-    @classmethod
-    def _import_module_under_test(cls):
-        """Import the module under test after mocks are set up"""
-        test_file_dir = os.path.dirname(os.path.abspath(__file__))
-        project_root = os.path.abspath(os.path.join(test_file_dir, '..', '..', '..', '..', '..', '..', '..'))
-        sys.path.append(project_root)
+    yield {
+        "fakes": fakes,
+        "torch": fake_torch,
+        "PAD_SLOT_ID": fake_vllm_attention_backends_utils.PAD_SLOT_ID,
+        "async_tensor_h2d": fake_vllm_utils.async_tensor_h2d,
+        "make_tensor_with_pad": fake_vllm_utils.make_tensor_with_pad,
+        "AscendMetadataBuilder": AscendMetadataBuilder,
+        "AscendMetadata": AscendMetadata,
+        "AttentionMaskBuilder": AttentionMaskBuilder,
+    }
 
-        module_file_path = os.path.join(project_root, 'aura', 'runner', 'infer_adapter', 'vllm', 'patch',
-                                        'patch_0_9_1',
-                                        'patch_attention.py')
 
-        spec = importlib.util.spec_from_file_location('patch_attention', module_file_path)
-        cls.patch_attention = importlib.util.module_from_spec(spec)
-        sys.modules['patch_attention'] = cls.patch_attention
+def import_module(fake_attention_env):
+    module_name = "aura.runner.infer_adapter.vllm.patch.patch_0_9_1.patch_attention"
+    if module_name in sys.modules:
+        del sys.modules[module_name]
+    with patch.dict(sys.modules, fake_attention_env["fakes"]):
+        import aura.runner.infer_adapter.vllm.patch.patch_0_9_1.patch_attention as mod
+    return mod
 
-        spec.loader.exec_module(cls.patch_attention)
 
-    @classmethod
-    def _cleanup_mocks(cls):
-        """Clean up mock patches"""
-        cls.modules_patcher.stop()
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+def make_attn_mask_builder_mock():
+    self = MagicMock()
+    self._seq_len_cached = 100
+    cache = MagicMock()
+    cache.numel.return_value = 2
+    row0 = MagicMock()
+    row0.__getitem__.return_value = 1
+    cache.__getitem__.return_value = row0
+    self.attn_mask_cache = cache
+    self.splitfuse_mask_value = -65504
+    self.update_attn_cache = MagicMock()
+    self.get_attn_mask = MagicMock(return_value=MagicMock())
+    return self
 
-    def setUp(self):
-        """Set up test environment"""
+def make_metadata_builder_mock():
+    self = MagicMock()
+    self.input_builder = MagicMock()
+    self.input_builder.inter_data_list = []
+    self.input_builder.chunked_prefill_enabled = False
+    self._add_seq_group = MagicMock()
+    self.runner = MagicMock()
+    self.runner.device = "npu:0"
+    self.runner.model_config = MagicMock()
+    self.runner.model_config.dtype = "float16"
+    self.runner.pin_memory = True
+    self.prefill_seq_lens = [10]
+    self.curr_seq_lens = [20]
+    self.num_decode_tokens = 2
+    self.num_prefills = 1
+    self.num_prefill_tokens = 8
+    self.slot_mapping = [1, 2, 3]
+    self.block_tables = [[1], [2]]
+    self.context_lens = [0]
+    self.multimodal_placeholder_maps = {}
+    self._get_graph_runner_block_tables = MagicMock(return_value=MagicMock())
+    return self
 
-        class MockRunner:
-            def __init__(self, torch_float32):
-                self.device = "npu:0"
-                self.pin_memory = False
-                self.model_config = MagicMock()
-                self.model_config.dtype = torch_float32
 
-        class MockInputBuilder:
-            def __init__(self):
-                self.inter_data_list = []
-                self.chunked_prefill_enabled = False
+def make_attn_mask_mock(numel_value=0, first_row_second_elem=0):
+    """Create a mock tensor returned by get_attn_mask with configurable numel and [0][1]."""
+    mask = MagicMock()
+    mask.numel.return_value = numel_value
+    row0 = MagicMock()
+    row0.__getitem__.return_value = first_row_second_elem
+    mask.__getitem__.return_value = row0   # mask[0] returns row0
+    return mask
 
-        self.mock_runner = MockRunner(self.mock_torch.float32)
-        self.mock_input_builder = MockInputBuilder()
 
-        self.AttentionMaskBuilder = MagicMock()
-        self.mock_attn_mask_builder = self.AttentionMaskBuilder()
-        self.mock_attn_mask_builder._seq_len_cached = 0
-        self.mock_attn_mask_builder.splitfuse_mask_value = 1.0
+# ===========================================================================
+# Tests
+# ===========================================================================
+class TestGetSplitfuseAttnMask:
+    @pytest.fixture(autouse=True)
+    def setup(self, fake_attention_env):
+        self.env = fake_attention_env
+        self.mod = import_module(fake_attention_env)
 
-        self.mock_attn_mask_cache = MagicMock()
-        self.mock_attn_mask_cache.numel = MagicMock(return_value=100)
-        self.mock_attn_mask_cache.__getitem__ = MagicMock(return_value=MagicMock(__getitem__=MagicMock(return_value=0)))
-        self.mock_attn_mask_builder.attn_mask_cache = self.mock_attn_mask_cache
-        self.mock_attn_mask_builder.get_attn_mask = MagicMock(return_value=self.mock_attn_mask_cache)
-        self.mock_attn_mask_builder.update_attn_cache = MagicMock()
+    def test_cached_valid(self):
+        self_mock = make_attn_mask_builder_mock()
+        self_mock._seq_len_cached = 50
+        seq_lens = [30, 20]        # max_seq_len = 30
+        query_lens = [10, 10]
+        position = MagicMock()
 
-        self.AscendMetadataBuilder = MagicMock()
-        self.mock_metadata_builder = self.AscendMetadataBuilder()
-        self.mock_metadata_builder.runner = self.mock_runner
-        self.mock_metadata_builder.input_builder = self.mock_input_builder
-        self.mock_metadata_builder.num_prefills = 0
-        self.mock_metadata_builder.num_decode_tokens = 0
-        self.mock_metadata_builder.num_prefill_tokens = 0
-        self.mock_metadata_builder.prefill_seq_lens = []
-        self.mock_metadata_builder.curr_seq_lens = []
-        self.mock_metadata_builder.slot_mapping = []
-        self.mock_metadata_builder.block_tables = []
-        self.mock_metadata_builder.context_lens = []
-        self.mock_metadata_builder.attn_mask = None
-        self.mock_metadata_builder.compress_mask = None
-        self.mock_metadata_builder.chunk_mask = None
-        self.mock_metadata_builder.multimodal_placeholder_maps = {}
-
-        self.mock_metadata_builder._attn_mask_builder = self.mock_attn_mask_builder
-
-        self.original_get_splitfuse_attn_mask = getattr(self.AttentionMaskBuilder, 'get_splitfuse_attn_mask', None)
-        self.original_build = getattr(self.AscendMetadataBuilder, 'build', None)
-
-    def tearDown(self):
-        """Clean up test environment"""
-        if self.original_get_splitfuse_attn_mask is not None:
-            self.AttentionMaskBuilder.get_splitfuse_attn_mask = self.original_get_splitfuse_attn_mask
-        if self.original_build is not None:
-            self.AscendMetadataBuilder.build = self.original_build
-
-    def test_get_splitfuse_attn_mask_cache_hit(self):
-        """Test get_splitfuse_attn_mask method when cache hits"""
-        self.mock_attn_mask_builder._seq_len_cached = 10
-        max_seq_len = 5
-
-        result = self.patch_attention.get_splitfuse_attn_mask_patch(
-            self.mock_attn_mask_builder, [5], [3], self.mock_torch.tensor([0, 1, 2]), self.mock_torch.float32, "npu:0"
+        self.env["torch"].index_select.return_value = MagicMock()
+        result = self.mod.get_splitfuse_attn_mask_patch(
+            self_mock, seq_lens, query_lens, position, "float16", "npu:0"
         )
 
-        self.mock_attn_mask_builder.update_attn_cache.assert_called_once_with(5, self.mock_torch.float32, "npu:0")
+        # max_seq_len=30 is passed to update_attn_cache
+        self_mock.update_attn_cache.assert_called_once_with(30, "float16", "npu:0")
+        self_mock.get_attn_mask.assert_called_once_with(30, "float16", "npu:0")
+        self.env["torch"].index_select.assert_called()
+        assert result is not None
 
-        self.assertIsNotNone(result)
+    def test_cached_invalid(self):
+        self_mock = make_attn_mask_builder_mock()
+        self_mock._seq_len_cached = 60
+        self_mock.attn_mask_cache.numel.return_value = 0    # trigger else branch
+        seq_lens = [40]           # max_seq_len = 40
+        query_lens = [30]
+        position = MagicMock()
 
-    def test_get_splitfuse_attn_mask_cache_miss(self):
-        """Test get_splitfuse_attn_mask method when cache misses"""
-        self.mock_attn_mask_builder._seq_len_cached = 5
-        max_seq_len = 10
-
-        result = self.patch_attention.get_splitfuse_attn_mask_patch(
-            self.mock_attn_mask_builder, [5, 7], [3, 4], self.mock_torch.tensor([0, 1, 2, 3, 4, 5, 6]),
-            self.mock_torch.float32, "npu:0"
+        result = self.mod.get_splitfuse_attn_mask_patch(
+            self_mock, seq_lens, query_lens, position, "float16", "npu:0"
         )
 
-        self.mock_attn_mask_builder.update_attn_cache.assert_not_called()
+        self_mock.update_attn_cache.assert_called_once_with(40, "float16", "npu:0")
+        self_mock.get_attn_mask.assert_not_called()
+        self.env["torch"].index_select.assert_called_once_with(
+            self_mock.attn_mask_cache, dim=0, index=position
+        )
+        assert result is not None
 
-        self.assertIsNotNone(result)
+    def test_large_seq_normal(self):
+        self_mock = make_attn_mask_builder_mock()
+        self_mock._seq_len_cached = 10
+        seq_lens = [50, 30]
+        query_lens = [10, 5]
+        position = None
 
-    def test_build_with_decode_only(self):
-        """Test build method with decode-only scenario"""
-        self.mock_metadata_builder.num_prefills = 0
-        self.mock_metadata_builder.num_decode_tokens = 5
-        self.mock_metadata_builder.slot_mapping = [1, 2, 3, 4, 5]
-        self.mock_metadata_builder.block_tables = [[0, 1], [2, 3], [4, 5], [6, 7], [8, 9]]
-        self.mock_metadata_builder.context_lens = [10, 15, 20, 25, 30]
-
-        result = self.patch_attention.build_patch(
-            self.mock_metadata_builder, [10, 15, 20, 25, 30], [1, 1, 1, 1, 1], -1
+        result = self.mod.get_splitfuse_attn_mask_patch(
+            self_mock, seq_lens, query_lens, position, "float16", "npu:0"
         )
 
-        self.assertIsNotNone(result)
-        self.assertEqual(result.num_prefills, 0)
-        self.assertEqual(result.num_decode_tokens, 5)
+        self.env["torch"].zeros.assert_called()
+        assert result is not None
 
-    def test_build_with_prefill(self):
-        """Test build method with prefill scenario"""
-        self.mock_metadata_builder.num_prefills = 2
-        self.mock_metadata_builder.num_prefill_tokens = 10
-        self.mock_metadata_builder.slot_mapping = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-        self.mock_metadata_builder.block_tables = [[0, 1], [2, 3]]
-        self.mock_metadata_builder.context_lens = [0, 0]
-        self.mock_metadata_builder.prefill_seq_lens = [5, 5]
-        self.mock_metadata_builder.chunked_prefill_enabled = False
+    def test_large_seq_negative_context_raises(self):
+        self_mock = make_attn_mask_builder_mock()
+        self_mock._seq_len_cached = 5
+        seq_lens = [30, 20]
+        query_lens = [35, 5]
+        position = None
 
-        result = self.patch_attention.build_patch(
-            self.mock_metadata_builder, [5, 5], [5, 5], -1
+        with pytest.raises(ValueError, match="Context length .* cannot be negative"):
+            self.mod.get_splitfuse_attn_mask_patch(
+                self_mock, seq_lens, query_lens, position, "float16", "npu:0"
+            )
+
+
+class TestBuildPatch:
+    @pytest.fixture(autouse=True)
+    def setup(self, fake_attention_env):
+        self.env = fake_attention_env
+        self.mod = import_module(fake_attention_env)
+        # Create a default mock for get_attn_mask that avoids MagicMock comparisons
+        self.env["AscendMetadataBuilder"]._attn_mask_builder.get_attn_mask.return_value = make_attn_mask_mock(0, 0)
+
+    def test_prefill_with_block_tables_and_chunk(self):
+        attn_mask = make_attn_mask_mock(numel_value=2, first_row_second_elem=1)
+        self.env["AscendMetadataBuilder"]._attn_mask_builder.get_attn_mask.return_value = attn_mask
+
+        self_mock = make_metadata_builder_mock()
+        self_mock.num_prefills = 1
+        self_mock.num_decode_tokens = 2
+        self_mock.input_builder.chunked_prefill_enabled = True
+        self_mock.block_tables = [[1]]
+        self_mock.context_lens = [0, 0]
+        seq_lens = [30, 20]
+        query_lens = [10, 5]
+
+        result = self.mod.build_patch(self_mock, seq_lens, query_lens, -1)
+        assert isinstance(result, self.env["AscendMetadata"])
+        self.env["make_tensor_with_pad"].assert_called()
+        self.env["torch"].cat.assert_called()
+
+    def test_prefill_no_block_tables(self):
+        self_mock = make_metadata_builder_mock()
+        self_mock.num_prefills = 1
+        self_mock.block_tables = []
+        seq_lens = [30]
+        query_lens = [20]
+
+        result = self.mod.build_patch(self_mock, seq_lens, query_lens, -1)
+        self.env["AscendMetadataBuilder"]._attn_mask_builder.get_attn_mask.assert_called()
+        assert isinstance(result, self.env["AscendMetadata"])
+
+    def test_prefill_no_decode_chunked_disabled(self):
+        self_mock = make_metadata_builder_mock()
+        self_mock.num_prefills = 1
+        self_mock.num_decode_tokens = 0
+        self_mock.input_builder.chunked_prefill_enabled = False
+        self_mock.block_tables = [[1]]
+        seq_lens = [30]
+        query_lens = [20]
+
+        result = self.mod.build_patch(self_mock, seq_lens, query_lens, -1)
+        self.env["AscendMetadataBuilder"]._attn_mask_builder.get_attn_mask.assert_called_with(
+            128, "float16", "npu:0"
         )
+        assert isinstance(result, self.env["AscendMetadata"])
 
-        self.assertIsNotNone(result)
-        self.assertEqual(result.num_prefills, 2)
-        self.assertEqual(result.num_prefill_tokens, 10)
+    def test_decode_only_npu_graph(self):
+        self_mock = make_metadata_builder_mock()
+        self_mock.num_prefills = 0
+        self_mock.num_decode_tokens = 3
+        seq_lens = [20]
+        query_lens = [1]
+        graph_pad_size = 10
+
+        result = self.mod.build_patch(self_mock, seq_lens, query_lens, graph_pad_size)
+        assert len(self_mock.slot_mapping) == 3 + graph_pad_size
+        self_mock._get_graph_runner_block_tables.assert_called()
+        assert isinstance(result, self.env["AscendMetadata"])
+
+    def test_num_prefills_zero_no_npu_graph(self):
+        self_mock = make_metadata_builder_mock()
+        self_mock.num_prefills = 0
+        seq_lens = [20]
+        query_lens = [1]
+
+        result = self.mod.build_patch(self_mock, seq_lens, query_lens, -1)
+        self.env["make_tensor_with_pad"].assert_called()
+        assert self_mock.attn_mask is None
+        assert self_mock.compress_mask is None
+        assert self_mock.chunk_mask is None
+        assert isinstance(result, self.env["AscendMetadata"])
+
+    def test_max_query_len_invalid(self):
+        self_mock = make_metadata_builder_mock()
+        seq_lens = [20]
+        query_lens = [0]
+        with pytest.raises(ValueError, match="Maximum query length must be positive"):
+            self.mod.build_patch(self_mock, seq_lens, query_lens, -1)
+
+    def test_device_none_raises(self):
+        self_mock = make_metadata_builder_mock()
+        self_mock.runner.device = None
+        seq_lens = [30]
+        query_lens = [10]
+        with pytest.raises(RuntimeError, match="Device is not initialized"):
+            self.mod.build_patch(self_mock, seq_lens, query_lens, -1)
 
 
-if __name__ == '__main__':
-    unittest.main()
+class TestAssignments:
+    @pytest.fixture(autouse=True)
+    def setup(self, fake_attention_env):
+        self.env = fake_attention_env
+        self.mod = import_module(fake_attention_env)
+
+    def test_assignments_done(self):
+        AttentionMaskBuilder = self.env["AttentionMaskBuilder"]
+        AscendMetadataBuilder = self.env["AscendMetadataBuilder"]
+        assert AttentionMaskBuilder.get_splitfuse_attn_mask is self.mod.get_splitfuse_attn_mask_patch
+        assert AscendMetadataBuilder.build is self.mod.build_patch
