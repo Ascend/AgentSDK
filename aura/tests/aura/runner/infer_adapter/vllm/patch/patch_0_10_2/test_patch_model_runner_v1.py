@@ -778,3 +778,835 @@ class TestPrepareInputsPatch:
         self_mock.input_batch.num_reqs = 0
         with pytest.raises(ValueError):
             self.mod._prepare_inputs_patch(self_mock, scheduler_output)
+
+
+class TestDummyRun:
+    @pytest.fixture(autouse=True)
+    def setup(self, fake_model_runner_env):
+        self.env = fake_model_runner_env
+        self.mod = import_module(self.env)
+
+    def test_dummy_run_invalid_aclgraph_mode(self):
+        self_mock = make_self_mock(self.env)
+        with pytest.raises(RuntimeError, match="aclgraph_runtime_mode must be"):
+            self.mod.dummy_run(self_mock, 10, aclgraph_runtime_mode=999)
+
+    def test_dummy_run_force_attention_raises(self):
+        self_mock = make_self_mock(self.env)
+        with pytest.raises(RuntimeError, match="Capturing attention"):
+            self.mod.dummy_run(self_mock, 10, force_attention=True)
+
+    def test_dummy_run_normal(self):
+        self_mock = make_self_mock(self.env)
+
+        self_mock._sync_metadata_across_dp = MagicMock(return_value=(1, DummyTensor(), False, False))
+        self_mock._select_moe_comm_method.return_value = None
+        self_mock._build_attention_metadata.return_value = MagicMock()
+        self_mock.maybe_dummy_run_with_lora.return_value = DummyContext()
+        self_mock.input_ids = DummyTensor([1])
+        self_mock.positions = DummyTensor([1])
+        self_mock._generate_dummy_run_hidden_states = MagicMock(return_value=DummyTensor([1]))
+
+        result = self.mod.dummy_run(self_mock, 1)
+        assert result is not None
+
+    def test_dummy_run_with_prefill_and_uniform_decode(self):
+        self_mock = make_self_mock(self.env)
+        self_mock.uniform_decode_query_len = 2
+        self_mock._sync_metadata_across_dp = MagicMock(return_value=(4, DummyTensor(), True, False))
+        self_mock._select_moe_comm_method.return_value = None
+        self_mock._build_attention_metadata.return_value = MagicMock()
+        self_mock.maybe_dummy_run_with_lora.return_value = DummyContext()
+        self_mock.input_ids = DummyTensor([1, 2, 3, 4])
+        self_mock.positions = DummyTensor([1, 2, 3, 4])
+        self_mock._generate_dummy_run_hidden_states = MagicMock(return_value=DummyTensor([4]))
+
+        result = self.mod.dummy_run(self_mock, 4, with_prefill=True, uniform_decode=True)
+        assert result is not None
+
+    def test_dummy_run_num_tokens_exceeds_max(self):
+        self_mock = make_self_mock(self.env)
+        self_mock.scheduler_config.max_num_batched_tokens = 10
+        # mock _sync_metadata_across_dp to avoid unpack error
+        self_mock._sync_metadata_across_dp.return_value = (20, DummyTensor(), False, False)
+        with pytest.raises(RuntimeError, match="cannot exceed max_num_batched_tokens"):
+            self.mod.dummy_run(self_mock, 20)
+
+    def test_dummy_run_aclgraph_mode_mismatch(self):
+        self_mock = make_self_mock(self.env)
+        self_mock.aclgraph_dispatcher.dispatch.return_value = (self.env["CUDAGraphMode"].PIECEWISE, MagicMock())
+        # provide valid return for _sync_metadata_across_dp
+        self_mock._sync_metadata_across_dp.return_value = (5, DummyTensor(), False, False)
+        self_mock._select_moe_comm_method.return_value = None
+        with pytest.raises(RuntimeError, match="Aclgraph runtime mode mismatch"):
+            self.mod.dummy_run(self_mock, 5, aclgraph_runtime_mode=self.env["CUDAGraphMode"].FULL)
+
+
+class TestUpdateStatesPatch:
+    @pytest.fixture(autouse=True)
+    def setup(self, fake_model_runner_env):
+        self.env = fake_model_runner_env
+        self.mod = import_module(self.env)
+
+    def test_update_states_remove_finished(self):
+        self_mock = make_self_mock(self.env)
+        self_mock.input_batch.req_id_to_index = {"r1": 0}
+        self_mock.requests = {"r1": MagicMock()}
+        self_mock.input_batch.remove_request = MagicMock()
+        self_mock.input_batch.condense = MagicMock()
+        self_mock.input_batch.refresh_metadata = MagicMock()
+
+        scheduler_output = MagicMock()
+        scheduler_output.finished_req_ids = ["r1"]
+        scheduler_output.num_scheduled_tokens = {}
+        scheduler_output.scheduled_new_reqs = []
+        scheduler_output.scheduled_cached_reqs = MagicMock()
+        scheduler_output.scheduled_cached_reqs.req_ids = []
+
+        self.mod._update_states_patch(self_mock, scheduler_output)
+        self_mock.input_batch.remove_request.assert_called()
+
+
+class TestGenerateHiddenStatesPatch:
+    @pytest.fixture(autouse=True)
+    def setup(self, fake_model_runner_env):
+        self.env = fake_model_runner_env
+        self.mod = import_module(self.env, env_prof="1")
+
+    def test_no_model_raises(self):
+        self_mock = make_self_mock(self.env)
+        self_mock.model = None
+        with pytest.raises(RuntimeError, match="Model must be initialized"):
+            self.mod._generate_process_reqs_hidden_states_patch(
+                self_mock, None, False, None, None, None, None, None
+            )
+
+    def test_profiling_mode_called(self):
+        self_mock = make_self_mock(self.env)
+        self_mock.stat_step = 0
+        self.mod._generate_process_reqs_hidden_states_patch(
+            self_mock, None, False, None, None, None, None, None
+        )
+        self.env["fakes"]["aura.runner.infer_adapter.vllm.patch.comm.npu_model_profiling"].run_model_with_profiling.assert_called_once()
+
+    def test_regular_forward(self):
+        self_mock = make_self_mock(self.env)
+        self_mock.stat_step = 1
+        self.mod._generate_process_reqs_hidden_states_patch(
+            self_mock, None, False, None, None, None, None, None
+        )
+        self_mock.model.assert_called_once()
+
+
+class TestExecuteModelPatchBroadcastPP:
+    @pytest.fixture(autouse=True)
+    def setup(self, fake_model_runner_env):
+        self.env = fake_model_runner_env
+        self.mod = import_module(self.env, env_getenv="true")
+
+    def test_mid_pipeline_not_last_rank_no_broadcast(self):
+        """Mid-pipeline (not last rank) with broadcast_pp_output=False returns hidden_states."""
+        self_mock = make_self_mock(self.env)
+        self_mock.parallel_config.distributed_executor_backend = "torchrun"  # not external_launcher
+        self.env["fakes"]["vllm.distributed.parallel_state"].get_pp_group.return_value.is_last_rank = False
+        self.env["fakes"]["vllm.distributed.parallel_state"].get_pp_group.return_value.ranks = [0,1]
+        hidden_states = MagicMock()
+        self_mock._prepare_inputs.return_value = (MagicMock(), MagicMock(), MagicMock(), 1, MagicMock(), 1,
+                                                  MagicMock(), None, MagicMock(), None, MagicMock())
+        self_mock._generate_process_reqs_hidden_states.return_value = hidden_states
+        self_mock.get_finished_kv_transfer.return_value = (None, None)
+        scheduler_output = MagicMock()
+        scheduler_output.total_num_scheduled_tokens = 1
+        scheduler_output.num_scheduled_tokens = {"req1": 1}
+        result = self.mod.execute_model_patch(self_mock, scheduler_output)
+        assert result is hidden_states
+        assert result.kv_connector_output is None
+
+    def test_mid_pipeline_not_last_rank_with_broadcast_sends_tensor_dict(self):
+        self_mock = make_self_mock(self.env)
+        self_mock.input_batch.pooling_params = None
+        self_mock.parallel_config.distributed_executor_backend = "external_launcher"
+        self.env["fakes"]["vllm.distributed.parallel_state"].get_pp_group.return_value.is_last_rank = False
+        self.env["fakes"]["vllm.distributed.parallel_state"].get_pp_group.return_value.ranks = [0,1]
+        hidden_states = MagicMock()
+        hidden_states.tensors = {"t1": MagicMock()}
+        IntermediateTensors = self.env["fakes"]["vllm.sequence"].IntermediateTensors
+        hidden_states.__class__ = IntermediateTensors
+        self_mock._prepare_inputs.return_value = (
+            MagicMock(), MagicMock(), MagicMock(), 1, MagicMock(), 1,
+            MagicMock(), None, MagicMock(), None, MagicMock()
+        )
+        self_mock._generate_process_reqs_hidden_states.return_value = hidden_states
+        self_mock.get_finished_kv_transfer.return_value = (None, None)
+        scheduler_output = MagicMock()
+        scheduler_output.total_num_scheduled_tokens = 1
+        scheduler_output.num_scheduled_tokens = {"req1": 1}
+        self.mod.execute_model_patch(self_mock, scheduler_output)
+        self.env["fakes"]["vllm.distributed.parallel_state"].get_pp_group().send_tensor_dict.assert_called_once()
+
+    def test_mid_pipeline_hidden_states_not_intermediate_tensors_raises(self):
+        self_mock = make_self_mock(self.env)
+        self_mock.input_batch.pooling_params = None
+        self_mock.parallel_config.distributed_executor_backend = "external_launcher"
+        pp_group = self.env["fakes"]["vllm.distributed.parallel_state"].get_pp_group.return_value
+        pp_group.is_last_rank = False
+        pp_group.ranks = [0, 1]
+        hidden_states = MagicMock()
+        self_mock._prepare_inputs.return_value = (
+            MagicMock(), MagicMock(), MagicMock(), 1, MagicMock(), 1,
+            MagicMock(), None, MagicMock(), None, MagicMock()
+        )
+        self_mock._generate_process_reqs_hidden_states.return_value = hidden_states
+        self_mock.get_finished_kv_transfer.return_value = (None, None)
+        scheduler_output = MagicMock()
+        scheduler_output.total_num_scheduled_tokens = 1
+        scheduler_output.num_scheduled_tokens = {"req1": 1}
+        with pytest.raises(RuntimeError, match="hidden_states must be IntermediateTensors"):
+            self.mod.execute_model_patch(self_mock, scheduler_output)
+
+    def test_last_rank_pooling_params_v010(self):
+        self_mock = make_self_mock(self.env)
+        self_mock.input_batch.pooling_params = {"task": "embedding"}
+        self.env["fakes"]["vllm_ascend.utils"].vllm_version_is.side_effect = lambda x: x == "0.10.1.1"
+        self.env["fakes"]["vllm.distributed.parallel_state"].get_pp_group.return_value.is_last_rank = True
+        self_mock.input_batch.pooling_params = {"task": "embedding"}
+        hidden_states = MagicMock()
+        self_mock._prepare_inputs.return_value = (
+            MagicMock(), MagicMock(), MagicMock(), 1, MagicMock(), 1,
+            MagicMock(), None, MagicMock(), None, MagicMock()
+        )
+        self_mock._generate_process_reqs_hidden_states.return_value = hidden_states
+        self_mock._pool_v010.return_value = "pooled_v010"
+        scheduler_output = MagicMock()
+        scheduler_output.total_num_scheduled_tokens = 1
+        scheduler_output.num_scheduled_tokens = {"req1": 1}
+        self_mock.get_finished_kv_transfer.return_value = (None, None)
+        result = self.mod.execute_model_patch(self_mock, scheduler_output)
+        assert result == "pooled_v010"
+
+    def test_speculative_config_calls_propose_draft_token_ids(self):
+        self_mock = make_self_mock(self.env)
+        self_mock.input_batch.pooling_params = None
+        self_mock.speculative_config = MagicMock()
+        self.env["fakes"]["vllm.distributed.parallel_state"].get_pp_group.return_value.is_last_rank = True
+        self_mock.input_batch.req_ids = ["r1"]
+        self_mock.input_batch.req_id_to_index = {"r1": 0}
+        self_mock.input_batch.num_reqs = 1
+        req = MagicMock()
+        req.num_computed_tokens = 0
+        req.num_tokens = 10
+        req.output_token_ids = []
+        self_mock.requests = {"r1": req}
+        self_mock._prepare_inputs.return_value = (
+            MagicMock(), MagicMock(), MagicMock(), 1, MagicMock(), 1,
+            MagicMock(), None, MagicMock(), None, MagicMock()
+        )
+        self_mock._generate_process_reqs_hidden_states.return_value = MagicMock()
+        self_mock.model.compute_logits.return_value = MagicMock()
+        sampler_output = MagicMock()
+        sampler_output.sampled_token_ids = DummyTensor([[1]])
+        sampler_output.logprobs_tensors = None
+        self_mock.sampler.return_value = sampler_output
+        self_mock._get_prompt_logprobs_dict.return_value = {}
+        self_mock.propose_draft_token_ids.return_value = [2,3]
+        scheduler_output = MagicMock()
+        scheduler_output.total_num_scheduled_tokens = 1
+        scheduler_output.num_scheduled_tokens = {"r1": 1}
+        scheduler_output.grammar_bitmask = None
+        scheduler_output.scheduled_spec_decode_tokens = {}
+        self_mock.get_finished_kv_transfer.return_value = (None, None)
+        self.mod.execute_model_patch(self_mock, scheduler_output)
+        self_mock.propose_draft_token_ids.assert_called_once()
+
+    def test_has_kv_transfer_group_calls_clear_connector_metadata(self):
+        self_mock = make_self_mock(self.env)
+        self_mock.input_batch.pooling_params = None
+        self.env["fakes"]["vllm.distributed.kv_transfer"].has_kv_transfer_group.return_value = True
+        self.env["fakes"]["vllm.distributed.parallel_state"].get_pp_group.return_value.is_last_rank = True
+        self_mock.input_batch.req_ids = ["r1"]
+        self_mock.input_batch.req_id_to_index = {"r1": 0}
+        self_mock.input_batch.num_reqs = 1
+        req = MagicMock()
+        req.num_computed_tokens = 0
+        req.num_tokens = 10
+        req.output_token_ids = []
+        self_mock.requests = {"r1": req}
+        self_mock._prepare_inputs.return_value = (
+            MagicMock(), MagicMock(), MagicMock(), 1, MagicMock(), 1,
+            MagicMock(), None, MagicMock(), None, MagicMock()
+        )
+        self_mock._generate_process_reqs_hidden_states.return_value = MagicMock()
+        self_mock.model.compute_logits.return_value = MagicMock()
+        sampler_output = MagicMock()
+        sampler_output.sampled_token_ids = DummyTensor([[1]])
+        sampler_output.logprobs_tensors = None
+        self_mock.sampler.return_value = sampler_output
+        self_mock._get_prompt_logprobs_dict.return_value = {}
+        scheduler_output = MagicMock()
+        scheduler_output.total_num_scheduled_tokens = 1
+        scheduler_output.num_scheduled_tokens = {"r1": 1}
+        scheduler_output.grammar_bitmask = None
+        scheduler_output.scheduled_spec_decode_tokens = {}
+        self_mock.get_finished_kv_transfer.return_value = (None, None)
+        self.mod.execute_model_patch(self_mock, scheduler_output)
+        self.env["fakes"]["vllm.distributed.kv_transfer"].get_kv_transfer_group().clear_connector_metadata.assert_called_once()
+
+
+    def test_end_idx_exceeds_max_model_len_raises(self):
+        self_mock = make_self_mock(self.env)
+        self_mock.input_batch.pooling_params = None
+        self.env["fakes"]["vllm.distributed.parallel_state"].get_pp_group.return_value.is_last_rank = True
+        self_mock.input_batch.req_ids = ["r1"]
+        self_mock.input_batch.req_id_to_index = {"r1": 0}
+        self_mock.input_batch.num_reqs = 1
+        self_mock.input_batch.num_tokens_no_spec = [50]
+        self_mock.input_batch.num_tokens = [50]
+        self_mock.input_batch.token_ids_cpu = MagicMock()
+        req = MagicMock()
+        req.num_computed_tokens = 5
+        req.num_tokens = 5
+        req.output_token_ids = []
+        self_mock.requests = {"r1": req}
+        self_mock._prepare_inputs.return_value = (
+            MagicMock(), MagicMock(), MagicMock(), 1, MagicMock(), 1,
+            MagicMock(), None, MagicMock(), None, MagicMock()
+        )
+        self_mock._generate_process_reqs_hidden_states.return_value = MagicMock()
+        self_mock.model.compute_logits.return_value = MagicMock()
+        sampler_output = MagicMock()
+        sampler_output.sampled_token_ids = DummyTensor([[1]])   # len=1
+        sampler_output.logprobs_tensors = None
+        self_mock.sampler.return_value = sampler_output
+        self_mock._get_prompt_logprobs_dict.return_value = {}
+        self_mock.model_config.max_model_len = 10               # 50 + 1 > 10
+        scheduler_output = MagicMock()
+        scheduler_output.total_num_scheduled_tokens = 1
+        scheduler_output.num_scheduled_tokens = {"r1": 1}
+        scheduler_output.grammar_bitmask = None
+        scheduler_output.scheduled_spec_decode_tokens = {}
+        self_mock.get_finished_kv_transfer.return_value = (None, None)
+        with pytest.raises(RuntimeError, match="Sampled token IDs exceed"):
+            self.mod.execute_model_patch(self_mock, scheduler_output)
+
+
+class TestDummyRunMoreBranches:
+    @pytest.fixture(autouse=True)
+    def setup(self, fake_model_runner_env):
+        self.env = fake_model_runner_env
+        self.mod = import_module(self.env)
+
+    def make_dummy_mock(self, num_tokens=5):
+        """Helper to create a self mock with minimal dummy_run setup."""
+        self_mock = make_self_mock(self.env)
+        self_mock._sync_metadata_across_dp.return_value = (num_tokens, DummyTensor(), False, False)
+        self_mock._select_moe_comm_method.return_value = None
+        self_mock._build_attention_metadata.return_value = MagicMock()
+        self_mock.maybe_dummy_run_with_lora.return_value = DummyContext()
+        self_mock.input_ids = DummyTensor(list(range(num_tokens)))
+        self_mock.positions = DummyTensor(list(range(num_tokens)))
+        self_mock._generate_dummy_run_hidden_states.return_value = DummyTensor(list(range(num_tokens)))
+        return self_mock
+
+    def test_with_prefill_decode_num_reqs(self):
+        """with_prefill=True gives num_reqs = num_tokens (no decode token per req)."""
+        self_mock = self.make_dummy_mock(3)
+        self_mock._sync_metadata_across_dp.return_value = (3, DummyTensor(), True, False)
+        result = self.mod.dummy_run(self_mock, 3, with_prefill=True)
+        assert result is not None
+
+    def test_is_multimodal_model(self):
+        """is_multimodal_model=True uses inputs_embeds."""
+        self_mock = self.make_dummy_mock(3)
+        self_mock.is_multimodal_model = True
+        self_mock.inputs_embeds = DummyTensor([10,11,12])
+        result = self.mod.dummy_run(self_mock, 3)
+        assert result is not None
+
+    def test_uses_mrope(self):
+        """uses_mrope=True uses mrope_positions."""
+        self_mock = self.make_dummy_mock(3)
+        self_mock.uses_mrope = True
+        self_mock.mrope_positions = DummyTensor([[1,2,3]])
+        result = self.mod.dummy_run(self_mock, 3)
+        assert result is not None
+
+    def test_need_dummy_logits_true(self):
+        """need_dummy_logits=True calls compute_logits during dummy run."""
+        self_mock = self.make_dummy_mock(3)
+        self_mock.in_profile_run = False
+        self.env["fakes"]["vllm_ascend.utils"].lmhead_tp_enable.return_value = True
+        result = self.mod.dummy_run(self_mock, 3)
+        assert result is not None
+        # compute_logits should have been called; can assert model.compute_logits
+        self_mock.model.compute_logits.assert_called()
+
+    def test_speculative_config_deepseek_mtp(self):
+        self_mock = self.make_dummy_mock(3)
+        self_mock.speculative_config = MagicMock()
+        self_mock.speculative_config.method = "deepseek_mtp"
+        drafter = MagicMock(spec=self.env["fakes"]["vllm_ascend.worker.mtp_proposer_v1"].MtpProposer)
+        drafter.dummy_run = MagicMock()
+        self_mock.drafter = drafter
+        self.mod.dummy_run(self_mock, 3)
+        drafter.dummy_run.assert_called_once()
+
+    def test_speculative_config_deepseek_mtp_wrong_drafter_raises(self):
+        self_mock = self.make_dummy_mock(3)
+        self_mock.speculative_config = MagicMock()
+        self_mock.speculative_config.method = "deepseek_mtp"
+        self_mock.drafter = MagicMock()
+        with pytest.raises(RuntimeError, match="drafter must be MtpProposer"):
+            self.mod.dummy_run(self_mock, 3)
+
+
+class TestGenerateDummyRunHiddenStatesPatch:
+    @pytest.fixture(autouse=True)
+    def setup(self, fake_model_runner_env):
+        self.env = fake_model_runner_env
+        self.mod = import_module(self.env, env_prof="1")  # profiling enabled
+
+    def test_profiling_mode_called(self):
+        self_mock = make_self_mock(self.env)
+        self_mock.stat_step = 0
+        self_mock.model = MagicMock()
+        self_mock.use_aux_hidden_state_outputs = False
+        self_mock.use_spec_decode = False
+        result = self.mod._generate_dummy_run_hidden_states_patch(
+            self_mock, False, False, None, None, None, 5, None, None
+        )
+        self.env["fakes"]["aura.runner.infer_adapter.vllm.patch.comm.npu_model_profiling"].run_model_with_profiling.assert_called_once()
+
+    def test_regular_forward(self):
+        self_mock = make_self_mock(self.env)
+        self_mock.stat_step = 1
+        self_mock.model = MagicMock()
+        self_mock.use_aux_hidden_state_outputs = False
+        self_mock.use_spec_decode = False
+        result = self.mod._generate_dummy_run_hidden_states_patch(
+            self_mock, False, False, None, None, None, 5, None, None
+        )
+        self_mock.model.assert_called_once()
+
+    def test_aux_hidden_state_outputs(self):
+        self_mock = make_self_mock(self.env)
+        self_mock.stat_step = 1
+        self_mock.model.return_value = (MagicMock(), MagicMock())
+        self_mock.use_aux_hidden_state_outputs = True
+        self_mock.use_spec_decode = False
+        result = self.mod._generate_dummy_run_hidden_states_patch(
+            self_mock, False, False, None, None, None, 5, None, None
+        )
+
+    def test_use_spec_decode_eagle_proposer(self):
+        self_mock = make_self_mock(self.env)
+        self_mock.stat_step = 1
+        self_mock.model.return_value = MagicMock()
+        self_mock.use_aux_hidden_state_outputs = False
+        self_mock.use_spec_decode = True
+        drafter = MagicMock(spec=self.env["fakes"]["vllm_ascend.worker.eagle_proposer_v1"].EagleProposer)
+        drafter.dummy_run = MagicMock()
+        self_mock.drafter = drafter
+        self.mod._generate_dummy_run_hidden_states_patch(
+            self_mock, False, False, None, None, None, 5, None, None
+        )
+        drafter.dummy_run.assert_called_once_with(5)
+
+
+class TestDummyRunWithStat:
+    @pytest.fixture(autouse=True)
+    def setup(self, fake_model_runner_env):
+        self.env = fake_model_runner_env
+        self.mod = import_module(self.env, env_getenv="true")  # enable stat patch
+
+    def test_dummy_run_with_stat_calls(self):
+        self_mock = make_self_mock(self.env)
+        self_mock._sync_metadata_across_dp.return_value = (3, DummyTensor(), False, False)
+        self_mock._select_moe_comm_method.return_value = None
+        self_mock._build_attention_metadata.return_value = MagicMock()
+        self_mock.maybe_dummy_run_with_lora.return_value = DummyContext()
+        self_mock.input_ids = DummyTensor([1,2,3])
+        self_mock.positions = DummyTensor([1,2,3])
+        self_mock._generate_dummy_run_hidden_states.return_value = DummyTensor([1,2,3])
+        self_mock.stat_step = 0
+        result = self.mod.dummy_run_with_stat(self_mock, 3)
+        assert result is not None
+        # check that some stat calls were made
+        self.env["vllm_output_statics"].set_stat.assert_called()
+        self.env["vllm_output_statics"].add_stat.assert_called()
+
+
+class TestDummyRunMorePaths:
+    @pytest.fixture(autouse=True)
+    def setup(self, fake_model_runner_env):
+        self.env = fake_model_runner_env
+        self.mod = import_module(self.env)
+
+    def make_dummy_mock(self, num_tokens=5):
+        self_mock = make_self_mock(self.env)
+        self_mock._sync_metadata_across_dp.return_value = (num_tokens, DummyTensor(), False, False)
+        self_mock._select_moe_comm_method.return_value = None
+        self_mock._build_attention_metadata.return_value = MagicMock()
+        self_mock.maybe_dummy_run_with_lora.return_value = DummyContext()
+        self_mock.input_ids = DummyTensor(list(range(num_tokens)))
+        self_mock.positions = DummyTensor(list(range(num_tokens)))
+        self_mock._generate_dummy_run_hidden_states.return_value = DummyTensor(list(range(num_tokens)))
+        return self_mock
+
+    def test_is_kv_producer(self):
+        """is_kv_producer=True forces with_prefill=True."""
+        self_mock = self.make_dummy_mock(3)
+        self_mock.is_kv_producer = True
+        # sync_metadata_across_dp should be called with with_prefill True (but our mock returns anyway)
+        result = self.mod.dummy_run(self_mock, 3, with_prefill=False)
+        assert result is not None
+
+
+class TestDummyRunWithStatMore:
+    @pytest.fixture(autouse=True)
+    def setup(self, fake_model_runner_env):
+        self.env = fake_model_runner_env
+        self.mod = import_module(self.env, env_getenv="true")  # stat patch enabled
+
+    def make_stat_mock(self, num_tokens=3):
+        self_mock = make_self_mock(self.env)
+        self_mock._sync_metadata_across_dp.return_value = (num_tokens, DummyTensor(), False, False)
+        self_mock._select_moe_comm_method.return_value = None
+        self_mock._build_attention_metadata.return_value = MagicMock()
+        self_mock.maybe_dummy_run_with_lora.return_value = DummyContext()
+        self_mock.input_ids = DummyTensor(list(range(num_tokens)))
+        self_mock.positions = DummyTensor(list(range(num_tokens)))
+        self_mock._generate_dummy_run_hidden_states.return_value = DummyTensor(list(range(num_tokens)))
+        return self_mock
+
+    def test_uniform_decode(self):
+        """uniform_decode=True path in dummy_run_with_stat."""
+        self_mock = self.make_stat_mock(6)
+        self_mock.uniform_decode_query_len = 2
+        self_mock._sync_metadata_across_dp.return_value = (6, DummyTensor(), False, False)
+        result = self.mod.dummy_run_with_stat(self_mock, 6, uniform_decode=True)
+        assert result is not None
+
+    def test_with_prefill(self):
+        """with_prefill=True path in dummy_run_with_stat."""
+        self_mock = self.make_stat_mock(4)
+        self_mock._sync_metadata_across_dp.return_value = (4, DummyTensor(), True, False)
+        result = self.mod.dummy_run_with_stat(self_mock, 4, with_prefill=True)
+        assert result is not None
+
+    def test_multimodal(self):
+        """is_multimodal_model=True uses inputs_embeds."""
+        self_mock = self.make_stat_mock(3)
+        self_mock.is_multimodal_model = True
+        self_mock.inputs_embeds = DummyTensor([10, 11, 12])
+        result = self.mod.dummy_run_with_stat(self_mock, 3)
+        assert result is not None
+
+    def test_uses_mrope(self):
+        """uses_mrope=True uses mrope_positions."""
+        self_mock = self.make_stat_mock(3)
+        self_mock.uses_mrope = True
+        self_mock.mrope_positions = DummyTensor([[1, 2, 3]])
+        result = self.mod.dummy_run_with_stat(self_mock, 3)
+        assert result is not None
+
+    def test_need_dummy_logits(self):
+        """need_dummy_logits=True triggers compute_logits."""
+        self_mock = self.make_stat_mock(3)
+        self_mock.in_profile_run = False
+        self.env["fakes"]["vllm_ascend.utils"].lmhead_tp_enable.return_value = True
+        result = self.mod.dummy_run_with_stat(self_mock, 3)
+        assert result is not None
+        self_mock.model.compute_logits.assert_called()
+
+    def test_speculative_deepseek_mtp(self):
+        """speculative_config with deepseek_mtp calls drafter.dummy_run."""
+        self_mock = self.make_stat_mock(3)
+        self_mock.speculative_config = MagicMock()
+        self_mock.speculative_config.method = "deepseek_mtp"
+        drafter = MagicMock(spec=self.env["fakes"]["vllm_ascend.worker.mtp_proposer_v1"].MtpProposer)
+        drafter.dummy_run = MagicMock()
+        self_mock.drafter = drafter
+        result = self.mod.dummy_run_with_stat(self_mock, 3)
+        drafter.dummy_run.assert_called_once()
+
+    def test_aclgraph_mode_mismatch(self):
+        """aclgraph_runtime_mode mismatch raises."""
+        self_mock = self.make_stat_mock(5)
+        self_mock.aclgraph_dispatcher.dispatch.return_value = (self.env["CUDAGraphMode"].PIECEWISE, MagicMock())
+        self_mock._sync_metadata_across_dp.return_value = (5, DummyTensor(), False, False)
+        with pytest.raises(RuntimeError, match="Aclgraph runtime mode mismatch"):
+            self.mod.dummy_run_with_stat(self_mock, 5, aclgraph_runtime_mode=self.env["CUDAGraphMode"].FULL)
+
+    def test_num_tokens_exceeds_max(self):
+        """num_tokens exceeds max_num_batched_tokens raises."""
+        self_mock = self.make_stat_mock(20)
+        self_mock.scheduler_config.max_num_batched_tokens = 10
+        self_mock._sync_metadata_across_dp.return_value = (20, DummyTensor(), False, False)
+        with pytest.raises(RuntimeError, match="cannot exceed max_num_batched_tokens"):
+            self.mod.dummy_run_with_stat(self_mock, 20)
+
+
+class TestUpdateStatesPatchMore:
+    @pytest.fixture(autouse=True)
+    def setup(self, fake_model_runner_env):
+        self.env = fake_model_runner_env
+        self.mod = import_module(self.env, env_getenv="true")  # stat patch enabled
+
+    def test_encoder_cache_pop_v010(self):
+        """vllm_version_is 0.10.1.1: encoder_cache.pop for finished_req_ids."""
+        self_mock = make_self_mock(self.env)
+        self_mock.encoder_cache = {"req1": MagicMock(), "req2": MagicMock()}
+        self_mock.input_batch.remove_request = MagicMock()
+        self_mock.input_batch.condense = MagicMock()
+        self_mock.input_batch.refresh_metadata = MagicMock()
+        self_mock.input_batch.req_id_to_index = {}
+
+        self.env["fakes"]["vllm_ascend.utils"].vllm_version_is.side_effect = lambda x: x in ("0.10.1.1", "0.10.1")
+
+        scheduler_output = MagicMock()
+        scheduler_output.finished_req_ids = ["req1"]
+        scheduler_output.free_encoder_input_ids = []
+        scheduler_output.free_encoder_mm_hashes = []
+        scheduler_output.num_scheduled_tokens = MagicMock()
+        scheduler_output.num_scheduled_tokens.keys.return_value = []
+        scheduler_output.scheduled_new_reqs = []
+        scheduler_output.scheduled_cached_reqs = MagicMock()
+        scheduler_output.scheduled_cached_reqs.req_ids = []
+
+        self.mod._update_states_patch(self_mock, scheduler_output)
+        # req1 should be popped from encoder_cache (and requests)
+        assert "req1" not in self_mock.encoder_cache
+
+    def test_free_encoder_input_ids_v010(self):
+        """vllm_version_is 0.10.1.1: free_encoder_input_ids removes cached outputs."""
+        self_mock = make_self_mock(self.env)
+        encoder_out = MagicMock()
+        encoder_out.pop.return_value = None
+        self_mock.encoder_cache = {"req1": encoder_out}
+        self_mock.input_batch.remove_request = MagicMock()
+        self_mock.input_batch.condense = MagicMock()
+        self_mock.input_batch.refresh_metadata = MagicMock()
+        self_mock.input_batch.req_id_to_index = {}
+
+        self.env["fakes"]["vllm_ascend.utils"].vllm_version_is.side_effect = lambda x: x in ("0.10.1.1", "0.10.1")
+
+        scheduler_output = MagicMock()
+        scheduler_output.finished_req_ids = []
+        scheduler_output.free_encoder_input_ids = [("req1", "input1")]
+        scheduler_output.free_encoder_mm_hashes = []
+        scheduler_output.num_scheduled_tokens = MagicMock()
+        scheduler_output.num_scheduled_tokens.keys.return_value = []
+        scheduler_output.scheduled_new_reqs = []
+        scheduler_output.scheduled_cached_reqs = MagicMock()
+        scheduler_output.scheduled_cached_reqs.req_ids = []
+
+        self.mod._update_states_patch(self_mock, scheduler_output)
+        encoder_out.pop.assert_called_with("input1", None)
+
+    def test_sampling_type_random_seed_creates_generator(self):
+        """sampling_params.sampling_type == RANDOM_SEED creates a Generator."""
+        self_mock = make_self_mock(self.env)
+        self_mock.requests = {}
+        self_mock.input_batch.add_request = MagicMock()
+        self_mock.input_batch.condense = MagicMock()
+        self_mock.input_batch.refresh_metadata = MagicMock()
+        self_mock.input_batch.req_id_to_index = {}
+        self_mock.input_batch.remove_request = MagicMock()
+
+        SamplingType = self.env["fakes"]["vllm.sampling_params"].SamplingType
+        new_req = MagicMock()
+        new_req.req_id = "r1"
+        new_req.sampling_params = MagicMock()
+        new_req.sampling_params.sampling_type = SamplingType.RANDOM_SEED
+        new_req.sampling_params.seed = 42
+        new_req.pooling_params = None
+        new_req.prompt_token_ids = [1,2,3]
+        new_req.mm_kwargs = None
+        new_req.mm_positions = None
+        new_req.block_ids = None
+        new_req.num_computed_tokens = 0
+        new_req.lora_request = None
+        new_req.mm_hashes = None
+
+        scheduler_output = MagicMock()
+        scheduler_output.finished_req_ids = []
+        scheduler_output.free_encoder_input_ids = []
+        scheduler_output.free_encoder_mm_hashes = []
+        scheduler_output.num_scheduled_tokens = MagicMock()
+        scheduler_output.num_scheduled_tokens.keys.return_value = []
+        scheduler_output.scheduled_new_reqs = [new_req]
+        scheduler_output.scheduled_cached_reqs = MagicMock()
+        scheduler_output.scheduled_cached_reqs.req_ids = []
+
+        self.mod._update_states_patch(self_mock, scheduler_output)
+        # Check that a request with generator was added
+        assert "r1" in self_mock.requests
+        assert self_mock.requests["r1"].generator is not None
+
+    def test_pooling_params_task_none_raises(self):
+        """pooling_params with task=None raises ValueError."""
+        self_mock = make_self_mock(self.env)
+        self_mock.requests = {}
+        self_mock.input_batch.add_request = MagicMock()
+        self_mock.input_batch.remove_request = MagicMock()
+        self_mock.input_batch.condense = MagicMock()
+        self_mock.input_batch.refresh_metadata = MagicMock()
+        self_mock.input_batch.req_id_to_index = {}
+
+        new_req = MagicMock()
+        new_req.req_id = "r1"
+        new_req.sampling_params = None
+        new_req.pooling_params = MagicMock()
+        new_req.pooling_params.task = None   # invalid
+        new_req.prompt_token_ids = [1,2,3]
+        new_req.mm_kwargs = None
+        new_req.mm_positions = None
+        new_req.block_ids = None
+        new_req.num_computed_tokens = 0
+        new_req.lora_request = None
+        new_req.mm_hashes = None
+
+        scheduler_output = MagicMock()
+        scheduler_output.finished_req_ids = []
+        scheduler_output.free_encoder_input_ids = []
+        scheduler_output.free_encoder_mm_hashes = []
+        scheduler_output.num_scheduled_tokens = MagicMock()
+        scheduler_output.num_scheduled_tokens.keys.return_value = []
+        scheduler_output.scheduled_new_reqs = [new_req]
+        scheduler_output.scheduled_cached_reqs = MagicMock()
+        scheduler_output.scheduled_cached_reqs.req_ids = []
+
+        with pytest.raises(ValueError, match="You did not set `task` in the API"):
+            self.mod._update_states_patch(self_mock, scheduler_output)
+
+    def test_not_last_rank_adds_new_tokens(self):
+        """not is_last_rank: adds new_token_ids to output_token_ids."""
+        self_mock = make_self_mock(self.env)
+        self_mock.input_batch.req_id_to_index = MagicMock()
+        self_mock.input_batch.req_id_to_index.get = MagicMock(return_value=0)
+        self_mock.input_batch.req_id_to_index.keys = MagicMock(return_value=set())
+
+        self_mock.requests = {"r1": MagicMock()}
+        self_mock.requests["r1"].num_tokens = 1
+        self_mock.requests["r1"].num_computed_tokens = 0
+        self_mock.requests["r1"].output_token_ids = MagicMock()
+        self_mock.requests["r1"].block_ids = []
+        self_mock.input_batch.num_computed_tokens_cpu = [0]
+        self_mock.input_batch.token_ids_cpu = MagicMock()
+        self_mock.input_batch.num_tokens_no_spec = [0]
+        self_mock.input_batch.num_tokens = [0]
+        self_mock.input_batch.block_table = MagicMock()
+        self_mock.input_batch.add_request = MagicMock()
+        self_mock.input_batch.remove_request = MagicMock()
+        self_mock.input_batch.condense = MagicMock()
+        self_mock.input_batch.refresh_metadata = MagicMock()
+
+        self.env["fakes"]["vllm.distributed.parallel_state"].get_pp_group.return_value.is_last_rank = False
+
+        req_data = MagicMock()
+        req_data.req_ids = ["r1"]
+        req_data.num_computed_tokens = [2]
+        req_data.new_block_ids = [None]
+        req_data.resumed_from_preemption = [False]
+        req_data.new_token_ids = [[201, 202]]
+
+        scheduler_output = MagicMock()
+        scheduler_output.finished_req_ids = []
+        scheduler_output.free_encoder_input_ids = []
+        scheduler_output.free_encoder_mm_hashes = []
+        scheduler_output.num_scheduled_tokens = MagicMock()
+        scheduler_output.num_scheduled_tokens.keys = MagicMock(return_value=set())
+        scheduler_output.scheduled_new_reqs = []
+        scheduler_output.scheduled_cached_reqs = req_data
+        scheduler_output.scheduled_spec_decode_tokens = {}
+
+        self.mod._update_states_patch(self_mock, scheduler_output)
+        self_mock.requests["r1"].output_token_ids.extend.assert_called()
+
+    def test_spec_token_ids_appended(self):
+        """spec_token_ids present appends to token_ids_cpu and increments num_tokens."""
+        self_mock = make_self_mock(self.env)
+        self_mock.input_batch.req_id_to_index = MagicMock()
+        self_mock.input_batch.req_id_to_index.get = MagicMock(return_value=0)
+        self_mock.input_batch.req_id_to_index.keys = MagicMock(return_value=set())
+
+        self_mock.requests = {"r1": MagicMock()}
+        self_mock.requests["r1"].num_tokens = 2
+        self_mock.requests["r1"].num_computed_tokens = 0
+        self_mock.requests["r1"].output_token_ids = MagicMock()
+        self_mock.requests["r1"].block_ids = []
+        self_mock.input_batch.num_computed_tokens_cpu = [0]
+        self_mock.input_batch.token_ids_cpu = MagicMock()
+        self_mock.input_batch.num_tokens_no_spec = [0]
+        self_mock.input_batch.num_tokens = [0]
+        self_mock.input_batch.block_table = MagicMock()
+        self_mock.input_batch.add_request = MagicMock()
+        self_mock.input_batch.remove_request = MagicMock()
+        self_mock.input_batch.condense = MagicMock()
+        self_mock.input_batch.refresh_metadata = MagicMock()
+
+        self.env["fakes"]["vllm.distributed.parallel_state"].get_pp_group.return_value.is_last_rank = True
+
+        req_data = MagicMock()
+        req_data.req_ids = ["r1"]
+        req_data.num_computed_tokens = [2]
+        req_data.new_block_ids = [None]
+        req_data.resumed_from_preemption = [False]
+        req_data.new_token_ids = [[]]
+
+        scheduler_output = MagicMock()
+        scheduler_output.finished_req_ids = []
+        scheduler_output.free_encoder_input_ids = []
+        scheduler_output.free_encoder_mm_hashes = []
+        scheduler_output.num_scheduled_tokens = MagicMock()
+        scheduler_output.num_scheduled_tokens.keys = MagicMock(return_value=set())
+        scheduler_output.scheduled_new_reqs = []
+        scheduler_output.scheduled_cached_reqs = req_data
+        scheduler_output.scheduled_spec_decode_tokens = {"r1": [301, 302]}
+
+        self.mod._update_states_patch(self_mock, scheduler_output)
+        assert self_mock.input_batch.num_tokens[0] == 2
+
+    def test_resumed_from_preemption_requires_new_block_ids(self):
+        """resumed_from_preemption=True with new_block_ids=None raises RuntimeError."""
+        self_mock = make_self_mock(self.env)
+        self_mock.input_batch.req_id_to_index = MagicMock()
+        self_mock.input_batch.req_id_to_index.get = MagicMock(return_value=0)
+        self_mock.input_batch.req_id_to_index.keys = MagicMock(return_value=set())
+
+        self_mock.requests = {"r1": MagicMock()}
+        self_mock.requests["r1"].num_tokens = 5
+        self_mock.requests["r1"].num_computed_tokens = 0
+        self_mock.requests["r1"].output_token_ids = MagicMock()
+        self_mock.requests["r1"].block_ids = []
+        self_mock.input_batch.num_computed_tokens_cpu = [0]
+        self_mock.input_batch.token_ids_cpu = MagicMock()
+        self_mock.input_batch.num_tokens_no_spec = [0]
+        self_mock.input_batch.num_tokens = [0]
+        self_mock.input_batch.block_table = MagicMock()
+        self_mock.input_batch.add_request = MagicMock()
+        self_mock.input_batch.remove_request = MagicMock()
+        self_mock.input_batch.condense = MagicMock()
+        self_mock.input_batch.refresh_metadata = MagicMock()
+
+        self.env["fakes"]["vllm.distributed.parallel_state"].get_pp_group.return_value.is_last_rank = True
+
+        req_data = MagicMock()
+        req_data.req_ids = ["r1"]
+        req_data.num_computed_tokens = [2]
+        req_data.new_block_ids = [None]
+        req_data.resumed_from_preemption = [True]
+        req_data.new_token_ids = [[]]
+
+        scheduler_output = MagicMock()
+        scheduler_output.finished_req_ids = []
+        scheduler_output.free_encoder_input_ids = []
+        scheduler_output.free_encoder_mm_hashes = []
+        scheduler_output.num_scheduled_tokens = MagicMock()
+        scheduler_output.num_scheduled_tokens.keys = MagicMock(return_value=set())
+        scheduler_output.scheduled_new_reqs = []
+        scheduler_output.scheduled_cached_reqs = req_data
+        scheduler_output.scheduled_spec_decode_tokens = {}
+
+        with pytest.raises(RuntimeError, match="new_block_ids must not be None"):
+            self.mod._update_states_patch(self_mock, scheduler_output)
