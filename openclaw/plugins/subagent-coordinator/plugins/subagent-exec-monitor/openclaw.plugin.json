@@ -1,0 +1,10 @@
+{
+  "id": "@subagent-coordinator/exec-monitor",
+  "name": "Subagent Coordinator Execution Monitor",
+  "version": "0.0.4",
+  "description": "Quality gates, checkpoints, retry strategies, and task analysis for subagent-coordinator",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": true
+  }
+}
