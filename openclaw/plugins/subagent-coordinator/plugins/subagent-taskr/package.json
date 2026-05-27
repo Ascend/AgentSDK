@@ -1,0 +1,27 @@
+{
+  "name": "@subagent-coordinator/taskr",
+  "version": "0.0.4",
+  "type": "module",
+  "description": "Hierarchical task planning, persistent state management, and cross-agent continuity",
+  "openclaw": {
+    "extensions": [
+      "./dist/src/index.js"
+    ]
+  },
+  "scripts": {
+    "build": "tsc",
+    "clean": "rimraf dist",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --environment node --globals"
+  },
+  "dependencies": {
+    "@sinclair/typebox": "^0.34.0",
+    "@subagent-coordinator/types": "workspace:*"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^4.1.7",
+    "rimraf": "^5.0.0",
+    "typescript": "^5.4.0",
+    "vitest": "^4.1.6"
+  }
+}
