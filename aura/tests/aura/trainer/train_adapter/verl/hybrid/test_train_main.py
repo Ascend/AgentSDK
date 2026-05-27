@@ -84,7 +84,7 @@ class TestHybridTrainMain:
         class FakeTaskRunner:
             add_actor_rollout_worker = MagicMock(return_value=(MagicMock(), MagicMock()))
             add_critic_worker = MagicMock()
-            add_reward_model_worker = MagicMock()
+            add_reward_model_resource_pool = MagicMock()
             add_ref_policy_worker = MagicMock()
             init_resource_pool_mgr = MagicMock()
             create_rl_dataset = MagicMock()
@@ -115,6 +115,11 @@ class TestHybridTrainMain:
         mock_hybrid_trainer.init_workers = MagicMock()
         mock_hybrid_trainer.fit = MagicMock()
 
+        # Loggers mock
+        mock_logger = MagicMock()
+        mock_loggers = MagicMock()
+        mock_loggers.return_value.get_logger.return_value = mock_logger
+
         # Patch sys.modules
         self.mock_modules = {
             "ray": mock_ray,
@@ -137,6 +142,7 @@ class TestHybridTrainMain:
             "aura.trainer.train_adapter.verl.hybrid.ray_trainer": MagicMock(
                 HybridTrainer=MagicMock(return_value=mock_hybrid_trainer)
             ),
+            "aura.base.log.loggers": MagicMock(Loggers=mock_loggers),
         }
 
         self.module_patcher = patch.dict(sys.modules, self.mock_modules)
@@ -185,4 +191,4 @@ class TestHybridTrainMain:
         """
         Test start_train function executes without errors.
         """
-        self.start_train("local", {"key": "value"})
+        self.start_train("local", {"key": "value"}, {"key": "value"}, MagicMock(), MagicMock())
