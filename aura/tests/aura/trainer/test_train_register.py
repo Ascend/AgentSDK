@@ -36,44 +36,97 @@ class TestTrainRegistry:
 
     def setup_method(self):
         """
-        Runs before each test: isolate sys.modules to prevent side effects.
+        Runs before each test: setup mocks
         """
-        self.original_modules = sys.modules.copy()
-        mock_loggers_module = MagicMock()
+        # Create mock objects
+        self.mock_ray = MagicMock()
+        self.mock_ray.remote = lambda cls_func: cls_func
+        self.mock_ray.get_actor = MagicMock()
+        self.mock_ray.get = MagicMock()
+        self.mock_ray.util = MagicMock()
+        self.mock_ray.util.scheduling_strategies = MagicMock()
+        self.mock_ray.util.scheduling_strategies.PlacementGroupSchedulingStrategy = MagicMock()
+
+        self.mock_loggers_module = MagicMock()
         self.mock_logger = MagicMock()
-        mock_loggers_module.Loggers.return_value.get_logger.return_value = self.mock_logger
+        self.mock_loggers_module.Loggers.return_value.get_logger.return_value = self.mock_logger
+
+        # Create comprehensive mock mindspeed_rl module hierarchy
+        mock_mindspeed_rl = MagicMock()
+        mock_mindspeed_rl.workers = MagicMock()
+        mock_mindspeed_rl.workers.scheduler = MagicMock()
+        mock_mindspeed_rl.workers.scheduler.launcher = MagicMock()
+        mock_mindspeed_rl.workers.scheduler.launcher.RayActorGroup = MagicMock()
+        mock_mindspeed_rl.workers.resharding = MagicMock()
+        mock_mindspeed_rl.workers.resharding.megatron_sharding_manager = MagicMock()
+        mock_mindspeed_rl.workers.resharding.megatron_sharding_manager.MegatronShardingManager = MagicMock()
+        mock_mindspeed_rl.utils = MagicMock()
+        mock_mindspeed_rl.utils.utils = MagicMock()
+        mock_mindspeed_rl.utils.utils.mstx_timer_decorator = MagicMock()
+
+        # Create module patches
         self.mocked_modules = {
-            "aura.base.log.loggers": mock_loggers_module,
+            "aura.base.log.loggers": self.mock_loggers_module,
             "aura.trainer.rollout.rollout_main": MagicMock(),
+            "aura.trainer.train_adapter.mindspeed_rl": MagicMock(),
+            "aura.trainer.train_adapter.mindspeed_rl.hybrid_policy": MagicMock(),
             "aura.trainer.train_adapter.mindspeed_rl.hybrid_policy.train_service": MagicMock(),
+            "aura.trainer.train_adapter.mindspeed_rl.one_step_off_policy": MagicMock(),
+            "aura.trainer.train_adapter.mindspeed_rl.one_step_off_policy.train": MagicMock(),
             "aura.trainer.train_adapter.mindspeed_rl.one_step_off_policy.train.train_service": MagicMock(),
+            "aura.trainer.train_adapter.mindspeed_rl.one_step_off_policy.train_service": MagicMock(),
             "aura.trainer.train_adapter.verl.full_async.train_main": MagicMock(),
             "aura.trainer.train_adapter.verl.hybrid.train_main": MagicMock(),
             "aura.trainer.train_adapter.omni_rl.hybrid.train_main": MagicMock(),
+            "ray": self.mock_ray,
+            "ray.util": self.mock_ray.util,
+            "ray.util.scheduling_strategies": self.mock_ray.util.scheduling_strategies,
+            "mindspeed_rl": mock_mindspeed_rl,
+            "mindspeed_rl.workers": mock_mindspeed_rl.workers,
+            "mindspeed_rl.workers.scheduler": mock_mindspeed_rl.workers.scheduler,
+            "mindspeed_rl.workers.scheduler.launcher": mock_mindspeed_rl.workers.scheduler.launcher,
+            "mindspeed_rl.workers.resharding": mock_mindspeed_rl.workers.resharding,
+            "mindspeed_rl.workers.resharding.megatron_sharding_manager": mock_mindspeed_rl.workers.resharding.megatron_sharding_manager,
+            "mindspeed_rl.utils": mock_mindspeed_rl.utils,
+            "mindspeed_rl.utils.utils": mock_mindspeed_rl.utils.utils,
         }
-        self.module_patcher = patch.dict(sys.modules, self.mocked_modules)
-        self.module_patcher.start()
 
-        import aura.trainer.train_register as train_register
-        importlib.reload(train_register)
+        # Save original modules
+        self.original_modules = {}
+        for mod_name in self.mocked_modules.keys():
+            if mod_name in sys.modules:
+                self.original_modules[mod_name] = sys.modules[mod_name]
+
+        # Apply patches
+        sys.modules.update(self.mocked_modules)
+
+        # Remove cached train_register module if it exists
+        if 'aura.trainer.trainer_register.train_register' in sys.modules:
+            del sys.modules['aura.trainer.trainer_register.train_register']
+
+        # Import after patching
+        import aura.trainer.trainer_register.train_register as train_register
         self.train_register = train_register
 
     def teardown_method(self):
         """
-        Runs after each test: restore sys.modules to original state.
+        Runs after each test: restore original modules
         """
-        patch.stopall()
-        added_keys = set(sys.modules.keys()) - set(self.original_modules.keys())
-        for key in added_keys:
-            sys.modules.pop(key, None)
-        sys.modules.update(self.original_modules)
+        # Restore original modules
+        for mod_name, mod in self.original_modules.items():
+            sys.modules[mod_name] = mod
+
+        # Remove mocked modules that weren't originally present
+        for mod_name in self.mocked_modules.keys():
+            if mod_name not in self.original_modules and mod_name in sys.modules:
+                del sys.modules[mod_name]
 
     def test_initialization(self):
         """
-        Test that TrainRegistry initializes correctly.
+        Test that TrainBackendRegistry initializes correctly.
         """
-        TrainRegistry = self.train_register.TrainRegistry
-        registry_instance = TrainRegistry()
+        TrainBackendRegistry = self.train_register.TrainBackendRegistry
+        registry_instance = TrainBackendRegistry()
         assert hasattr(registry_instance, "_registry")
         assert isinstance(registry_instance._registry, dict)
         assert len(registry_instance._registry) == 0
@@ -82,77 +135,89 @@ class TestTrainRegistry:
         """
         Test register and get_method functionality.
         """
-        TrainRegistry = self.train_register.TrainRegistry
-        registry_instance = TrainRegistry()
+        TrainBackendRegistry = self.train_register.TrainBackendRegistry
+        registry_instance = TrainBackendRegistry()
 
-        rollout_mock = MagicMock()
         train_mock = MagicMock()
 
-        registry_instance.register("engine1", "mode1", rollout_mock, train_mock)
+        registry_instance.register("engine1", "mode1", train_mock)
 
         assert ("engine1", "mode1") in registry_instance._registry
-        assert registry_instance.get_method("engine1", "mode1") == (rollout_mock, train_mock)
+        assert registry_instance.get_method("engine1", "mode1") == train_mock
         assert registry_instance.get_method("non_exist", "mode1") is None
 
-    def test_registry_singleton(self):
+    def test_train_register_class(self):
         """
-        Ensure the registry instance is a singleton.
+        Test that TrainRegister class initializes correctly.
         """
-        first_instance = self.train_register.registry
-        second_instance = self.train_register.registry
-        assert first_instance is second_instance
+        TrainRegister = self.train_register.TrainRegister
+        register_instance = TrainRegister()
+        assert hasattr(register_instance, "registry")
+        assert isinstance(register_instance.registry, self.train_register.TrainBackendRegistry)
 
-    def test_registry_default_entries(self):
+    def test_register_methods(self):
         """
-        Check that default registry entries exist.
+        Test registry methods work correctly.
         """
-        registry_instance = self.train_register.registry
-        default_keys = [
-            ("mindspeed_rl", "hybrid"),
-            ("mindspeed_rl", "one_step_off"),
-            ("mindspeed_rl", "dummy_train"),
-            ("verl", "hybrid"),
-            ("verl", "one_step_off"),
-            ("omni_rl", "hybrid"),
-        ]
-        for key in default_keys:
-            assert registry_instance.get_method(*key) is not None
-        assert len(registry_instance._registry) == len(default_keys)
+        TrainRegister = self.train_register.TrainRegister
+        register_instance = TrainRegister()
 
-    @pytest.mark.parametrize(
-        "failed_modules,expected_messages",
-        [
-            (["aura.trainer.rollout.rollout_main"], ["verl/mindspeed_rl hybrid train is not available"]),
-            (["aura.trainer.train_adapter.omni_rl.hybrid.train_main"], ["omni_rl hybrid train is not available"]),
-        ],
-    )
-    def test_import_error_handling(self, failed_modules, expected_messages):
-        """
-        Test branches triggered by ImportError.
-        """
-        mocked_modules = {module: None for module in failed_modules}
-        self.mock_logger.reset_mock()
-        with patch.dict(sys.modules, mocked_modules, clear=False):
-            importlib.reload(self.train_register)
-            warning_messages = [str(call) for call in self.mock_logger.warning.call_args_list]
-            assert any(
-                any(msg in warning_text for msg in expected_messages)
-                for warning_text in warning_messages
-            )
+        # Verify methods exist
+        assert hasattr(register_instance, 'registry_msrl_train')
+        assert hasattr(register_instance, 'registry_verl_train')
+        assert hasattr(register_instance, 'get_method')
 
-    @pytest.mark.parametrize(
-        "initial_entries,expected_count",
-        [
-            ({}, 0),
-            ({("test_engine", "mode"): (None, None)}, 1),
-        ],
-    )
-    def test_registry_clear(self, initial_entries, expected_count):
+        # Call registry methods
+        register_instance.registry_msrl_train()
+        register_instance.registry_verl_train()
+
+        # Verify registrations
+        assert register_instance.get_method("mindspeed_rl", "hybrid") is not None
+        assert register_instance.get_method("mindspeed_rl", "one_step_off") is not None
+        assert register_instance.get_method("mindspeed_rl", "dummy_train") is not None
+        assert register_instance.get_method("verl", "hybrid") is not None
+        assert register_instance.get_method("verl", "one_step_off") is not None
+        assert register_instance.get_method("verl", "dummy_train") is not None
+
+    def test_get_train_method(self):
         """
-        Test clearing of the registry.
+        Test get_train_method function.
         """
-        TrainRegistry = self.train_register.TrainRegistry
-        registry_instance = TrainRegistry()
-        registry_instance._registry.update(initial_entries)
-        registry_instance._registry.clear()
-        assert len(registry_instance._registry) == 0
+        with patch('ray.get_actor') as mock_get_actor, \
+             patch('ray.get') as mock_ray_get:
+
+            mock_actor = MagicMock()
+            mock_get_actor.return_value = mock_actor
+            mock_ray_get.return_value = MagicMock()
+
+            # Call the function
+            result = self.train_register.get_train_method("test_engine", "test_mode")
+
+            # Verify calls
+            mock_get_actor.assert_called_once_with(self.train_register.TRAIN_REGISTER_ACTOR_NAME, namespace=self.train_register.TRAIN_REGISTER_NAMESPACE)
+            mock_actor.get_method.remote.assert_called_once_with("test_engine", "test_mode")
+            mock_ray_get.assert_called_once()
+            assert result == mock_ray_get.return_value
+
+    def test_get_train_actor(self):
+        """
+        Test get_train_actor function.
+        """
+        with patch.object(self.train_register, 'create_actor') as mock_create_actor, \
+             patch.object(self.train_register, 'DEFAULT_CPUS', 1), \
+             patch.object(self.train_register, 'MAX_CONCURRENCY', 100):
+
+            mock_actor = MagicMock()
+            mock_create_actor.return_value = mock_actor
+
+            # Call the function
+            result = self.train_register.get_train_actor()
+
+            # Verify call
+            mock_create_actor.assert_called_once()
+            args, kwargs = mock_create_actor.call_args
+            assert kwargs['name'] == self.train_register.TRAIN_REGISTER_ACTOR_NAME
+            assert kwargs['cls'] == self.train_register.TrainRegister
+            assert kwargs['namespace'] == self.train_register.TRAIN_REGISTER_NAMESPACE
+            assert kwargs['options'] == {"num_cpus": 1, "max_concurrency": 100}
+            assert result == mock_actor

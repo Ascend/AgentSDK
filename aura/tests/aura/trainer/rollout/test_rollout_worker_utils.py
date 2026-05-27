@@ -27,10 +27,12 @@ class TestRolloutWorkerUtils(unittest.TestCase):
     def setUp(self):
         """Set up test environment"""
         self.original_modules = {}
-        for module_name in ['mindspeed_rl', 'mindspeed_rl.utils', 'mindspeed_rl.utils.utils', 'verl', 'uvicorn', 'ray']:
+        module_names = ['mindspeed_rl', 'mindspeed_rl.utils', 'mindspeed_rl.utils.utils', 'verl', 'uvicorn', 'ray',
+                        'aura.trainer.rollout.rollout_worker']
+        for module_name in module_names:
             if module_name in sys.modules:
                 self.original_modules[module_name] = sys.modules[module_name]
-        
+
         # mock mindspeed_rl, verl, uvicorn and ray
         self.mock_mindspeed_rl = mock.MagicMock()
         self.mock_mindspeed_rl_utils = mock.MagicMock()
@@ -38,7 +40,7 @@ class TestRolloutWorkerUtils(unittest.TestCase):
         self.mock_verl = mock.MagicMock()
         self.mock_uvicorn = mock.MagicMock()
         self.mock_ray = mock.MagicMock()
-        
+
         class MockRayRemote:
             def __init__(self, *args, **kwargs):
                 self.args = args
@@ -58,15 +60,17 @@ class TestRolloutWorkerUtils(unittest.TestCase):
 
         self.mock_ray.remote = MockRayRemote()
         self.mock_ray.get = mock.MagicMock(return_value=0)
-        
+
         # Replace modules with mocks to avoid import errors
+        self.mock_modules = ['mindspeed_rl', 'mindspeed_rl.utils', 'mindspeed_rl.utils.utils',
+                            'verl', 'uvicorn', 'ray']
         sys.modules['mindspeed_rl'] = self.mock_mindspeed_rl
         sys.modules['mindspeed_rl.utils'] = self.mock_mindspeed_rl_utils
         sys.modules['mindspeed_rl.utils.utils'] = self.mock_mindspeed_rl_utils.utils
         sys.modules['verl'] = self.mock_verl
         sys.modules['uvicorn'] = self.mock_uvicorn
         sys.modules['ray'] = self.mock_ray
-        
+
         # Import test objects
         global get_least_common_multiple, generate_dummy_trajectory, parse_messages
         global _stat_rollout_metrics, clean_traj_groups, get_all_prompt_ids, RolloutWorker
@@ -79,32 +83,19 @@ class TestRolloutWorkerUtils(unittest.TestCase):
             get_all_prompt_ids,
             RolloutWorker
         )
-    
+
     def tearDown(self):
         """Clean up test environment"""
         # Restore original modules
         for module_name, module in self.original_modules.items():
             sys.modules[module_name] = module
-        # Delete mock modules
+        # Delete mock modules (but keep rollout_worker as it's needed by other tests)
         mock_modules = ['mindspeed_rl', 'mindspeed_rl.utils', 'mindspeed_rl.utils.utils', 'verl', 'uvicorn', 'ray']
         for module_name in mock_modules:
             if module_name in sys.modules and module_name not in self.original_modules:
                 del sys.modules[module_name]
-        # Clean up global variables
-        if 'get_least_common_multiple' in globals():
-            del globals()['get_least_common_multiple']
-        if 'generate_dummy_trajectory' in globals():
-            del globals()['generate_dummy_trajectory']
-        if 'parse_messages' in globals():
-            del globals()['parse_messages']
-        if '_stat_rollout_metrics' in globals():
-            del globals()['_stat_rollout_metrics']
-        if 'clean_traj_groups' in globals():
-            del globals()['clean_traj_groups']
-        if 'get_all_prompt_ids' in globals():
-            del globals()['get_all_prompt_ids']
-        if 'RolloutWorker' in globals():
-            del globals()['RolloutWorker']
+        # Clean up global variables (only delete if we added them)
+        pass
     def test_get_least_common_multiple(self):
         """Test get_least_common_multiple function"""
         self.assertEqual(get_least_common_multiple(4, 6), 12)
