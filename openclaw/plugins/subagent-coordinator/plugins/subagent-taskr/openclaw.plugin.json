@@ -1,0 +1,10 @@
+{
+  "id": "@subagent-coordinator/taskr",
+  "name": "Subagent Coordinator Taskr",
+  "version": "0.0.4",
+  "description": "Hierarchical task planning, persistent state management, and cross-agent continuity for subagent-coordinator",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": true
+  }
+}
