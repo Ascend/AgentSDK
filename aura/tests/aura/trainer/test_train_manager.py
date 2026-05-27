@@ -20,7 +20,17 @@ See the Mulan PSL v2 for more details.
 
 import sys
 import pytest
-from unittest.mock import patch, MagicMock, AsyncMock
+from unittest.mock import MagicMock, AsyncMock, patch, call
+
+
+class MockExecutorManager:
+    """Mock ExecutorManager class for testing."""
+    def __init__(self):
+        self.instance_dict = {}
+
+    async def create_instance(self, **kwargs):
+        """Mock create_instance method."""
+        self.instance_dict[kwargs['name']] = kwargs
 
 
 class TestTrainManager:
@@ -28,187 +38,478 @@ class TestTrainManager:
     Tests for TrainManager class and get_or_create_train_manager function.
     """
 
-    @classmethod
-    def setup_class(cls):
-        """
-        Patch sys.modules before importing the module under test to avoid side effects.
-        """
-        def create_mock_module():
-            return MagicMock()
-
-        cls.mocked_modules = {
-            "ray": create_mock_module(),
-            "omegaconf": create_mock_module(),
-            "aura.base.execution.executor_manager": create_mock_module(),
-            "aura.base.log.loggers": create_mock_module(),
-            "aura.trainer.train_executor": create_mock_module(),
-            "aura.base.conf.conf": create_mock_module(),
-        }
-        cls.module_patcher = patch.dict(sys.modules, cls.mocked_modules)
-        cls.module_patcher.start()
-
-        # Import inside patch lifecycle
-        from aura.trainer.train_manager import (
-            TrainManager,
-            get_or_create_train_manager,
-        )
-        cls.TrainManager = TrainManager
-        cls.get_or_create_train_manager = get_or_create_train_manager
-
-    @classmethod
-    def teardown_class(cls):
-        cls.module_patcher.stop()
-
-    @pytest.fixture
-    def mock_dependencies(self):
-        """
-        Provide runtime dependency mocks for TrainManager.
-        """
-        with patch("aura.trainer.train_manager.ray") as mock_ray, \
-             patch("aura.trainer.train_manager.OmegaConf") as mock_omega, \
-             patch("aura.trainer.train_manager.logger") as mock_logger, \
-             patch("aura.trainer.train_manager.ExecutorManager") as mock_executor_manager, \
-             patch("aura.base.conf.conf.AgenticRLConf") as mock_agentic_conf, \
-             patch("aura.trainer.train_manager.TrainExecutor") as mock_train_executor, \
-             patch("aura.trainer.train_manager.Loggers") as mock_loggers:
-
-            mock_conf_instance = MagicMock()
-            instance_conf_1 = MagicMock()
-            instance_conf_1.name = "test_instance_1"
-            instance_conf_1.executor_num = 2
-            instance_conf_1.executor_kwargs = {"param1": "value1"}
-            instance_conf_1.resource_info = {"cpu": 1}
-
-            instance_conf_2 = MagicMock()
-            instance_conf_2.name = "test_instance_2"
-            instance_conf_2.executor_num = 3
-            instance_conf_2.executor_kwargs = {"param2": "value2"}
-            instance_conf_2.resource_info = {"cpu": 2}
-
-            mock_conf_instance.train_instances = [instance_conf_1, instance_conf_2]
-            mock_omega.to_container.side_effect = lambda x, **kwargs: x
-
-            yield {
-                "ray": mock_ray,
-                "omega": mock_omega,
-                "logger": mock_logger,
-                "executor_manager": mock_executor_manager,
-                "agentic_conf": mock_agentic_conf,
-                "train_executor": mock_train_executor,
-                "loggers": mock_loggers,
-            }
-
     @pytest.mark.asyncio
-    async def test_setup_success(self, mock_dependencies):
-        """
-        Test successful setup of TrainManager instances.
-        """
-        mock_conf_instance = MagicMock()
-        instance_conf_1 = MagicMock()
-        instance_conf_1.name = "test_instance_1"
-        instance_conf_1.executor_num = 2
-        instance_conf_1.executor_kwargs = {"param1": "value1"}
-        instance_conf_1.resource_info = {"cpu": 1}
-
-        instance_conf_2 = MagicMock()
-        instance_conf_2.name = "test_instance_2"
-        instance_conf_2.executor_num = 3
-        instance_conf_2.executor_kwargs = {"param2": "value2"}
-        instance_conf_2.resource_info = {"cpu": 2}
-
-        mock_conf_instance.train_instances = [instance_conf_1, instance_conf_2]
-        mock_dependencies["agentic_conf"].load_config.return_value = mock_conf_instance
-
-        create_instance_mock = AsyncMock()
-
-        class MockManager:
-            def __init__(self):
-                self.instance_dict = {}
-                self.create_instance = create_instance_mock
-
-        manager = MockManager()
-        conf = mock_dependencies["agentic_conf"].load_config()
-        mock_dependencies["agentic_conf"].load_config.assert_called_once()
-
-        for instance_conf in conf.train_instances:
-            await manager.create_instance(
-                name=instance_conf.name,
-                executor_class=mock_dependencies["train_executor"],
-                executor_num=instance_conf.executor_num,
-                executor_kwargs=instance_conf.executor_kwargs,
-                resource_info=instance_conf.resource_info,
-            )
-
-        assert create_instance_mock.call_count == 2
-
-    @pytest.mark.asyncio
-    async def test_setup_exception(self, mock_dependencies):
-        """
-        Test TrainManager setup raising an exception.
-        """
-        mock_conf_instance = MagicMock()
-        instance_conf = MagicMock()
-        instance_conf.name = "test_instance_1"
-        instance_conf.executor_num = 2
-        instance_conf.executor_kwargs = {"param1": "value1"}
-        instance_conf.resource_info = {"cpu": 1}
-
-        mock_conf_instance.train_instances = [instance_conf]
-        mock_dependencies["agentic_conf"].load_config.return_value = mock_conf_instance
-
-        test_exception = Exception("Test exception")
-        create_instance_mock = AsyncMock(side_effect=test_exception)
-
-        class MockManager:
-            def __init__(self):
-                self.instance_dict = {}
-                self.create_instance = create_instance_mock
-
-        manager = MockManager()
-        conf = mock_dependencies["agentic_conf"].load_config()
-
-        with pytest.raises(Exception) as excinfo:
-            for instance_conf in conf.train_instances:
-                await manager.create_instance(
-                    name=instance_conf.name,
-                    executor_class=mock_dependencies["train_executor"],
-                    executor_num=instance_conf.executor_num,
-                    executor_kwargs=instance_conf.executor_kwargs,
-                    resource_info=instance_conf.resource_info,
-                )
-
-        assert str(excinfo.value) == "Test exception"
-
-    @pytest.mark.asyncio
-    async def test_get_or_create_train_manager_exists(self, mock_dependencies):
+    async def test_get_or_create_train_manager_exists(self):
         """
         Test get_or_create_train_manager returns existing actor if available.
         """
-        existing_actor = MagicMock()
-        mock_dependencies["ray"].get_actor.return_value = existing_actor
+        mock_ray = MagicMock()
+        mock_logger = MagicMock()
+        mock_omega = MagicMock()
+        mock_agentic_conf = MagicMock()
+        mock_train_executor = MagicMock()
+        mock_loggers = MagicMock()
 
-        result = await type(self).get_or_create_train_manager()
-        mock_dependencies["ray"].get_actor.assert_called_once_with("TrainManager")
-        assert result == existing_actor
+        mock_loggers.Loggers.return_value.get_logger.return_value = mock_logger
+
+        with patch.dict(sys.modules, {
+            'ray': mock_ray,
+            'omegaconf': MagicMock(),
+            'aura.base.conf.conf': MagicMock(),
+            'aura.base.execution.executor_manager': MagicMock(),
+            'aura.base.log.loggers': mock_loggers,
+            'aura.trainer.train_executor': MagicMock(),
+        }):
+            sys.modules['omegaconf'].OmegaConf = mock_omega
+            sys.modules['aura.base.conf.conf'].AgenticRLConf = mock_agentic_conf
+            sys.modules['aura.trainer.train_executor'].TrainExecutor = mock_train_executor
+
+            existing_actor = MagicMock()
+            mock_ray.get_actor.return_value = existing_actor
+
+            from aura.trainer.train_manager import get_or_create_train_manager
+
+            result = await get_or_create_train_manager()
+            mock_ray.get_actor.assert_called_once_with("TrainManager")
+            mock_logger.info.assert_not_called()
+            assert result == existing_actor
 
     @pytest.mark.asyncio
-    async def test_get_or_create_train_manager_new(self, mock_dependencies):
+    async def test_get_or_create_train_manager_new(self):
         """
         Test get_or_create_train_manager creates new actor if not found.
         """
-        mock_dependencies["ray"].get_actor.side_effect = ValueError("Actor not found")
+        mock_ray = MagicMock()
+        mock_logger = MagicMock()
+        mock_omega = MagicMock()
+        mock_agentic_conf = MagicMock()
+        mock_train_executor = MagicMock()
+        mock_loggers = MagicMock()
 
-        mock_remote_class = MagicMock()
-        mock_remote_instance = MagicMock()
-        mock_setup_remote = AsyncMock()
-        mock_remote_instance.setup.remote = mock_setup_remote
-        mock_remote_class.options.return_value.remote.return_value = mock_remote_instance
-        mock_dependencies["ray"].remote.return_value = mock_remote_class
+        mock_loggers.Loggers.return_value.get_logger.return_value = mock_logger
 
-        result = await type(self).get_or_create_train_manager()
-        mock_dependencies["ray"].get_actor.assert_called_once_with("TrainManager")
-        mock_dependencies["logger"].info.assert_called_once_with(
-            "Could not find actor TrainManager, creating a new one."
-        )
-        mock_setup_remote.assert_awaited_once()
-        assert result == mock_remote_instance
+        with patch.dict(sys.modules, {
+            'ray': mock_ray,
+            'omegaconf': MagicMock(),
+            'aura.base.conf.conf': MagicMock(),
+            'aura.base.execution.executor_manager': MagicMock(),
+            'aura.base.log.loggers': mock_loggers,
+            'aura.trainer.train_executor': MagicMock(),
+        }):
+            sys.modules['omegaconf'].OmegaConf = mock_omega
+            sys.modules['aura.base.conf.conf'].AgenticRLConf = mock_agentic_conf
+            sys.modules['aura.trainer.train_executor'].TrainExecutor = mock_train_executor
+
+            mock_ray.get_actor.side_effect = ValueError("Actor not found")
+
+            mock_remote_class = MagicMock()
+            mock_remote_instance = MagicMock()
+            mock_setup_remote = AsyncMock()
+            mock_remote_instance.setup.remote = mock_setup_remote
+            mock_remote_class.options.return_value.remote.return_value = mock_remote_instance
+            mock_ray.remote.return_value = mock_remote_class
+
+            from aura.trainer.train_manager import get_or_create_train_manager
+
+            result = await get_or_create_train_manager()
+            mock_ray.get_actor.assert_called_once_with("TrainManager")
+            mock_logger.info.assert_called_once_with(
+                "Could not find actor TrainManager, creating a new one."
+            )
+            mock_setup_remote.assert_awaited_once()
+            mock_remote_class.options.assert_called_once_with(name="TrainManager", lifetime="detached")
+            assert result == mock_remote_instance
+
+    @pytest.mark.asyncio
+    async def test_get_or_create_train_manager_multiple_calls(self):
+        """
+        Test get_or_create_train_manager creates actor only once on multiple calls.
+        """
+        mock_ray = MagicMock()
+        mock_logger = MagicMock()
+        mock_omega = MagicMock()
+        mock_agentic_conf = MagicMock()
+        mock_train_executor = MagicMock()
+        mock_loggers = MagicMock()
+
+        mock_loggers.Loggers.return_value.get_logger.return_value = mock_logger
+
+        with patch.dict(sys.modules, {
+            'ray': mock_ray,
+            'omegaconf': MagicMock(),
+            'aura.base.conf.conf': MagicMock(),
+            'aura.base.execution.executor_manager': MagicMock(),
+            'aura.base.log.loggers': mock_loggers,
+            'aura.trainer.train_executor': MagicMock(),
+        }):
+            sys.modules['omegaconf'].OmegaConf = mock_omega
+            sys.modules['aura.base.conf.conf'].AgenticRLConf = mock_agentic_conf
+            sys.modules['aura.trainer.train_executor'].TrainExecutor = mock_train_executor
+
+            mock_ray.get_actor.side_effect = [ValueError("Actor not found"), MagicMock()]
+
+            mock_remote_class = MagicMock()
+            mock_remote_instance = MagicMock()
+            mock_setup_remote = AsyncMock()
+            mock_remote_instance.setup.remote = mock_setup_remote
+            mock_remote_class.options.return_value.remote.return_value = mock_remote_instance
+            mock_ray.remote.return_value = mock_remote_class
+
+            from aura.trainer.train_manager import get_or_create_train_manager
+
+            result1 = await get_or_create_train_manager()
+            result2 = await get_or_create_train_manager()
+
+            assert mock_ray.get_actor.call_count == 2
+            assert mock_setup_remote.call_count == 1
+            assert result1 == mock_remote_instance
+
+    @pytest.mark.asyncio
+    async def test_get_or_create_train_manager_with_different_actor_name(self):
+        """
+        Test get_or_create_train_manager with different actor name constant.
+        """
+        mock_ray = MagicMock()
+        mock_logger = MagicMock()
+        mock_omega = MagicMock()
+        mock_agentic_conf = MagicMock()
+        mock_train_executor = MagicMock()
+        mock_loggers = MagicMock()
+
+        mock_loggers.Loggers.return_value.get_logger.return_value = mock_logger
+
+        with patch.dict(sys.modules, {
+            'ray': mock_ray,
+            'omegaconf': MagicMock(),
+            'aura.base.conf.conf': MagicMock(),
+            'aura.base.execution.executor_manager': MagicMock(),
+            'aura.base.log.loggers': mock_loggers,
+            'aura.trainer.train_executor': MagicMock(),
+        }):
+            sys.modules['omegaconf'].OmegaConf = mock_omega
+            sys.modules['aura.base.conf.conf'].AgenticRLConf = mock_agentic_conf
+            sys.modules['aura.trainer.train_executor'].TrainExecutor = mock_train_executor
+
+            mock_ray.get_actor.side_effect = ValueError("Actor not found")
+
+            mock_remote_class = MagicMock()
+            mock_remote_instance = MagicMock()
+            mock_setup_remote = AsyncMock()
+            mock_remote_instance.setup.remote = mock_setup_remote
+            mock_remote_class.options.return_value.remote.return_value = mock_remote_instance
+            mock_ray.remote.return_value = mock_remote_class
+
+            from aura.trainer.train_manager import get_or_create_train_manager
+
+            await get_or_create_train_manager()
+
+            mock_remote_class.options.assert_called_once_with(name="TrainManager", lifetime="detached")
+
+    @pytest.mark.asyncio
+    async def test_get_or_create_train_manager_ray_remote_called(self):
+        """
+        Test get_or_create_train_manager calls ray.remote with TrainManager.
+        """
+        mock_ray = MagicMock()
+        mock_logger = MagicMock()
+        mock_omega = MagicMock()
+        mock_agentic_conf = MagicMock()
+        mock_train_executor = MagicMock()
+        mock_loggers = MagicMock()
+
+        mock_loggers.Loggers.return_value.get_logger.return_value = mock_logger
+
+        with patch.dict(sys.modules, {
+            'ray': mock_ray,
+            'omegaconf': MagicMock(),
+            'aura.base.conf.conf': MagicMock(),
+            'aura.base.execution.executor_manager': MagicMock(),
+            'aura.base.log.loggers': mock_loggers,
+            'aura.trainer.train_executor': MagicMock(),
+        }):
+            sys.modules['omegaconf'].OmegaConf = mock_omega
+            sys.modules['aura.base.conf.conf'].AgenticRLConf = mock_agentic_conf
+            sys.modules['aura.trainer.train_executor'].TrainExecutor = mock_train_executor
+
+            mock_ray.get_actor.side_effect = ValueError("Actor not found")
+
+            mock_remote_class = MagicMock()
+            mock_remote_instance = MagicMock()
+            mock_setup_remote = AsyncMock()
+            mock_remote_instance.setup.remote = mock_setup_remote
+            mock_remote_class.options.return_value.remote.return_value = mock_remote_instance
+            mock_ray.remote.return_value = mock_remote_class
+
+            from aura.trainer.train_manager import get_or_create_train_manager, TrainManager
+
+            await get_or_create_train_manager()
+
+            mock_ray.remote.assert_called_once_with(TrainManager)
+
+    @pytest.mark.asyncio
+    async def test_get_or_create_train_manager_setup_called(self):
+        """
+        Test get_or_create_train_manager calls setup.remote() on new instance.
+        """
+        mock_ray = MagicMock()
+        mock_logger = MagicMock()
+        mock_omega = MagicMock()
+        mock_agentic_conf = MagicMock()
+        mock_train_executor = MagicMock()
+        mock_loggers = MagicMock()
+
+        mock_loggers.Loggers.return_value.get_logger.return_value = mock_logger
+
+        with patch.dict(sys.modules, {
+            'ray': mock_ray,
+            'omegaconf': MagicMock(),
+            'aura.base.conf.conf': MagicMock(),
+            'aura.base.execution.executor_manager': MagicMock(),
+            'aura.base.log.loggers': mock_loggers,
+            'aura.trainer.train_executor': MagicMock(),
+        }):
+            sys.modules['omegaconf'].OmegaConf = mock_omega
+            sys.modules['aura.base.conf.conf'].AgenticRLConf = mock_agentic_conf
+            sys.modules['aura.trainer.train_executor'].TrainExecutor = mock_train_executor
+
+            mock_ray.get_actor.side_effect = ValueError("Actor not found")
+
+            mock_remote_class = MagicMock()
+            mock_remote_instance = MagicMock()
+            mock_setup_remote = AsyncMock(return_value=MagicMock())
+            mock_remote_instance.setup.remote = mock_setup_remote
+            mock_remote_class.options.return_value.remote.return_value = mock_remote_instance
+            mock_ray.remote.return_value = mock_remote_class
+
+            from aura.trainer.train_manager import get_or_create_train_manager
+
+            await get_or_create_train_manager()
+
+            mock_setup_remote.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_get_or_create_train_manager_logger_info_on_create(self):
+        """
+        Test get_or_create_train_manager logs info when creating new actor.
+        """
+        mock_ray = MagicMock()
+        mock_logger = MagicMock()
+        mock_omega = MagicMock()
+        mock_agentic_conf = MagicMock()
+        mock_train_executor = MagicMock()
+        mock_loggers = MagicMock()
+
+        mock_loggers.Loggers.return_value.get_logger.return_value = mock_logger
+
+        with patch.dict(sys.modules, {
+            'ray': mock_ray,
+            'omegaconf': MagicMock(),
+            'aura.base.conf.conf': MagicMock(),
+            'aura.base.execution.executor_manager': MagicMock(),
+            'aura.base.log.loggers': mock_loggers,
+            'aura.trainer.train_executor': MagicMock(),
+        }):
+            sys.modules['omegaconf'].OmegaConf = mock_omega
+            sys.modules['aura.base.conf.conf'].AgenticRLConf = mock_agentic_conf
+            sys.modules['aura.trainer.train_executor'].TrainExecutor = mock_train_executor
+
+            mock_ray.get_actor.side_effect = ValueError("Actor not found")
+
+            mock_remote_class = MagicMock()
+            mock_remote_instance = MagicMock()
+            mock_setup_remote = AsyncMock()
+            mock_remote_instance.setup.remote = mock_setup_remote
+            mock_remote_class.options.return_value.remote.return_value = mock_remote_instance
+            mock_ray.remote.return_value = mock_remote_class
+
+            from aura.trainer.train_manager import get_or_create_train_manager
+
+            await get_or_create_train_manager()
+
+            mock_logger.info.assert_called_once_with(
+                "Could not find actor TrainManager, creating a new one."
+            )
+
+    @pytest.mark.asyncio
+    async def test_train_manager_setup_success(self):
+        """
+        Test TrainManager.setup() with successful initialization.
+        """
+        mock_logger = MagicMock()
+        mock_omega = MagicMock()
+        mock_agentic_conf = MagicMock()
+        mock_train_executor = MagicMock()
+        mock_loggers = MagicMock()
+
+        mock_loggers.Loggers.return_value.get_logger.return_value = mock_logger
+
+        mock_instance_conf = MagicMock()
+        mock_instance_conf.name = "test_instance"
+        mock_instance_conf.executor_num = 2
+        mock_instance_conf.executor_kwargs = {"key": "value"}
+        mock_instance_conf.resource_info = {"cpu": 1}
+
+        mock_conf = MagicMock()
+        mock_conf.train_instances = [mock_instance_conf]
+        mock_agentic_conf.load_config.return_value = mock_conf
+
+        mock_omega.to_container.side_effect = [{"key": "value"}, {"cpu": 1}]
+
+        with patch.dict(sys.modules, {
+            'ray': MagicMock(),
+            'omegaconf': MagicMock(),
+            'aura.base.conf.conf': MagicMock(),
+            'aura.base.execution.executor_manager': MagicMock(),
+            'aura.base.log.loggers': mock_loggers,
+            'aura.trainer.train_executor': MagicMock(),
+        }):
+            sys.modules['omegaconf'].OmegaConf = mock_omega
+            sys.modules['aura.base.conf.conf'].AgenticRLConf = mock_agentic_conf
+            sys.modules['aura.trainer.train_executor'].TrainExecutor = mock_train_executor
+            sys.modules['aura.base.execution.executor_manager'].ExecutorManager = MockExecutorManager
+
+            from aura.trainer.train_manager import TrainManager
+
+            manager = TrainManager()
+            await manager.setup()
+
+            assert "test_instance" in manager.instance_dict
+            assert manager.instance_dict["test_instance"]["name"] == "test_instance"
+            assert manager.instance_dict["test_instance"]["executor_num"] == 2
+            mock_logger.info.assert_called()
+            assert mock_logger.info.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_train_manager_setup_empty_instances(self):
+        """
+        Test TrainManager.setup() with empty train_instances list.
+        """
+        mock_logger = MagicMock()
+        mock_omega = MagicMock()
+        mock_agentic_conf = MagicMock()
+        mock_train_executor = MagicMock()
+        mock_loggers = MagicMock()
+
+        mock_loggers.Loggers.return_value.get_logger.return_value = mock_logger
+
+        mock_conf = MagicMock()
+        mock_conf.train_instances = []
+        mock_agentic_conf.load_config.return_value = mock_conf
+
+        with patch.dict(sys.modules, {
+            'ray': MagicMock(),
+            'omegaconf': MagicMock(),
+            'aura.base.conf.conf': MagicMock(),
+            'aura.base.execution.executor_manager': MagicMock(),
+            'aura.base.log.loggers': mock_loggers,
+            'aura.trainer.train_executor': MagicMock(),
+        }):
+            sys.modules['omegaconf'].OmegaConf = mock_omega
+            sys.modules['aura.base.conf.conf'].AgenticRLConf = mock_agentic_conf
+            sys.modules['aura.trainer.train_executor'].TrainExecutor = mock_train_executor
+            sys.modules['aura.base.execution.executor_manager'].ExecutorManager = MockExecutorManager
+
+            from aura.trainer.train_manager import TrainManager
+
+            manager = TrainManager()
+            await manager.setup()
+
+            assert len(manager.instance_dict) == 0
+            mock_logger.info.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_train_manager_setup_exception(self):
+        """
+        Test TrainManager.setup() exception handling.
+        """
+        mock_logger = MagicMock()
+        mock_omega = MagicMock()
+        mock_agentic_conf = MagicMock()
+        mock_train_executor = MagicMock()
+        mock_loggers = MagicMock()
+
+        mock_loggers.Loggers.return_value.get_logger.return_value = mock_logger
+
+        test_error = RuntimeError("Test error")
+        mock_agentic_conf.load_config.side_effect = test_error
+
+        with patch.dict(sys.modules, {
+            'ray': MagicMock(),
+            'omegaconf': MagicMock(),
+            'aura.base.conf.conf': MagicMock(),
+            'aura.base.execution.executor_manager': MagicMock(),
+            'aura.base.log.loggers': mock_loggers,
+            'aura.trainer.train_executor': MagicMock(),
+        }):
+            sys.modules['omegaconf'].OmegaConf = mock_omega
+            sys.modules['aura.base.conf.conf'].AgenticRLConf = mock_agentic_conf
+            sys.modules['aura.trainer.train_executor'].TrainExecutor = mock_train_executor
+            sys.modules['aura.base.execution.executor_manager'].ExecutorManager = MockExecutorManager
+
+            from aura.trainer.train_manager import TrainManager
+
+            manager = TrainManager()
+
+            with pytest.raises(RuntimeError, match="Test error"):
+                await manager.setup()
+
+            mock_logger.error.assert_called_once_with("Train manager setup failed: %s", test_error)
+
+    @pytest.mark.asyncio
+    async def test_train_manager_setup_multiple_instances(self):
+        """
+        Test TrainManager.setup() with multiple train instances.
+        """
+        mock_logger = MagicMock()
+        mock_omega = MagicMock()
+        mock_agentic_conf = MagicMock()
+        mock_train_executor = MagicMock()
+        mock_loggers = MagicMock()
+
+        mock_loggers.Loggers.return_value.get_logger.return_value = mock_logger
+
+        mock_instance_conf1 = MagicMock()
+        mock_instance_conf1.name = "instance1"
+        mock_instance_conf1.executor_num = 1
+        mock_instance_conf1.executor_kwargs = {"key1": "value1"}
+        mock_instance_conf1.resource_info = {"cpu": 1}
+
+        mock_instance_conf2 = MagicMock()
+        mock_instance_conf2.name = "instance2"
+        mock_instance_conf2.executor_num = 2
+        mock_instance_conf2.executor_kwargs = {"key2": "value2"}
+        mock_instance_conf2.resource_info = {"cpu": 2}
+
+        mock_conf = MagicMock()
+        mock_conf.train_instances = [mock_instance_conf1, mock_instance_conf2]
+        mock_agentic_conf.load_config.return_value = mock_conf
+
+        mock_omega.to_container.side_effect = [
+            {"key1": "value1"}, {"cpu": 1},
+            {"key2": "value2"}, {"cpu": 2},
+        ]
+
+        with patch.dict(sys.modules, {
+            'ray': MagicMock(),
+            'omegaconf': MagicMock(),
+            'aura.base.conf.conf': MagicMock(),
+            'aura.base.execution.executor_manager': MagicMock(),
+            'aura.base.log.loggers': mock_loggers,
+            'aura.trainer.train_executor': MagicMock(),
+        }):
+            sys.modules['omegaconf'].OmegaConf = mock_omega
+            sys.modules['aura.base.conf.conf'].AgenticRLConf = mock_agentic_conf
+            sys.modules['aura.trainer.train_executor'].TrainExecutor = mock_train_executor
+            sys.modules['aura.base.execution.executor_manager'].ExecutorManager = MockExecutorManager
+
+            from aura.trainer.train_manager import TrainManager
+
+            manager = TrainManager()
+            await manager.setup()
+
+            assert "instance1" in manager.instance_dict
+            assert "instance2" in manager.instance_dict
+            assert manager.instance_dict["instance1"]["executor_num"] == 1
+            assert manager.instance_dict["instance2"]["executor_num"] == 2
+            assert mock_logger.info.call_count == 3
+            assert mock_omega.to_container.call_count == 4
