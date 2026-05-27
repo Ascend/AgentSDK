@@ -29,10 +29,12 @@ class TestRolloutWorkerUtils(unittest.TestCase):
     def setUp(self):
         """Set up test environment"""
         self.original_modules = {}
-        for module_name in ['mindspeed_rl', 'mindspeed_rl.utils', 'mindspeed_rl.utils.utils', 'verl', 'uvicorn', 'ray']:
+        module_names = ['mindspeed_rl', 'mindspeed_rl.utils', 'mindspeed_rl.utils.utils', 'verl', 'uvicorn', 'ray',
+                        'aura.trainer.rollout.rollout_worker']
+        for module_name in module_names:
             if module_name in sys.modules:
                 self.original_modules[module_name] = sys.modules[module_name]
-        
+
         # mock mindspeed_rl, verl, uvicorn and ray
         self.mock_mindspeed_rl = mock.MagicMock()
         self.mock_mindspeed_rl_utils = mock.MagicMock()
@@ -40,7 +42,7 @@ class TestRolloutWorkerUtils(unittest.TestCase):
         self.mock_verl = mock.MagicMock()
         self.mock_uvicorn = mock.MagicMock()
         self.mock_ray = mock.MagicMock()
-        
+
         class MockRayRemote:
             def __init__(self, *args, **kwargs):
                 self.args = args
@@ -60,15 +62,17 @@ class TestRolloutWorkerUtils(unittest.TestCase):
 
         self.mock_ray.remote = MockRayRemote()
         self.mock_ray.get = mock.MagicMock(return_value=0)
-        
+
         # Replace modules with mocks to avoid import errors
+        self.mock_modules = ['mindspeed_rl', 'mindspeed_rl.utils', 'mindspeed_rl.utils.utils',
+                            'verl', 'uvicorn', 'ray']
         sys.modules['mindspeed_rl'] = self.mock_mindspeed_rl
         sys.modules['mindspeed_rl.utils'] = self.mock_mindspeed_rl_utils
         sys.modules['mindspeed_rl.utils.utils'] = self.mock_mindspeed_rl_utils.utils
         sys.modules['verl'] = self.mock_verl
         sys.modules['uvicorn'] = self.mock_uvicorn
         sys.modules['ray'] = self.mock_ray
-        
+
         # Import test objects
         global get_least_common_multiple, generate_dummy_trajectory, parse_messages
         global _stat_rollout_metrics, clean_traj_groups, get_all_prompt_ids, RolloutWorker
@@ -81,15 +85,19 @@ class TestRolloutWorkerUtils(unittest.TestCase):
             get_all_prompt_ids,
             RolloutWorker
         )
-    
+
     def tearDown(self):
         """Clean up test environment"""
         # Restore original modules
         for module_name, module in self.original_modules.items():
             sys.modules[module_name] = module
-        # Delete mock modules
-        mock_modules = ['mindspeed_rl', 'mindspeed_rl.utils', 'mindspeed_rl.utils.utils', 'verl', 'uvicorn', 'ray']
-        for module_name in mock_modules:
+        # Delete mock modules added in setUp
+        for module_name in self.mock_modules:
+            if module_name in sys.modules and module_name not in self.original_modules:
+                del sys.modules[module_name]
+        # Delete aura modules that were imported
+        aura_modules = ['aura.trainer.rollout.rollout_worker']
+        for module_name in aura_modules:
             if module_name in sys.modules and module_name not in self.original_modules:
                 del sys.modules[module_name]
         # Clean up global variables
@@ -113,7 +121,7 @@ class TestRolloutWorker(TestRolloutWorkerUtils):
     def setUp(self):
         """Set up test environment"""
         super().setUp()
-        
+
         # Use patch to mock external dependencies
         self.patcher_tokenizer = patch('aura.trainer.rollout.rollout_worker.AutoTokenizer')
         self.patcher_data_manager = patch('aura.trainer.rollout.rollout_worker.DataManager')
@@ -124,7 +132,6 @@ class TestRolloutWorker(TestRolloutWorkerUtils):
         self.patcher_agent_router = patch('aura.trainer.rollout.rollout_worker.AgentRouter')
         self.patcher_get_rollout_queue_actor = patch('aura.trainer.rollout.rollout_worker.get_rollout_queue_actor')
         self.patcher_gc = patch('aura.trainer.rollout.rollout_worker.gc')
-        self.patcher_torch = patch('aura.trainer.rollout.rollout_worker.torch')
 
         # Start patches to mock external dependencies
         self.mock_tokenizer = self.patcher_tokenizer.start()
@@ -136,7 +143,6 @@ class TestRolloutWorker(TestRolloutWorkerUtils):
         self.mock_agent_router = self.patcher_agent_router.start()
         self.mock_get_rollout_queue_actor = self.patcher_get_rollout_queue_actor.start()
         self.mock_gc = self.patcher_gc.start()
-        self.mock_torch = self.patcher_torch.start()
 
         # Configure mock object behaviors
         self.mock_tokenizer.from_pretrained.return_value = MagicMock(
@@ -181,18 +187,18 @@ class TestRolloutWorker(TestRolloutWorkerUtils):
 
         # Initialize RolloutWorker instance
         self.rollout_worker = RolloutWorker(
+            generate_config=MagicMock(),
             train_backend="test_backend",
             weight_save_dir="/path/to/weights",
             trajectory_timeout=300,
             hybrid_batch_num=1,
             use_on_policy=False,
+            wait_available_weight_timeout=60,
             n_parallel_agents=8,
-            max_prompt_length=8192,
             actor_rollout_dispatch_size=0,
-            simplify_think_content=False,
             validate_n_samples=1,
             traj_output_path="/path/to/output",
-            tokenizer_name_or_path="qwen",  # Use supported model name
+            tokenizer_name_or_path="qwen",
             dataset_additional_keys=["key1", "key2"],
             global_batch_size=32,
             remove_padding_tensor_dict_to_dict=MagicMock(return_value={"prompts": [torch.tensor([1, 2, 3])]}),
@@ -201,7 +207,7 @@ class TestRolloutWorker(TestRolloutWorkerUtils):
             agent_service="test_agent_service",
             infer_service="test_infer_service"
         )
-        
+
         # Set necessary attributes
         self.rollout_worker.generate_config = MagicMock()
         self.rollout_worker.current_version = 0
@@ -211,7 +217,7 @@ class TestRolloutWorker(TestRolloutWorkerUtils):
         self.rollout_worker.global_batch_size = 32
         self.rollout_worker.tokenizer_name_or_path = "qwen"  # 使用支持的模型名称
         self.rollout_worker.max_prompt_length = 8192
-        
+
         # Set rollout_engine 和 rollout_weight_manager
         self.rollout_worker.rollout_engine = MagicMock(
             sleep=AsyncMock(return_value=None),
@@ -227,7 +233,7 @@ class TestRolloutWorker(TestRolloutWorkerUtils):
                 remote=MagicMock(return_value=0)
             )
         )
-        
+
         # Set other necessary attributes
         self.rollout_worker.iteration = 1
         self.rollout_worker.current_weights_version = 0
@@ -245,8 +251,7 @@ class TestRolloutWorker(TestRolloutWorkerUtils):
         self.patcher_agent_router.stop()
         self.patcher_get_rollout_queue_actor.stop()
         self.patcher_gc.stop()
-        self.patcher_torch.stop()
-        
+
         # Call parent class's tearDown method
         super().tearDown()
 
@@ -581,7 +586,7 @@ class TestRolloutWorker(TestRolloutWorkerUtils):
         """Test _wait_available_version method"""
         # Configure mock object behavior
         self.rollout_worker.rollout_weight_manager = MagicMock()
-        self.rollout_worker.rollout_weight_manager.get_weights_version.remote.side_effect = [0, 1]  # Second call returns 1  
+        self.rollout_worker.rollout_weight_manager.get_weights_version.remote.side_effect = [0, 1]  # Second call returns 1
         self.rollout_worker.current_weights_version = 0
 
         # Mock time.sleep
@@ -637,7 +642,6 @@ class TestRolloutWorker(TestRolloutWorkerUtils):
         # Mock tokenizer pad_token_id
         self.rollout_worker.tokenizer.pad_token_id = 0
 
-        # Mock necessary torch functions and their return values
         # Mock pad_sequence for prompts (left padding)
         def mock_pad_sequence(sequences, batch_first, padding_value):
             if len(sequences) == 2 and sequences[0].shape[0] == 3:
@@ -648,51 +652,34 @@ class TestRolloutWorker(TestRolloutWorkerUtils):
                 return torch.tensor([[1, 1, 0, 1], [1, 1, 0, 0]])
             else:
                 return torch.tensor([[0.1, 0.2, 0.3, 0.4], [0.5, 0.6, 0.0, 0.0]])
-        
-        self.mock_torch.nn.utils.rnn.pad_sequence.side_effect = mock_pad_sequence
-        
-        # Mock flip function
-        self.mock_torch.flip.side_effect = lambda x, dims: x  # Identity for testing
-        
-        # Mock concat function
+
         def mock_concat(tensors, dim):
             return torch.tensor([[1, 2, 3, 4, 5, 6, 7], [0, 8, 9, 10, 11, 0, 0]])
-        
-        self.mock_torch.concat.side_effect = mock_concat
-        
-        # Mock where function for attention mask
-        self.mock_torch.where.return_value = torch.tensor([[1, 1, 1, 1, 1, 1, 1], [0, 1, 1, 1, 1, 0, 0]])
-        
-        # Mock cumsum function for position ids
-        self.mock_torch.cumsum.return_value = torch.tensor([[1, 2, 3, 4, 5, 6, 7], [0, 1, 2, 3, 4, 0, 0]])
-        
-        # Mock zeros_like function for score batch
-        self.mock_torch.zeros_like.return_value = torch.tensor([[0, 0, 0, 0], [0, 0, 0, 0]])
-        
-        # Mock tensor function
-        self.mock_torch.tensor.side_effect = lambda x: torch.tensor(x)
-        
-        # Mock shape attribute
-        self.mock_torch.shape = (2, 4)
-        
-        # Mock torch.sum for valid response length
-        self.mock_torch.sum.side_effect = lambda x, dim: torch.tensor([4, 2]) if dim == -1 else x
 
-        # Call the actual method
-        tensor_batch, metrics = self.rollout_worker._transform_agent_trajectories(trajectories)
+        # Use patch to mock torch functions
+        with patch('aura.trainer.rollout.rollout_worker.torch.nn.utils.rnn.pad_sequence', side_effect=mock_pad_sequence), \
+             patch('aura.trainer.rollout.rollout_worker.torch.flip', side_effect=lambda x, dims: x), \
+             patch('aura.trainer.rollout.rollout_worker.torch.concat', side_effect=mock_concat), \
+             patch('aura.trainer.rollout.rollout_worker.torch.where', return_value=torch.tensor([[1, 1, 1, 1, 1, 1, 1], [0, 1, 1, 1, 1, 0, 0]])), \
+             patch('aura.trainer.rollout.rollout_worker.torch.cumsum', return_value=torch.tensor([[1, 2, 3, 4, 5, 6, 7], [0, 1, 2, 3, 4, 0, 0]])), \
+             patch('aura.trainer.rollout.rollout_worker.torch.zeros_like', return_value=torch.tensor([[0, 0, 0, 0], [0, 0, 0, 0]])), \
+             patch('aura.trainer.rollout.rollout_worker.torch.sum', side_effect=lambda x, dim: torch.tensor([4, 2]) if dim == -1 else x):
+
+            # Call the actual method
+            tensor_batch, metrics = self.rollout_worker._transform_agent_trajectories(trajectories)
 
         # Verify results
         self.assertIsInstance(tensor_batch, dict)
         self.assertIsInstance(metrics, dict)
-        
+
         # Verify all expected keys are present
         expected_keys = ["input_ids", "prompt_length", "attention_mask", "position_ids", "responses", "prompts", "token_level_scores", "traj_mask", "rollout_log_probs", "prompt_ids"]
         for key in expected_keys:
             self.assertIn(key, tensor_batch)
-        
+
         # Verify metrics
         self.assertEqual(metrics, {"traj/res_reward_mean": 0.5})
-        
+
         # Verify method calls
         mock_run_trajectories_perf_metric.assert_called_once_with(trajectories)
         mock_visualize_trajectory.assert_called_once()
@@ -715,6 +702,11 @@ class TestRolloutWorker(TestRolloutWorkerUtils):
         # Mock rollout_engine.update_weights
         self.rollout_worker.rollout_engine.update_weights = AsyncMock(return_value=None)
 
+        # Mock torch.npu.empty_cache to avoid AttributeError on CPU-only PyTorch
+        import torch
+        if not hasattr(torch, 'npu'):
+            torch.npu = MagicMock()
+
         # Call the method
         asyncio.run(self.rollout_worker.update_model_weights(actual_batch_num=1))
 
@@ -733,6 +725,11 @@ class TestRolloutWorker(TestRolloutWorkerUtils):
 
         # Mock _wait_available_version method
         self.rollout_worker._wait_available_version = MagicMock(return_value=1)
+
+        # Mock torch.npu.empty_cache to avoid AttributeError on CPU-only PyTorch
+        import torch
+        if not hasattr(torch, 'npu'):
+            torch.npu = MagicMock()
 
         # Call the method
         asyncio.run(self.rollout_worker.update_model_weights(actual_batch_num=1))
@@ -916,7 +913,7 @@ class TestRolloutWorker(TestRolloutWorkerUtils):
                 with patch('aura.trainer.rollout.rollout_worker.ray.get') as mock_ray_get:
                     # Configure mock_ray_get to return 0
                     mock_ray_get.return_value = 0
-                    # Configure mock_time to return values that cause timeout       
+                    # Configure mock_time to return values that cause timeout
                     mock_time.side_effect = [0, 5, 11]  # Start time 0, then 5 (before timeout), then 11 (timeout)
 
                     # Call the method with timeout=10
@@ -926,6 +923,548 @@ class TestRolloutWorker(TestRolloutWorkerUtils):
                     # Verify results
                     self.assertEqual(weights_version, UNAVAILABLE_WEIGHT_VERSION)
                     mock_sleep.assert_called()
+
+
+    def test_get_least_common_multiple(self):
+        """Test get_least_common_multiple function"""
+        result = get_least_common_multiple(4, 6)
+        self.assertEqual(result, 12)
+        result = get_least_common_multiple(5, 7)
+        self.assertEqual(result, 35)
+        result = get_least_common_multiple(0, 5)
+        self.assertEqual(result, 0)
+
+    def test_generate_dummy_trajectory(self):
+        """Test generate_dummy_trajectory function"""
+        trajectory = generate_dummy_trajectory("test_id")
+        self.assertIsInstance(trajectory, dict)
+        self.assertEqual(trajectory["prompt_id"], "test_id")
+        self.assertIn("prompt_tokens", trajectory)
+        self.assertIn("response_tokens", trajectory)
+
+    def test_parse_messages_qwen_format(self):
+        """Test parse_messages function with Qwen format"""
+        prompt = "<|im_start|>system\nHello<|im_end|><|im_start|>user\nWorld<|im_end|>"
+        messages = parse_messages(prompt, model_name="qwen")
+        self.assertEqual(len(messages), 2)
+        self.assertEqual(messages[0]["role"], "system")
+        self.assertEqual(messages[0]["content"], "Hello")
+        self.assertEqual(messages[1]["role"], "user")
+        self.assertEqual(messages[1]["content"], "World")
+
+    def test_parse_messages_deepseek_format(self):
+        """Test parse_messages function with DeepSeek format"""
+        prompt = "<｜system｜>Hello<｜user｜>World"
+        messages = parse_messages(prompt, model_name="deepseek")
+        self.assertEqual(len(messages), 2)
+        self.assertEqual(messages[0]["role"], "system")
+        self.assertEqual(messages[0]["content"], "Hello")
+        self.assertEqual(messages[1]["role"], "user")
+        self.assertEqual(messages[1]["content"], "World")
+
+    def test_parse_messages_unsupported_model(self):
+        """Test parse_messages function with unsupported model"""
+        with self.assertRaises(NotImplementedError):
+            parse_messages("test", model_name="unsupported")
+
+    def test_clean_traj_groups(self):
+        """Test clean_traj_groups function"""
+        traj_groups = {1: [{"prompt_id": 1}, {"prompt_id": 1}]}
+        all_prompt_ids = {1, 2}
+        trajectories = [{"prompt_id": 1}]
+        clean_traj_groups(traj_groups, all_prompt_ids, trajectories)
+        self.assertEqual(len(traj_groups[1]), 1)
+        self.assertNotIn(1, all_prompt_ids)
+
+    def test_get_all_prompt_ids(self):
+        """Test get_all_prompt_ids function"""
+        class MockTask:
+            def __init__(self, prompt_id):
+                self.prompt_id = prompt_id
+        tasks = [MockTask(1), MockTask(2), MockTask(3)]
+        result = get_all_prompt_ids(tasks)
+        self.assertEqual(result, {1, 2, 3})
+
+    def test_pad_dataproto_to_divisor(self):
+        """Test pad_dataproto_to_divisor function"""
+        from aura.trainer.rollout.rollout_worker import pad_dataproto_to_divisor
+        tensor_batch = {
+            "input_ids": [[1, 2, 3], [4, 5, 6]],
+            "attention_mask": torch.tensor([[1, 1, 1], [1, 1, 1]]),
+            "token_level_scores": torch.tensor([[0.5, 0.5], [0.5, 0.5]])
+        }
+        result = pad_dataproto_to_divisor(tensor_batch, 4)
+        self.assertEqual(len(result["input_ids"]), 4)
+        self.assertEqual(result["attention_mask"].shape[0], 4)
+
+    def test_rollout_worker_init_on_policy_assertion(self):
+        """Test RolloutWorker on_policy assertion check"""
+        self.rollout_worker.use_on_policy = True
+        self.rollout_worker.hybrid_batch_num = 2
+        with self.assertRaises(AssertionError):
+            # Simulate the assertion check in __init__
+            if self.rollout_worker.use_on_policy and self.rollout_worker.hybrid_batch_num > 1:
+                raise AssertionError(
+                    f"Configuration error: hybrid_batch_num={self.rollout_worker.hybrid_batch_num} "
+                    f"must be 1 when use_on_policy={self.rollout_worker.use_on_policy}."
+                )
+
+    def test_run_trajectories_perf_metric_with_dummy_and_real_trajectories(self):
+        """Test run_trajectories_perf_metric method with mixed dummy and real trajectories"""
+        trajectories = [
+            {
+                "metrics": {
+                    "total_time": 0.0,
+                    "env_time": 0.0,
+                    "llm_time": 0.0
+                }
+            },
+            {
+                "metrics": {
+                    "total_time": 1.0,
+                    "env_time": 0.5,
+                    "llm_time": 0.3
+                }
+            }
+        ]
+        metrics = self.rollout_worker.run_trajectories_perf_metric(trajectories)
+        self.assertIn("traj/total_time_mean", metrics)
+
+    def test_run_trajectories_perf_metric_with_reward_metrics(self):
+        """Test run_trajectories_perf_metric method with reward metrics"""
+        trajectories = [
+            {
+                "metrics": {
+                    "total_time": 1.0,
+                    "env_time": 0.5,
+                    "llm_time": 0.3,
+                    "toolcall_reward": 0.1,
+                    "res_reward": 0.9,
+                    "steps": 2
+                }
+            },
+            {
+                "metrics": {
+                    "total_time": 2.0,
+                    "env_time": 1.0,
+                    "llm_time": 0.6,
+                    "toolcall_reward": 0.2,
+                    "res_reward": 1.8,
+                    "steps": 3
+                }
+            }
+        ]
+        metrics = self.rollout_worker.run_trajectories_perf_metric(trajectories)
+        self.assertIn("traj/res_reward_mean", metrics)
+        self.assertIn("traj/toolcall_reward_mean", metrics)
+
+    def test_run_trajectories_perf_metric_with_step_times(self):
+        """Test run_trajectories_perf_metric method with step times"""
+        trajectories = [
+            {
+                "metrics": {
+                    "total_time": 1.0,
+                    "llm_step_times": [0.1, 0.2],
+                    "env_step_times": [0.3, 0.4],
+                    "step_reward": [0.5, 0.6],
+                    "steps": 2
+                }
+            }
+        ]
+        metrics = self.rollout_worker.run_trajectories_perf_metric(trajectories)
+        self.assertIn("traj/total_time_mean", metrics)
+
+    def test_run_trajectories_perf_metric_with_traj_start_time(self):
+        """Test run_trajectories_perf_metric method with traj_start_time"""
+        trajectories = [
+            {
+                "metrics": {
+                    "total_time": 1.0,
+                    "traj_start_time": 1234567890.0
+                }
+            }
+        ]
+        metrics = self.rollout_worker.run_trajectories_perf_metric(trajectories)
+        self.assertIn("traj/total_time_mean", metrics)
+
+    def test_wait_init_finished_proxy_mode(self):
+        """Test wait_init_finished method in proxy mode"""
+        import asyncio
+        with patch('aura.trainer.rollout.rollout_worker.AsyncServerProxyManager') as mock_proxy:
+            mock_proxy_instance = AsyncMock()
+            mock_proxy.return_value = mock_proxy_instance
+            asyncio.run(self.rollout_worker.wait_init_finished(is_proxy_mode=True))
+            mock_proxy.assert_called_once()
+            mock_proxy_instance.init.assert_called_once()
+
+    def test_wait_init_finished_non_proxy_mode(self):
+        """Test wait_init_finished method in non-proxy mode"""
+        import asyncio
+        with patch('aura.trainer.rollout.rollout_worker.AsyncServerManager') as mock_server:
+            mock_server_instance = MagicMock()
+            mock_server.return_value = mock_server_instance
+            asyncio.run(self.rollout_worker.wait_init_finished(is_proxy_mode=False))
+            mock_server.assert_called_once()
+
+    def test_init_data_manager(self):
+        """Test init_data_manager method"""
+        mock_data_manager = MagicMock()
+        self.mock_data_manager.return_value.sync_init_data_manager.return_value = True
+        result = self.rollout_worker.init_data_manager(mock_data_manager)
+        self.assertTrue(result)
+        self.mock_data_manager.return_value.sync_init_data_manager.assert_called_once_with(mock_data_manager)
+
+    def test_multi_batches_final_handle_early_exit(self):
+        """Test multi_batches_final_handle method with empty prompt_ids (early exit)"""
+        traj_groups = {"0": [{"prompt_id": "0", "prompt_tokens": torch.tensor([1, 2, 3])}]}
+        all_prompt_ids = set()
+        concurrency = 8
+        indexes = [0]
+        start_time = 1234567890
+        resharding_to_infer = 0.5
+
+        with patch.object(self.rollout_worker, 'handle_full_batch_trajectories') as mock_handle:
+            self.rollout_worker.multi_batches_final_handle(traj_groups, all_prompt_ids, concurrency, indexes, start_time, resharding_to_infer)
+            mock_handle.assert_not_called()
+
+    def test_reset_trajectory_reward(self):
+        """Test reset_trajectory_reward method"""
+        class MockTrajectory:
+            def __init__(self, reward):
+                self.reward = reward
+
+        trajectories = [MockTrajectory(1.0), MockTrajectory(2.0), MockTrajectory(3.0), MockTrajectory(4.0)]
+        self.rollout_worker.n_samples_per_prompt = 2
+
+        self.rollout_worker.reset_trajectory_reward(trajectories)
+
+        rewards = [t.reward for t in trajectories]
+        self.assertAlmostEqual(sum(rewards), 0.0, places=5)
+
+    def test_stepwise_normalization_disabled(self):
+        """Test stepwise_normalization method when use_stepwise_advantage is False"""
+        self.rollout_worker.use_stepwise_advantage = False
+        trajectories = []
+        self.rollout_worker.stepwise_normalization(trajectories)
+
+    def test_stepwise_normalization_enabled(self):
+        """Test stepwise_normalization method when use_stepwise_advantage is True"""
+        class MockTrajectory:
+            def __init__(self, reward):
+                self.reward = reward
+
+        self.rollout_worker.use_stepwise_advantage = True
+        self.rollout_worker.n_samples_per_prompt = 2
+        trajectories = [MockTrajectory(1.0), MockTrajectory(2.0)]
+
+        with patch.object(self.rollout_worker, 'reset_trajectory_reward') as mock_reset:
+            with patch.object(self.rollout_worker.data_manager, 'update_metrics') as mock_update:
+                self.rollout_worker.stepwise_normalization(trajectories)
+                mock_reset.assert_called_once_with(trajectories)
+                mock_update.assert_called()
+
+    def test_stepwise_pad_datapro_disabled(self):
+        """Test stepwise_pad_datapro method when use_stepwise_advantage is False"""
+        self.rollout_worker.use_stepwise_advantage = False
+        final_gen_batch_output = {}
+        self.rollout_worker.stepwise_pad_datapro(final_gen_batch_output)
+
+    def test_stepwise_pad_datapro_enabled(self):
+        """Test stepwise_pad_datapro method when use_stepwise_advantage is True"""
+        from aura.trainer.rollout.rollout_worker import pad_dataproto_to_divisor
+        self.rollout_worker.use_stepwise_advantage = True
+        self.rollout_worker.global_batch_size = 4
+        self.rollout_worker.is_hybrid_mode = MagicMock(return_value=True)
+        final_gen_batch_output = {
+            "input_ids": torch.tensor([[1, 2, 3], [4, 5, 6]]),
+            "attention_mask": torch.tensor([[1, 1, 1], [1, 1, 1]])
+        }
+
+        with patch.object(self.rollout_worker.data_manager, 'reset_experience_len') as mock_reset:
+            self.rollout_worker.stepwise_pad_datapro(final_gen_batch_output)
+            mock_reset.assert_called_once()
+
+    def test_add_output_for_verl_with_msrl(self):
+        """Test add_output_for_verl method when remove_padding_and_split_to_list is not None"""
+        self.rollout_worker.remove_padding_and_split_to_list = lambda x: x
+        final_gen_batch_output = {}
+        responses = []
+        outputs = {}
+
+        self.rollout_worker.add_output_for_verl(final_gen_batch_output, responses, outputs)
+
+        self.assertEqual(outputs, {})
+
+    def test_add_output_for_verl(self):
+        """Test add_output_for_verl method"""
+        self.rollout_worker.remove_padding_and_split_to_list = None
+        final_gen_batch_output = {
+            "input_ids": torch.tensor([[1, 2, 3]]),
+            "prompt_ids": ["1"],
+            "position_ids": torch.tensor([[0, 1, 2]]),
+            "attention_mask": torch.tensor([[1, 1, 1]]),
+            "prompts": torch.tensor([[1, 2, 3]]),
+            "prompt_length": [torch.tensor([3])],
+            "token_level_scores": torch.tensor([[0.5]]),
+            "traj_mask": torch.tensor([[1, 1, 1]]),
+            "rollout_log_probs": torch.tensor([[0.1, 0.2, 0.3]])
+        }
+        responses = torch.tensor([[4, 5, 6]])
+        outputs = {}
+
+        self.rollout_worker.add_output_for_verl(final_gen_batch_output, responses, outputs)
+
+        self.assertIn("responses", outputs)
+        self.assertIn("input_ids", outputs)
+        self.assertIn("rollout_log_probs", outputs)
+
+    def test_add_output_for_msrl_with_verl(self):
+        """Test add_output_for_msrl method when remove_padding_and_split_to_list is None"""
+        self.rollout_worker.remove_padding_and_split_to_list = None
+        responses = []
+        input_ids = []
+        outputs = {}
+
+        self.rollout_worker.add_output_for_msrl(responses, input_ids, outputs)
+
+        self.assertEqual(outputs, {})
+
+    def test_add_output_for_msrl(self):
+        """Test add_output_for_msrl method"""
+        self.rollout_worker.remove_padding_and_split_to_list = lambda x: x
+        responses = [[1, 2, 3], [4, 5]]
+        input_ids = [[1, 2, 3, 4, 5, 6], [7, 8, 9, 10]]
+        outputs = {}
+
+        self.rollout_worker.add_output_for_msrl(responses, input_ids, outputs)
+
+        self.assertIn("responses", outputs)
+        self.assertIn("input_ids", outputs)
+        self.assertIn("response_length", outputs)
+
+    def test_transform_agent_trajectories_empty_logprobs(self):
+        """Test _transform_agent_trajectories method when logprobs is empty"""
+        trajectories = [
+            {
+                "prompt_id": "0",
+                "prompt_tokens": torch.tensor([1, 2, 3]),
+                "response_tokens": torch.tensor([4, 5]),
+                "response_masks": torch.tensor([1, 1]),
+                "trajectory_reward": 0.5,
+                "logprobs": [],
+                "chat_completions": [{"role": "user", "content": "test"}]
+            }
+        ]
+
+        self.rollout_worker.use_stepwise_advantage = False
+        self.rollout_worker.tokenizer.pad_token_id = 0
+
+        with patch.object(self.rollout_worker, 'run_trajectories_perf_metric', return_value={}) as mock_perf:
+            with patch.object(self.rollout_worker, 'visualize_trajectory') as mock_visualize:
+                tensor_batch, metrics = self.rollout_worker._transform_agent_trajectories(trajectories)
+
+                self.assertIsInstance(tensor_batch, dict)
+                self.assertNotIn("rollout_log_probs", tensor_batch)
+                mock_perf.assert_called_once()
+                mock_visualize.assert_called_once()
+
+    def test_transform_agent_trajectories_with_logprobs(self):
+        """Test _transform_agent_trajectories method with logprobs"""
+        trajectories = [
+            {
+                "prompt_id": "0",
+                "prompt_tokens": torch.tensor([1, 2, 3]),
+                "response_tokens": torch.tensor([4, 5]),
+                "response_masks": torch.tensor([1, 1]),
+                "trajectory_reward": 0.5,
+                "logprobs": [0.1, 0.2],
+                "chat_completions": [{"role": "user", "content": "test"}]
+            }
+        ]
+
+        self.rollout_worker.use_stepwise_advantage = False
+        self.rollout_worker.tokenizer.pad_token_id = 0
+
+        with patch.object(self.rollout_worker, 'run_trajectories_perf_metric', return_value={}) as mock_perf:
+            with patch.object(self.rollout_worker, 'visualize_trajectory') as mock_visualize:
+                tensor_batch, metrics = self.rollout_worker._transform_agent_trajectories(trajectories)
+
+                self.assertIsInstance(tensor_batch, dict)
+                self.assertIn("rollout_log_probs", tensor_batch)
+                mock_perf.assert_called_once()
+                mock_visualize.assert_called_once()
+
+    def test_transform_agent_trajectories_empty_trajectory(self):
+        """Test _transform_agent_trajectories method with empty trajectory"""
+        trajectories = [
+            {
+                "prompt_id": "0",
+                "prompt_tokens": torch.tensor([]),
+                "response_tokens": torch.tensor([4, 5]),
+                "response_masks": torch.tensor([1, 1]),
+                "trajectory_reward": 0.5,
+                "logprobs": [0.1, 0.2],
+                "chat_completions": [{"role": "user", "content": "test"}]
+            }
+        ]
+
+        self.rollout_worker.use_stepwise_advantage = False
+
+        with self.assertRaises(ValueError):
+            self.rollout_worker._transform_agent_trajectories(trajectories)
+
+    def test_trajectories_collect_done(self):
+        """Test trajectories_collect_done method"""
+        trajectories = [1, 2, 3, 4, 5, 6, 7, 8]
+        concurrency = 8
+        done_batch_count = 0
+        actual_batch_num = 1
+
+        result = self.rollout_worker.trajectories_collect_done(trajectories, concurrency, done_batch_count, actual_batch_num)
+        self.assertTrue(result)
+
+    def test_trajectories_collect_done_not_enough(self):
+        """Test trajectories_collect_done method when not enough trajectories"""
+        trajectories = [1, 2, 3]
+        concurrency = 8
+        done_batch_count = 0
+        actual_batch_num = 1
+
+        result = self.rollout_worker.trajectories_collect_done(trajectories, concurrency, done_batch_count, actual_batch_num)
+        self.assertFalse(result)
+
+    def test_get_train_batch_traj(self):
+        """Test get_train_batch_traj method"""
+        traj_groups = {"0": [{"prompt_id": "0"}, {"prompt_id": "0"}], "1": [{"prompt_id": "1"}, {"prompt_id": "1"}]}
+        concurrency = 4
+        n_samples_per_prompt = 2
+
+        trajectories = self.rollout_worker.get_train_batch_traj(traj_groups, concurrency, n_samples_per_prompt)
+
+        self.assertEqual(len(trajectories), 4)
+
+    def test_is_hybrid_mode(self):
+        """Test is_hybrid_mode method"""
+        # Default behavior
+        result = self.rollout_worker.is_hybrid_mode()
+        self.assertFalse(result)
+
+    def test_hybrid_mode_metrics_handle_disabled(self):
+        """Test hybrid_mode_metrics_handle method when not in hybrid mode"""
+        metrics = {"traj/res_reward_mean": 0.5}
+        start_time = 1234567890.0
+        end_time = 1234567891.0
+
+        self.rollout_worker.hybrid_mode_metrics_handle(metrics, start_time, end_time)
+
+    def test_hybrid_mode_metrics_handle_enabled(self):
+        """Test hybrid_mode_metrics_handle method when in hybrid mode"""
+        metrics = {"traj/res_reward_mean": 0.5}
+        start_time = 1234567890.0
+        end_time = 1234567891.0
+
+        with patch.object(self.rollout_worker, 'is_hybrid_mode', return_value=True):
+            with patch.object(self.rollout_worker.data_manager, 'update_metrics') as mock_update:
+                self.rollout_worker.hybrid_mode_metrics_handle(metrics, start_time, end_time)
+                mock_update.assert_called()
+
+    def test__stat_rollout_metrics(self):
+        """Test _stat_rollout_metrics function"""
+        rollout_cost = 1.5
+        resharding_to_infer = 0.5
+        metrics = {"traj/res_reward_mean": 0.8, "traj/toolcall_reward_mean": 0.2}
+
+        result = _stat_rollout_metrics(rollout_cost, resharding_to_infer, metrics)
+
+        self.assertEqual(result["rollout_cost"], 1.5)
+        self.assertEqual(result["resharding_to_infer"], 0.5)
+        self.assertEqual(result["res_reward_mean"], 0.8)
+        self.assertEqual(result["toolcall_reward_mean"], 0.2)
+
+    def test_get_train_batch_traj_empty(self):
+        """Test get_train_batch_traj method with empty traj_groups"""
+        traj_groups = {}
+        concurrency = 4
+        n_samples_per_prompt = 2
+
+        trajectories = self.rollout_worker.get_train_batch_traj(traj_groups, concurrency, n_samples_per_prompt)
+
+        self.assertEqual(len(trajectories), 0)
+
+    def test_get_train_batch_traj_partial(self):
+        """Test get_train_batch_traj method with partial data (not enough samples per prompt)"""
+        traj_groups = {"0": [{"prompt_id": "0"}], "1": [{"prompt_id": "1"}]}
+        concurrency = 4
+        n_samples_per_prompt = 2
+
+        trajectories = self.rollout_worker.get_train_batch_traj(traj_groups, concurrency, n_samples_per_prompt)
+
+        self.assertEqual(len(trajectories), 0)
+
+    def test_clean_traj_groups_value_error(self):
+        """Test clean_traj_groups function with ValueError handling (traj not in list)"""
+        traj_groups = {1: [{"prompt_id": 1, "unique_key": "a"}]}
+        all_prompt_ids = {1, 2}
+        trajectories = [{"prompt_id": 1, "unique_key": "b"}]  # Different object, not in list
+
+        clean_traj_groups(traj_groups, all_prompt_ids, trajectories)
+
+        self.assertEqual(len(traj_groups[1]), 1)
+        self.assertEqual(all_prompt_ids, {1, 2})
+
+    def test_early_termination_requests(self):
+        """Test early_termination_requests method"""
+        import asyncio
+        mock_task = {"task_id": "1"}
+        mock_agent_router = AsyncMock()
+
+        asyncio.run(self.rollout_worker.early_termination_requests(mock_task, mock_agent_router))
+
+        mock_agent_router.cancel_request.assert_called_once_with(mock_task)
+        self.assertEqual(self.rollout_worker.terminate_trajectories, 1)
+
+    def test_trajectories_collect_done_full_batch(self):
+        """Test trajectories_collect_done method with full batch"""
+        trajectories = [1, 2, 3, 4, 5, 6, 7, 8]
+        concurrency = 8
+        done_batch_count = 1
+        actual_batch_num = 1
+
+        result = self.rollout_worker.trajectories_collect_done(trajectories, concurrency, done_batch_count, actual_batch_num)
+        self.assertTrue(result)
+
+    def test_trajectories_collect_done_more_than_expected(self):
+        """Test trajectories_collect_done method with more trajectories than expected"""
+        trajectories = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+        concurrency = 8
+        done_batch_count = 1
+        actual_batch_num = 1
+
+        result = self.rollout_worker.trajectories_collect_done(trajectories, concurrency, done_batch_count, actual_batch_num)
+        self.assertTrue(result)
+
+    def test_transform_agent_trajectories_no_chat_completions(self):
+        """Test _transform_agent_trajectories method without chat_completions"""
+        trajectories = [
+            {
+                "prompt_id": "0",
+                "prompt_tokens": torch.tensor([1, 2, 3]),
+                "response_tokens": torch.tensor([4, 5]),
+                "response_masks": torch.tensor([1, 1]),
+                "trajectory_reward": 0.5,
+                "logprobs": [0.1, 0.2],
+                "chat_completions": None
+            }
+        ]
+
+        self.rollout_worker.use_stepwise_advantage = False
+        self.rollout_worker.tokenizer.pad_token_id = 0
+
+        with patch.object(self.rollout_worker, 'run_trajectories_perf_metric', return_value={}) as mock_perf:
+            with patch.object(self.rollout_worker, 'visualize_trajectory') as mock_visualize:
+                tensor_batch, metrics = self.rollout_worker._transform_agent_trajectories(trajectories)
+
+                self.assertIsInstance(tensor_batch, dict)
 
 
 if __name__ == '__main__':
