@@ -24,57 +24,64 @@ from unittest import mock
 import torch
 
 
-class TestOneStepOffRollouter(unittest.TestCase):
+class TestOneStepOffRolloutExecutor(unittest.TestCase):
     def setUp(self):
         """Set up test environment"""
         # Save original modules
         self.original_modules = {}
-        for module_name in ['ray']:
+        modules_to_mock = ['ray', 'aura.controllers.rollout_controller',
+                           'aura.controllers.rollout_controller.rollout_queue',
+                           'aura.controllers.utils', 'aura.base.log.loggers']
+        for module_name in modules_to_mock:
             if module_name in sys.modules:
                 self.original_modules[module_name] = sys.modules[module_name]
-        
+
         # Mock ray to avoid import errors
         self.mock_ray = mock.MagicMock()
-        
-        # Configure mock_ray behavior
-        self.mock_ray.get_actor.return_value = mock.MagicMock()
-        
-        # Replace modules
+        self.mock_ray.get.return_value = None
         sys.modules['ray'] = self.mock_ray
-        
-        # Save original rollouter module
-        self.original_rollouter_module = None
-        if 'aura.trainer.rollout.rollouter' in sys.modules:
-            self.original_rollouter_module = sys.modules['aura.trainer.rollout.rollouter']
-        
-        # Reload rollouter module to ensure we get the original OneStepOffRollouter class
-        import importlib
-        import aura.trainer.rollout.rollouter
-        importlib.reload(aura.trainer.rollout.rollouter)
-        from aura.trainer.rollout.rollouter import OneStepOffRollouter
-        
+
+        # Create mock queue actor
+        self.mock_queue_actor = MagicMock()
+
+        # Mock aura.controllers.utils
+        mock_utils = mock.MagicMock()
+        mock_utils.MIN_SLEEP_TIME = 0.01
+        sys.modules['aura.controllers.utils'] = mock_utils
+        sys.modules['aura.controllers.utils.utils'] = mock_utils
+
+        # Mock aura.controllers.rollout_controller.rollout_queue
+        mock_rollout_queue = mock.MagicMock()
+        mock_rollout_queue.get_rollout_queue_actor = lambda: self.mock_queue_actor
+        sys.modules['aura.controllers.rollout_controller'] = mock.MagicMock()
+        sys.modules['aura.controllers.rollout_controller.rollout_queue'] = mock_rollout_queue
+
+        # Mock aura.base.log.loggers
+        self.mock_logger = mock.MagicMock()
+        mock_loggers = mock.MagicMock()
+        mock_loggers.Loggers.return_value.get_logger.return_value = self.mock_logger
+        sys.modules['aura.base.log.loggers'] = mock_loggers
+
+        # Store list of mock modules for tearDown
+        self.mock_modules = ['ray', 'aura.controllers.rollout_controller',
+                           'aura.controllers.rollout_controller.rollout_queue',
+                           'aura.controllers.utils', 'aura.base.log.loggers']
+
         # Create mock objects
         self.mock_controller = MagicMock()
         self.mock_rollout_worker = MagicMock()
         self.mock_padding_dict_to_tensor_dict = MagicMock()
         self.mock_put_prompts_experience = MagicMock()
-        self.mock_queue_actor = MagicMock()
-        
+
         # Configure mock objects' behavior
         self.mock_controller.get_weight_manager.return_value = MagicMock()
         self.mock_rollout_worker.init_weight_manager.remote.return_value = None
         self.mock_put_prompts_experience.return_value = ({"batch_dict": "value"}, [0, 1])
-        
-        # Save original get_rollout_queue_actor function
-        from aura.controllers.rollout_controller.rollout_queue import get_rollout_queue_actor
-        self.original_get_rollout_queue_actor = get_rollout_queue_actor
-        
-        # Replace get_rollout_queue_actor function
-        import aura.controllers.rollout_controller.rollout_queue
-        aura.controllers.rollout_controller.rollout_queue.get_rollout_queue_actor = lambda: self.mock_queue_actor
-        
-        # Initialize OneStepOffRollouter instance
-        self.rollouter = OneStepOffRollouter(
+
+        # Import and initialize OneStepOffRolloutExecutor
+        from aura.trainer.rollout.rollout_executor import OneStepOffRolloutExecutor
+
+        self.rollouter = OneStepOffRolloutExecutor(
             controller=self.mock_controller,
             rollout_worker=self.mock_rollout_worker,
             train_iters=10,
@@ -85,35 +92,30 @@ class TestOneStepOffRollouter(unittest.TestCase):
             n_samples_per_prompt=8,
             hybrid_batch_num=2
         )
-        
-        # Save OneStepOffRollouter class reference
-        self.OneStepOffRollouter = OneStepOffRollouter
-    
+
+        # Save OneStepOffRolloutExecutor class reference
+        self.OneStepOffRolloutExecutor = OneStepOffRolloutExecutor
+
     def tearDown(self):
         """Clean up test environment"""
-        # Restore original get_rollout_queue_actor function
-        import aura.controllers.rollout_controller.rollout_queue
-        aura.controllers.rollout_controller.rollout_queue.get_rollout_queue_actor = self.original_get_rollout_queue_actor
-        
-        # Restore original rollouter module
-        if self.original_rollouter_module is not None:
-            sys.modules['aura.trainer.rollout.rollouter'] = self.original_rollouter_module
-        else:
-            # If original module doesn't exist, delete the module we created
-            if 'aura.trainer.rollout.rollouter' in sys.modules:
-                del sys.modules['aura.trainer.rollout.rollouter']
-        
         # Restore original modules
         for module_name, module in self.original_modules.items():
             sys.modules[module_name] = module
-        # Remove mock modules
-        mock_modules = ['ray']
-        for module_name in mock_modules:
+        # Delete mock modules added in setUp
+        for module_name in self.mock_modules:
+            if module_name in sys.modules and module_name not in self.original_modules:
+                del sys.modules[module_name]
+        # Also delete utils.utils that was set up
+        if 'aura.controllers.utils.utils' in sys.modules and 'aura.controllers.utils.utils' not in self.original_modules:
+            del sys.modules['aura.controllers.utils.utils']
+        # Delete aura modules that were imported
+        aura_modules = ['aura.trainer.rollout.rollout_executor']
+        for module_name in aura_modules:
             if module_name in sys.modules and module_name not in self.original_modules:
                 del sys.modules[module_name]
 
     def test_init(self):
-        """Test OneStepOffRollouter initialization"""
+        """Test OneStepOffRolloutExecutor initialization"""
         # Verify initialization parameters are set correctly
         self.assertEqual(self.rollouter.controller, self.mock_controller)
         self.assertEqual(self.rollouter.rollout_worker, self.mock_rollout_worker)
@@ -124,7 +126,7 @@ class TestOneStepOffRollouter(unittest.TestCase):
         self.assertEqual(self.rollouter.dataset_additional_keys, ["key1", "key2", "response_mask"])
         self.assertEqual(self.rollouter.n_samples_per_prompt, 8)
         self.assertEqual(self.rollouter.hybrid_batch_num, 2)
-        
+
         # Verify init_weight_manager was called
         self.mock_rollout_worker.init_weight_manager.remote.assert_called_once_with(
             self.mock_controller.get_weight_manager.return_value
@@ -136,14 +138,14 @@ class TestOneStepOffRollouter(unittest.TestCase):
         batch = {"key": "value"}
         expected_batch_dict = {"batch": "dict"}
         expected_indexes = [0, 1, 2]
-        
+
         # Configure mock objects' behavior
         self.rollouter.data_optimized = False
         self.mock_put_prompts_experience.return_value = (expected_batch_dict, expected_indexes)
-        
+
         # Call method
         batch_dict, indexes = self.rollouter.get_batch_dict(batch)
-        
+
         # Verify results
         self.assertEqual(batch_dict, expected_batch_dict)
         self.assertEqual(indexes, expected_indexes)
@@ -159,19 +161,19 @@ class TestOneStepOffRollouter(unittest.TestCase):
         expected_prompt_ids = {"prompt": "ids"}
         expected_batch_dict = {"batch": "dict"}
         expected_indexes = [0, 1, 2]
-        
+
         # Configure mock objects' behavior
         self.rollouter.data_optimized = True
-        
+
         # Use patch to mock imported functions
         with patch('aura.trainer.rollout.rollout_dataset.optimized_preprocess_input') as mock_optimized_preprocess_input:
             with patch('aura.trainer.rollout.rollout_dataset.optimized_put_prompt_experience') as mock_optimized_put_prompt_experience:
                 mock_optimized_preprocess_input.return_value = (expected_mini_batches, expected_prompt_ids)
                 mock_optimized_put_prompt_experience.return_value = (expected_batch_dict, expected_indexes)
-                
+
                 # Call method
                 batch_dict, indexes = self.rollouter.get_batch_dict(batch)
-                
+
                 # Verify results
                 self.assertEqual(batch_dict, expected_batch_dict)
                 self.assertEqual(indexes, expected_indexes)
@@ -187,18 +189,18 @@ class TestOneStepOffRollouter(unittest.TestCase):
             {"key1": [1, 2], "key2": [3, 4]},
             {"key1": [5, 6], "key2": [7, 8]}
         ]
-        
+
         # Call method
-        merged_batch = self.OneStepOffRollouter.merge_batch_list(batches)
-        
+        merged_batch = self.OneStepOffRolloutExecutor.merge_batch_list(batches)
+
         # Verify results
         self.assertEqual(merged_batch, {"key1": [1, 2, 5, 6], "key2": [3, 4, 7, 8]})
 
     def test_merge_batch_list_empty(self):
         """Test merge_batch_list method with empty list"""
         # Call method
-        merged_batch = self.OneStepOffRollouter.merge_batch_list([])
-        
+        merged_batch = self.OneStepOffRolloutExecutor.merge_batch_list([])
+
         # Verify results
         self.assertEqual(merged_batch, {})
 
@@ -218,8 +220,8 @@ class TestOneStepOffRollouter(unittest.TestCase):
         self.rollouter.hybrid_batch_num = 2
 
         # Use patch to mock time.sleep and ray.get
-        with patch('aura.trainer.rollout.rollouter.time.sleep') as mock_sleep:
-            with patch('aura.trainer.rollout.rollouter.ray.get') as mock_ray_get:
+        with patch('aura.trainer.rollout.rollout_executor.time.sleep') as mock_sleep:
+            with patch('aura.trainer.rollout.rollout_executor.ray.get') as mock_ray_get:
                 # Configure mock_ray_get return value
                 mock_ray_get.side_effect = lambda x: x
                 # Call method
@@ -250,8 +252,8 @@ class TestOneStepOffRollouter(unittest.TestCase):
         self.rollouter.hybrid_batch_num = 2
 
         # Use patch to mock time.sleep and ray.get
-        with patch('aura.trainer.rollout.rollouter.time.sleep') as mock_sleep:
-            with patch('aura.trainer.rollout.rollouter.ray.get') as mock_ray_get:
+        with patch('aura.trainer.rollout.rollout_executor.time.sleep') as mock_sleep:
+            with patch('aura.trainer.rollout.rollout_executor.ray.get') as mock_ray_get:
                 # Configure mock_ray_get return value
                 mock_ray_get.side_effect = lambda x: x
                 # Call method
@@ -280,8 +282,8 @@ class TestOneStepOffRollouter(unittest.TestCase):
         self.rollouter.hybrid_batch_num = 2
 
         # Use patch to mock time.sleep and ray.get
-        with patch('aura.trainer.rollout.rollouter.time.sleep') as mock_sleep:
-            with patch('aura.trainer.rollout.rollouter.ray.get') as mock_ray_get:
+        with patch('aura.trainer.rollout.rollout_executor.time.sleep') as mock_sleep:
+            with patch('aura.trainer.rollout.rollout_executor.ray.get') as mock_ray_get:
                 # Configure mock_ray_get return value
                 mock_ray_get.side_effect = lambda x: x
                 # Call method
@@ -306,8 +308,8 @@ class TestOneStepOffRollouter(unittest.TestCase):
         self.rollouter.train_iters = 1
 
         # Use patch to mock time.sleep and ray.get
-        with patch('aura.trainer.rollout.rollouter.time.sleep') as mock_sleep:
-            with patch('aura.trainer.rollout.rollouter.ray.get') as mock_ray_get:
+        with patch('aura.trainer.rollout.rollout_executor.time.sleep') as mock_sleep:
+            with patch('aura.trainer.rollout.rollout_executor.ray.get') as mock_ray_get:
                 # Configure mock_ray_get return value
                 mock_ray_get.side_effect = lambda x: x
                 # Call method
