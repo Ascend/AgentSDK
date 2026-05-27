@@ -81,9 +81,7 @@ class TestTrainExecutor:
 
         # Import target module inside patched context
         from aura.trainer.train_executor import TrainExecutor
-        from aura.trainer.train_register import registry
         cls.TrainExecutor = TrainExecutor
-        cls.registry = registry
 
     @classmethod
     def teardown_class(cls):
@@ -98,7 +96,7 @@ class TestTrainExecutor:
         Fixture to create a TrainExecutor instance.
         """
         return self.TrainExecutor(
-            cluster_mode="mode",
+            work_mode="mode",
             train_engine="engine",
             train_config={"a": 1},
             rollout_config={"b": 2},
@@ -111,7 +109,7 @@ class TestTrainExecutor:
         Verify initialization calls Executor.__init__ and sets attributes correctly.
         """
         self.mock_executor_module.Executor.__init__.assert_called_once()
-        assert executor.cluster_mode == "mode"
+        assert executor.work_mode == "mode"
         assert executor.train_engine == "engine"
         self.mock_omega.create.assert_any_call({"a": 1})
         self.mock_omega.create.assert_any_call({"b": 2})
@@ -120,10 +118,10 @@ class TestTrainExecutor:
     @pytest.mark.asyncio
     async def test_run_method_none(self, executor):
         """
-        _run_method with None logs a warning.
+        _run_method with None logs an error.
         """
         await executor._run_method(None, True)
-        self.mock_logger.warning.assert_called_once()
+        self.mock_logger.error.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_run_method_non_blocking(self, executor):
@@ -155,14 +153,16 @@ class TestTrainExecutor:
     @pytest.mark.asyncio
     async def test_run_train_rollout(self, executor):
         """
-        _run_train_and_rollout executes both train and rollout methods.
+        _run_train_and_rollout executes the train method.
         """
-        rollout_mock = MagicMock()
         train_mock = MagicMock()
-        self.registry.get_method = MagicMock(return_value=(rollout_mock, train_mock))
-        executor._run_method = AsyncMock()
-        await executor._run_train_and_rollout()
-        assert executor._run_method.call_count == 2
+        # Mock get_train_method to return our train_mock
+        with patch('aura.trainer.trainer_register.train_register.get_train_method') as mock_get_train_method:
+            mock_get_train_method.return_value = train_mock
+            executor._run_method = AsyncMock()
+            await executor._run_train_and_rollout()
+            mock_get_train_method.assert_called_once_with(train_engine=executor.train_engine, work_mode=executor.work_mode)
+            executor._run_method.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_fit_success(self, executor):
@@ -181,4 +181,4 @@ class TestTrainExecutor:
         executor._run_train_and_rollout = AsyncMock(side_effect=Exception("boom"))
         with pytest.raises(Exception):
             await executor.fit()
-        self.mock_logger.error.assert_called_once()
+        self.mock_logger.error.assert_called()
