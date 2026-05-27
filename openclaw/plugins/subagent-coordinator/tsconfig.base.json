@@ -1,0 +1,40 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "module": "ESNext",
+    "moduleResolution": "node",
+    "lib": [
+      "ES2023"
+    ],
+    "strict": false,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "noImplicitAny": false,
+    "noImplicitThis": false,
+    "strictNullChecks": false,
+    "types": [
+      "node"
+    ],
+    "baseUrl": ".",
+    "paths": {
+      "openclaw/plugin-sdk/*": [
+        "./node_modules/openclaw/plugin-sdk/src/*"
+      ],
+      "@subagent-coordinator/types": [
+        "./packages/types/src"
+      ]
+    },
+    "noEmitOnError": false
+  },
+  "exclude": [
+    "**/node_modules/openclaw/src/**",
+    "**/node_modules/openclaw/dist/**",
+    "**/node_modules/@mariozechner/**",
+    "**/node_modules/@mariozechner./*/**"
+  ]
+}

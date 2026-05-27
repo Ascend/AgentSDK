@@ -1,0 +1,19 @@
+{
+  "name": "subagent-coordinator",
+  "version": "0.0.4",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "pnpm -r build",
+    "build:types": "pnpm --filter @subagent-coordinator/types build",
+    "clean": "pnpm -r clean",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "pnpm -r lint",
+    "test": "pnpm -r test"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "rimraf": "^5.0.0",
+    "@types/node": "^20.0.0"
+  }
+}
