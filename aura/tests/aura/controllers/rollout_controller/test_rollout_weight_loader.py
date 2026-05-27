@@ -992,3 +992,396 @@ class TestParamsAssemblerAdvanced:
              patch.object(assembler, "unflatten_weight", side_effect=lambda n, w, p, l: w):
             tensors = assembler.assemble_dir(pp2ep_paths, rc)
         assert "w13_weight" in tensors
+
+    def test_unflatten_weight_w13(self, fake_env):
+        mod = fake_env["mod"]
+        assembler = mod.Qwen3MoEParamsAssembler(make_hf_config())
+        assembler.hidden_size = 64
+        assembler.num_experts = 2
+        weight = MagicMock()
+        weight.shape = [64, 4]
+        result = assembler.unflatten_weight("model.layers.0.mlp.experts.w13_weight", weight, 2, 2)
+        assert result is not None
+
+    def test_unflatten_weight_no_match(self, fake_env):
+        mod = fake_env["mod"]
+        assembler = mod.Qwen3MoEParamsAssembler(make_hf_config())
+        weight = MagicMock()
+        weight.shape = [32, 16]
+        result = assembler.unflatten_weight("other", weight, 1, 1)
+        assert result is weight
+
+
+class TestUtilityFunctionsMore:
+    """Cover remaining branches in utility functions."""
+
+    def test_chunk_evenly_empty(self, fake_env):
+        mod = fake_env["mod"]
+        assert mod._chunk_evenly([], 3) == []
+
+    def test_chunk_evenly_more_workers_than_items(self, fake_env):
+        mod = fake_env["mod"]
+        # workers > len(items) -> workers = len(items)
+        assert mod._chunk_evenly([1, 2], 5) == [[1], [2]]
+
+
+class TestLaunchedGroupMore:
+    """Cover non-flatten branch in LaunchedGroup.get."""
+
+    def test_get_non_list_first_element(self, fake_env):
+        mod = fake_env["mod"]
+        fake_ray = fake_env["fake_ray"]
+        # out is not list-of-lists
+        fake_ray.get.return_value = ["a", "b"]
+        lg = mod.LaunchedGroup(refs=["r"], pg=None, flatten=True)
+        result = lg.get()
+        assert result == ["a", "b"]  # not flattened because out[0] is not a list
+
+
+class TestPlanNumCpus:
+    """Cover the normal path of plan_num_cpus."""
+
+    def test_plan_num_cpus_normal(self, fake_env):
+        mod = fake_env["mod"]
+        fake_ray = fake_env["fake_ray"]
+        fake_ray.available_resources.return_value = {"CPU": 100}
+        cpus = mod.plan_num_cpus(2, 4)  # free*0.75=75 >= 2*4=8
+        assert cpus == 4  # ideal_cpus_per_worker
+
+
+class TestLaunchChunkedSinglePG:
+    """cover use_pg_if_one=True with a single chunk."""
+
+    def test_single_chunk_with_pg(self, fake_env):
+        mod = fake_env["mod"]
+        with patch.object(mod, "plan_num_cpus", return_value=4), \
+             patch.object(mod, "create_pg_with_fallback", return_value=(MagicMock(), 4)), \
+             patch.object(mod, "assemble_subset_worker", MagicMock()) as mock_worker:
+            mock_worker.options.return_value.remote.return_value = "ref"
+            lg = mod.launch_chunked_with_pg(
+                items=[1],
+                workers=1,
+                ideal_cpus_per_worker=4,
+                make_kwargs=lambda idx, chunk: {"data": chunk},
+                use_pg_if_one=True,   # use PG even for single chunk
+            )
+        assert lg.refs == ["ref"]
+
+
+class TestAssembleDirExpertW2SingleTP:
+    """Cover w2 single-TP branch inside expert window."""
+
+    def test_expert_w2_single_tp(self, fake_env):
+        mod = fake_env["mod"]
+        assembler = mod.Qwen3MoEParamsAssembler(make_hf_config())
+        assembler.hidden_size = 32
+        assembler.num_experts = 2
+        rc = mod._ReaderCache(max_open=2)
+        safe_open_mock = fake_env["fake_safetensors_torch"].safe_open
+        fake_file = MagicMock()
+        fake_file.keys.return_value = {"w2_weight"}
+        safe_open_mock.return_value = fake_file
+
+        pp2ep_paths = {0: {0: [(0, "single.safetensors")]}}
+
+        def load_tensor(path, key):
+            t = MagicMock()
+            t.shape = [4, 32]  # rows 4, hidden 32
+            t.dtype = "float32"
+            t.is_floating_point.return_value = True
+            return t
+        rc.load_tensor = MagicMock(side_effect=load_tensor)
+        rc.read_meta = MagicMock(return_value={
+            "slices": {"w2_weight": {"offset": 0, "length": 2, "axis": 0}},
+            "num_experts_total": 2,
+        })
+
+        with patch.object(assembler, "is_w13", return_value=False), \
+             patch.object(assembler, "is_w2", return_value=True), \
+             patch.object(assembler, "_cast_if_needed", side_effect=lambda x: x), \
+             patch.object(assembler, "unflatten_weight", side_effect=lambda n, w, p, l: w):
+            tensors = assembler.assemble_dir(pp2ep_paths, rc)
+        assert "w2_weight" in tensors
+
+
+class TestFinalRankSplitExceptions:
+    """Test ValueError branches in final_rank_split and final_rank_split_new."""
+
+    def test_final_rank_split_w2_grouped_error(self, fake_env):
+        mod = fake_env["mod"]
+        assembler = mod.Qwen3MoEParamsAssembler(make_hf_config())
+        assembler.infer_tp = 2
+        assembler.infer_dp = 1
+        assembler.w2_rows_mode = "grouped"
+        t = MagicMock()
+        t.shape = [8, 3, 16]  # shape[1]=3 not divisible by T=2 -> should raise
+        tensors = {"w2_weight": t}
+        with patch.object(assembler, "is_w13", return_value=False), \
+             patch.object(assembler, "is_w2", return_value=True):
+            with pytest.raises(ValueError, match="not divisible"):
+                assembler.final_rank_split(tensors)
+
+    def test_final_rank_split_axis_error(self, fake_env):
+        mod = fake_env["mod"]
+        assembler = mod.ParamsAssembler(infer_tp=2, infer_dp=1)
+        t = MagicMock()
+        t.shape = [3, 16]  # dim 0=3 not divisible by 2
+        tensors = {"weight": t}
+        assembler.get_tp_split_axis = MagicMock(return_value=0)  # will try to chunk on dim 0
+        with pytest.raises(ValueError, match="not divisible"):
+            assembler.final_rank_split(tensors)
+
+
+class TestShardFunctionsExceptions:
+    """Test unknown collapse mode branches."""
+
+    def test_shard_w13_unknown_mode(self, fake_env):
+        mod = fake_env["mod"]
+        assembler = mod.ParamsAssembler()
+        assembler.w13_cols_mode = "unknown"
+        t = MagicMock(); t.shape = [8, 4, 16]
+        with pytest.raises(ValueError, match="Unknown collapse mode"):
+            assembler.shard_w13_for_tp(t, 0)
+
+    def test_shard_w13_with_axi_unknown(self, fake_env):
+        mod = fake_env["mod"]
+        assembler = mod.ParamsAssembler()
+        assembler.w13_cols_mode = "unknown"
+        t = MagicMock(); t.shape = [8, 4, 16]; t.ndim = 3
+        with pytest.raises(ValueError, match="Unknown collapse mode"):
+            assembler.shard_w13_for_tp_with_axi(t, 0)
+
+    def test_shard_w2_unknown_mode(self, fake_env):
+        mod = fake_env["mod"]
+        assembler = mod.ParamsAssembler()
+        assembler.w2_rows_mode = "unknown"
+        t = MagicMock(); t.shape = [8, 16, 4]; t.ndim = 3
+        with pytest.raises(ValueError, match="Unknown w2 mode"):
+            assembler.shard_w2_for_tp(t, 0)
+
+
+class TestUnflattenWeightMore:
+    """Cover unflatten_weight paths."""
+
+    def test_unflatten_3d_shape_returns_directly(self, fake_env):
+        mod = fake_env["mod"]
+        assembler = mod.Qwen3MoEParamsAssembler(make_hf_config())
+        w = MagicMock()
+        w.shape = [2, 3, 4]  # 3D -> return as is
+        result = assembler.unflatten_weight("some_key", w, 1, 1)
+        assert result is w
+
+
+class TestInitConfigsWithTextConfig:
+    def test_init_with_text_config(self, fake_env):
+        mod = fake_env["mod"]
+        # Use plain classes to avoid MagicMock's auto-attribute behaviour
+        class Config:
+            pass
+        cfg = Config()
+        text_cfg = Config()
+        text_cfg.hidden_size = 2048
+        text_cfg.num_attention_heads = 32
+        text_cfg.num_key_value_heads = 8
+        text_cfg.head_dim = None              # will be computed
+        text_cfg.num_hidden_layers = 48
+        text_cfg.num_experts = 16
+        cfg.text_config = text_cfg
+
+        assembler = mod.Qwen3MoEParamsAssembler(cfg)
+        assert assembler.hidden_size == 2048
+        assert assembler.head_dim == 64       # 2048 // 32
+        assert assembler.num_layers == 48
+
+
+class TestRunDistributedQwen3AssembleMore:
+    """Test ray.init branch when ray is not initialized."""
+
+    def test_ray_init_called(self, fake_env):
+        mod = fake_env["mod"]
+        fake_glob = fake_env["fake_glob"]
+        fake_glob.glob.return_value = ["model_pp0_tp0_ep0.safetensors"]
+        # Make ray.is_initialized() return False
+        fake_ray = fake_env["fake_ray"]
+        fake_ray.is_initialized.return_value = False
+
+        with patch.object(mod, "list_all_keys", return_value=["k1"]), \
+             patch.object(mod, "launch_chunked_with_pg", return_value=MagicMock()) as mock_launch, \
+             patch("os.path.exists", return_value=False), \
+             patch("os.makedirs"), \
+             patch("shutil.rmtree"):
+            mock_launch.return_value.get.return_value = []
+            mod.run_distributed_qwen3_assemble(
+                train_save_path="/train",
+                hf_config=make_hf_config(),
+                infer_tp=1,
+                weights_version=3,
+                inference_save_path="/infer",
+                num_workers=2,
+                num_procs=2,
+            )
+            fake_ray.init.assert_called_once_with(ignore_reinit_error=True)
+
+
+class TestCastIfNeededNoFloat:
+    """Cover _cast_if_needed when tensor is not floating point."""
+    def test_non_floating_skips_cast(self, fake_env):
+        mod = fake_env["mod"]
+        assembler = mod.ParamsAssembler(target_dtype=mod.torch.bfloat16)
+        t = MagicMock()
+        t.is_floating_point.return_value = False
+        result = assembler._cast_if_needed(t)
+        t.to.assert_not_called()
+        assert result is t
+
+
+class TestReaderCacheCloseNoClose:
+    """Cover close_all when file handle has no close method."""
+    def test_close_all_no_close_method(self, fake_env):
+        mod = fake_env["mod"]
+        safe_open_mock = fake_env["fake_safetensors_torch"].safe_open
+        fake_file = MagicMock()
+        del fake_file.close  # remove close method
+        safe_open_mock.return_value = fake_file
+        rc = mod._ReaderCache()
+        rc.get("path")
+        rc.close_all()  # should not raise
+
+
+class TestAssembleDirFilters:
+    """Cover names_filter in assemble_dir."""
+    def test_names_filter_filters_keys(self, fake_env):
+        mod = fake_env["mod"]
+        assembler = mod.Qwen3MoEParamsAssembler(make_hf_config())
+        assembler.hidden_size = 32
+        assembler.num_experts = 2
+        rc = mod._ReaderCache(max_open=2)
+        safe_open_mock = fake_env["fake_safetensors_torch"].safe_open
+        fake_file = MagicMock()
+        fake_file.keys.return_value = {"w13_weight", "w2_weight"}
+        safe_open_mock.return_value = fake_file
+
+        pp2ep_paths = {0: {0: [(0, "f.safetensors")]}}
+
+        def load_tensor(path, key):
+            t = MagicMock()
+            t.shape = [32, 2]
+            t.dtype = "float32"
+            t.is_floating_point.return_value = True
+            return t
+        rc.load_tensor = MagicMock(side_effect=load_tensor)
+        rc.read_meta = MagicMock(return_value={
+            "slices": {"w13_weight": {"offset": 0, "length": 2, "axis": 1}},
+            "num_experts_total": 2,
+        })
+
+        with patch.object(assembler, "is_w13", return_value=True), \
+             patch.object(assembler, "is_w2", return_value=False), \
+             patch.object(assembler, "_cast_if_needed", side_effect=lambda x: x), \
+             patch.object(assembler, "unflatten_weight", side_effect=lambda n, w, p, l: w):
+            # filter only w13_weight
+            tensors = assembler.assemble_dir(pp2ep_paths, rc, names_filter={"w13_weight"})
+        assert "w13_weight" in tensors
+        assert "w2_weight" not in tensors
+
+
+class TestFinalRankSplitNewChunk:
+    """Cover chunk/replicate branches in final_rank_split_new with fused QKV."""
+    def test_final_rank_split_new_axis_split(self, fake_env):
+        mod = fake_env["mod"]
+        assembler = mod.Qwen3MoEParamsAssembler(make_hf_config())
+        assembler.infer_tp = 2
+        assembler.infer_dp = 1
+        t = MagicMock()
+        t.shape = [4, 32]  # dim 0 size 4 divisible by 2
+        tensors = {"weight": t}
+        assembler.get_tp_split_axis = MagicMock(return_value=0)  # split on dim 0
+        assembler.is_w13 = MagicMock(return_value=False)
+        assembler.is_w2 = MagicMock(return_value=False)
+        assembler.is_fused_qkv_weight = MagicMock(return_value=False)
+        assembler.is_fused_qkv_bias = MagicMock(return_value=False)
+        result = assembler.final_rank_split_new(tensors)
+        assert len(result) == assembler._Teff
+
+    def test_final_rank_split_new_fused_qkv(self, fake_env):
+        mod = fake_env["mod"]
+        assembler = mod.Qwen3MoEParamsAssembler(make_hf_config())
+        assembler.infer_tp = 1
+        assembler.infer_dp = 1
+        t = MagicMock()
+        tensors = {"qkv_proj.weight": t}
+        assembler.is_fused_qkv_weight = MagicMock(return_value=True)
+        assembler.is_fused_qkv_bias = MagicMock(return_value=False)
+        assembler.reshape_qkv_megatron_local = MagicMock(return_value="reshaped")
+        result = assembler.final_rank_split_new(tensors)
+        # should have been replicated and reshaped
+        assert result[0]["qkv_proj.weight"] == "reshaped"
+
+
+class TestShardExceptions:
+    """Cover divisibility checks and unknown mode exceptions."""
+    def test_shard_w13_for_tp_ndivisible(self, fake_env):
+        mod = fake_env["mod"]
+        assembler = mod.ParamsAssembler(infer_tp=2)
+        t = MagicMock()
+        t.shape = [8, 3, 16]  # per_total=3 not divisible by 2
+        with pytest.raises(ValueError, match="divisible"):
+            assembler.shard_w13_for_tp(t, 0)
+
+    def test_shard_w13_with_axi_ndivisible(self, fake_env):
+        mod = fake_env["mod"]
+        assembler = mod.ParamsAssembler(infer_tp=2, infer_dp=2)
+        t = MagicMock()
+        t.shape = [8, 3, 16]; t.ndim = 3
+        with pytest.raises(ValueError, match="divisible"):
+            assembler.shard_w13_for_tp_with_axi(t, 0, split_axis=1)
+
+    def test_shard_w2_for_tp_ndivisible(self, fake_env):
+        mod = fake_env["mod"]
+        assembler = mod.ParamsAssembler(infer_tp=2, infer_dp=2)
+        t = MagicMock()
+        t.shape = [8, 16, 3]; t.ndim = 3  # dim 2 size 3 not divisible by 4
+        with pytest.raises(ValueError, match="divisible"):
+            assembler.shard_w2_for_tp(t, 0, split_axis=2)
+
+    def test_w2_interleave_rows_ndivisible(self, fake_env):
+        mod = fake_env["mod"]
+        assembler = mod.ParamsAssembler(infer_tp=2, infer_dp=2)
+        assembler.w2_rows_mode = "interleaved"
+        t = MagicMock()
+        t.shape = [31, 128]  # R=32, ln=4, T=4 -> R % (ln*T) = 32? wait R=31, ln=4,T=4 -> 31 % 16 != 0
+        with pytest.raises(ValueError, match="not divisible"):
+            assembler._w2_interleave_rows(t, ln=4)
+
+
+class TestInitConfigsMissing:
+    """Cover _init_configs missing field exception."""
+    def test_missing_fields_raises(self, fake_env):
+        mod = fake_env["mod"]
+        cfg = MagicMock()
+        cfg.hidden_size = None
+        cfg.num_attention_heads = None
+        cfg.num_key_value_heads = None
+        cfg.head_dim = None
+        cfg.num_hidden_layers = None
+        del cfg.text_config
+        with pytest.raises(ValueError, match="hf_config must expose num_hidden_layers"):
+            mod.Qwen3MoEParamsAssembler(cfg)
+
+
+class TestLaunchChunkedFlattenFalse:
+    """Cover flatten_list_results=False in launch_chunked_with_pg."""
+    def test_launch_with_flatten_false(self, fake_env):
+        mod = fake_env["mod"]
+        with patch.object(mod, "plan_num_cpus", return_value=4), \
+             patch.object(mod, "assemble_subset_worker", MagicMock()) as mock_worker:
+            mock_worker.options.return_value.remote.return_value = "ref"
+            lg = mod.launch_chunked_with_pg(
+                items=[1,2,3],
+                workers=1,
+                ideal_cpus_per_worker=4,
+                make_kwargs=lambda idx, chunk: {"data": chunk},
+                use_pg_if_one=False,
+                flatten_list_results=False,
+            )
+        assert lg.flatten is False
