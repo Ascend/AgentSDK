@@ -1,4 +1,23 @@
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+"""
+-------------------------------------------------------------------------
+This file is part of the AgentSDK project.
+Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+
+AgentSDK is licensed under Mulan PSL v2.
+You can use this software according to the terms and conditions of the Mulan PSL v2.
+You may obtain a copy of Mulan PSL v2 at:
+
+        http://license.coscl.org.cn/MulanPSL2
+
+THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+See the Mulan PSL v2 for more details.
+-------------------------------------------------------------------------
+"""
+
 import pytest
 from unittest.mock import MagicMock, patch
 
@@ -955,3 +974,317 @@ class TestMegatronUtils:
             from aura.trainer.train_adapter.mindspeed_rl.utils.megatron_utils import initialize_megatron
             with pytest.raises(ValueError, match="--use-checkpoints-args requires --load argument"):
                 initialize_megatron(allow_no_cuda=True, config={})
+
+
+    def test_initialize_megatron_tp_comm_overlap(self):
+        # Test initialize_megatron with tp_comm_overlap=True
+        mock_args = MagicMock()
+        mock_args.use_checkpoint_args = False
+        mock_args.lazy_mpu_init = False
+        mock_args.tp_comm_overlap = True
+        mock_args.use_deter_comp = False
+        mock_args.seed = 42
+        mock_args.data_parallel_random_init = False
+        mock_args.tensor_model_parallel_size = 1
+        mock_args.rank = 0
+
+        mock_parse_args_from_config = MagicMock()
+        mock_init_torch_compile = MagicMock()
+        mock_validate_args = MagicMock()
+        mock_set_global_variables = MagicMock()
+        mock_initialize_coc_from_cfg = MagicMock()
+        mock_load_args_from_checkpoint = MagicMock()
+
+        mock_megatron = MagicMock()
+        mock_megatron.training = MagicMock()
+        mock_megatron.training.arguments = MagicMock()
+        mock_megatron.training.arguments.parse_args = MagicMock(return_value=mock_args)
+        mock_megatron.training.arguments.validate_args = mock_validate_args
+        mock_megatron.training.global_vars = MagicMock()
+        mock_megatron.training.global_vars.set_global_variables = mock_set_global_variables
+        mock_megatron.training.get_args = MagicMock(return_value=mock_args)
+        mock_megatron.training.checkpointing = MagicMock()
+        mock_megatron.training.checkpointing.load_args_from_checkpoint = mock_load_args_from_checkpoint
+        mock_megatron.training.initialize = MagicMock()
+        mock_megatron.core = MagicMock()
+        mock_megatron.core.parallel_state = MagicMock()
+
+        mock_mindspeed_llm = MagicMock()
+        mock_mindspeed_llm.training = MagicMock()
+        mock_mindspeed_llm.training.arguments = MagicMock()
+        mock_mindspeed_llm.training.arguments.parse_args_decorator = MagicMock(return_value=MagicMock(return_value=mock_args))
+
+        mock_mindspeed_core = MagicMock()
+        mock_mindspeed_core.tensor_parallel = MagicMock()
+        mock_mindspeed_core.tensor_parallel.lcal_coc = MagicMock()
+        mock_mindspeed_core.tensor_parallel.lcal_coc.user_config = MagicMock()
+        mock_mindspeed_core.tensor_parallel.lcal_coc.user_config.initialize_coc_from_cfg = mock_initialize_coc_from_cfg
+
+        mock_module_utils = MagicMock()
+        mock_module_utils.parse_args_from_config = mock_parse_args_from_config
+        mock_module_utils.init_torch_compile = mock_init_torch_compile
+
+        module_mocks = {
+            'megatron': mock_megatron,
+            'megatron.core': mock_megatron.core,
+            'megatron.core.parallel_state': mock_megatron.core.parallel_state,
+            'megatron.training': mock_megatron.training,
+            'megatron.training.arguments': mock_megatron.training.arguments,
+            'megatron.training.global_vars': mock_megatron.training.global_vars,
+            'megatron.training.checkpointing': mock_megatron.training.checkpointing,
+            'megatron.training.initialize': mock_megatron.training.initialize,
+            'mindspeed_llm': mock_mindspeed_llm,
+            'mindspeed_llm.training': mock_mindspeed_llm.training,
+            'mindspeed_llm.training.arguments': mock_mindspeed_llm.training.arguments,
+            'mindspeed.core': mock_mindspeed_core,
+            'mindspeed.core.tensor_parallel': mock_mindspeed_core.tensor_parallel,
+            'mindspeed.core.tensor_parallel.lcal_coc': mock_mindspeed_core.tensor_parallel.lcal_coc,
+            'mindspeed.core.tensor_parallel.lcal_coc.user_config': mock_mindspeed_core.tensor_parallel.lcal_coc.user_config,
+            'mindspeed_rl.utils.utils': mock_module_utils,
+        }
+
+        with patch.dict('sys.modules', module_mocks):
+            with patch('aura.trainer.train_adapter.mindspeed_rl.utils.megatron_utils._initialize_distributed'):
+                from aura.trainer.train_adapter.mindspeed_rl.utils.megatron_utils import initialize_megatron
+                result = initialize_megatron(allow_no_cuda=True, config={})
+                assert result is None
+
+    def test_initialize_distributed_already_initialized(self):
+        # Test _initialize_distributed when torch.distributed is already initialized
+        mock_args = MagicMock()
+        mock_args.rank = 0
+        mock_args.world_size = 8
+        mock_args.distributed_backend = 'nccl'
+        mock_args.distributed_timeout_minutes = 30
+        mock_args.tensor_model_parallel_size = 1
+        mock_args.pipeline_model_parallel_size = 1
+        mock_args.virtual_pipeline_model_parallel_size = None
+        mock_args.pipeline_model_parallel_split_rank = None
+        mock_args.context_parallel_size = 1
+        mock_args.expert_model_parallel_size = 1
+        mock_args.nccl_communicator_config_path = None
+        mock_args.use_tp_pp_dp_mapping = False
+        mock_args.stage = 'train'
+        mock_args.local_rank = None
+
+        mock_get_args = MagicMock(return_value=mock_args)
+        mock_is_initialized = MagicMock(return_value=True)
+        mock_get_rank = MagicMock(return_value=0)
+        mock_get_world_size = MagicMock(return_value=8)
+        mock_model_parallel_is_initialized = MagicMock(return_value=True)
+
+        mock_megatron_core = MagicMock()
+        mock_megatron_core.parallel_state = MagicMock()
+        mock_megatron_core.parallel_state.model_parallel_is_initialized = mock_model_parallel_is_initialized
+
+        mock_megatron = MagicMock()
+        mock_megatron.core = mock_megatron_core
+        mock_megatron.training = MagicMock()
+        mock_megatron.training.get_args = mock_get_args
+
+        module_mocks = {
+            'megatron': mock_megatron,
+            'megatron.core': mock_megatron_core,
+            'megatron.core.parallel_state': mock_megatron_core.parallel_state,
+            'megatron.training': mock_megatron.training,
+        }
+
+        with patch.dict('sys.modules', module_mocks):
+            with patch('torch.distributed.is_initialized', mock_is_initialized):
+                with patch('torch.distributed.get_rank', mock_get_rank):
+                    with patch('torch.distributed.get_world_size', mock_get_world_size):
+                        with patch('torch.cuda.device_count', return_value=1):
+                            from aura.trainer.train_adapter.mindspeed_rl.utils.megatron_utils import _initialize_distributed
+                            _initialize_distributed()
+                            # Verify rank and world_size are updated
+                            assert mock_args.rank == 0
+                            assert mock_args.world_size == 8
+
+    def test_initialize_distributed_not_initialized(self):
+        # Test _initialize_distributed when torch.distributed is not initialized
+        mock_args = MagicMock()
+        mock_args.rank = 0
+        mock_args.world_size = 8
+        mock_args.distributed_backend = 'nccl'
+        mock_args.distributed_timeout_minutes = 30
+        mock_args.tensor_model_parallel_size = 1
+        mock_args.pipeline_model_parallel_size = 1
+        mock_args.virtual_pipeline_model_parallel_size = None
+        mock_args.pipeline_model_parallel_split_rank = None
+        mock_args.context_parallel_size = 1
+        mock_args.expert_model_parallel_size = 1
+        mock_args.nccl_communicator_config_path = None
+        mock_args.use_tp_pp_dp_mapping = False
+        mock_args.stage = 'train'
+        mock_args.local_rank = None
+
+        mock_get_args = MagicMock(return_value=mock_args)
+        mock_is_initialized = MagicMock(return_value=False)
+        mock_init_process_group = MagicMock()
+        mock_model_parallel_is_initialized = MagicMock(return_value=False)
+        mock_initialize_model_parallel = MagicMock()
+        mock_get_tensor_model_parallel_world_size = MagicMock(return_value=1)
+        mock_get_pipeline_model_parallel_world_size = MagicMock(return_value=1)
+
+        mock_megatron_core = MagicMock()
+        mock_megatron_core.parallel_state = MagicMock()
+        mock_megatron_core.parallel_state.model_parallel_is_initialized = mock_model_parallel_is_initialized
+        mock_megatron_core.parallel_state.initialize_model_parallel = mock_initialize_model_parallel
+        mock_megatron_core.parallel_state.get_tensor_model_parallel_world_size = mock_get_tensor_model_parallel_world_size
+        mock_megatron_core.parallel_state.get_pipeline_model_parallel_world_size = mock_get_pipeline_model_parallel_world_size
+
+        mock_megatron = MagicMock()
+        mock_megatron.core = mock_megatron_core
+        mock_megatron.training = MagicMock()
+        mock_megatron.training.get_args = mock_get_args
+
+        module_mocks = {
+            'megatron': mock_megatron,
+            'megatron.core': mock_megatron_core,
+            'megatron.core.parallel_state': mock_megatron_core.parallel_state,
+            'megatron.training': mock_megatron.training,
+        }
+
+        with patch.dict('sys.modules', module_mocks):
+            with patch('torch.distributed.is_initialized', mock_is_initialized):
+                with patch('torch.distributed.init_process_group', mock_init_process_group):
+                    with patch('torch.cuda.device_count', return_value=1):
+                        with patch('torch.cuda.set_device'):
+                            from aura.trainer.train_adapter.mindspeed_rl.utils.megatron_utils import _initialize_distributed
+                            _initialize_distributed()
+                            # Verify init_process_group was called
+                            mock_init_process_group.assert_called_once()
+                            # Verify initialize_model_parallel was called
+                            mock_initialize_model_parallel.assert_called_once()
+
+    def test_initialize_distributed_with_local_rank(self):
+        # Test _initialize_distributed with local_rank already set
+        mock_args = MagicMock()
+        mock_args.rank = 2
+        mock_args.world_size = 8
+        mock_args.distributed_backend = 'nccl'
+        mock_args.distributed_timeout_minutes = 30
+        mock_args.tensor_model_parallel_size = 1
+        mock_args.pipeline_model_parallel_size = 1
+        mock_args.virtual_pipeline_model_parallel_size = None
+        mock_args.pipeline_model_parallel_split_rank = None
+        mock_args.context_parallel_size = 1
+        mock_args.expert_model_parallel_size = 1
+        mock_args.nccl_communicator_config_path = None
+        mock_args.use_tp_pp_dp_mapping = False
+        mock_args.stage = 'train'
+        mock_args.local_rank = 2  # Same as rank % device_count (2 % 4 = 2)
+
+        mock_get_args = MagicMock(return_value=mock_args)
+        mock_is_initialized = MagicMock(return_value=False)
+        mock_init_process_group = MagicMock()
+        mock_model_parallel_is_initialized = MagicMock(return_value=False)
+        mock_initialize_model_parallel = MagicMock()
+
+        mock_megatron_core = MagicMock()
+        mock_megatron_core.parallel_state = MagicMock()
+        mock_megatron_core.parallel_state.model_parallel_is_initialized = mock_model_parallel_is_initialized
+        mock_megatron_core.parallel_state.initialize_model_parallel = mock_initialize_model_parallel
+
+        mock_megatron = MagicMock()
+        mock_megatron.core = mock_megatron_core
+        mock_megatron.training = MagicMock()
+        mock_megatron.training.get_args = mock_get_args
+
+        module_mocks = {
+            'megatron': mock_megatron,
+            'megatron.core': mock_megatron_core,
+            'megatron.core.parallel_state': mock_megatron_core.parallel_state,
+            'megatron.training': mock_megatron.training,
+        }
+
+        with patch.dict('sys.modules', module_mocks):
+            with patch('torch.distributed.is_initialized', mock_is_initialized):
+                with patch('torch.distributed.init_process_group', mock_init_process_group):
+                    with patch('torch.cuda.device_count', return_value=4):
+                        with patch('torch.cuda.set_device'):
+                            from aura.trainer.train_adapter.mindspeed_rl.utils.megatron_utils import _initialize_distributed
+                            _initialize_distributed()
+                            # Should not raise ValueError since local_rank == rank % device_count
+                            mock_init_process_group.assert_called_once()
+
+    def test_initialize_distributed_local_rank_mismatch(self):
+        # Test _initialize_distributed with mismatched local_rank
+        mock_args = MagicMock()
+        mock_args.rank = 2
+        mock_args.world_size = 8
+        mock_args.distributed_backend = 'nccl'
+        mock_args.distributed_timeout_minutes = 30
+        mock_args.tensor_model_parallel_size = 1
+        mock_args.pipeline_model_parallel_size = 1
+        mock_args.virtual_pipeline_model_parallel_size = None
+        mock_args.pipeline_model_parallel_split_rank = None
+        mock_args.context_parallel_size = 1
+        mock_args.expert_model_parallel_size = 1
+        mock_args.nccl_communicator_config_path = None
+        mock_args.use_tp_pp_dp_mapping = False
+        mock_args.stage = 'train'
+        mock_args.local_rank = 1  # Mismatched with rank % device_count (2 % 4 = 2)
+
+        mock_get_args = MagicMock(return_value=mock_args)
+        mock_is_initialized = MagicMock(return_value=False)
+
+        mock_megatron = MagicMock()
+        mock_megatron.core = MagicMock()
+        mock_megatron.training = MagicMock()
+        mock_megatron.training.get_args = mock_get_args
+
+        module_mocks = {
+            'megatron': mock_megatron,
+            'megatron.core': mock_megatron.core,
+            'megatron.training': mock_megatron.training,
+        }
+
+        with patch.dict('sys.modules', module_mocks):
+            with patch('torch.distributed.is_initialized', mock_is_initialized):
+                with patch('torch.cuda.device_count', return_value=4):
+                    from aura.trainer.train_adapter.mindspeed_rl.utils.megatron_utils import _initialize_distributed
+                    with pytest.raises(ValueError, match="expected local-rank to be the same as rank % device-count"):
+                        _initialize_distributed()
+
+    def test_initialize_distributed_no_cuda(self):
+        # Test _initialize_distributed when no CUDA devices are available
+        mock_args = MagicMock()
+        mock_args.rank = 0
+        mock_args.world_size = 1
+        mock_args.distributed_backend = 'nccl'
+        mock_args.distributed_timeout_minutes = 30
+        mock_args.tensor_model_parallel_size = 1
+        mock_args.pipeline_model_parallel_size = 1
+        mock_args.virtual_pipeline_model_parallel_size = None
+        mock_args.pipeline_model_parallel_split_rank = None
+        mock_args.context_parallel_size = 1
+        mock_args.expert_model_parallel_size = 1
+        mock_args.nccl_communicator_config_path = None
+        mock_args.use_tp_pp_dp_mapping = False
+        mock_args.stage = 'train'
+        mock_args.local_rank = None
+
+        mock_get_args = MagicMock(return_value=mock_args)
+        mock_is_initialized = MagicMock(return_value=False)
+        mock_init_process_group = MagicMock()
+
+        mock_megatron = MagicMock()
+        mock_megatron.core = MagicMock()
+        mock_megatron.training = MagicMock()
+        mock_megatron.training.get_args = mock_get_args
+
+        module_mocks = {
+            'megatron': mock_megatron,
+            'megatron.core': mock_megatron.core,
+            'megatron.training': mock_megatron.training,
+        }
+
+        with patch.dict('sys.modules', module_mocks):
+            with patch('torch.distributed.is_initialized', mock_is_initialized):
+                with patch('torch.distributed.init_process_group', mock_init_process_group):
+                    with patch('torch.cuda.device_count', return_value=0):
+                        from aura.trainer.train_adapter.mindspeed_rl.utils.megatron_utils import _initialize_distributed
+                        _initialize_distributed()
+                        # Should complete without setting CUDA device
+                        mock_init_process_group.assert_called_once()
