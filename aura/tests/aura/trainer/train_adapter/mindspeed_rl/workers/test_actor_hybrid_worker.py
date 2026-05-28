@@ -971,3 +971,104 @@ class TestActorHybridWorker:
             worker.update()
 
         assert worker.actor_hybrid.update_actor.call_count == 2
+
+    def test_update_with_empty_batch_data(self):
+        """Test update method with empty batch_data to cover the skip branch."""
+        from aura.trainer.train_adapter.mindspeed_rl.workers.actor_hybrid_worker import AgentActorHybridWorkerBase
+
+        worker = AgentActorHybridWorkerBase()
+        worker.sharding_manager = MagicMock()
+        worker.args = MagicMock(curr_iteration=0, consumed_train_samples=0)
+        worker.iteration = 0
+        worker.megatron_config = MagicMock(
+            stage="default",
+            tensor_model_parallel_size=1,
+            context_parallel_size=1,
+            context_parallel_algo="default",
+            global_batch_size=32,
+            micro_batch_size=4
+        )
+        worker.rl_config = MagicMock(
+            actor_update_dispatch_size=1,
+            guarantee_order=False,
+            n_samples_per_prompt=1,
+            actor_logprob_dispatch_size=1
+        )
+        worker.optimizer = MagicMock(param_groups=[{"lr": 0.001}])
+        worker.td = MagicMock()
+        worker.profiler_config = MagicMock()
+        worker.prof_iteration = 0
+        worker.model = [MagicMock()]
+        worker.actor_hybrid = MagicMock()
+        worker.parallel_state = MagicMock()
+        worker.enable_partial_rollout = False
+        worker.num_floating_point_operations_so_far = 0
+        worker.actor_profiler = MagicMock()
+
+        call_count = [0]
+        def all_consumed_side_effect(*args, **kwargs):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                return 1
+            return 0
+
+        worker.all_consumed = all_consumed_side_effect
+        worker.dispatch_transfer_dock_data = MagicMock(return_value=({}, []))
+
+        with patch('aura.trainer.train_adapter.mindspeed_rl.workers.actor_hybrid_worker.num_floating_point_operations', return_value=100.0):
+            worker.update()
+
+        worker.actor_hybrid.update_actor.assert_not_called()
+
+    def test_update_not_last_stage(self):
+        """Test update method when not pipeline last stage to cover skip metrics branch."""
+        from aura.trainer.train_adapter.mindspeed_rl.workers.actor_hybrid_worker import AgentActorHybridWorkerBase
+
+        worker = AgentActorHybridWorkerBase()
+        worker.sharding_manager = MagicMock()
+        worker.args = MagicMock(curr_iteration=0, consumed_train_samples=0)
+        worker.iteration = 0
+        worker.megatron_config = MagicMock(
+            stage="default",
+            tensor_model_parallel_size=1,
+            context_parallel_size=1,
+            context_parallel_algo="default",
+            global_batch_size=32,
+            micro_batch_size=4
+        )
+        worker.rl_config = MagicMock(
+            actor_update_dispatch_size=1,
+            guarantee_order=False,
+            n_samples_per_prompt=1,
+            actor_logprob_dispatch_size=1
+        )
+        worker.optimizer = MagicMock(param_groups=[{"lr": 0.001}])
+        worker.td = MagicMock()
+        worker.profiler_config = MagicMock()
+        worker.prof_iteration = 0
+        worker.model = [MagicMock()]
+        worker.actor_hybrid = MagicMock()
+        worker.actor_hybrid.update_actor.return_value = {"loss": 1.0}
+        worker.parallel_state = MagicMock(
+            is_pipeline_last_stage=MagicMock(return_value=False),
+            get_tensor_model_parallel_rank=MagicMock(return_value=0),
+            get_context_parallel_rank=MagicMock(return_value=0)
+        )
+        worker.enable_partial_rollout = False
+        worker.num_floating_point_operations_so_far = 0
+        worker.actor_profiler = MagicMock()
+
+        call_count = [0]
+        def all_consumed_side_effect(*args, **kwargs):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                return 1
+            return 0
+
+        worker.all_consumed = all_consumed_side_effect
+        worker.dispatch_transfer_dock_data = MagicMock(return_value=({"data": "batch"}, [1]))
+
+        with patch('aura.trainer.train_adapter.mindspeed_rl.workers.actor_hybrid_worker.num_floating_point_operations', return_value=100.0):
+            worker.update()
+
+        worker.actor_hybrid.update_actor.assert_called_once()
