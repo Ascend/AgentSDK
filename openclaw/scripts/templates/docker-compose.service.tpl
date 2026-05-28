@@ -50,6 +50,12 @@
       - MEMEX_SERVER_PORT=8080
       - MEMEX_KB_ROOT=/home/node/wiki
     command: /home/node/.openclaw/health_monitor.sh
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:${GW_PORT}/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
     deploy:
       resources:
         limits:
