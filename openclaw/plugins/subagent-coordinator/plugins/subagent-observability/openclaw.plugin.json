@@ -1,0 +1,11 @@
+{
+  "id": "@subagent-coordinator/observability",
+  "name": "Subagent Coordinator Observability",
+  "version": "0.0.4",
+  "runtime": "openclaw",
+  "description": "Full-stack observability: metrics, tracing, cost tracking, rate limiting, and data sanitisation",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": true
+  }
+}
