@@ -1,10 +1,14 @@
 """Configuration management for SkillHub CLI."""
 
+import json
 from pathlib import Path
 from typing import List, Optional
 from platformdirs import user_config_dir, user_data_dir
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+CONFIG_FILE_NAME = "config.json"
 
 
 class PlatformConfig(BaseModel):
@@ -104,4 +108,86 @@ def get_config(config_path: Optional[str] = None) -> Settings:
     """
     if config_path:
         return Settings(_env_file=config_path)
+
+    # Try to load from config file
+    config_file = Path(user_config_dir("skillhub")) / CONFIG_FILE_NAME
+    if config_file.exists():
+        try:
+            with open(config_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            return Settings(**data)
+        except (json.JSONDecodeError, TypeError, ValueError):
+            # Config file invalid, use defaults
+            pass
+
     return Settings()
+
+
+def save_config(config: Settings) -> None:
+    """Save configuration to file.
+
+    Args:
+        config: Settings to save.
+    """
+    config_file = config.config_dir / CONFIG_FILE_NAME
+    with open(config_file, "w", encoding="utf-8") as f:
+        json.dump(config.model_dump(mode="json"), f, indent=2)
+
+
+def set_config_value(key: str, value: str) -> Settings:
+    """Set a configuration value by key path.
+
+    Args:
+        key: Dot-separated key path (e.g., "cache.ttl_metadata").
+        value: Value to set (will be converted to appropriate type).
+
+    Returns:
+        Updated settings.
+
+    Raises:
+        ValueError: If key not found or value type invalid.
+    """
+    config = get_config()
+    keys = key.split(".")
+
+    # Navigate to the target object
+    obj = config
+    for i, k in enumerate(keys[:-1]):
+        if hasattr(obj, k):
+            obj = getattr(obj, k)
+        else:
+            raise ValueError(f"Configuration key not found: {'.'.join(keys[: i + 1])}")
+
+    final_key = keys[-1]
+    if not hasattr(obj, final_key):
+        raise ValueError(f"Configuration key not found: {key}")
+
+    # Get current value to determine type
+    current_value = getattr(obj, final_key)
+
+    # Convert value to appropriate type
+    try:
+        if isinstance(current_value, bool):
+            parsed_value = value.lower() in ("true", "1", "yes", "on")
+        elif isinstance(current_value, int):
+            parsed_value = int(value)
+        elif isinstance(current_value, float):
+            parsed_value = float(value)
+        elif isinstance(current_value, Path):
+            parsed_value = Path(value)
+        elif isinstance(current_value, list):
+            parsed_value = json.loads(value) if value.startswith("[") else [value]
+        elif isinstance(current_value, str):
+            parsed_value = value
+        else:
+            parsed_value = value
+    except Exception as e:
+        raise ValueError(f"Invalid value type for {key}: {e}")
+
+    # Set the value
+    setattr(obj, final_key, parsed_value)
+
+    # Save to file
+    save_config(config)
+
+    return config

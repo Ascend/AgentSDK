@@ -5,7 +5,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from skillhub.config import get_config
+from skillhub.config import get_config, set_config_value
 
 app = typer.Typer()
 console = Console()
@@ -39,9 +39,16 @@ def config_set(
     value: str,
 ) -> None:
     """Set a configuration value."""
-    console.print("[yellow]Configuration modification not yet implemented[/yellow]")
-    console.print(f"  Key: {key}")
-    console.print(f"  Value: {value}")
+    try:
+        set_config_value(key, value)
+        console.print("[green]Configuration updated:[/green]")
+        console.print(f"  [cyan]{key}[/cyan] = [green]{value}[/green]")
+    except ValueError as e:
+        console.print(f"[red]Error: {e}[/red]")
+        raise typer.Exit(1)
+    except Exception as e:
+        console.print(f"[red]Failed to save configuration: {e}[/red]")
+        raise typer.Exit(1)
 
 
 @app.command("list")
@@ -75,4 +82,12 @@ def config_reset(
             console.print("[yellow]Reset cancelled[/yellow]")
             return
 
-    console.print("[yellow]Configuration reset not yet implemented[/yellow]")
+    try:
+        config = get_config()
+        config_file = config.config_dir / "config.json"
+        if config_file.exists():
+            config_file.unlink()
+        console.print("[green]Configuration reset to defaults[/green]")
+    except Exception as e:
+        console.print(f"[red]Failed to reset configuration: {e}[/red]")
+        raise typer.Exit(1)
