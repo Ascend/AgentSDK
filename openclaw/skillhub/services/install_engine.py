@@ -140,7 +140,7 @@ class InstallEngineImpl(InstallEngine):
         os.rename(install_path, temp_dir)
 
         os.makedirs(install_path)
-        self._copy_recursive(target_dir, install_path)
+        self._copy_recursive(os.path.join(temp_dir, subpath), install_path)
         shutil.rmtree(temp_dir)
 
     def _copy_recursive(self, src: str, dst: str) -> None:

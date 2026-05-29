@@ -1,8 +1,21 @@
-"""Integration tests for SkillHub CLI commands.
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+# -------------------------------------------------------------------------
+#  This file is part of the AgentSDK project.
+# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+#
+# AgentSDK is licensed under Mulan PSL v2.
+# You can use this software according to the terms and conditions of the Mulan PSL v2.
+# You may obtain a copy of Mulan PSL v2 at:
+#
+#           http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
 
-These tests execute real CLI commands, covering complete user workflows.
-Uses real repository: https://gitcode.com/Ascend/agent-skills
-"""
 
 import os
 import tempfile
@@ -209,9 +222,23 @@ class TestCLIIntegrationAuthOperations:
 
     def test_auth_login_github(self, temp_config_dir):
         """Test auth login completes without unhandled exception."""
+        from unittest.mock import AsyncMock
+        from skillhub.models.credential import TokenValidation
+
+        mock_validation = TokenValidation(valid=True, scopes=["repo"], message="OK")
+
         with patch.dict(os.environ, {"SKILLHUB_DATA_DIR": temp_config_dir}):
-            result = runner.invoke(app, ["auth", "login", "github"])
-            assert not _is_unhandled_exception(result)
+            with patch(
+                "skillhub.services.credential_manager.CredentialManagerImpl.validate_token",
+                new_callable=AsyncMock,
+                return_value=mock_validation,
+            ):
+                with patch(
+                    "skillhub.services.credential_manager.CredentialManagerImpl.store_token",
+                    new_callable=AsyncMock,
+                ):
+                    result = runner.invoke(app, ["auth", "login", "github", "--token", "test_token"])
+                    assert not _is_unhandled_exception(result)
 
     def test_auth_logout_github(self, temp_config_dir):
         """Test auth logout completes without unhandled exception."""
