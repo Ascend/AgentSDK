@@ -58,7 +58,18 @@ function pre_install() {
  tensorboard==2.20.0 \
  firecrawl \
  pytest-asyncio==1.3.0 \
- pillow==12.2.0
+ pillow==12.2.0 \
+ typer==0.15.0 \
+ click==8.1.7 \
+ rich==13.0.0 \
+ pydantic==2.0.0 \
+ pydantic-settings==2.0.0 \
+ httpx[http2]==0.24.0 \
+ keyring==23.0.0 \
+ keyrings.alt==4.0.0 \
+ diskcache==5.0.0 \
+ platformdirs==3.0.0 \
+ pyyaml==6.0.0
  echo "[INFO] >>>>>>>>>>> finish install python packages >>>>>>>>>>>"
  mkdir -p $THIRD_PARTY_DIR
  cd $THIRD_PARTY_DIR
@@ -115,7 +126,38 @@ function run_test() {
  	echo "[INFO] Line coverage   : $(awk "BEGIN {print ${LINE_RATE}*100}")%"
  	echo "[INFO] Branch coverage : $(awk "BEGIN {print ${BRANCH_RATE}*100}")%"
 
-  echo "[INFO] Test done!"
+  # Run openclaw tests
+  unset LD_PRELOAD
+  cd $workdir/openclaw
+  echo ""
+  echo "[INFO] >>>>>>>>>>> start running openclaw tests >>>>>>>>>>>"
+  python3 -m pytest \
+    --cov=skillhub \
+    --cov-report=term \
+    --cov-report=html:../script/coverage/openclaw/html \
+    --cov-report=xml:../script/coverage/openclaw/coverage.xml \
+    --junit-xml=../script/coverage/openclaw/final.xml \
+    --html=../script/coverage/openclaw/final.html \
+    --self-contained-html \
+    --cov-branch \
+    -vs tests/ \
+    --tb=short
+  echo "[INFO] >>>>>>>>>>> finish running openclaw tests >>>>>>>>>>>"
+  echo ""
+
+  echo "[INFO] Openclaw coverage report generated:"
+  echo "  HTML: ${workdir}/script/coverage/openclaw/htmlcov/index.html"
+  echo "  XML : ${workdir}/script/coverage/openclaw/coverage.xml"
+  echo "  JUnit: ${workdir}/script/coverage/openclaw/final.xml"
+  echo "  HTML test report: ${workdir}/script/coverage/openclaw/final.html"
+
+  OPENCLAW_LINE_RATE=$(grep -o 'line-rate="[^"]*"' ${workdir}/script/coverage/openclaw/coverage.xml | head -1 | cut -d'"' -f2)
+  OPENCLAW_BRANCH_RATE=$(grep -o 'branch-rate="[^"]*"' ${workdir}/script/coverage/openclaw/coverage.xml | head -1 | cut -d'"' -f2)
+
+  echo "[INFO] Openclaw line coverage   : $(awk "BEGIN {print ${OPENCLAW_LINE_RATE}*100}")%"
+  echo "[INFO] Openclaw branch coverage : $(awk "BEGIN {print ${OPENCLAW_BRANCH_RATE}*100}")%"
+
+  echo "[INFO] All tests done!"
 }
 
 pre_install

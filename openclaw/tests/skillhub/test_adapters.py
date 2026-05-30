@@ -590,3 +590,87 @@ class TestAdapterParsing:
         assert repo.name == "skillhub"
         assert repo.url == "https://gitcode.com/owner/skillhub"
         assert repo.stars == 200
+
+
+class TestGitCodeAPIMethods:
+    """Tests for GitCode adapter API methods."""
+
+    @pytest.mark.asyncio
+    async def test_gitcode_list_repositories(self):
+        """Test GitCode list_repositories method."""
+        adapter = GitCodeAdapter("https://api.gitcode.com/api/v5")
+        mock_repos = [
+            {
+                "id": 1,
+                "name": "repo1",
+                "full_name": "owner/repo1",
+                "html_url": "https://gitcode.com/owner/repo1",
+                "clone_url": "https://gitcode.com/owner/repo1.git",
+                "private": False,
+                "stargazers_count": 100,
+                "forks_count": 10,
+                "language": "Python",
+                "default_branch": "main",
+            }
+        ]
+
+        with patch.object(adapter, "_request", new_callable=AsyncMock) as mock_request:
+            mock_request.return_value = mock_repos
+            result = await adapter.list_repositories("owner")
+            assert len(result) == 1
+            assert result[0].name == "repo1"
+
+    @pytest.mark.asyncio
+    async def test_gitcode_get_repository(self):
+        """Test GitCode get_repository method."""
+        adapter = GitCodeAdapter("https://api.gitcode.com/api/v5")
+        mock_repo = {
+            "id": 1,
+            "name": "test_repo",
+            "full_name": "owner/test_repo",
+            "html_url": "https://gitcode.com/owner/test_repo",
+            "clone_url": "https://gitcode.com/owner/test_repo.git",
+            "private": False,
+            "stargazers_count": 50,
+            "forks_count": 5,
+            "language": "Go",
+            "default_branch": "master",
+        }
+
+        with patch.object(adapter, "_request", new_callable=AsyncMock) as mock_request:
+            mock_request.return_value = mock_repo
+            result = await adapter.get_repository("owner", "test_repo")
+            assert result.name == "test_repo"
+
+    @pytest.mark.asyncio
+    async def test_gitcode_get_contents_file(self):
+        """Test GitCode get_contents for file."""
+        adapter = GitCodeAdapter("https://api.gitcode.com/api/v5")
+        mock_file = {
+            "type": "file",
+            "name": "README.md",
+            "path": "README.md",
+            "sha": "abc123",
+        }
+
+        with patch.object(adapter, "_request", new_callable=AsyncMock) as mock_request:
+            mock_request.return_value = mock_file
+            result = await adapter.get_contents("owner", "repo", "README.md")
+            assert result.name == "README.md"
+
+    @pytest.mark.asyncio
+    async def test_gitcode_list_tags(self):
+        """Test GitCode list_tags method."""
+        adapter = GitCodeAdapter("https://api.gitcode.com/api/v5")
+        mock_tags = [
+            {
+                "name": "v1.0.0",
+                "commit": {"sha": "abc123"},
+            }
+        ]
+
+        with patch.object(adapter, "_request", new_callable=AsyncMock) as mock_request:
+            mock_request.return_value = mock_tags
+            result = await adapter.list_tags("owner", "repo")
+            assert len(result) == 1
+            assert result[0].name == "v1.0.0"

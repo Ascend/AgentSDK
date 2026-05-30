@@ -216,8 +216,27 @@ class TestCredentialManager:
             result = manager.is_secure_storage_available()
             assert result is False
 
-    # Note: test_setup_keyring_* tests removed as they require complex mocking
-    # and credential_manager is already at 100% coverage
+    def test_setup_keyring_fail_backend(self, mock_settings: Settings):
+        """Test keyring setup when get_keyring returns fail backend."""
+        import keyring.backends.fail
+
+        with patch("skillhub.services.credential_manager.keyring") as mock_kr:
+            mock_kr.get_keyring.return_value = keyring.backends.fail.Keyring()
+            mock_kr.set_keyring = MagicMock()
+
+            manager = CredentialManagerImpl(mock_settings)
+            assert manager is not None
+            mock_kr.set_keyring.assert_called()
+
+    def test_setup_keyring_exception(self, mock_settings: Settings):
+        """Test keyring setup when get_keyring raises exception."""
+        with patch("skillhub.services.credential_manager.keyring") as mock_kr:
+            mock_kr.get_keyring.side_effect = RuntimeError("Backend unavailable")
+            mock_kr.set_keyring = MagicMock()
+
+            manager = CredentialManagerImpl(mock_settings)
+            assert manager is not None
+            mock_kr.set_keyring.assert_called()
 
     def test_load_metadata_from_file(self, mock_settings: Settings, temp_dir: Path):
         """Test loading metadata from existing file."""
