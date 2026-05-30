@@ -17,6 +17,10 @@
 # -------------------------------------------------------------------------
 
 
+import os
+import tempfile
+import shutil
+from pathlib import Path
 from unittest.mock import patch, MagicMock, AsyncMock
 
 from typer.testing import CliRunner
@@ -65,56 +69,6 @@ class TestListCommand:
         """Test list installed subcommand help."""
         result = runner.invoke(list_app, ["installed", "--help"])
         assert result.exit_code == 0
-
-    def test_list_installed_empty_mock(self):
-        """Test list with no installed skills."""
-        with patch("skillhub.commands.list.get_config") as mock_config:
-            mock_config.return_value = MagicMock()
-            with patch("skillhub.commands.list.InstallEngineImpl") as mock_engine:
-                mock_instance = MagicMock()
-                mock_instance.list_installed = AsyncMock(return_value=[])
-                mock_engine.return_value = mock_instance
-
-                result = runner.invoke(list_app, ["installed"])
-                # Exit code 0, 1, or 2 are all acceptable (mock may not be complete)
-                assert result.exit_code in [0, 1, 2]
-
-    def test_list_installed_with_skills_mock(self):
-        """Test list with installed skills."""
-        from skillhub.models.skill import InstalledSkill
-
-        mock_skill = InstalledSkill(
-            name="test-skill",
-            version="1.0.0",
-            source_id="github",
-            source_type="github",
-            repository="test/repo",
-            ref="v1.0",
-            install_path="/skills/test",
-            checksum="abc",
-        )
-
-        with patch("skillhub.commands.list.get_config") as mock_config:
-            mock_config.return_value = MagicMock()
-            with patch("skillhub.commands.list.InstallEngineImpl") as mock_engine:
-                mock_instance = MagicMock()
-                mock_instance.list_installed = AsyncMock(return_value=[mock_skill])
-                mock_engine.return_value = mock_instance
-
-                result = runner.invoke(list_app, ["installed"])
-                assert result.exit_code in [0, 1, 2]
-
-    def test_list_installed_json_output_mock(self):
-        """Test list with JSON output."""
-        with patch("skillhub.commands.list.get_config") as mock_config:
-            mock_config.return_value = MagicMock()
-            with patch("skillhub.commands.list.InstallEngineImpl") as mock_engine:
-                mock_instance = MagicMock()
-                mock_instance.list_installed = AsyncMock(return_value=[])
-                mock_engine.return_value = mock_instance
-
-                result = runner.invoke(list_app, ["installed", "--json"])
-                assert result.exit_code in [0, 1, 2]
 
 
 class TestSkillCommand:
@@ -228,7 +182,7 @@ class TestCacheCommand:
         """Test cache stats subcommand."""
         # cache.py has 'info' command, not 'stats'
         result = runner.invoke(cache_app, ["info", "--help"])
-        assert result.exit_code in [0, 2]  # Allow 2 for Windows compatibility
+        assert result.exit_code == 0
 
 
 class TestConfigCommand:
@@ -243,7 +197,7 @@ class TestConfigCommand:
         """Test config show subcommand."""
         # config.py has 'get' and 'list', not 'show'
         result = runner.invoke(config_app, ["list", "--help"])
-        assert result.exit_code in [0, 2]  # Allow 2 for Windows compatibility
+        assert result.exit_code == 0
 
     def test_config_set_help(self):
         """Test config set subcommand."""
@@ -301,6 +255,467 @@ class TestInfoCommand:
         assert result.exit_code == 0
 
 
+class TestConfigGetCommand:
+    """Tests for config get command with real config."""
+
+    def test_config_get_existing_key(self):
+        """Test config get with existing key."""
+
+        temp_dir = Path(tempfile.mkdtemp())
+        try:
+            with patch.dict(os.environ, {"SKILLHUB_DATA_DIR": str(temp_dir)}):
+                result = runner.invoke(config_app, ["get", "cache.enabled"])
+                assert result.exit_code == 0
+                assert "true" in result.output.lower() or "false" in result.output.lower()
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+    def test_config_get_nested_key(self):
+        """Test config get with nested key."""
+
+        temp_dir = Path(tempfile.mkdtemp())
+        try:
+            with patch.dict(os.environ, {"SKILLHUB_DATA_DIR": str(temp_dir)}):
+                result = runner.invoke(config_app, ["get", "cache.ttl_metadata"])
+                assert result.exit_code == 0
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+    def test_config_get_invalid_key(self):
+        """Test config get with invalid key."""
+
+        temp_dir = Path(tempfile.mkdtemp())
+        try:
+            with patch.dict(os.environ, {"SKILLHUB_DATA_DIR": str(temp_dir)}):
+                result = runner.invoke(config_app, ["get", "nonexistent_key"])
+                assert result.exit_code == 1
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+class TestConfigListCommand:
+    """Tests for config list command."""
+
+    def test_config_list_success(self):
+        """Test config list command."""
+
+        temp_dir = Path(tempfile.mkdtemp())
+        try:
+            with patch.dict(os.environ, {"SKILLHUB_DATA_DIR": str(temp_dir)}):
+                result = runner.invoke(config_app, ["list"])
+                assert result.exit_code == 0
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+class TestConfigResetCommand:
+    """Tests for config reset command."""
+
+    def test_config_reset_with_force(self):
+        """Test config reset with force."""
+
+        temp_dir = Path(tempfile.mkdtemp())
+        try:
+            config_file = temp_dir / "config.json"
+            config_file.write_text("{\"test\": \"value\"}")
+
+            with patch.dict(os.environ, {"SKILLHUB_DATA_DIR": str(temp_dir)}):
+                result = runner.invoke(config_app, ["reset", "--force"])
+                assert result.exit_code == 0
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+class TestSourceListCommand:
+    """Tests for source list command with real config."""
+
+    def test_source_list_empty(self):
+        """Test source list when empty."""
+
+        temp_dir = Path(tempfile.mkdtemp())
+        try:
+            with patch.dict(os.environ, {"SKILLHUB_DATA_DIR": str(temp_dir)}):
+                result = runner.invoke(source_app, ["list"])
+                assert result.exit_code == 0
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+class TestAuthStatusCommand:
+    """Tests for auth status command with real config."""
+
+    def test_auth_status(self):
+        """Test auth status command."""
+
+        temp_dir = Path(tempfile.mkdtemp())
+        try:
+            with patch.dict(os.environ, {"SKILLHUB_DATA_DIR": str(temp_dir)}):
+                result = runner.invoke(auth_app, ["status"])
+                assert result.exit_code == 0
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+class TestCacheInfoCommand:
+    """Tests for cache info command with real config."""
+
+    def test_cache_info(self):
+        """Test cache info command."""
+
+        temp_dir = Path(tempfile.mkdtemp())
+        try:
+            with patch.dict(os.environ, {"SKILLHUB_DATA_DIR": str(temp_dir)}):
+                result = runner.invoke(cache_app, ["info"])
+                assert result.exit_code == 0
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+class TestCacheClearCommand:
+    """Tests for cache clear command."""
+
+    def test_cache_clear_with_force(self):
+        """Test cache clear command with force flag."""
+
+        temp_dir = Path(tempfile.mkdtemp())
+        try:
+            with patch.dict(os.environ, {"SKILLHUB_DATA_DIR": str(temp_dir)}):
+                result = runner.invoke(cache_app, ["clear", "--force"])
+                assert result.exit_code == 0
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+class TestDoctorCommandWithConfig:
+    """Tests for doctor command with real config."""
+
+    def test_doctor_basic(self):
+        """Test doctor command."""
+
+        temp_dir = Path(tempfile.mkdtemp())
+        try:
+            with patch.dict(os.environ, {"SKILLHUB_DATA_DIR": str(temp_dir)}):
+                result = runner.invoke(doctor_app, [])
+                assert result.exit_code == 0
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+    def test_doctor_verbose(self):
+        """Test doctor with verbose flag."""
+
+        temp_dir = Path(tempfile.mkdtemp())
+        try:
+            with patch.dict(os.environ, {"SKILLHUB_DATA_DIR": str(temp_dir)}):
+                result = runner.invoke(doctor_app, ["--verbose"])
+                assert result.exit_code == 0
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+class TestListInstalledCommand:
+    """Tests for list installed command with real config."""
+
+    def test_list_installed_empty(self):
+        """Test list installed when empty."""
+
+        temp_dir = Path(tempfile.mkdtemp())
+        try:
+            with patch.dict(os.environ, {"SKILLHUB_DATA_DIR": str(temp_dir)}):
+                result = runner.invoke(list_app, ["installed"])
+                assert result.exit_code in (0, 2)
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+class TestSearchCommandWithConfig:
+    """Tests for search command with real config."""
+
+    def test_search_empty_results(self):
+        """Test search with empty results."""
+
+        temp_dir = Path(tempfile.mkdtemp())
+        try:
+            with patch.dict(os.environ, {"SKILLHUB_DATA_DIR": str(temp_dir)}):
+                result = runner.invoke(search_app, ["test"])
+                assert result.exit_code == 0
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+class TestSkillListCommand:
+    """Tests for skill list command."""
+
+    def test_skill_list_empty(self):
+        """Test skill list when empty."""
+
+        temp_dir = Path(tempfile.mkdtemp())
+        try:
+            with patch.dict(os.environ, {"SKILLHUB_DATA_DIR": str(temp_dir)}):
+                result = runner.invoke(skill_app, ["list"])
+                assert result.exit_code == 0
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+class TestSkillUninstallCommand:
+    """Tests for skill uninstall command."""
+
+    def test_skill_uninstall_nonexistent(self):
+        """Test skill uninstall nonexistent."""
+
+        temp_dir = Path(tempfile.mkdtemp())
+        try:
+            with patch.dict(os.environ, {"SKILLHUB_DATA_DIR": str(temp_dir)}):
+                result = runner.invoke(skill_app, ["uninstall", "nonexistent"])
+                assert result.exit_code == 1
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+class TestUninstallCommandWithConfig:
+    """Tests for uninstall command."""
+
+    def test_uninstall_nonexistent(self):
+        """Test uninstall nonexistent skill."""
+
+        temp_dir = Path(tempfile.mkdtemp())
+        try:
+            with patch.dict(os.environ, {"SKILLHUB_DATA_DIR": str(temp_dir)}):
+                result = runner.invoke(uninstall_app, ["nonexistent"])
+                assert result.exit_code == 1
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+class TestUpgradeCommandWithConfig:
+    """Tests for upgrade command."""
+
+    def test_upgrade_nonexistent(self):
+        """Test upgrade nonexistent skill."""
+
+        temp_dir = Path(tempfile.mkdtemp())
+        try:
+            with patch.dict(os.environ, {"SKILLHUB_DATA_DIR": str(temp_dir)}):
+                result = runner.invoke(upgrade_app, ["nonexistent"])
+                assert result.exit_code == 2
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+class TestInfoCommandWithConfig:
+    """Tests for info command."""
+
+    def test_info_nonexistent(self):
+        """Test info nonexistent skill."""
+
+        temp_dir = Path(tempfile.mkdtemp())
+        try:
+            with patch.dict(os.environ, {"SKILLHUB_DATA_DIR": str(temp_dir)}):
+                result = runner.invoke(info_app, ["nonexistent"])
+                assert result.exit_code == 0
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+class TestInstallCommandWithConfig:
+    """Tests for install command."""
+
+    def test_install_nonexistent(self):
+        """Test install nonexistent skill."""
+
+        temp_dir = Path(tempfile.mkdtemp())
+        try:
+            with patch.dict(os.environ, {"SKILLHUB_DATA_DIR": str(temp_dir)}):
+                result = runner.invoke(install_app, ["nonexistent"])
+                assert result.exit_code == 1
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+    def test_install_local_nonexistent(self):
+        """Test install from nonexistent local path."""
+
+        temp_dir = Path(tempfile.mkdtemp())
+        try:
+            with patch.dict(os.environ, {"SKILLHUB_DATA_DIR": str(temp_dir)}):
+                result = runner.invoke(install_app, ["./nonexistent_path"])
+                assert result.exit_code == 1
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+class TestConfigSetCommand:
+    """Tests for config set command."""
+
+    def test_config_set_invalid_key(self):
+        """Test config set with invalid key."""
+
+        temp_dir = Path(tempfile.mkdtemp())
+        try:
+            with patch.dict(os.environ, {"SKILLHUB_DATA_DIR": str(temp_dir)}):
+                result = runner.invoke(config_app, ["set", "invalid.key", "value"])
+                assert result.exit_code == 1
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+class TestSourceAddCommand:
+    """Tests for source add command."""
+
+    def test_source_add_github(self):
+        """Test source add github."""
+
+        temp_dir = Path(tempfile.mkdtemp())
+        try:
+            with patch.dict(os.environ, {"SKILLHUB_DATA_DIR": str(temp_dir)}):
+                result = runner.invoke(source_app, ["add", "github", "https://github.com/test/skills"])
+                assert result.exit_code == 0
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+    def test_source_add_gitee(self):
+        """Test source add gitee."""
+
+        temp_dir = Path(tempfile.mkdtemp())
+        try:
+            with patch.dict(os.environ, {"SKILLHUB_DATA_DIR": str(temp_dir)}):
+                result = runner.invoke(source_app, ["add", "gitee", "https://gitee.com/test/skills"])
+                assert result.exit_code == 0
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+class TestAuthLoginCommand:
+    """Tests for auth login command."""
+
+    def test_auth_login_with_token(self):
+        """Test auth login with token."""
+        from skillhub.models.credential import TokenValidation
+
+        temp_dir = Path(tempfile.mkdtemp())
+        try:
+            mock_validation = TokenValidation(valid=True, scopes=["repo"], message="OK")
+
+            with patch.dict(os.environ, {"SKILLHUB_DATA_DIR": str(temp_dir)}):
+                with patch(
+                    "skillhub.commands.auth.CredentialManagerImpl.validate_token",
+                    new_callable=AsyncMock,
+                    return_value=mock_validation,
+                ):
+                    with patch("skillhub.commands.auth.CredentialManagerImpl.store_token", new_callable=AsyncMock):
+                        result = runner.invoke(auth_app, ["login", "github", "--token", "test_token"])
+                        assert result.exit_code == 0
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+class TestDoctorFixCommand:
+    """Tests for doctor --fix command."""
+
+    def test_doctor_fix(self):
+        """Test doctor with fix flag."""
+
+        temp_dir = Path(tempfile.mkdtemp())
+        fresh_dir = temp_dir / "fresh"
+        fresh_dir.mkdir(parents=True, exist_ok=True)
+
+        try:
+            with patch.dict(os.environ, {"SKILLHUB_DATA_DIR": str(fresh_dir)}):
+                result = runner.invoke(doctor_app, ["--fix"])
+                assert result.exit_code == 0
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+class TestSearchJsonCommand:
+    """Tests for search with JSON output."""
+
+    def test_search_json_output(self):
+        """Test search with JSON output."""
+
+        temp_dir = Path(tempfile.mkdtemp())
+        try:
+            with patch.dict(os.environ, {"SKILLHUB_DATA_DIR": str(temp_dir)}):
+                result = runner.invoke(search_app, ["test", "--json"])
+                assert result.exit_code == 0
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+class TestListJsonCommand:
+    """Tests for list with JSON output."""
+
+    def test_list_json_output(self):
+        """Test list with JSON output."""
+
+        temp_dir = Path(tempfile.mkdtemp())
+        try:
+            with patch.dict(os.environ, {"SKILLHUB_DATA_DIR": str(temp_dir)}):
+                result = runner.invoke(list_app, ["installed", "--json"])
+                assert result.exit_code == 2
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+class TestSourceRemoveCommand:
+    """Tests for source remove command."""
+
+    def test_source_remove_nonexistent(self):
+        """Test source remove nonexistent."""
+
+        temp_dir = Path(tempfile.mkdtemp())
+        try:
+            with patch.dict(os.environ, {"SKILLHUB_DATA_DIR": str(temp_dir)}):
+                result = runner.invoke(source_app, ["remove", "nonexistent"])
+                assert result.exit_code == 1
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+class TestAuthLogoutCommand:
+    """Tests for auth logout command."""
+
+    def test_auth_logout(self):
+        """Test auth logout."""
+
+        temp_dir = Path(tempfile.mkdtemp())
+        try:
+            with patch.dict(os.environ, {"SKILLHUB_DATA_DIR": str(temp_dir)}):
+                result = runner.invoke(auth_app, ["logout", "github"])
+                assert result.exit_code == 0
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+class TestSkillInfoCommand:
+    """Tests for skill info command."""
+
+    def test_skill_info_nonexistent(self):
+        """Test skill info nonexistent."""
+
+        temp_dir = Path(tempfile.mkdtemp())
+        try:
+            with patch.dict(os.environ, {"SKILLHUB_DATA_DIR": str(temp_dir)}):
+                result = runner.invoke(skill_app, ["info", "nonexistent"])
+                assert result.exit_code == 0
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+class TestSkillUpgradeCommand:
+    """Tests for skill upgrade command."""
+
+    def test_skill_upgrade_nonexistent(self):
+        """Test skill upgrade nonexistent."""
+
+        temp_dir = Path(tempfile.mkdtemp())
+        try:
+            with patch.dict(os.environ, {"SKILLHUB_DATA_DIR": str(temp_dir)}):
+                result = runner.invoke(skill_app, ["upgrade", "nonexistent"])
+                assert result.exit_code == 2
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+
 class TestSourceCommandAdvanced:
     """Advanced tests for source command."""
 
@@ -314,35 +729,11 @@ class TestSourceCommandAdvanced:
                 mock_manager.return_value = mock_instance
 
                 result = runner.invoke(source_app, ["list"])
-                assert result.exit_code in [0, 1]
-
-    def test_source_remove_with_mock(self):
-        """Test source remove."""
-        with patch("skillhub.commands.source.get_config") as mock_config:
-            mock_config.return_value = MagicMock()
-            with patch("skillhub.commands.source.SourceManagerImpl") as mock_manager:
-                mock_instance = MagicMock()
-                mock_instance.remove_source = AsyncMock()
-                mock_manager.return_value = mock_instance
-
-                result = runner.invoke(source_app, ["remove", "test-id"])
-                assert result.exit_code in [0, 1]
+                assert result.exit_code == 0
 
 
 class TestAuthCommandAdvanced:
     """Advanced tests for auth command."""
-
-    def test_auth_logout_with_mock(self):
-        """Test auth logout."""
-        with patch("skillhub.commands.auth.get_config") as mock_config:
-            mock_config.return_value = MagicMock()
-            with patch("skillhub.commands.auth.CredentialManagerImpl") as mock_cred:
-                mock_instance = MagicMock()
-                mock_instance.remove_token = AsyncMock()
-                mock_cred.return_value = mock_instance
-
-                result = runner.invoke(auth_app, ["logout", "github"])
-                assert result.exit_code in [0, 1]
 
     def test_auth_status_with_mock(self):
         """Test auth status."""
@@ -354,23 +745,11 @@ class TestAuthCommandAdvanced:
                 mock_cred.return_value = mock_instance
 
                 result = runner.invoke(auth_app, ["status"])
-                assert result.exit_code in [0, 1]
+                assert result.exit_code == 0
 
 
 class TestCacheCommandAdvanced:
     """Advanced tests for cache command."""
-
-    def test_cache_clear_with_mock(self):
-        """Test cache clear."""
-        with patch("skillhub.commands.cache.get_config") as mock_config:
-            mock_config.return_value = MagicMock()
-            with patch("skillhub.commands.cache.CacheManagerImpl") as mock_cache:
-                mock_instance = MagicMock()
-                mock_instance.clear = AsyncMock()
-                mock_cache.return_value = mock_instance
-
-                result = runner.invoke(cache_app, ["clear"])
-                assert result.exit_code in [0, 1]
 
     def test_cache_stats_with_mock(self):
         """Test cache stats."""
@@ -393,7 +772,7 @@ class TestCacheCommandAdvanced:
                 mock_cache.return_value = mock_instance
 
                 result = runner.invoke(cache_app, ["info"])
-                assert result.exit_code in [0, 1, 2]
+                assert result.exit_code == 0
 
 
 class TestConfigCommandAdvanced:
@@ -405,181 +784,4 @@ class TestConfigCommandAdvanced:
             mock_get.return_value = MagicMock()
 
             result = runner.invoke(config_app, ["list"])
-            assert result.exit_code in [0, 1, 2]
-
-
-class TestSkillCommandAdvanced:
-    """Advanced tests for skill command group."""
-
-    def test_skill_list_empty_mock(self):
-        """Test skill list with empty result."""
-        with patch("skillhub.commands.skill.get_config") as mock_config:
-            mock_config.return_value = MagicMock()
-            with patch("skillhub.commands.skill.InstallEngineImpl") as mock_engine:
-                mock_instance = MagicMock()
-                mock_instance.list_installed = AsyncMock(return_value=[])
-                mock_engine.return_value = mock_instance
-
-                result = runner.invoke(skill_app, ["list"])
-                assert result.exit_code in [0, 1]
-
-    def test_skill_list_json_mock(self):
-        """Test skill list with JSON output."""
-        with patch("skillhub.commands.skill.get_config") as mock_config:
-            mock_config.return_value = MagicMock()
-            with patch("skillhub.commands.skill.InstallEngineImpl") as mock_engine:
-                mock_instance = MagicMock()
-                mock_instance.list_installed = AsyncMock(return_value=[])
-                mock_engine.return_value = mock_instance
-
-                result = runner.invoke(skill_app, ["list", "--json"])
-                assert result.exit_code in [0, 1]
-
-    def test_skill_uninstall_mock(self):
-        """Test skill uninstall."""
-        with patch("skillhub.commands.skill.get_config") as mock_config:
-            mock_config.return_value = MagicMock()
-            with patch("skillhub.commands.skill.InstallEngineImpl") as mock_engine:
-                mock_instance = MagicMock()
-                mock_instance.uninstall = AsyncMock()
-                mock_engine.return_value = mock_instance
-
-                result = runner.invoke(skill_app, ["uninstall", "test-skill"])
-                assert result.exit_code in [0, 1]
-
-
-class TestUninstallCommandAdvanced:
-    """Advanced tests for uninstall command."""
-
-    def test_uninstall_skill_mock(self):
-        """Test uninstall skill."""
-        with patch("skillhub.commands.uninstall.get_config") as mock_config:
-            mock_config.return_value = MagicMock()
-            with patch("skillhub.commands.uninstall.InstallEngineImpl") as mock_engine:
-                mock_instance = MagicMock()
-                mock_instance.uninstall = AsyncMock()
-                mock_engine.return_value = mock_instance
-
-                result = runner.invoke(uninstall_app, ["test-skill"])
-                assert result.exit_code in [0, 1]
-
-
-class TestUpgradeCommandAdvanced:
-    """Advanced tests for upgrade command."""
-
-    def test_upgrade_skill_mock(self):
-        """Test upgrade skill."""
-        from skillhub.models.skill import InstallResult, InstalledSkill
-
-        mock_result = InstallResult(
-            success=True,
-            skill=InstalledSkill(
-                name="test",
-                version="2.0",
-                source_id="test",
-                source_type="github",
-                repository="test",
-                ref="v2",
-                install_path="/test",
-                checksum="abc",
-            ),
-            installed_dependencies=[],
-            warnings=[],
-            errors=[],
-            duration=1.0,
-        )
-
-        with patch("skillhub.commands.upgrade.get_config") as mock_config:
-            mock_config.return_value = MagicMock()
-            with patch("skillhub.commands.upgrade.InstallEngineImpl") as mock_engine:
-                mock_instance = MagicMock()
-                mock_instance.upgrade = AsyncMock(return_value=mock_result)
-                mock_engine.return_value = mock_instance
-
-                result = runner.invoke(upgrade_app, ["test-skill"])
-                assert result.exit_code in [0, 1, 2]
-
-
-class TestDoctorCommandAdvanced:
-    """Advanced tests for doctor command."""
-
-    def test_doctor_run_mock(self):
-        """Test doctor run with mock."""
-        with patch("skillhub.commands.doctor.get_config") as mock_config:
-            mock_config.return_value = MagicMock()
-
-            result = runner.invoke(doctor_app, [])
-            assert result.exit_code in [0, 1, 2]
-
-
-class TestAuthCommandMock:
-    """Mock tests for auth command."""
-
-    def test_auth_status_mock(self):
-        """Test auth status with mock."""
-        with patch("skillhub.commands.auth.get_config") as mock_config:
-            mock_config.return_value = MagicMock()
-            with patch("skillhub.commands.auth.CredentialManagerImpl") as mock_cred:
-                mock_instance = MagicMock()
-                mock_instance.list_tokens = AsyncMock(return_value=[])
-                mock_cred.return_value = mock_instance
-
-                result = runner.invoke(auth_app, ["status"])
-                assert result.exit_code in [0, 1, 2]
-
-
-class TestInfoCommandAdvanced:
-    """Advanced tests for info command."""
-
-    def test_info_skill_mock(self):
-        """Test info skill with mock."""
-        from skillhub.models.skill import InstalledSkill
-
-        mock_skill = InstalledSkill(
-            name="test-skill",
-            version="1.0",
-            source_id="test",
-            source_type="github",
-            repository="test/repo",
-            ref="v1.0",
-            install_path="/skills/test",
-            checksum="abc",
-        )
-
-        with patch("skillhub.commands.info.get_config") as mock_config:
-            mock_config.return_value = MagicMock()
-            with patch("skillhub.commands.info.InstallEngineImpl") as mock_engine:
-                mock_instance = MagicMock()
-                mock_instance.get_installed = AsyncMock(return_value=mock_skill)
-                mock_engine.return_value = mock_instance
-
-                result = runner.invoke(info_app, ["test-skill"])
-                assert result.exit_code in [0, 1, 2]
-
-
-class TestSourceCommandMock:
-    """Mock tests for source command."""
-
-    def test_source_list_mock(self):
-        """Test source list with mock."""
-        with patch("skillhub.commands.source.get_config") as mock_config:
-            mock_config.return_value = MagicMock()
-            with patch("skillhub.commands.source.SourceManagerImpl") as mock_manager:
-                mock_instance = MagicMock()
-                mock_instance.list_sources = AsyncMock(return_value=[])
-                mock_manager.return_value = mock_instance
-
-                result = runner.invoke(source_app, ["list"])
-                assert result.exit_code in [0, 1, 2]
-
-    def test_source_add_mock(self):
-        """Test source add with mock."""
-        with patch("skillhub.commands.source.get_config") as mock_config:
-            mock_config.return_value = MagicMock()
-            with patch("skillhub.commands.source.SourceManagerImpl") as mock_manager:
-                mock_instance = MagicMock()
-                mock_instance.add_source = AsyncMock()
-                mock_manager.return_value = mock_instance
-
-                result = runner.invoke(source_app, ["add", "github", "https://github.com/test/skills"])
-                assert result.exit_code in [0, 1, 2]
+            assert result.exit_code == 0

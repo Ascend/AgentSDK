@@ -23,6 +23,7 @@ from typing import Generator
 
 import pytest
 
+import json
 from skillhub.config import (
     Settings,
     PlatformConfig,
@@ -30,6 +31,9 @@ from skillhub.config import (
     SecurityConfig,
     DiscoveryConfig,
     get_config,
+    save_config,
+    set_config_value,
+    CONFIG_FILE_NAME,
 )
 
 
@@ -250,3 +254,148 @@ class TestGetConfig:
         """Test that get_config returns Settings instance."""
         config = get_config()
         assert isinstance(config, Settings)
+
+    def test_get_config_with_invalid_json(self, temp_config_dir: Path):  # pylint: disable=redefined-outer-name
+        """Test get_config with invalid JSON file uses defaults."""
+        config_file = temp_config_dir / CONFIG_FILE_NAME
+        config_file.write_text("{ invalid json }")
+
+        original_dir = os.environ.get("SKILLHUB_CONFIG_DIR")
+        os.environ["SKILLHUB_CONFIG_DIR"] = str(temp_config_dir)
+        try:
+            config = get_config()
+            assert isinstance(config, Settings)
+            assert config.log_level == "INFO"
+        finally:
+            if original_dir:
+                os.environ["SKILLHUB_CONFIG_DIR"] = original_dir
+            else:
+                os.environ.pop("SKILLHUB_CONFIG_DIR", None)
+
+
+class TestSaveConfig:
+    """Tests for save_config function."""
+
+    def test_save_config_creates_file(self, temp_config_dir: Path):  # pylint: disable=redefined-outer-name
+        """Test save_config creates config file."""
+        settings = Settings(config_dir=temp_config_dir)
+        save_config(settings)
+
+        config_file = temp_config_dir / CONFIG_FILE_NAME
+        assert config_file.exists()
+
+        with open(config_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        assert data["log_level"] == "INFO"
+
+    def test_save_config_preserves_values(self, temp_config_dir: Path):  # pylint: disable=redefined-outer-name
+        """Test save_config preserves all settings."""
+        settings = Settings(
+            config_dir=temp_config_dir,
+            log_level="DEBUG",
+            cache=CacheConfig(ttl_metadata=3600, enabled=False),
+        )
+        save_config(settings)
+
+        config_file = temp_config_dir / CONFIG_FILE_NAME
+        with open(config_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        assert data["log_level"] == "DEBUG"
+        assert data["cache"]["ttl_metadata"] == 3600
+        assert data["cache"]["enabled"] is False
+
+
+class TestSetConfigValue:
+    """Tests for set_config_value function."""
+
+    def test_set_config_value_string(self, temp_config_dir: Path):  # pylint: disable=redefined-outer-name
+        """Test setting string config value."""
+        settings = Settings(config_dir=temp_config_dir)
+        save_config(settings)
+
+        updated = set_config_value("log_level", "WARNING")
+        assert updated.log_level == "WARNING"
+
+    def test_set_config_value_int(self, temp_config_dir: Path):  # pylint: disable=redefined-outer-name
+        """Test setting integer config value."""
+        settings = Settings(config_dir=temp_config_dir)
+        save_config(settings)
+
+        updated = set_config_value("cache.ttl_metadata", "7200")
+        assert updated.cache.ttl_metadata == 7200
+
+    def test_set_config_value_bool_true(self, temp_config_dir: Path):  # pylint: disable=redefined-outer-name
+        """Test setting boolean config value to true."""
+        settings = Settings(config_dir=temp_config_dir, cache=CacheConfig(enabled=False))
+        save_config(settings)
+
+        updated = set_config_value("cache.enabled", "true")
+        assert updated.cache.enabled is True
+
+    def test_set_config_value_bool_false(self, temp_config_dir: Path):  # pylint: disable=redefined-outer-name
+        """Test setting boolean config value to false."""
+        settings = Settings(config_dir=temp_config_dir, cache=CacheConfig(enabled=True))
+        save_config(settings)
+
+        updated = set_config_value("cache.enabled", "false")
+        assert updated.cache.enabled is False
+
+    def test_set_config_value_bool_on(self, temp_config_dir: Path):  # pylint: disable=redefined-outer-name
+        """Test setting boolean with 'on' value."""
+        settings = Settings(config_dir=temp_config_dir, cache=CacheConfig(enabled=False))
+        save_config(settings)
+
+        updated = set_config_value("cache.enabled", "on")
+        assert updated.cache.enabled is True
+
+    def test_set_config_value_invalid_key(self, temp_config_dir: Path):  # pylint: disable=redefined-outer-name
+        """Test set_config_value raises on invalid key."""
+        settings = Settings(config_dir=temp_config_dir)
+        save_config(settings)
+
+        with pytest.raises(ValueError, match="Configuration key not found"):
+            set_config_value("invalid_key", "value")
+
+    def test_set_config_value_invalid_nested_key(self, temp_config_dir: Path):  # pylint: disable=redefined-outer-name
+        """Test set_config_value raises on invalid nested key."""
+        settings = Settings(config_dir=temp_config_dir)
+        save_config(settings)
+
+        with pytest.raises(ValueError, match="Configuration key not found"):
+            set_config_value("cache.invalid_key", "value")
+
+    def test_set_config_value_invalid_type(self, temp_config_dir: Path):  # pylint: disable=redefined-outer-name
+        """Test set_config_value raises on invalid type."""
+        settings = Settings(config_dir=temp_config_dir)
+        save_config(settings)
+
+        with pytest.raises(ValueError, match="Invalid value type"):
+            set_config_value("cache.ttl_metadata", "not_an_int")
+
+    def test_set_config_value_path(self, temp_config_dir: Path):  # pylint: disable=redefined-outer-name
+        """Test setting Path config value."""
+        settings = Settings(config_dir=temp_config_dir)
+        save_config(settings)
+
+        new_dir = temp_config_dir / "new_config"
+        new_dir.mkdir(exist_ok=True)
+        new_path = str(new_dir)
+        updated = set_config_value("config_dir", new_path)
+        assert updated.config_dir == Path(new_path)
+
+    def test_set_config_value_list_json(self, temp_config_dir: Path):  # pylint: disable=redefined-outer-name
+        """Test setting list config value with JSON array."""
+        settings = Settings(config_dir=temp_config_dir)
+        save_config(settings)
+
+        updated = set_config_value("security.trusted_authors", '["author1", "author2"]')
+        assert updated.security.trusted_authors == ["author1", "author2"]
+
+    def test_set_config_value_list_single(self, temp_config_dir: Path):  # pylint: disable=redefined-outer-name
+        """Test setting list config value with single value."""
+        settings = Settings(config_dir=temp_config_dir)
+        save_config(settings)
+
+        updated = set_config_value("security.trusted_sources", "source1")
+        assert updated.security.trusted_sources == ["source1"]
