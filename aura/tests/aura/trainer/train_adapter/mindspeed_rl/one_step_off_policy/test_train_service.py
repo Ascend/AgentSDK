@@ -18,9 +18,56 @@ See the Mulan PSL v2 for more details.
 -------------------------------------------------------------------------
 """
 
+import importlib
 import sys
+from typing import Any
+
 import pytest
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock, patch
+
+
+@pytest.fixture(autouse=True)
+def train_service_module(monkeypatch):
+    """Import train_service with heavy/external deps mocked, isolated per test."""
+    module_name = "aura.trainer.train_adapter.mindspeed_rl.one_step_off_policy.train_service"
+    sys.modules.pop(module_name, None)
+
+    # Prevent poisoned config_cls package from other tests.
+    base = "aura.trainer.train_adapter.mindspeed_rl.config_cls"
+    monkeypatch.setitem(sys.modules, base, MagicMock())
+    monkeypatch.setitem(sys.modules, f"{base}.extend_generate", MagicMock())
+    monkeypatch.setitem(sys.modules, f"{base}.extend_megatron_config", MagicMock())
+    monkeypatch.setitem(sys.modules, f"{base}.extend_rl_config", MagicMock())
+    monkeypatch.setitem(sys.modules, f"{base}.agentic_env", MagicMock())
+    monkeypatch.setitem(sys.modules, f"{base}.validate_config", MagicMock())
+
+    # Mock optional external dependency tree.
+    mock_pad_process = MagicMock()
+    mock_pad_process.remove_padding_tensor_dict_to_dict = MagicMock()
+    mock_pad_process.remove_padding_and_split_to_list = MagicMock()
+    monkeypatch.setitem(sys.modules, "mindspeed_rl", MagicMock())
+    monkeypatch.setitem(sys.modules, "mindspeed_rl.utils", MagicMock())
+    monkeypatch.setitem(sys.modules, "mindspeed_rl.utils.pad_process", mock_pad_process)
+
+    # Avoid importing FastAPI/Pydantic chain from real train_controller.
+    mock_train_controller_module = MagicMock()
+    mock_train_controller_module.TrainController = MagicMock()
+    monkeypatch.setitem(
+        sys.modules,
+        "aura.controllers.train_controller.train_controller",
+        mock_train_controller_module,
+    )
+
+    # Keep prepare_train lightweight and isolated from deeper training deps.
+    mock_prepare_train_module = MagicMock()
+    mock_prepare_train_module.prepare_train = MagicMock()
+    monkeypatch.setitem(
+        sys.modules,
+        "aura.trainer.train_adapter.mindspeed_rl.utils.prepare_train",
+        mock_prepare_train_module,
+    )
+
+    return importlib.import_module(module_name)
 
 
 class TestTrainService:

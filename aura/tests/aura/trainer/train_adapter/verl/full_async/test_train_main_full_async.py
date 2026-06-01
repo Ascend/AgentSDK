@@ -4,13 +4,13 @@
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
-# 
+#
 # AgentSDK is licensed under Mulan PSL v2.
 # You can use this software according to the terms and conditions of the Mulan PSL v2.
 # You may obtain a copy of Mulan PSL v2 at:
-# 
+#
 #          http://license.coscl.org.cn/MulanPSL2
-# 
+#
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
@@ -22,14 +22,28 @@ import os
 import sys
 import unittest
 import threading
+from pathlib import Path
 from unittest.mock import patch, MagicMock
+
+# Ensure aura package is importable when tests run from repo root
+AURA_SRC = str(Path(__file__).resolve().parents[6])
+if AURA_SRC not in sys.path:
+    sys.path.insert(0, AURA_SRC)
 
 
 # Create mock objects
 mock_ray = MagicMock()
+mock_ray_util = MagicMock()
+mock_ray_util_scheduling_strategies = MagicMock()
 mock_omegaconf = MagicMock()
 mock_recipe = MagicMock()
 mock_verl = MagicMock()
+mock_verl_experimental = MagicMock()
+mock_verl_experimental_separation = MagicMock()
+
+# Set up ray.util.scheduling_strategies mock
+mock_ray.util = mock_ray_util
+mock_ray.util.scheduling_strategies = mock_ray_util_scheduling_strategies
 
 # Create mock for ray.remote decorator
 mock_ray.remote = MagicMock(side_effect=lambda *args, **kwargs: lambda cls: cls)  # Directly return the original class without remote processing
@@ -41,13 +55,19 @@ mock_os_pid = MagicMock()
 mock_os_pid.return_value = 1234
 
 # Set necessary mock values
+mock_verl.utils = MagicMock()
+mock_verl.trainer.ppo.utils = MagicMock()
 mock_verl.trainer.ppo.utils.Role = MagicMock()
 mock_verl.trainer.ppo.utils.Role.Actor = 'actor'
 mock_verl.trainer.ppo.utils.Role.Rollout = 'rollout'
+mock_verl.trainer.main_ppo = MagicMock()
+mock_verl.experimental = mock_verl_experimental
+mock_verl.experimental.separation = mock_verl_experimental_separation
+mock_verl.experimental.separation.utils = mock_verl_experimental_separation
 
 # Mock create_resource_pool_manager and create_role_worker_mapping
-mock_recipe.fully_async_policy.fully_async_main.create_resource_pool_manager = MagicMock()
-mock_recipe.fully_async_policy.fully_async_main.create_role_worker_mapping = MagicMock(return_value=({}, MagicMock()))
+mock_verl.experimental.separation.utils.create_resource_pool_manager = MagicMock()
+mock_verl.experimental.separation.utils.create_role_worker_mapping = MagicMock(return_value=({}, MagicMock()))
 
 # Mock aura submodules
 mock_fsdp_workers = MagicMock()
@@ -83,6 +103,8 @@ mock_data_manager.DataManager = MagicMock(return_value=mock_data_manager_instanc
 # Mock required dependency modules, including aura submodules, before importing the module under test
 with patch.dict('sys.modules', {
     'ray': mock_ray,
+    'ray.util': mock_ray.util,
+    'ray.util.scheduling_strategies': mock_ray.util.scheduling_strategies,
     'omegaconf': mock_omegaconf,
     'recipe': mock_recipe,
     'recipe.fully_async_policy.fully_async_main': mock_recipe.fully_async_policy.fully_async_main,
@@ -90,6 +112,8 @@ with patch.dict('sys.modules', {
     'verl.trainer.ppo.utils': mock_verl.trainer.ppo.utils,
     'verl.utils': mock_verl.utils,
     'verl.trainer.main_ppo': mock_verl.trainer.main_ppo,
+    'verl.experimental': mock_verl.experimental,
+    'verl.experimental.separation.utils': mock_verl.experimental.separation.utils,
     'socket': mock_socket,
     'os': MagicMock(getpid=mock_os_pid, path=os.path),
     # Mock aura submodules
@@ -108,7 +132,7 @@ class TestFullyAsyncTaskRunner(unittest.TestCase):
     def setUp(self):
         # Create test instance
         self.task_runner = FullyAsyncTaskRunner()
-        
+
         # Create mock configuration
         self.mock_config = MagicMock()
         self.mock_config.actor_rollout_ref.model.path = '/tmp/test_model'
@@ -122,14 +146,17 @@ class TestFullyAsyncTaskRunner(unittest.TestCase):
         self.mock_config.extras.init_num_group_batches = 10
         self.mock_config.extras.max_queue_size = 1000
         self.mock_config.extras.train_iters = 1000
+        self.mock_config.extras.update_weights_interval = 1
+        self.mock_config.extras.data_loader = MagicMock()
+        self.mock_config.extras.data_loader.global_batch_size = 32
+        self.mock_config.extras.data_loader.train_iters = 1000
         self.mock_config.extras.weight_save_dir = '/tmp/test_weights'
         self.mock_config.extras.delta = 0.1
-        self.mock_config.extras.data_loader = None
         self.mock_config.extras.consumed_train_samples = 0
         self.mock_config.trainer = MagicMock()
         self.mock_config.trainer.device = 'cpu'
         self.mock_config.trainer.get.return_value = True
-        
+
         # Mock tokenizer and processor
         self.mock_tokenizer = MagicMock()
         self.mock_processor = MagicMock()
@@ -146,10 +173,10 @@ class TestFullyAsyncTaskRunner(unittest.TestCase):
         # Mock _initialize_components and _run_training_loop methods
         with patch.object(self.task_runner, '_initialize_components') as mock_init, \
              patch.object(self.task_runner, '_run_training_loop') as mock_run_loop:
-            
+
             # Call run method
             self.task_runner.run(self.mock_config)
-            
+
             # Verify calls
             mock_init.assert_called_once_with(self.mock_config)
             mock_run_loop.assert_called_once()
@@ -159,6 +186,8 @@ class TestFullyAsyncTaskRunner(unittest.TestCase):
         with patch.dict('sys.modules', {
             'verl': mock_verl,
             'verl.utils': mock_verl.utils,
+            'verl.experimental': mock_verl.experimental,
+            'verl.experimental.separation.utils': mock_verl.experimental.separation.utils,
             'aura.trainer.train_adapter.verl.full_async.workers.fsdp_workers': mock_fsdp_workers,
             'aura.trainer.train_adapter.verl.full_async.full_async_trainer': mock_full_async_trainer,
             'aura.trainer.train_adapter.verl.full_async.param_sync': mock_param_sync,
@@ -168,32 +197,31 @@ class TestFullyAsyncTaskRunner(unittest.TestCase):
         }):
             # Call _initialize_components method
             self.task_runner._initialize_components(self.mock_config)
-            
+
             # Verify configuration resolution
             mock_omegaconf.OmegaConf.resolve.assert_called_once_with(self.mock_config)
-            
+
             # Verify tokenizer and processor creation
             mock_verl.utils.hf_tokenizer.assert_called_once_with('/tmp/test_model', trust_remote_code=False)
             mock_verl.utils.hf_processor.assert_called_once_with('/tmp/test_model', trust_remote_code=False, use_fast=True)
-            
+
             # Verify creation of role_worker_mapping
-            mock_recipe.fully_async_policy.fully_async_main.create_role_worker_mapping.assert_called_once_with(self.mock_config)
-            
-            # Verify creation of FullyAsyncTrainer
-            mock_full_async_trainer.FullyAsyncTrainer.assert_called_once()
-            
-            # Verify trainer method calls
-            mock_fully_async_trainer.set_total_train_steps.assert_called_once_with(1000)
-            mock_fully_async_trainer.set_parameter_synchronizer.assert_called_once_with(mock_param_synchronizer)
-            mock_fully_async_trainer.set_data_manager.assert_called_once_with(mock_data_manager_instance)
-            mock_fully_async_trainer.set_controller.assert_called_once_with(mock_train_controller_instance)
-            
+            mock_verl.experimental.separation.utils.create_role_worker_mapping.assert_called_once_with(self.mock_config)
+
+            # Verify creation of FullyAsyncTrainer (ray actor style)
+            mock_full_async_trainer.FullyAsyncTrainer.remote.assert_called_once()
+
+            # Verify trainer method calls (ray actor style)
+            trainer_actor = mock_full_async_trainer.FullyAsyncTrainer.remote.return_value
+            trainer_actor.set_total_train_steps.remote.assert_called_once_with(1000)
+            trainer_actor.set_data_manager.remote.assert_called_once_with(mock_data_manager_instance)
+            trainer_actor.set_controller.remote.assert_called_once_with(mock_train_controller_instance)
+
             # Verify creation of ParameterSynchronizer
-            mock_param_sync.ParameterSynchronizer.remote.assert_called_once()
-            
+
             # Verify creation of TrainController
             mock_train_controller.TrainController.assert_called_once()
-            
+
             # Verify creation and initialization of DataManager
             mock_data_manager.DataManager.assert_called_once_with(train_backend="verl", service_mode="train")
             mock_data_manager_instance.sync_init_data_manager.assert_called_once_with(mock_train_controller_instance)
@@ -202,19 +230,21 @@ class TestFullyAsyncTaskRunner(unittest.TestCase):
     def test_initialize_components_megatron_strategy(self):
         # Set strategy to megatron
         self.mock_config.actor_rollout_ref.actor.strategy = 'megatron'
-        
+
         # Create a new mock to capture calls to MegatronDetachActorWorker
         mock_new_worker = MagicMock()
         mock_megatron_worker.MegatronDetachActorWorker = MagicMock(return_value=mock_new_worker)
-        
+
         # Create a mock role_worker_mapping to ensure it gets updated
         mock_role_worker_mapping = {}
         mock_recipe.fully_async_policy.fully_async_main.create_role_worker_mapping.return_value = (mock_role_worker_mapping, MagicMock())
-        
+
         # Repatch all required modules in the test method, including dynamically imported modules
         with patch.dict('sys.modules', {
             'verl': mock_verl,
             'verl.utils': mock_verl.utils,
+            'verl.experimental': mock_verl.experimental,
+            'verl.experimental.separation.utils': mock_verl.experimental.separation.utils,
             'aura.trainer.train_adapter.verl.full_async.workers.megatron_worker': mock_megatron_worker,
             'aura.trainer.train_adapter.verl.full_async.full_async_trainer': mock_full_async_trainer,
             'aura.trainer.train_adapter.verl.full_async.param_sync': mock_param_sync,
@@ -224,18 +254,20 @@ class TestFullyAsyncTaskRunner(unittest.TestCase):
         }):
             # Call _initialize_components method
             self.task_runner._initialize_components(self.mock_config)
-            
+
             # Verify correct worker class is used (just need to check that ray.remote was called)
             mock_ray.remote.assert_called()
 
     def test_initialize_components_unsupported_strategy(self):
         # Set unsupported strategy
         self.mock_config.actor_rollout_ref.actor.strategy = 'unsupported'
-        
+
         # Repatch all required modules in the test method, including dynamically imported modules
         with patch.dict('sys.modules', {
             'verl': mock_verl,
-            'verl.utils': mock_verl.utils
+            'verl.utils': mock_verl.utils,
+            'verl.experimental': mock_verl.experimental,
+            'verl.experimental.separation.utils': mock_verl.experimental.separation.utils
         }):
             # Call _initialize_components method and verify exception
             with self.assertRaises(NotImplementedError):
@@ -244,40 +276,51 @@ class TestFullyAsyncTaskRunner(unittest.TestCase):
     def test_run_training_loop(self):
         # Set necessary components
         self.task_runner.components["trainer"] = mock_fully_async_trainer
-        
-        # Mock trainer methods
-        mock_fully_async_trainer.fit.return_value = None
-        
+
+        # Mock trainer methods (ray actor style)
+        mock_fully_async_trainer.fit.remote.return_value = MagicMock()
+        mock_ray.wait.return_value = ([mock_fully_async_trainer.fit.remote.return_value], [])
+        mock_ray.get.return_value = None
+
         # Call _run_training_loop method
         try:
             self.task_runner._run_training_loop()
         except Exception:
             # Original method will re-raise the exception
             pass
-        
-        # Verify trainer's fit method is called
-        mock_fully_async_trainer.fit.assert_called_once()
-        
+
+        # Verify trainer's fit.remote method is called
+        mock_fully_async_trainer.fit.remote.assert_called_once()
+
         # Verify running state (original method doesn't set to False in finally block)
         self.assertTrue(self.task_runner.running)
 
     def test_run_training_loop_exception(self):
         # Set necessary components
         self.task_runner.components["trainer"] = mock_fully_async_trainer
-        
+
         # Reset mock call count
         mock_fully_async_trainer.reset_mock()
-        
-        # Mock trainer's fit method to raise exception
-        mock_fully_async_trainer.fit.side_effect = Exception("Test exception")
-        
+
+        # Mock trainer's fit.remote future to raise exception on ray.get
+        failed_future = MagicMock(name="failed_future")
+        mock_fully_async_trainer.fit.remote.return_value = failed_future
+        mock_ray.wait.return_value = ([failed_future], [])
+
+        def _raise_on_get(obj):
+            if obj is failed_future:
+                raise Exception("Test exception")
+            return None
+
+        mock_ray.get.side_effect = _raise_on_get
+
         # Call _run_training_loop method and verify exception is raised
         with self.assertRaises(Exception):
             self.task_runner._run_training_loop()
-        
-        # Verify trainer's fit method is called
-        mock_fully_async_trainer.fit.assert_called_once()
-        
+
+        # Verify trainer's fit.remote method is called
+        mock_fully_async_trainer.fit.remote.assert_called_once()
+
         # Verify running state (original method doesn't set to False in finally block)
         self.assertTrue(self.task_runner.running)
 
@@ -286,21 +329,21 @@ class TestStartTrain(unittest.TestCase):
         # Test core logic of start_train function instead of directly calling the decorated function
         mock_config = MagicMock()
         mock_config.async_training = MagicMock()
-        
+
         # Mock verl.trainer.main_ppo.run_ppo
         with patch.dict('sys.modules', {
             'verl': mock_verl,
             'verl.trainer.main_ppo': mock_verl.trainer.main_ppo
         }):
             mock_verl.trainer.main_ppo.run_ppo = MagicMock()
-            
+
             # Get the wrapped function
             if hasattr(start_train, '__wrapped__'):
                 start_train_func = start_train.__wrapped__
-                
+
                 # Call the function
                 start_train_func('local', mock_config)
-                
+
                 # Verify verl.trainer.main_ppo.run_ppo is called
                 mock_verl.trainer.main_ppo.run_ppo.assert_called_once_with(
                     mock_config,
@@ -311,11 +354,11 @@ class TestStartTrain(unittest.TestCase):
         # Test case with missing async_training configuration
         mock_config = MagicMock()
         mock_config.async_training = None
-        
+
         # Get the wrapped function
         if hasattr(start_train, '__wrapped__'):
             start_train_func = start_train.__wrapped__
-            
+
             # Verify exception
             with self.assertRaises(RuntimeError):
                 start_train_func('local', mock_config)

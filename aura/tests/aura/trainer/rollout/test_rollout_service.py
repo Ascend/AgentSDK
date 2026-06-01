@@ -19,6 +19,8 @@ See the Mulan PSL v2 for more details.
 """
 import unittest
 import sys
+import importlib
+from pathlib import Path
 from unittest.mock import MagicMock, patch, call
 
 
@@ -26,6 +28,9 @@ class TestRolloutService(unittest.TestCase):
     def setUp(self):
         """Set up test environment"""
         self.original_modules = {}
+        aura_src = str(Path(__file__).resolve().parents[5] / 'aura')
+        if aura_src not in sys.path:
+            sys.path.insert(0, aura_src)
         module_names = ['mindspeed_rl', 'mindspeed_rl.utils', 'mindspeed_rl.utils.utils', 'verl',
                         'aura.trainer.rollout.rollout_service', 'aura.trainer.rollout.rollout_worker',
                         'aura.trainer.rollout.rollout_executor', 'aura.controllers.rollout_controller',
@@ -97,9 +102,13 @@ class TestRolloutService(unittest.TestCase):
         mock_rollout_queue_module.get_rollout_queue_actor = MagicMock(return_value=MagicMock())
         sys.modules['aura.controllers.rollout_controller.rollout_queue'] = mock_rollout_queue_module
 
-        # NOW, import the module with all mocks set up!
-        import aura.trainer.rollout.rollout_service
-        self.rollout_service = aura.trainer.rollout.rollout_service
+        # Import target module, then patch key symbols on module object to avoid stale imports.
+        self.rollout_service = importlib.import_module('aura.trainer.rollout.rollout_service')
+        self.rollout_service.ray = self.mock_ray
+        self.rollout_service.NodeAffinitySchedulingStrategy = self.mock_node_affinity
+        self.rollout_service.RolloutWorker = self.mock_rollout_worker_cls
+        self.rollout_service.OneStepOffRolloutExecutor = self.mock_executor_cls
+        self.rollout_service.RolloutController = self.mock_controller_cls
 
     def tearDown(self):
         """Clean up test environment"""

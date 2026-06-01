@@ -653,7 +653,7 @@ def test_func():
                 [sys.executable, '-m', test_module, src_path, dst_path],
                 capture_output=True,
                 text=True,
-                cwd='c:\\code\\ut_master\\AgentSDK\\aura'
+                cwd=os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../../../..'))
             )
             # Should fail with usage error
             assert result.returncode != 0
@@ -663,7 +663,7 @@ def test_func():
                 [sys.executable, '-m', test_module, src_path],
                 capture_output=True,
                 text=True,
-                cwd='c:\\code\\ut_master\\AgentSDK\\aura'
+                cwd=os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../../../..'))
             )
             assert result2.returncode != 0
 
@@ -697,7 +697,7 @@ def test_func():
                 [sys.executable, '-m', test_module, src_path, dst_path, 'test_func'],
                 capture_output=True,
                 text=True,
-                cwd='c:\\code\\ut_master\\AgentSDK\\aura'
+                cwd=os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../../../..'))
             )
             # It might succeed or fail depending on imports, just check it ran
 
@@ -706,7 +706,7 @@ def test_func():
                 [sys.executable, '-m', test_module, src_path, dst_path, 'test_func', 'TEST_VAR'],
                 capture_output=True,
                 text=True,
-                cwd='c:\\code\\ut_master\\AgentSDK\\aura'
+                cwd=os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../../../..'))
             )
 
             # Test with full arguments including var value
@@ -714,7 +714,7 @@ def test_func():
                 [sys.executable, '-m', test_module, src_path, dst_path, 'test_func', 'TEST_VAR', '"test"'],
                 capture_output=True,
                 text=True,
-                cwd='c:\\code\\ut_master\\AgentSDK\\aura'
+                cwd=os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../../../..'))
             )
 
         finally:

@@ -15,6 +15,8 @@
 # See the Mulan PSL v2 for more details.
 #
 
+from typing import Any
+
 import ray
 from ray.util.scheduling_strategies import NodeAffinitySchedulingStrategy
 

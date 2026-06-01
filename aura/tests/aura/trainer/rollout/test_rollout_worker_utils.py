@@ -71,6 +71,9 @@ class TestRolloutWorkerUtils(unittest.TestCase):
         sys.modules['uvicorn'] = self.mock_uvicorn
         sys.modules['ray'] = self.mock_ray
 
+        # Ensure a fresh module import for each test case
+        sys.modules.pop('aura.trainer.rollout.rollout_worker', None)
+
         # Import test objects
         global get_least_common_multiple, generate_dummy_trajectory, parse_messages
         global _stat_rollout_metrics, clean_traj_groups, get_all_prompt_ids, RolloutWorker
@@ -86,16 +89,26 @@ class TestRolloutWorkerUtils(unittest.TestCase):
 
     def tearDown(self):
         """Clean up test environment"""
-        # Restore original modules
+        # Restore original modules first
         for module_name, module in self.original_modules.items():
             sys.modules[module_name] = module
-        # Delete mock modules (but keep rollout_worker as it's needed by other tests)
-        mock_modules = ['mindspeed_rl', 'mindspeed_rl.utils', 'mindspeed_rl.utils.utils', 'verl', 'uvicorn', 'ray']
+
+        # Delete all modules introduced by this test file (including rollout_worker)
+        mock_modules = [
+            'mindspeed_rl', 'mindspeed_rl.utils', 'mindspeed_rl.utils.utils',
+            'verl', 'uvicorn', 'ray', 'aura.trainer.rollout.rollout_worker'
+        ]
         for module_name in mock_modules:
             if module_name in sys.modules and module_name not in self.original_modules:
                 del sys.modules[module_name]
-        # Clean up global variables (only delete if we added them)
-        pass
+
+        # Clean up imported globals to avoid cross-test leakage
+        for name in [
+            'get_least_common_multiple', 'generate_dummy_trajectory', 'parse_messages',
+            '_stat_rollout_metrics', 'clean_traj_groups', 'get_all_prompt_ids', 'RolloutWorker'
+        ]:
+            if name in globals():
+                del globals()[name]
     def test_get_least_common_multiple(self):
         """Test get_least_common_multiple function"""
         self.assertEqual(get_least_common_multiple(4, 6), 12)

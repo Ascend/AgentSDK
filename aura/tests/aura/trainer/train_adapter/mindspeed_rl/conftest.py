@@ -19,9 +19,54 @@ See the Mulan PSL v2 for more details.
 """
 
 import sys
+import types
+import importlib
 import importlib.util
 from unittest.mock import MagicMock, patch
 import pytest
+
+
+_POLLUTABLE_SYS_MODULE_KEYS = {
+    'sentence_transformers', 'vllm', 'vllm.logger', 'vllm.model_executor',
+    'vllm.model_executor.weight_utils', 'vllm.distributed', 'vllm.distributed.get_world_group',
+    'vllm.distributed.parallel_state', 'vllm.transformers_utils', 'vllm.attention',
+    'vllm.attention.backends', 'vllm.attention.backends.registry', 'acl', 'acl.rt', 'acl.rt.memcpy',
+    'mindspeed_rl', 'mindspeed_rl.trainer', 'mindspeed_rl.trainer.utils',
+    'mindspeed_rl.trainer.utils.transfer_dock', 'mindspeed_rl.trainer.utils.parallel_state',
+    'mindspeed_rl.trainer.grpo_trainer_hybrid', 'mindspeed_rl.utils', 'mindspeed_rl.utils.pad_process',
+    'mindspeed_rl.utils.seqlen_balancing', 'mindspeed_rl.utils.utils', 'mindspeed_rl.utils.compute',
+    'mindspeed_rl.utils.context_parallel', 'mindspeed_rl.utils.remove_padding',
+    'mindspeed_rl.utils.tokenizer', 'mindspeed_rl.utils.loggers', 'mindspeed_rl.datasets',
+    'mindspeed_rl.datasets.base_dataset', 'mindspeed_rl.datasets.prompt_dataset',
+    'mindspeed_rl.datasets.indexed_dataset', 'mindspeed_rl.datasets.build_dataset',
+    'mindspeed_rl.datasets.dataloader', 'mindspeed_rl.workers', 'mindspeed_rl.workers.scheduler',
+    'mindspeed_rl.workers.scheduler.launcher', 'mindspeed_rl.workers.actor_worker',
+    'mindspeed_rl.workers.actor_hybrid_worker', 'mindspeed_rl.workers.resharding',
+    'mindspeed_rl.workers.resharding.memory_buffer', 'mindspeed_rl.workers.resharding.vllm_weight_container',
+    'mindspeed_rl.workers.resharding.megatron_sharding_manager',
+    'mindspeed_rl.workers.resharding.megatron_off_loader', 'mindspeed_rl.workers.resharding.utils',
+    'mindspeed_rl.workers.rule_reward', 'mindspeed_rl.workers.reward_woker',
+    'mindspeed_rl.workers.reference_woker', 'mindspeed_rl.config_cls',
+    'mindspeed_rl.config_cls.base_config', 'mindspeed_rl.config_cls.megatron_config',
+    'mindspeed_rl.config_cls.rl_config', 'mindspeed_rl.config_cls.generate_config',
+    'mindspeed_rl.config_cls.validate_config', 'mindspeed_rl.config_cls.mindstudio_config',
+    'mindspeed_rl.train', 'mindspeed_rl.train.distributed_train', 'mindspeed_rl.models',
+    'mindspeed_rl.models.loss', 'mindspeed_rl.models.loss.grpo_actor_loss_func',
+    'mindspeed_rl.models.loss.logprob_computer', 'mindspeed_rl.models.base',
+    'mindspeed_rl.models.base.base_training_engine', 'mindspeed_rl.models.actor_rollout_hybrid',
+    'mindspeed_rl.models.reference', 'third_party', 'third_party.rl', 'ray.util',
+    'ray.util.scheduling_strategies', 'ray.util.scheduling_strategies.PlacementGroupSchedulingStrategy',
+    'transformers', 'datasets', 'safetensors', 'safetensors.torch', 'safetensors.torch.safe_open',
+    'aura.base', 'aura.base.log', 'aura.base.log.loggers', 'aura.base.accuracy',
+    'aura.base.accuracy.haco_tool', 'aura.base.analysis', 'aura.base.analysis.data_analysis',
+    'aura.base.utils', 'aura.base.utils.utils', 'aura.base.utils.http_server',
+    'aura.base.utils.globals', 'aura.base.utils.work_mode', 'aura.base.misc', 'aura.base.misc.misc',
+    'aura.runner', 'aura.runner.infer_adapter', 'aura.runner.infer_adapter.vllm',
+    'aura.runner.infer_adapter.vllm.extension',
+    'aura.runner.infer_adapter.vllm.extension.custom_worker_extensions',
+    'aura.runner.infer_adapter.vllm.vllm_worker', 'aura.runner.agent_router',
+}
+
 
 
 class MockModule:
@@ -198,7 +243,9 @@ def _is_module_installed(module_name):
 
 for _module_name in _MODULES_THAT_MUST_BE_MOCKED:
     if _module_name not in _MODULES_NEVER_MOCK and not _is_module_installed(_module_name):
-        sys.modules[_module_name] = MockModule()
+        mock_mod = MockModule()
+        mock_mod.__name__ = _module_name
+        sys.modules[_module_name] = mock_mod
 
 for _module_name in _MODULES_NEVER_MOCK:
     if _module_name in _MODULES_THAT_MUST_BE_MOCKED:
@@ -206,7 +253,122 @@ for _module_name in _MODULES_NEVER_MOCK:
             try:
                 __import__(_module_name)
             except ImportError:
-                sys.modules[_module_name] = MockModule()
+                mock_mod = MockModule()
+                mock_mod.__name__ = _module_name
+                sys.modules[_module_name] = mock_mod
+
+_VLLM_DIST_FORCE_MOCK_MODULES = [
+    'vllm.distributed',
+    'vllm.distributed.get_world_group',
+    'vllm.distributed.parallel_state',
+]
+for _mod_name in _VLLM_DIST_FORCE_MOCK_MODULES:
+    if _mod_name not in sys.modules:
+        _mock = MockModule()
+        _mock.__name__ = _mod_name
+        _mock.__path__ = []
+        sys.modules[_mod_name] = _mock
+
+_VLLM_FORCE_MOCK_IF_NOT_PACKAGE = [
+    'vllm', 'vllm.logger', 'vllm.model_executor',
+    'vllm.model_executor.weight_utils', 'vllm.distributed',
+    'vllm.transformers_utils', 'vllm.attention',
+    'vllm.attention.backends', 'vllm.attention.backends.registry',
+]
+
+
+def _is_valid_package(name):
+    mod = sys.modules.get(name)
+    if mod is None:
+        return False
+    return hasattr(mod, '__path__') and isinstance(mod.__path__, list)
+
+
+if not _is_valid_package('vllm'):
+    # Force `vllm` to be a real package-like module so `import vllm.distributed`
+    # won't fail with: "'vllm' is not a package".
+    fake_vllm = types.ModuleType('vllm')
+    fake_vllm.__path__ = []
+    fake_vllm.__package__ = 'vllm'
+    sys.modules['vllm'] = fake_vllm
+
+    fake_distributed = types.ModuleType('vllm.distributed')
+    fake_distributed.__package__ = 'vllm'
+    fake_distributed.get_world_group = MagicMock(return_value=None)
+    sys.modules['vllm.distributed'] = fake_distributed
+    fake_vllm.distributed = fake_distributed
+
+    for _mod_name in _VLLM_FORCE_MOCK_IF_NOT_PACKAGE:
+        if _mod_name in ('vllm', 'vllm.distributed'):
+            continue
+        _mock = MockModule()
+        _mock.__name__ = _mod_name
+        _mock.__path__ = []
+        sys.modules[_mod_name] = _mock
+
+
+@pytest.fixture(autouse=True)
+def ensure_vllm_package_shape_for_tests():
+    """Keep `vllm` package-like during tests.
+
+    Some tests/fixtures may overwrite `sys.modules['vllm']` with plain objects.
+    When that happens, imports like `from vllm.distributed import get_world_group`
+    fail with: `'vllm' is not a package`.
+    """
+    vllm_mod = sys.modules.get('vllm')
+    if vllm_mod is None or not hasattr(vllm_mod, '__path__'):
+        vllm_mod = types.ModuleType('vllm')
+        vllm_mod.__path__ = []
+        vllm_mod.__package__ = 'vllm'
+        sys.modules['vllm'] = vllm_mod
+
+    vllm_dist_mod = sys.modules.get('vllm.distributed')
+    if vllm_dist_mod is None or not isinstance(vllm_dist_mod, types.ModuleType):
+        vllm_dist_mod = types.ModuleType('vllm.distributed')
+        vllm_dist_mod.__package__ = 'vllm'
+        sys.modules['vllm.distributed'] = vllm_dist_mod
+
+    if not hasattr(vllm_dist_mod, 'get_world_group'):
+        vllm_dist_mod.get_world_group = MagicMock(return_value=None)
+
+    if not hasattr(vllm_mod, 'distributed'):
+        vllm_mod.distributed = vllm_dist_mod
+
+    yield
+
+
+@pytest.fixture(autouse=True)
+def ensure_aura_config_cls_package_shape_for_tests():
+    """Keep `aura...mindspeed_rl.config_cls` importable as package.
+
+    Some tests may pollute `sys.modules` with non-package mocks at this path,
+    causing: `'...config_cls' is not a package` during submodule imports.
+    """
+    pkg_name = 'aura.trainer.train_adapter.mindspeed_rl.config_cls'
+    pkg_mod = sys.modules.get(pkg_name)
+
+    if pkg_mod is not None:
+        if not hasattr(pkg_mod, '__path__'):
+            # Keep existing mocked attributes, but mark as a package so
+            # submodule imports like `...config_cls.extend_generate` work.
+            pkg_mod.__path__ = []
+        if not getattr(pkg_mod, '__package__', None):
+            pkg_mod.__package__ = pkg_name
+
+    yield
+
+@pytest.fixture(autouse=True)
+def restore_polluted_sys_modules():
+    """Snapshot and restore module-level mocks to avoid cross-test pollution."""
+    snapshot = {name: sys.modules.get(name) for name in _POLLUTABLE_SYS_MODULE_KEYS}
+    try:
+        yield
+    finally:
+        for name, original in snapshot.items():
+            if original is None:
+                sys.modules.pop(name, None)
+            else:
+                sys.modules[name] = original
 
 
 class MockRemoteObject:
@@ -331,7 +493,12 @@ def setup_mock_modules():
     sys.modules['mindspeed_rl.workers.resharding.utils.is_tensor_parallel_param'] = MagicMock(return_value=False)
     sys.modules['mindspeed_rl.workers.resharding.utils.get_tp_group'] = MagicMock()
     sys.modules['mindspeed_rl.workers.resharding.utils.is_fake_tp_param'] = MagicMock(return_value=False)
+
+    acl_module = MockModule()
+    sys.modules['acl'] = acl_module
+    sys.modules['acl.rt'] = MockModule()
     sys.modules['acl.rt.memcpy'] = MagicMock()
+
     sys.modules['vllm.distributed.get_world_group'] = MagicMock()
 
     if isinstance(sys.modules.get('safetensors'), MockModule):
@@ -426,11 +593,12 @@ def setup_mock_modules():
     utils_module = sys.modules['mindspeed_rl.utils.utils']
     utils_module._attrs['mstx_timer_decorator'] = lambda func: func
 
-    vllm_module = sys.modules['vllm']
-    vllm_module._attrs['worker'] = MockModule()
-    vllm_module._attrs['worker'].worker_base = MockModule()
-    vllm_module._attrs['worker'].worker_base.WorkerWrapperBase = MagicMock()
-    vllm_module._attrs['worker'].worker_base.set_current_vllm_config = MagicMock()
+    vllm_module = sys.modules.get('vllm')
+    if vllm_module and isinstance(vllm_module, MockModule):
+        vllm_module._attrs['worker'] = MockModule()
+        vllm_module._attrs['worker'].worker_base = MockModule()
+        vllm_module._attrs['worker'].worker_base.WorkerWrapperBase = MagicMock()
+        vllm_module._attrs['worker'].worker_base.set_current_vllm_config = MagicMock()
 
     yield
 
@@ -788,3 +956,56 @@ def reset_mock_config_classes():
     megatron_config_module = sys.modules.get('mindspeed_rl.config_cls.megatron_config')
     if megatron_config_module and isinstance(megatron_config_module, MockModule):
         megatron_config_module._attrs['MegatronConfig'] = MockMegatronConfig
+
+
+@pytest.fixture(autouse=True, scope="session")
+def ensure_common_import_time_dependency_shapes():
+    """Normalize common optional dependency module shapes for UT import phase.
+
+    This prevents import-time crashes when tests replace heavy deps with partial mocks,
+    e.g. `ray.actor.ActorHandle` or `torch.npu.*` access during module import.
+    """
+    ray_mod = sys.modules.get("ray")
+    if ray_mod is None:
+        ray_mod = types.ModuleType("ray")
+        sys.modules["ray"] = ray_mod
+
+    if not hasattr(ray_mod, "actor"):
+        ray_mod.actor = types.SimpleNamespace(ActorHandle=object)
+    elif not hasattr(ray_mod.actor, "ActorHandle"):
+        setattr(ray_mod.actor, "ActorHandle", object)
+
+    torch_mod = sys.modules.get("torch")
+    if torch_mod is not None and not hasattr(torch_mod, "npu"):
+        torch_mod.npu = types.SimpleNamespace(
+            empty_cache=lambda: None,
+            synchronize=lambda: None,
+        )
+
+    yield
+
+
+@pytest.fixture(autouse=True, scope="session")
+def robust_ray_shutdown_cleanup():
+    """Best-effort Ray cleanup to reduce atexit-time noisy errors.
+
+    Keep this defensive: tests may patch `ray` into partial mocks.
+    """
+    yield
+
+    ray_mod = sys.modules.get("ray")
+    if ray_mod is None:
+        return
+
+    # Avoid importing submodules during interpreter teardown.
+    is_initialized = getattr(ray_mod, "is_initialized", None)
+    shutdown = getattr(ray_mod, "shutdown", None)
+    if not callable(is_initialized) or not callable(shutdown):
+        return
+
+    try:
+        if is_initialized():
+            shutdown()
+    except Exception:
+        # Intentionally swallow to avoid masking real test failures.
+        pass

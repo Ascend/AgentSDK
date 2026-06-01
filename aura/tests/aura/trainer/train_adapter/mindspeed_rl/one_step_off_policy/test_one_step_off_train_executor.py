@@ -20,7 +20,103 @@ See the Mulan PSL v2 for more details.
 
 import pytest
 import torch
-from unittest.mock import MagicMock, patch, call
+import sys
+import types
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+
+@pytest.fixture(autouse=True, scope="session")
+def ensure_aura_src_on_sys_path():
+    project_root = Path(__file__).resolve().parents[7]
+    aura_src = project_root / "aura"
+    aura_src_str = str(aura_src)
+    if aura_src_str not in sys.path:
+        sys.path.insert(0, aura_src_str)
+
+    yield
+
+
+@pytest.fixture(autouse=True)
+def clean_polluted_modules_before_test():
+    """Remove cross-test polluted module entries that can break imports/mocks."""
+    polluted_prefixes = (
+        "aura.trainer.train_adapter.mindspeed_rl.one_step_off_policy",
+        "aura.trainer.train_adapter.mindspeed_rl.hybrid_policy",
+    )
+    polluted_exact = {
+        "mindspeed_rl",
+        "mindspeed_rl.trainer",
+        "mindspeed_rl.trainer.utils",
+        "mindspeed_rl.utils",
+        "mindspeed_rl.utils.utils",
+    }
+
+    for name in list(sys.modules.keys()):
+        if name in polluted_exact or name.startswith(polluted_prefixes):
+            sys.modules.pop(name, None)
+
+    yield
+
+
+@pytest.fixture(autouse=True)
+def clean_polluted_modules_before_test():
+    """Clear polluted trainer modules so imports resolve to real test target modules."""
+    polluted_prefixes = (
+        "aura.trainer.train_adapter.mindspeed_rl.one_step_off_policy",
+        "aura.trainer.train_adapter.mindspeed_rl.hybrid_policy",
+    )
+    for name in list(sys.modules.keys()):
+        if name.startswith(polluted_prefixes):
+            sys.modules.pop(name, None)
+
+    yield
+
+
+@pytest.fixture(autouse=True)
+def clean_polluted_modules_before_test():
+    """Remove cross-test polluted trainer modules but keep global dependency mocks."""
+    polluted_prefixes = (
+        "aura.trainer.train_adapter.mindspeed_rl.hybrid_policy",
+        "aura.trainer.train_adapter.mindspeed_rl.one_step_off_policy",
+        "aura.trainer.train_adapter.mindspeed_rl.utils.trainer_utils",
+        "aura.trainer.train_adapter.mindspeed_rl.patch",
+    )
+
+    for name in list(sys.modules.keys()):
+        if name.startswith(polluted_prefixes):
+            sys.modules.pop(name, None)
+
+    yield
+
+
+@pytest.fixture(autouse=True)
+def isolate_mindspeed_rl_modules(monkeypatch):
+    """Prevent importing real mindspeed_rl dependency tree during tests."""
+    mock_mindspeed_rl = types.ModuleType("mindspeed_rl")
+    mock_mindspeed_rl.Metric = MagicMock
+
+    mock_trainer = types.ModuleType("mindspeed_rl.trainer")
+    mock_trainer_utils = types.ModuleType("mindspeed_rl.trainer.utils")
+    mock_trainer_utils.compute_grpo_data_metrics = MagicMock(return_value={})
+
+    mock_utils_pkg = types.ModuleType("mindspeed_rl.utils")
+    mock_utils_utils = types.ModuleType("mindspeed_rl.utils.utils")
+    mock_utils_utils.metrics_post_processing = MagicMock(side_effect=lambda x: x)
+    mock_utils_utils.compute_tps = MagicMock(return_value=0.0)
+    mock_utils_utils.metrics_sort = MagicMock(side_effect=lambda x, _: x)
+
+    mock_patch_module = types.ModuleType("aura.trainer.train_adapter.mindspeed_rl.patch")
+    mock_train_controller_module = types.ModuleType("aura.controllers.train_controller.train_controller")
+    mock_train_controller_module.TrainController = MagicMock
+
+    monkeypatch.setitem(sys.modules, "mindspeed_rl", mock_mindspeed_rl)
+    monkeypatch.setitem(sys.modules, "mindspeed_rl.trainer", mock_trainer)
+    monkeypatch.setitem(sys.modules, "mindspeed_rl.trainer.utils", mock_trainer_utils)
+    monkeypatch.setitem(sys.modules, "mindspeed_rl.utils", mock_utils_pkg)
+    monkeypatch.setitem(sys.modules, "mindspeed_rl.utils.utils", mock_utils_utils)
+    monkeypatch.setitem(sys.modules, "aura.trainer.train_adapter.mindspeed_rl.patch", mock_patch_module)
+    monkeypatch.setitem(sys.modules, "aura.controllers.train_controller.train_controller", mock_train_controller_module)
 
 
 class TestOneStepOffTrainExecutor:
