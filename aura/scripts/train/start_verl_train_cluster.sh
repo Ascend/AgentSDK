@@ -10,11 +10,11 @@ source ${root_dir}/scripts/base/envs.sh
 source ${root_dir}/scripts/base/utils.sh
 
 export HCCL_BUFFSIZE="200" #默认大小
-export PYTORCH_NPU_ALLOC_CONF="expandable_segments:True"
+export PYTORCH_NPU_ALLOC_CONF="expandable_segments:False"
 if [[ "${WORK_MODE}" == "hybrid" ]]; then
-  export PYTORCH_NPU_ALLOC_CONF=max_split_size_mb:64
-  export HCCL_HOST_SOCKET_PORT_RANGE="60000-60100"
-  export HCCL_NPU_SOCKET_PORT_RANGE="61000-61050"
+  # export PYTORCH_NPU_ALLOC_CONF=max_split_size_mb:64
+  export HCCL_HOST_SOCKET_PORT_RANGE="auto"
+  export HCCL_NPU_SOCKET_PORT_RANGE="auto"
 fi
 
 while [[ "$#" -gt 0 ]]; do
