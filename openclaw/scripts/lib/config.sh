@@ -24,7 +24,32 @@ render_template() {
     if [ -n "$var_list" ]; then
         envsubst "$var_list" < "$tpl_file" > "$out_file"
     else
-        envsubst < "$tpl_file" > "$out_file"
+        # 不带变量列表时，使用 Python 进行可靠的变量替换
+        local python_script="/tmp/render_template_$$.py"
+        cat > "$python_script" << 'PYEOF'
+import os
+import re
+
+tpl_file = os.environ.get('TPL_FILE', '')
+out_file = os.environ.get('OUT_FILE', '')
+
+with open(tpl_file, 'r') as f:
+    content = f.read()
+
+def replacer(match):
+    var_expr = match.group(1)
+    if ':-' in var_expr:
+        var_name, default = var_expr.split(':-', 1)
+        return os.environ.get(var_name.strip(), default.strip())
+    else:
+        return os.environ.get(var_expr.strip(), match.group(0))
+
+result = re.sub(r'\$\{([^}]+)\}', replacer, content)
+with open(out_file, 'w') as f:
+    f.write(result)
+PYEOF
+        TPL_FILE="$tpl_file" OUT_FILE="$out_file" python3 "$python_script"
+        rm -f "$python_script"
     fi
 }
 
@@ -78,12 +103,19 @@ generate_instance_config() {
     # 导出所有需要的变量
     export OPENCLAW_TOKEN MODEL_NAME MODEL_PROVIDER INFER_URL MDNS_PORT API_KEY
     export CLAUDE_MEM_WORKER_PORT CLAUDE_MEM_PROJECT
-    export SUBAGENT_COORDINATOR_DIR
+    export SUBAGENT_COORDINATOR_DIR SANDBOX_ENABLED
     # 非 local 供应商时，Claude 需要 /anthropic 后缀
     if [ "$MODEL_PROVIDER" != "local" ]; then
         export ANTHROPIC_SUFFIX="/anthropic"
     else
         export ANTHROPIC_SUFFIX=""
+    fi
+
+    # 设置沙箱模式
+    if [ "$SANDBOX_ENABLED" = "true" ]; then
+        export SANDBOX_MODE="all"
+    else
+        export SANDBOX_MODE="off"
     fi
 
     # 创建目录
@@ -94,8 +126,7 @@ generate_instance_config() {
     # 渲染 openclaw.json
     render_template \
         "$TEMPLATES_DIR/openclaw.json.tpl" \
-        "$config_dir/openclaw.json" \
-        '${OPENCLAW_TOKEN} ${GW_PORT} ${INFER_URL} ${MODEL_NAME} ${MODEL_PROVIDER} ${MDNS_PORT} ${CLAUDE_MEM_WORKER_PORT} ${CLAUDE_MEM_PROJECT} ${TIMESTAMP} ${API_KEY}'
+        "$config_dir/openclaw.json"
 
     # 渲染 models.json
     render_template \

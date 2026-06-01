@@ -232,6 +232,7 @@ parse_args() {
             --no-down)    SKIP_DOWN=true; shift ;;
             --start-index) START_INDEX="$2"; shift 2 ;;
             --subnet)      SUBNET="$2"; shift 2 ;;
+            --sandbox)    SANDBOX_ENABLED=true; shift ;;
             -h|--help)    show_help; exit 0 ;;
             *)            log_error "未知选项: $1"; exit 1 ;;
         esac

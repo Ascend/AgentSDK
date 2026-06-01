@@ -12,6 +12,20 @@ mkdir -p /home/node/.openclaw/data/.claude-mem/logs
 chown -R node:node /home/node/.openclaw/data 2>/dev/null || true
 chown -R node:node /home/node/.claude 2>/dev/null || true
 
+# ── 修复 Docker socket 权限 ──────────────────────────────────────────────────
+# 确保 node 用户可以访问 Docker socket
+if [ -S /var/run/docker.sock ]; then
+    # 获取 docker.sock 的 GID
+    DOCKER_GID=$(stat -c '%g' /var/run/docker.sock)
+    # 创建 docker 组（使用宿主机的 GID，关键！）
+    if ! getent group docker >/dev/null 2>&1; then
+        groupadd -g "$DOCKER_GID" docker
+    fi
+    # 将 node 用户加入 docker 组
+    usermod -aG docker node
+    echo "[Health Monitor] Docker socket fixed (GID match: $DOCKER_GID)"
+fi
+
 echo "[Health Monitor] Starting health check monitor for port $HEALTH_CHECK_PORT"
 echo "[Health Monitor] Check interval: ${HEALTH_CHECK_INTERVAL}s, Failure threshold: $HEALTH_CHECK_FAILURE_THRESHOLD"
 
@@ -198,6 +212,12 @@ else
 }
 MODE_JSON_EOF
     echo "[Health Monitor] claude-mem modes directory created (fallback)"
+fi
+
+# 沙箱启用时修复 docker 组权限（供 sandbox 使用）
+if [ "${SANDBOX_ENABLED:-true}" = "true" ]; then
+    groupadd -g 117 docker 2>/dev/null || true
+    usermod -aG docker node 2>/dev/null || true
 fi
 
 # 启动 Gateway

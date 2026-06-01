@@ -10,6 +10,9 @@
       - "${GUARDIAN_PORT}:${GUARDIAN_PORT}"
       - "${MEMEX_PORT}:8080"
     volumes:
+      # Docker socket and binary (required for sandbox)
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /usr/bin/docker:/usr/bin/docker:ro
       # =============================================================================
       # claude-mem 插件补丁: workspaceDir 不可用修复
       # 补丁文件由 config.sh 在部署时自动生成到 instance-X/plugins/claude-mem/dist/
@@ -49,6 +52,7 @@
       - GUARDIAN_PORT=${GUARDIAN_PORT}
       - MEMEX_SERVER_PORT=8080
       - MEMEX_KB_ROOT=/home/node/wiki
+      - SANDBOX_ENABLED=${SANDBOX_ENABLED:-false}
     command: /home/node/.openclaw/health_monitor.sh
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:${GW_PORT}/health"]
@@ -59,6 +63,6 @@
     deploy:
       resources:
         limits:
-          cpus: '4'
-          memory: 8G
+          cpus: '2'
+          memory: 4G
     restart: unless-stopped
