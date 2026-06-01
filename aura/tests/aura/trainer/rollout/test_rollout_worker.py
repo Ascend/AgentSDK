@@ -73,6 +73,9 @@ class TestRolloutWorkerUtils(unittest.TestCase):
         sys.modules['uvicorn'] = self.mock_uvicorn
         sys.modules['ray'] = self.mock_ray
 
+        # Ensure a fresh module import for each test case
+        sys.modules.pop('aura.trainer.rollout.rollout_worker', None)
+
         # Import test objects
         global get_least_common_multiple, generate_dummy_trajectory, parse_messages
         global _stat_rollout_metrics, clean_traj_groups, get_all_prompt_ids, RolloutWorker

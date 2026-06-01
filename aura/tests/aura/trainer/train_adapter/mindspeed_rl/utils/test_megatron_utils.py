@@ -18,8 +18,33 @@ See the Mulan PSL v2 for more details.
 -------------------------------------------------------------------------
 """
 
+import importlib
+import sys
+
 import pytest
 from unittest.mock import MagicMock, patch
+
+
+@pytest.fixture(autouse=True)
+def _isolate_module_import_state(monkeypatch):
+    """Isolate sys.modules to avoid cross-test contamination from other files."""
+    # Remove cached target module so each test imports with its own mocks.
+    sys.modules.pop("aura.trainer.train_adapter.mindspeed_rl.utils.megatron_utils", None)
+
+    # Some tests in other files may poison this key with a non-package mock.
+    # Ensure imports under config_cls.* are still resolvable.
+    base = "aura.trainer.train_adapter.mindspeed_rl.config_cls"
+    monkeypatch.setitem(sys.modules, base, MagicMock())
+    monkeypatch.setitem(sys.modules, f"{base}.extend_generate", MagicMock())
+    monkeypatch.setitem(sys.modules, f"{base}.extend_megatron_config", MagicMock())
+    monkeypatch.setitem(sys.modules, f"{base}.extend_rl_config", MagicMock())
+    monkeypatch.setitem(sys.modules, f"{base}.agentic_env", MagicMock())
+    monkeypatch.setitem(sys.modules, f"{base}.validate_config", MagicMock())
+
+    # Reload parent utils package to avoid stale attribute cache behavior.
+    utils_pkg = importlib.import_module("aura.trainer.train_adapter.mindspeed_rl.utils")
+    if hasattr(utils_pkg, "prepare_train"):
+        delattr(utils_pkg, "prepare_train")
 
 
 class TestMegatronUtils:

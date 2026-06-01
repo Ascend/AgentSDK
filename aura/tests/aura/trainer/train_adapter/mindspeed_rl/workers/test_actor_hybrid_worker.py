@@ -1,6 +1,26 @@
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Test suite for actor_hybrid_worker module."""
+"""
+-------------------------------------------------------------------------
+This file is part of the AgentSDK project.
+Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+
+AgentSDK is licensed under Mulan PSL v2.
+You can use this software according to the terms and conditions of the Mulan PSL v2.
+You may obtain a copy of Mulan PSL v2 at:
+
+        http://license.coscl.org.cn/MulanPSL2
+
+THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+See the Mulan PSL v2 for more details.
+-------------------------------------------------------------------------
+"""
+
 import os
+import sys
+import types
 import pytest
 from unittest.mock import MagicMock, patch
 
@@ -11,6 +31,35 @@ def mock_ray_runtime():
          patch('ray.get_actor', return_value=MagicMock(weight_saved=MagicMock(remote=MagicMock()))), \
          patch('ray.get_runtime_context', return_value=MagicMock(get_node_id=lambda: "node123")):
         yield
+
+
+@pytest.fixture(autouse=True)
+def mock_vllm_distributed_module():
+    """Ensure `vllm.distributed` import works even when vllm isn't installed as a package."""
+    original_vllm = sys.modules.get("vllm")
+    original_vllm_distributed = sys.modules.get("vllm.distributed")
+
+    fake_vllm = types.ModuleType("vllm")
+    fake_vllm.__path__ = []
+    fake_distributed = types.ModuleType("vllm.distributed")
+    fake_distributed.get_world_group = MagicMock(return_value=None)
+    fake_vllm.distributed = fake_distributed
+
+    sys.modules["vllm"] = fake_vllm
+    sys.modules["vllm.distributed"] = fake_distributed
+
+    try:
+        yield
+    finally:
+        if original_vllm is not None:
+            sys.modules["vllm"] = original_vllm
+        else:
+            sys.modules.pop("vllm", None)
+
+        if original_vllm_distributed is not None:
+            sys.modules["vllm.distributed"] = original_vllm_distributed
+        else:
+            sys.modules.pop("vllm.distributed", None)
 
 
 class TestActorHybridWorker:

@@ -19,6 +19,7 @@ See the Mulan PSL v2 for more details.
 """
 import os
 import sys
+from pathlib import Path
 from unittest.mock import patch, MagicMock, AsyncMock
 
 import numpy as np
@@ -52,8 +53,39 @@ class MockAgentLoopManager:
 
 class TestAgentLoopManager:
 
+    @pytest.fixture(scope="session", autouse=True)
+    def ensure_aura_src_on_sys_path(self):
+        project_root = Path(__file__).resolve().parents[7]
+        aura_src = project_root / "aura"
+        aura_src_str = str(aura_src)
+        if aura_src_str not in sys.path:
+            sys.path.insert(0, aura_src_str)
+        yield
+
     @pytest.fixture(scope="class")
     def patch_modules(self):
+        mock_base_engine_wrapper = MagicMock()
+
+        class MockAgentTask:
+            def __init__(self, **kwargs):
+                for key, value in kwargs.items():
+                    setattr(self, key, value)
+                if not hasattr(self, "extra_args"):
+                    self.extra_args = {}
+
+        mock_base_engine_wrapper.AgentTask = MockAgentTask
+
+        mock_vaee_types = MagicMock()
+
+        class MockTrajectory:
+            pass
+
+        class MockEpisode:
+            pass
+
+        mock_vaee_types.Trajectory = MockTrajectory
+        mock_vaee_types.Episode = MockEpisode
+
         with patch.dict(sys.modules, {
             "verl": MagicMock(),
             "verl.utils": MagicMock(),
@@ -61,6 +93,8 @@ class TestAgentLoopManager:
             "verl.experimental": MagicMock(),
             "verl.experimental.agent_loop": MagicMock(),
             "verl.DataProto": MagicMock(),
+            "aura.runner.agent_engine_wrapper.base_engine_wrapper": mock_base_engine_wrapper,
+            "aura.runner.agent_engine_wrapper.vaee_v2.vaee_types": mock_vaee_types,
         }):
             yield
 

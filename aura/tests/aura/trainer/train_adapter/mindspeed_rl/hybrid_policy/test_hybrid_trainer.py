@@ -19,10 +19,40 @@ See the Mulan PSL v2 for more details.
 """
 
 import pytest
+import sys
+from pathlib import Path
 from contextlib import ExitStack
 from unittest.mock import MagicMock, patch
 
 _PATCH_MODULE = 'aura.trainer.train_adapter.mindspeed_rl.hybrid_policy.hybrid_trainer'
+
+
+@pytest.fixture(autouse=True, scope="session")
+def ensure_aura_src_on_sys_path():
+    project_root = Path(__file__).resolve().parents[7]
+    aura_src = project_root / "aura"
+    aura_src_str = str(aura_src)
+    if aura_src_str not in sys.path:
+        sys.path.insert(0, aura_src_str)
+
+    yield
+
+
+@pytest.fixture(autouse=True)
+def clean_polluted_modules_before_test():
+    """Remove cross-test polluted trainer modules but keep global dependency mocks."""
+    polluted_prefixes = (
+        "aura.trainer.train_adapter.mindspeed_rl.hybrid_policy",
+        "aura.trainer.train_adapter.mindspeed_rl.one_step_off_policy",
+        "aura.trainer.train_adapter.mindspeed_rl.utils.trainer_utils",
+        "aura.trainer.train_adapter.mindspeed_rl.patch",
+    )
+
+    for name in list(sys.modules.keys()):
+        if name.startswith(polluted_prefixes):
+            sys.modules.pop(name, None)
+
+    yield
 
 
 class TestAgentGRPOTrainer:

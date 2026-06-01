@@ -19,11 +19,27 @@ See the Mulan PSL v2 for more details.
 -------------------------------------------------------------------------
 """
 
+import sys
+import types
+
 import pytest
 from contextlib import ExitStack
 from unittest.mock import MagicMock, patch
 
 _PATCH_MODULE = 'aura.trainer.train_adapter.mindspeed_rl.patch.vllm_weight_container_patch'
+
+
+def _ensure_mock_ray_with_actor():
+    """Ensure importing patch module won't fail on ray.actor type hints."""
+    ray_mod = sys.modules.get("ray")
+    if ray_mod is None:
+        ray_mod = types.ModuleType("ray")
+        sys.modules["ray"] = ray_mod
+    if not hasattr(ray_mod, "actor"):
+        ray_mod.actor = types.SimpleNamespace(ActorHandle=object)
+
+
+_ensure_mock_ray_with_actor()
 
 
 _UNSET = object()
