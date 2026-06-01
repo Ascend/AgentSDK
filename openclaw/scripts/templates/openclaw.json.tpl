@@ -134,6 +134,28 @@
         "store": {
           "path": "/home/node/.openclaw/memory/{agentId}.sqlite"
         }
+      },
+      "sandbox": {
+        "mode": "${SANDBOX_MODE:-all}",
+        "scope": "agent",
+        "workspaceAccess": "ro",
+        "workspaceRoot": "/tmp/openclaw-sandboxes",
+        "docker": {
+          "image": "openclaw-sandbox:bookworm-slim",
+          "containerPrefix": "openclaw-sbx-",
+          "workdir": "/workspace",
+          "network": "bridge",
+          "user": "sandbox",
+          "tmpfs": ["/tmp", "/var/tmp", "/run"],
+          "readOnlyRoot": true,
+          "capDrop": ["ALL"],
+          "memory": "512m",
+          "cpus": 2,
+          "pidsLimit": 256
+        },
+        "prune": {
+          "maxAgeDays": 7
+        }
       }
     }
   },
@@ -179,7 +201,7 @@
       "acpx": {
         "enabled": true,
         "config": {
-          "permissionMode": "approve-all",
+          "permissionMode": "approve-reads",
           "nonInteractivePermissions": "fail",
           "timeoutSeconds": 300
         }

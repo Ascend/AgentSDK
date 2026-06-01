@@ -68,6 +68,10 @@ generate_compose_file() {
             "${SED_I[@]}" '/"":""$/d' "$compose_file"
             "${SED_I[@]}" '/- ":"$/d' "$compose_file"
         fi
+        # 禁用沙箱时移除 docker socket 挂载
+        if [ "$SANDBOX_ENABLED" != "true" ]; then
+            "${SED_I[@]}" "/docker.sock/d" "$compose_file"
+        fi
         done
 
     # 修复编码：Windows Git Bash 下 envsubst 可能输出 GBK，docker compose 要求 UTF-8
