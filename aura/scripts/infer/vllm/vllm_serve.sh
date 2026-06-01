@@ -307,7 +307,7 @@ function start_vllm_serve_hybrid_opt()
   ENABLE_CPU_BINDING_ARGS='"enable_cpu_binding":true'
   CUDAGRAPH_FULL_DECODE_FULL_ARGS='"cudagraph_mode":"FULL_DECODE_ONLY"'
   ASYNC_SCHEDULING_ARGS="--async-scheduling"
-  export PYTORCH_NPU_ALLOC_CONF=expandable_segments:True
+  export PYTORCH_NPU_ALLOC_CONF=expandable_segments:False
   export VLLM_ASCEND_ENABLE_NZ=2
   unset VLLM_LOGGING_CONFIG_PATH
 
