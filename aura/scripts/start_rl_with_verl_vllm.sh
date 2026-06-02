@@ -54,8 +54,10 @@ function start_train()
     real_train_conf_name=${TRAIN_CONF_NAME}
   fi
 
-  source ${scripts_dir}/infer/vllm/parse_infer_config.sh
-  get_infer_configs
+  if [[ "${WORK_MODE}" != "hybrid" ]]; then
+    source ${scripts_dir}/infer/vllm/parse_infer_config.sh
+    get_infer_configs
+  fi
 
   log_info "start verl train cluster, work_mode: ${WORK_MODE}, config name: ${real_train_conf_name}"
   log_info "start mode: $1"

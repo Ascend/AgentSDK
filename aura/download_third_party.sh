@@ -50,46 +50,6 @@ function download_pacakge_succeed()
   echo -e "\e[40;32;1mdownload ${name} src code succeed\e[m"
 }
 
-function download_vllm_src_code()
-{
-  commit_id=$(cat ${root_dir}/third_party/${requirements_file} | grep vllm | grep -v vllm_ascend | awk -F'==' '{print $2}')
-  echo "start download vllm src code, version: ${commit_id}"
-
-  mkdir -p ${root_dir}/tmp/vllm
-  cd ${root_dir}/tmp/vllm
-  git clone -b main https://github.com/vllm-project/vllm.git
-  cd vllm
-  git branch
-  git checkout ${commit_id}
-  git branch
-  short_commit_id=${commit_id:0:5}
-  check_succeed vllm ${short_commit_id}
-  rm -rf ${third_party_dir}/infer/vllm
-  cd ${root_dir}/tmp/vllm
-  cp -rf vllm ${third_party_dir}/infer/vllm
-  download_pacakge_succeed vllm
-}
-
-function download_vllm_ascend_src_code()
-{
-  commit_id=$(cat ${root_dir}/third_party/${requirements_file} | grep vllm_ascend | awk -F'==' '{print $2}')
-  echo "start download vllm_ascend src code, version: ${commit_id}"
-
-  mkdir -p ${root_dir}/tmp/vllm_ascend
-  cd ${root_dir}/tmp/vllm_ascend
-  git clone -b main https://github.com/vllm-project/vllm-ascend.git
-  cd vllm-ascend
-  git branch
-  git checkout ${commit_id}
-  git branch
-  short_commit_id=${commit_id:0:5}
-  check_succeed vllm_ascend ${short_commit_id}
-  rm -rf ${third_party_dir}/infer/vllm_ascend
-  cd ${root_dir}/tmp/vllm_ascend
-  cp -rf vllm-ascend ${third_party_dir}/infer/vllm_ascend
-  download_pacakge_succeed vllm_ascend
-}
-
 function download_mindspeed_rl_src_code()
 {
   commit_id=$(cat ${root_dir}/third_party/${requirements_file} | grep mindspeed_rl | awk -F'==' '{print $2}')
@@ -202,8 +162,6 @@ function clean_old_srcs()
 }
 
 clean_old_srcs
-download_vllm_src_code
-download_vllm_ascend_src_code
 download_mindspeed_rl_src_code
 download_megatron_src_code
 download_mindspeed_src_code
