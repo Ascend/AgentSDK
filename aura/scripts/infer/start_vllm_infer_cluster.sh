@@ -67,11 +67,6 @@ function start_infer_instances()
   exit 1
 }
 
-function upgrade_vllm()
-{
-  source ${scripts_dir}/infer/vllm/upgrade_vllm.sh
-}
-
 function qwen35_moe_model_handle()
 {
   if [[ "${SERVED_MODEL_NAME}" == "Qwen3.5-35B-A3B" ||
@@ -85,7 +80,6 @@ function qwen35_moe_model_handle()
 get_infer_configs
 
 log_info "[infer] ASCEND_RT_VISIBLE_DEVICES: ${ASCEND_RT_VISIBLE_DEVICES}"
-upgrade_vllm
 
 log_info "[infer] PYTHONPATH: ${PYTHONPATH}"
 

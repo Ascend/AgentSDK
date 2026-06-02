@@ -1,0 +1,10 @@
+input: /path/to/input_data_dir
+tokenizer_name_or_path: /path/to/tokenizer
+output_prefix: /path/to/output/train/rl
+handler_name: R1AlpacaStyleInstructionHandler
+tokenizer_type: HuggingFaceTokenizer
+workers: 8
+log_interval: 1000
+prompt_type: qwen
+dataset_additional_keys: [labels]
+map_keys: {"query":"", "response":"labels", "prompt": "question"}

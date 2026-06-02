@@ -16,7 +16,7 @@ Agent SDK的安装部署流程包含以下三个主要步骤：
 
 ```shell
 cd /path/to/dockerfile_directory
-docker build -t AgentSDK:26.0.0 .
+docker build -t aura:26.0.0 .
 ```
 
 > 预构建的镜像链接将在后续进行更新，用户可直接从镜像仓库拉取。
@@ -24,7 +24,7 @@ docker build -t AgentSDK:26.0.0 .
 ### 步骤2：创建并启动容器
 
 ```shell
-docker run --name your_container_name --init \
+docker run --name your_container_name --privileged \
     --hostname agent \
     --network host \
     -it -d --shm-size=500g \
@@ -41,8 +41,7 @@ docker run --name your_container_name --init \
     -v /etc/ascend_install.info:/etc/ascend_install.info \
     -v /usr/share/zoneinfo/Asia/Shanghai:/etc/localtime \
     -v /usr/local/sbin:/usr/local/sbin \
-    -v /home/work:/home/work \
-    AgentSDK:26.0.0 \
+    aura:26.0.0 \
     sleep infinity
 ```
 
@@ -72,15 +71,14 @@ modelscope download --model Qwen/Qwen2.5-7B-Instruct --local_dir /path/to/Qwen2.
 
 ### 下载训练数据<a name="ZH-CN_TOPIC_0000002492554173"></a>
 
-本小节介绍Agent SDK训练数据的获取方式。以数学Agent场景为例，我们使用[dapo-math-17k](https://www.modelscope.cn/datasets/BytedTsinghua-SIA/DAPO-Math-17k)作为训练集，[aime-2024](https://www.modelscope.cn/datasets/BytedTsinghua-SIA/AIME-2024)作为测试集：
+本小节介绍Agent SDK训练数据的获取方式。以数学Agent场景为例，我们使用[gsm8k](https://www.modelscope.cn/datasets/AI-ModelScope/gsm8k)数据集，包含训练集和测试集数据：
 
 ```shell
-# 下载训练集
-modelscope download --model BytedTsinghua-SIA/DAPO-Math-17k --local_dir /path/to/DAPO-Math-17k
-
-# 下载测试集
-modelscope download --model BytedTsinghua-SIA/AIME-2024 --local_dir /path/to/AIME-2024
+# 下载数据集
+modelscope download --dataset AI-ModelScope/gsm8k --local_dir /path/to/gsm8k
 ```
+
+> 说明： 首次训练时，应根据模型能力选择合适的数据集，参数量较低的模型应选择较为简单的数据集，便于模型学习
 
 ### 处理训练数据<a name="ZH-CN_TOPIC_0000002492554173"></a>
 
@@ -95,19 +93,104 @@ modelscope download --model BytedTsinghua-SIA/AIME-2024 --local_dir /path/to/AIM
 
 使用 verl 官方提供的数据处理脚本处理数据集：
 
-- [dapo_multiturn_w_tool.py](https://github.com/verl-project/verl/blob/v0.7.0/examples/data_preprocess/dapo_multiturn_w_tool.py)：处理训练集
-- [aime2024_multiturn_w_tool.py](https://github.com/verl-project/verl/blob/v0.7.0/examples/data_preprocess/aime2024_multiturn_w_tool.py)：处理测试集
+- [gsm8k.py](https://github.com/verl-project/verl/blob/v0.7.0/examples/data_preprocess/gsm8k.py)：处理数据集
+
+```python
+import argparse
+import os
+import re
+
+import datasets
+
+from verl.utils.hdfs_io import copy, makedirs
+
+
+def extract_solution(solution_str):
+    solution = re.search("#### (\\-?[0-9\\.\\,]+)", solution_str)
+    assert solution is not None
+    final_solution = solution.group(0)
+    final_solution = final_solution.split("#### ")[1].replace(",", "")
+    return final_solution
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--local_dir", default=None, help="The save directory for the preprocessed dataset.")
+    parser.add_argument("--hdfs_dir", default=None)
+    parser.add_argument("--local_dataset_path", default=None, help="The local path to the raw dataset, if it exists.")
+    parser.add_argument(
+        "--local_save_dir", default="~/data/gsm8k", help="The save directory for the preprocessed dataset."
+    )
+
+    args = parser.parse_args()
+    local_dataset_path = args.local_dataset_path
+
+    data_source = "openai/gsm8k"
+
+    if local_dataset_path is not None:
+        dataset = datasets.load_dataset(local_dataset_path)
+    else:
+        dataset = datasets.load_dataset(data_source, "main")
+
+    train_dataset = dataset["train"]
+    test_dataset = dataset["test"]
+
+    instruction_following = 'Let\'s think step by step and output the final answer after "####".'
+
+    # add a row to each data item that represents a unique id
+    def make_map_fn(split):
+        def process_fn(example, idx):
+            question_raw = example.pop("question")
+
+            question = question_raw + " " + instruction_following
+
+            answer_raw = example.pop("answer")
+            solution = extract_solution(answer_raw)
+            data = {
+                "data_source": data_source,
+                "prompt": [
+                    {
+                        "role": "user",
+                        "content": question,
+                    }
+                ],
+                "ability": "math",
+                "reward_model": {"style": "rule", "ground_truth": solution},
+                "extra_info": {
+                    "split": split,
+                    "index": idx,
+                    "answer": answer_raw,
+                    "question": question_raw,
+                },
+            }
+            return data
+
+        return process_fn
+
+    train_dataset = train_dataset.map(function=make_map_fn("train"), with_indices=True)
+    test_dataset = test_dataset.map(function=make_map_fn("test"), with_indices=True)
+
+    hdfs_dir = args.hdfs_dir
+    local_save_dir = args.local_dir
+    if local_save_dir is not None:
+        print("Warning: Argument 'local_dir' is deprecated. Please use 'local_save_dir' instead.")
+    else:
+        local_save_dir = args.local_save_dir
+
+    train_dataset.to_parquet(os.path.join(local_save_dir, "train.parquet"))
+    test_dataset.to_parquet(os.path.join(local_save_dir, "test.parquet"))
+
+    if hdfs_dir is not None:
+        makedirs(hdfs_dir)
+
+        copy(src=local_save_dir, dst=hdfs_dir)
+```
 
 ```shell
-# 处理训练集
-python3 dapo_multiturn_w_tool.py \
-    --local_dataset_path /path/to/DAPO-Math-17k \
-    --local_save_dir /path/to/DAPO-Math-17k-output
-
-# 处理测试集
-python3 aime2024_multiturn_w_tool.py \
-    --local_dataset_path /path/to/AIME-2024 \
-    --local_save_dir /path/to/AIME-2024-output
+# 处理数据集
+python3 gsm8k.py \
+    --local_dataset_path /path/to/gsm8k \
+    --local_save_dir /path/to/gsm8k-output
 ```
 
 #### 分离模式数据处理
@@ -122,7 +205,9 @@ parquet → jsonl → bin/idx
 
 ##### 步骤 1：parquet 转换为 jsonl
 
-创建转换脚本 `convert_data.py`：
+首先，与共卡模式相同，通过gsm8k.py将gsm8k数据集转换为标准格式数据集
+
+其次，创建转换脚本 `convert_data.py`：
 
 ```python
 import pandas as pd
@@ -135,7 +220,7 @@ def convert_parquet_to_filtered_jsonl(input_parquet, output_jsonl):
     将 Parquet 转换为 JSONL 格式，提取特定字段。
     """
     print(f"正在读取 Parquet 文件: {input_parquet} ...")
-    
+
     try:
         df = pd.read_parquet(input_parquet)
         records = df.to_dict('records')
@@ -168,7 +253,7 @@ def main():
     parser = argparse.ArgumentParser(description="将 Parquet 转换为 JSONL")
     parser.add_argument('--input', type=str, required=True, help='输入的 parquet 文件路径')
     parser.add_argument('--output', type=str, default='output.jsonl', help='输出的 jsonl 文件路径')
-    
+
     args = parser.parse_args()
 
     if not os.path.exists(args.input):
@@ -184,18 +269,26 @@ if __name__ == "__main__":
 执行转换：
 
 ```shell
-python convert_data.py --input data.parquet --output train.jsonl
+python convert_data.py --input train.parquet --output train.jsonl
+python convert_data.py --input test.parquet --output test.jsonl
 ```
 
 ##### 步骤 2：jsonl 转换为 bin/idx
 
 **准备配置文件**
 
-在 `configs/datasets/` 目录下创建数据处理配置文件：
+在 `configs/` 目录下创建 `datasets/` 目录，用于存放不同数据集的数据处理配置文件
+
+```shell
+cd /path/to/AgentSDK/aura/configs
+mkdir -p datasets
+```
+
+在 `configs/datasets/` 目录下创建gsm8k数据集对应的数据处理配置文件：
 
 ```yaml
-# configs/datasets/train_dataset.yaml
-input: /path/to/train.jsonl
+# configs/datasets/gsm8k.yaml
+input: /path/to/input_data_dir
 tokenizer_name_or_path: /path/to/tokenizer
 output_prefix: /path/to/output/train/rl
 handler_name: R1AlpacaStyleInstructionHandler
@@ -209,27 +302,27 @@ map_keys: {"query":"", "response":"labels", "prompt": "question"}
 
 **配置参数说明**
 
-| 参数 | 类型 | 说明 |
-|------|------|------|
-| `input` | str | 输入的 jsonl 文件路径 |
-| `tokenizer_name_or_path` | str | 分词器路径，必须与后续训练的模型保持一致 |
-| `output_prefix` | str | /path/to/output/train为输出文件路径，rl为输出文件前缀，生成 `rl_train.bin` 和 `rl_train.idx` 文件 |
-| `handler_name` | str | 数据处理器名称，决定了数据的拼接模板 。`R1AlpacaStyleInstructionHandler`是 Qwen 等模型进行 SFT/RL 训练的标准格式 |
-| `tokenizer_type` | str | 分词器类型，常用 `HuggingFaceTokenizer` |
-| `workers` | int | 并行worker数 |
-| `log_interval` | int | 日志输出间隔（处理多少条数据后输出） |
-| `prompt_type` | str | 指定模型对应的 chat template，例如 qwen/chatml/llama3 |
-| `dataset_additional_keys` | list | 需额外保留的数据字段 |
-| `map_keys` | dict | 字段映射，将原始 json 字段映射到框架内部标准字段 |
+| 参数 | 类型 | 说明                                                                                 |
+|------|------|------------------------------------------------------------------------------------|
+| `input` | str | 输入的 jsonl 文件所在目录的路径，包含train.jsonl和test.jsonl                                       |
+| `tokenizer_name_or_path` | str | 分词器路径，必须与后续训练的模型保持一致                                                               |
+| `output_prefix` | str | /path/to/output/train为输出文件路径，需提前创建，rl为输出文件前缀，生成 `rl_train.bin` 和 `rl_train.idx` 文件 |
+| `handler_name` | str | 数据处理器名称，决定了数据的拼接模板 。`R1AlpacaStyleInstructionHandler`是 Qwen 等模型进行 SFT/RL 训练的标准格式   |
+| `tokenizer_type` | str | 分词器类型，常用 `HuggingFaceTokenizer`                                                    |
+| `workers` | int | 并行worker数                                                                          |
+| `log_interval` | int | 日志输出间隔（处理多少条数据后输出）                                                                 |
+| `prompt_type` | str | 指定模型对应的 chat template，例如 qwen/chatml/llama3                                        |
+| `dataset_additional_keys` | list | 需额外保留的数据字段                                                                         |
+| `map_keys` | dict | 字段映射，将原始 json 字段映射到框架内部标准字段                                                        |
 
 **执行数据处理**
 
 ```shell
 # 处理训练集
-python3 /path/to/AgentSDK/cli/preprocess_data.py train_dataset
+python3 /path/to/AgentSDK/cli/preprocess_data.py gsm8k
 ```
 
-> **说明**：`train_dataset` 和 `test_dataset` 为配置文件名（不带 `.yaml` 后缀），脚本会自动从 `configs/datasets/` 目录加载对应的配置。
+> **说明**：`gsm8k` 为配置文件名（不带 `.yaml` 后缀），脚本会自动从 `configs/datasets/` 目录加载对应的配置。
 
 **生成文件**
 
