@@ -92,7 +92,7 @@ direct_conf:
 |------|------|------|----------|
 | **Agent** | `BaseAgent` | 定义 Agent 的决策逻辑和状态管理 | `agents/math_agent/tool_agent.py` |
 | **Environment** | `BaseEnv` | 定义 Agent 与外部环境的交互接口 | `agents/math_agent/environment/tool_env.py` |
-| **Engine Wrapper** | `BaseEngineWrapper` | 封装 Agent 执行引擎 | `agentic_rl/runner/agent_engine_wrapper/rllm/rllm_engine_wrapper.py` |
+| **Engine Wrapper** | `BaseEngineWrapper` | 封装 Agent 执行引擎 | `aura/runner/agent_engine_wrapper/rllm/rllm_engine_wrapper.py` |
 | **Tool** | `Tool` | 定义 Agent 可调用的工具 | `agents/math_agent/environment/tools/tool_base.py` |
 | **Reward Function** | `RewardFunction` | 定义奖励计算逻辑 | `agents/math_agent/reward/reward_fn.py` |
 
@@ -100,7 +100,7 @@ direct_conf:
 
 > **参考示例**：完整的 Agent 实现示例可在 `agents/math_agent` 目录中找到，包括 Agent、Environment、Tool、Reward 等组件的完整实现。
 > **math_agent 目录结构**：
-> 
+>
 > ```text
 > agents/math_agent/
 > ├── tool_agent.py              # Agent 核心实现
@@ -127,7 +127,7 @@ direct_conf:
 继承 `BaseAgent` 类，实现 Agent 的核心逻辑。参考实现：`agents/math_agent/tool_agent.py`
 
 ```python
-from agentic_rl.runner.agent_engine_wrapper.base.agent.base_agent import BaseAgent, Action, Step, Trajectory
+from aura.runner.agent_engine_wrapper.base.agent.base_agent import BaseAgent, Action, Step, Trajectory
 
 class MyAgent(BaseAgent):
     def __init__(self, system_prompt: str, tools: list = None):
@@ -135,15 +135,15 @@ class MyAgent(BaseAgent):
         self.tools = tools or []
         self._chat_completions = []
         self._trajectory = Trajectory()
-    
+
     @property
     def chat_completions(self) -> list[dict[str, str]]:
         return self._chat_completions
-    
+
     @property
     def trajectory(self) -> Trajectory:
         return self._trajectory
-    
+
     def update_from_env(self, observation, reward, done, info, **kwargs):
         """从环境接收观测和奖励"""
         self._trajectory.reward = reward
@@ -154,19 +154,19 @@ class MyAgent(BaseAgent):
             info=info
         )
         self._trajectory.steps.append(step)
-    
+
     def update_from_model(self, response: str, **kwargs) -> Action:
         """从模型响应解析动作"""
         action = self._parse_response(response)
         return Action(action=action)
-    
+
     def reset(self):
         """重置 Agent 状态"""
         self._chat_completions = [
             {"role": "system", "content": self.system_prompt}
         ]
         self._trajectory = Trajectory()
-    
+
     def _parse_response(self, response: str):
         """解析模型响应，提取动作"""
         # 实现响应解析逻辑
@@ -178,7 +178,7 @@ class MyAgent(BaseAgent):
 继承 `BaseEnv` 类，定义环境交互逻辑。参考实现：`agents/math_agent/environment/tool_env.py`
 
 ```python
-from agentic_rl.runner.agent_engine_wrapper.base.environment.base_env import BaseEnv
+from aura.runner.agent_engine_wrapper.base.environment.base_env import BaseEnv
 from typing import Any, tuple
 
 class MyEnv(BaseEnv):
@@ -187,38 +187,38 @@ class MyEnv(BaseEnv):
         self.max_steps = max_steps
         self.current_step = 0
         self.done = False
-    
+
     def reset(self) -> tuple[dict, dict]:
         """重置环境"""
         self.current_step = 0
         self.done = False
         observation = {"question": self.task.get("question", "")}
         return observation, {}
-    
+
     def step(self, action: Any) -> tuple[Any, float, bool, dict]:
         """执行动作"""
         self.current_step += 1
-        
+
         # 执行动作并获取观测
         observation = self._execute_action(action)
-        
+
         # 计算奖励
         reward = self._compute_reward(action)
-        
+
         # 判断是否终止
         self.done = self.current_step >= self.max_steps or self._check_success(action)
-        
+
         return observation, reward, self.done, {}
-    
+
     def close(self):
         """清理资源"""
         pass
-    
+
     @staticmethod
     def from_dict(info: dict) -> "MyEnv":
         """从配置创建环境实例"""
         return MyEnv(task=info, max_steps=info.get("max_steps", 10))
-    
+
     @staticmethod
     def is_multithread_safe() -> bool:
         """是否线程安全"""
@@ -235,13 +235,13 @@ from agents.math_agent.reward.reward_types import RewardInput, RewardOutput
 def my_reward_fn(task_info: dict, action: str) -> RewardOutput:
     """自定义奖励函数"""
     ground_truth = task_info.get("ground_truth", "")
-    
+
     # 判断答案是否正确
     is_correct = action.strip() == ground_truth.strip()
-    
+
     # 计算奖励
     reward = 1.0 if is_correct else 0.0
-    
+
     return RewardOutput(
         reward=reward,
         is_correct=is_correct,
@@ -282,12 +282,12 @@ from agents.math_agent.environment.tools.tool_base import Tool, ToolOutput
 class MyTool(Tool):
     def __init__(self, name: str = "my_tool", description: str = "A custom tool"):
         super().__init__(name=name, description=description)
-    
+
     def forward(self, *args, **kwargs) -> ToolOutput:
         # 实现工具执行逻辑
         result = self._execute_tool_logic(*args, **kwargs)
         return ToolOutput(name=self.name, output=result)
-    
+
     def _execute_tool_logic(self, *args, **kwargs):
         # 具体的工具逻辑实现
         pass
@@ -301,11 +301,11 @@ class MyTool(Tool):
 
 > **参考实现**：
 >
-> - 基类：`agentic_rl/runner/agent_engine_wrapper/base_engine_wrapper.py`
+> - 基类：`aura/runner/agent_engine_wrapper/base_engine_wrapper.py`
 >
-> - RLLM引擎包装器：`agentic_rl/runner/agent_engine_wrapper/rllm/rllm_engine_wrapper.py`
+> - RLLM引擎包装器：`aura/runner/agent_engine_wrapper/rllm/rllm_engine_wrapper.py`
 >
-> - SmolAgent引擎包装器：`agentic_rl/runner/agent_engine_wrapper/smolagent/smolagent_wrapper.py`
+> - SmolAgent引擎包装器：`aura/runner/agent_engine_wrapper/smolagent/smolagent_wrapper.py`
 
 以下是一个 Mock 示例，用于调试和验证。
 
@@ -315,7 +315,7 @@ class MyTool(Tool):
 import random
 import torch
 from typing import List
-from agentic_rl.runner.agent_engine_wrapper.base_engine_wrapper import BaseEngineWrapper, AgentTask, Trajectory
+from aura.runner.agent_engine_wrapper.base_engine_wrapper import BaseEngineWrapper, AgentTask, Trajectory
 
 class MockEngineWrapper(BaseEngineWrapper):
     def __init__(
@@ -336,11 +336,11 @@ class MockEngineWrapper(BaseEngineWrapper):
         self.max_response_length = max_response_length
         self.n_parallel_agents = n_parallel_agents
         self.max_steps = max_steps
-    
+
     async def generate_trajectory(
-            self, 
-            task: AgentTask, 
-            stream_queue=None, 
+            self,
+            task: AgentTask,
+            stream_queue=None,
             *args, **kwargs
     ) -> Trajectory:
         """生成模拟轨迹"""
@@ -484,7 +484,7 @@ AgentSDK 提供注册表机制，支持注册自定义的训练引擎、推理�
 ### 注册训练引擎
 
 ```python
-from agentic_rl.trainer.train_register import registry as train_registry
+from aura.trainer.train_register import registry as train_registry
 
 # 注册自定义训练引擎
 train_registry.register(
@@ -498,7 +498,7 @@ train_registry.register(
 ### 注册推理引擎
 
 ```python
-from agentic_rl.runner.infer_adapter.infer_registry import registry as infer_registry
+from aura.runner.infer_adapter.infer_registry import registry as infer_registry
 
 # 注册自定义推理后端
 infer_registry.register("my_infer_backend", MyInferServer)
@@ -513,7 +513,7 @@ from agents.agents_mapping import AGENTS_MAPPING
 from agents.math_agent.environment.tool_env import ToolEnvironment
 from agents.math_agent.tool_agent import ToolAgent
 from agents.math_agent.reward.reward_fn import math_reward_fn
-from agentic_rl.runner.agent_engine_wrapper.base.environment.env_utils import compute_trajectory_reward
+from aura.runner.agent_engine_wrapper.base.environment.env_utils import compute_trajectory_reward
 
 # 注册自定义 Agent
 AGENTS_MAPPING.append({
@@ -538,7 +538,7 @@ AGENTS_MAPPING.append({
 ### 注册数据管理器
 
 ```python
-from agentic_rl.data_manager.data_registry import registry as data_registry
+from aura.data_manager.data_registry import registry as data_registry
 
 # 注册自定义数据管理器
 data_registry.register(

@@ -26,19 +26,19 @@ from typing import Any
 class BaseAgent(ABC):
     @property
     def chat_completions(self) -> list[dict[str, str]]: ...
-    
+
     @property
     def trajectory(self) -> "Trajectory": ...
-    
+
     @abstractmethod
     def update_from_env(self, observation: Any, reward: float, done: bool, info: dict, **kwargs): ...
-    
+
     @abstractmethod
     def update_from_model(self, response: str, **kwargs) -> "Action": ...
-    
+
     @abstractmethod
     def reset(self): ...
-    
+
     def get_current_state(self) -> "Step | None": ...
 ```
 
@@ -50,7 +50,7 @@ class BaseAgent(ABC):
 | `update_from_model` | 从模型接收响应，解析并返回动作 |
 | `reset` | 重置 Agent 状态，开始新的轨迹 |
 
-**文件位置**: `agentic_rl/runner/agent_engine_wrapper/base/agent/base_agent.py`
+**文件位置**: `aura/runner/agent_engine_wrapper/base/agent/base_agent.py`
 
 ---
 
@@ -69,16 +69,16 @@ from typing import Any, tuple
 class BaseEnv(ABC):
     @abstractmethod
     def reset(self) -> tuple[dict, dict]: ...
-    
+
     @abstractmethod
     def step(self, action: Any) -> tuple[Any, float, bool, dict]: ...
-    
+
     def close(self): ...
-    
+
     @staticmethod
     @abstractmethod
     def from_dict(info: dict) -> "BaseEnv": ...
-    
+
     @staticmethod
     def is_multithread_safe() -> bool: ...
 ```
@@ -91,7 +91,7 @@ class BaseEnv(ABC):
 | `step` | 执行动作，返回 (观测, 奖励, 是否终止, 附加信息) |
 | `from_dict` | 从配置字典创建环境实例 |
 
-**文件位置**: `agentic_rl/runner/agent_engine_wrapper/base/environment/base_env.py`
+**文件位置**: `aura/runner/agent_engine_wrapper/base/environment/base_env.py`
 
 ---
 
@@ -136,7 +136,7 @@ class BaseEngineWrapper(ABC):
 | n_parallel_agents | int | 并行执行的 Agent 数量，默认 8 |
 | max_steps | int | Agent 执行的最大步骤数，默认 5 |
 
-**文件位置**: `agentic_rl/runner/agent_engine_wrapper/base_engine_wrapper.py`
+**文件位置**: `aura/runner/agent_engine_wrapper/base_engine_wrapper.py`
 
 ---
 
@@ -154,9 +154,9 @@ class BaseEngineWrapper(ABC):
 
 ```python
 class TrainRegistry:
-    def register(self, train_engine: str, cluster_mode: str, 
+    def register(self, train_engine: str, cluster_mode: str,
                  rollout_method: Callable | None, train_method: Callable) -> None: ...
-    
+
     def get_method(self, train_engine: str, cluster_mode: str) -> tuple | None: ...
 
 # 全局实例
@@ -170,7 +170,7 @@ registry = TrainRegistry()
 | `verl`         | `hybrid`       | verl 共卡模式         |
 | `verl`         | `one_step_off` | verl 全异步模式        |
 
-**文件位置**: `agentic_rl/trainer/train_register.py`
+**文件位置**: `aura/trainer/train_register.py`
 
 ---
 
@@ -185,7 +185,7 @@ registry = TrainRegistry()
 ```python
 class InferBackendRegistry:
     def register(self, name: str, cls: type) -> None: ...
-    
+
     def get_class(self, name: str) -> type | None: ...
 
 # 全局实例
@@ -199,7 +199,7 @@ registry = InferBackendRegistry()
 | `vllm` | vLLM 推理服务 |
 | `vllm_pd` | vLLM PD 分离推理服务 |
 
-**文件位置**: `agentic_rl/runner/infer_adapter/infer_registry.py`
+**文件位置**: `aura/runner/infer_adapter/infer_registry.py`
 
 ---
 
@@ -214,7 +214,7 @@ registry = InferBackendRegistry()
 ```python
 class DataManagerRegistry:
     def register(self, train_backend: str, service_mode: str, cls: type) -> None: ...
-    
+
     def get_class(self, train_backend: str, service_mode: str) -> type | None: ...
 
 # 全局实例
@@ -228,7 +228,7 @@ registry = DataManagerRegistry()
 | `verl` | `train` | `VerlDataManager` | verl 训练数据管理器 |
 | `verl` | `infer` | `InferDataManager` | 统一推理数据管理器 |
 
-**文件位置**: `agentic_rl/data_manager/data_registry.py`
+**文件位置**: `aura/data_manager/data_registry.py`
 
 ---
 

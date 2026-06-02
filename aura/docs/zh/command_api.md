@@ -333,7 +333,7 @@ verl_conf:
       prompt_length: 2048
       response_length: 2048
       agent:
-        agent_loop_manager_class: agentic_rl.trainer.train_adapter.verl.hybrid.agent_loop_manager.HybridAgentLoopManager
+        agent_loop_manager_class: aura.trainer.train_adapter.verl.hybrid.agent_loop_manager.HybridAgentLoopManager
       log_prob_micro_batch_size_per_gpu: 2
       enable_chunked_prefill: False
       tensor_model_parallel_size: 4
