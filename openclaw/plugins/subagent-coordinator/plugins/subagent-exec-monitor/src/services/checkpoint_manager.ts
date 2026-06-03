@@ -7,6 +7,9 @@
 
 import type { CheckpointData, ExecutionResult, Subtask } from "@subagent-coordinator/types";
 
+// Re-export types used by test files
+export type { CheckpointData, ExecutionResult, Subtask };
+
 export interface CheckpointManagerState {
   checkpoints: Map<string, CheckpointData>;
   executionHistory: Map<string, ExecutionResult[]>;

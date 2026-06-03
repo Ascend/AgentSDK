@@ -33,14 +33,14 @@
 ### 基本用法
 
 ```bash
-# 默认安装（使用符号链接）
+# 默认安装（复制文件）
 ./install-sc-local.sh
 
 # 指定 SC 源目录
 ./install-sc-local.sh /path/to/subagent-coordinator
 
-# 使用复制代替符号链接
-./install-sc-local.sh --copy
+# 使用符号链接代替复制（开发调试时使用）
+./install-sc-local.sh --symlink
 
 # 指定 OpenClaw 主目录
 ./install-sc-local.sh --openclaw-home /custom/path/.openclaw
@@ -82,7 +82,7 @@ docker exec openclaw ./install-sc-local.sh \
 | 选项 | 说明 |
 |------|------|
 | `--openclaw-home <path>` | OpenClaw 主目录（默认 `~/.openclaw`） |
-| `--copy` | 使用复制代替符号链接 |
+| `--symlink` | 使用符号链接代替复制（开发调试时使用） |
 | `--build` | 安装前执行 `pnpm install + build` |
 | `--help` | 显示帮助信息 |
 

@@ -5,7 +5,7 @@
   "description": "Full-stack observability: metrics, tracing, cost tracking, rate limiting, and data sanitisation",
   "openclaw": {
     "extensions": [
-      "./dist/src/index.js"
+      "./index.js"
     ]
   },
   "scripts": {

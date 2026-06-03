@@ -1,6 +1,6 @@
 [files]
 # these files may be written in non english words
-extend-exclude = []
+extend-exclude = ["typos.toml"]
 ignore-hidden = true
 ignore-files = true
 ignore-dot = true
@@ -40,6 +40,7 @@ depthwise_seperable_CNN = "depthwise_seperable_CNN"
 
 [default.extend-words]
 iy = "iy"
+optout = "optout"
 tendencias = "tendencias"
 # intel cpu features
 tme = "tme"

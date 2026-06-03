@@ -31,7 +31,7 @@
 | **智能路由** | L1-L3 → `worker` subagent，L4-L5 → ACP runtime |
 | **事件驱动架构** | 8 个标准事件，插件可监听并提供增强功能 |
 | **内置后备** | 无插件时所有功能仍有基础实现可用 |
-| **4 个官方插件** | 16+ tools, 10 services, 13 hooks |
+| **3 个官方插件** | 16+ tools, 10 services, 13 hooks |
 
 ### 组件关系图
 
@@ -52,8 +52,7 @@
 │  ┌────────────────────────────────────────────────────┐   │
 │  │  Plugin Layer (全部可选)                            │   │
 │  │                                                    │   │
-│  │  📊 subagent-telemetry — 性能指标收集               │   │
-│  │  📈 subagent-trace       — 执行追踪与可视化         │   │
+│  │  📊 subagent-observability — 可观测性（指标、追踪、成本、限流、脱敏） │   │
 │  │  📋 subagent-taskr       — 任务分解与持久化         │   │
 │  │  🔧 subagent-exec-monitor — 质量门控与检查点       │   │
 │  └────────────────────────────────────────────────────┘   │
@@ -73,18 +72,11 @@
 
 ### 2.2 安装 Skill
 
-**方式 A：ClawHub（推荐）**
+**本地安装**
 
 ```bash
-openclaw skills install subagent-coordinator
-
-```
-
-**方式 B：本地安装**
-
-```bash
-# 将 skill 目录复制到 workspace
-cp -r /path/to/subagent-coordinator ~/.openclaw/workspace/skills/
+# 将 skill 目录复制到全局skills路径
+cp -r /path/to/subagent-coordinator ~/.openclaw/skills/
 
 ```
 
@@ -93,8 +85,8 @@ cp -r /path/to/subagent-coordinator ~/.openclaw/workspace/skills/
 将插件目录放入 `~/.openclaw/extensions/` 或 skill 的 `plugins/` 子目录：
 
 ```bash
-# 复制所有 4 个插件
-for plugin in subagent-telemetry subagent-trace subagent-taskr subagent-exec-monitor; do
+# 复制所有 3 个插件
+for plugin in subagent-observability subagent-taskr subagent-exec-monitor; do
   cp -r /path/to/$plugin ~/.openclaw/extensions/
 done
 
@@ -120,7 +112,7 @@ openclaw plugins list | grep subagent
 
 📦 subagent-coordinator ✓ Ready
 Hook Runner: 13 registered hooks
-Plugins: 4/4 loaded
+Plugins: 3/3 loaded
 
 ```
 
@@ -180,50 +172,34 @@ if (complexity <= 3) {
 | 任务分解（内置） | 按步骤/文件/领域拆分为子任务 |
 | 事件触发 | 在关键点触发 8 个标准事件 |
 
-### 4.2 subagent-telemetry (插件)
+### 4.2 subagent-observability (插件)
 
-**职责**：性能指标与资源管理
+**职责**：可观测性（指标、追踪、成本、限流、脱敏）
 
 | 功能 | 说明 |
 |------|------|
-| Tool Call 捕获 | 记录所有工具调用的成功/失败/耗时 |
+| 指标收集 | 记录所有工具调用的成功/失败/耗时 |
 | Token 使用统计 | 按模型/会话统计 token 消耗与成本 |
 | Agent 生命周期追踪 | 记录 agent 启动/结束/成功率 |
 | 速率限制 | Token Bucket 算法防止失控代理 |
 | 敏感数据脱敏 | 自动检测并脱敏 API Key/Token/密码 |
-| SIEM 集成 | JSONL/CSV/JSON 导出 |
+| 执行轨迹记录 | 记录完整执行步骤、工具调用、LLM 调用 |
+| 成本追踪 | 每日/每月限额 + 超限预警 |
+| 趋势分析 | 7 天趋势（耗时、成本、成功率） |
+| 轨迹对比 | A/B 测试、效率评分 |
 
 **提供服务**：
 
 - `metrics_collector` — 核心指标存储与检索
 - `rate_limiter` — Token Bucket 速率限制
 - `sanitiser` — 敏感信息脱敏
-
-**监听事件**：`BEFORE_DELEGATION`, `AFTER_EXECUTION`, `TASK_ANALYZED`, `ROUTE_DECISION`
-
-### 4.3 subagent-trace (插件)
-
-**职责**：执行追踪与成本分析
-
-| 功能 | 说明 |
-|------|------|
-| 轨迹记录 | 记录完整执行步骤、工具调用、LLM 调用 |
-| 成本追踪 | 每日/每月限额 + 超限预警 |
-| 趋势分析 | 7 天趋势（耗时、成本、成功率） |
-| 缓存分析 | 命中率与预估节省 |
-| 轨迹对比 | A/B 测试、效率评分 |
-| 仪表板 | HTTP Web UI（自动刷新） |
-
-**提供服务**：
-
 - `trace_recorder` — 轨迹生命周期管理
 - `cost_tracker` — 成本预算与预警
 - `trend_analyzer` — 7 天趋势分析
-- `dashboard_server` — HTTP 仪表板
 
-**监听事件**：`AFTER_EXECUTION`, `TASK_ANALYZED`, `QUALITY_GATE`
+**监听事件**：`BEFORE_DELEGATION`, `AFTER_EXECUTION`, `TASK_ANALYZED`, `ROUTE_DECISION`, `QUALITY_GATE`
 
-### 4.4 subagent-taskr (插件)
+### 4.3 subagent-taskr (插件)
 
 **职责**：任务分解与跨会话持久化
 
@@ -244,7 +220,7 @@ if (complexity <= 3) {
 
 **监听事件**：`DECOMPOSITION_REQUESTED`, `CHECKPOINT_SAVE`, `CHECKPOINT_RESTORE`, `TASK_ANALYZED`
 
-### 4.5 subagent-exec-monitor (插件)
+### 4.4 subagent-exec-monitor (插件)
 
 **职责**：质量门控与检查点管理
 
@@ -262,26 +238,25 @@ if (complexity <= 3) {
 
 **监听事件**：`QUALITY_GATE`, `BEFORE_DELEGATION`, `AFTER_EXECUTION`, `TASK_ANALYZED`, `ROUTE_DECISION`
 
-### 4.6 职责全景图
+### 4.5 职责全景图
 
-| 功能 | Skill | telemetry | trace | taskr | exec-monitor |
-|------|-------|-----------|-------|-------|-------------|
-| 任务分析 | ✅ | — | — | — | — |
-| 复杂度评分 | ✅ 内置 | ✅ 增强 | — | — | ✅ 增强 |
-| 算子分级 | ✅ | — | — | — | — |
-| 路由决策 | ✅ 内置 | ✅ 建议 | — | — | ✅ 检查 |
-| 质量门控 | ✅ 基础 | — | ✅ 记录 | — | ✅ 完整 |
-| 任务分解 | ✅ 基础 | — | — | ✅ 策略 | ✅ 建议 |
-| 指标收集 | — | ✅ | — | — | — |
-| 速率限制 | — | ✅ | — | — | — |
-| 敏感脱敏 | — | ✅ | — | — | — |
-| 执行轨迹 | — | — | ✅ | — | — |
-| 成本追踪 | — | — | ✅ | — | — |
-| 趋势分析 | — | — | ✅ | — | — |
-| 仪表板 | — | — | ✅ | — | — |
-| 任务持久化 | — | — | — | ✅ | — |
-| 检查点 | — | — | — | ✅ | ✅ |
-| 重试策略 | — | — | — | — | ✅ |
+| 功能 | Skill | observability | taskr | exec-monitor |
+|------|-------|---------------|-------|-------------|
+| 任务分析 | ✅ | — | — | — |
+| 复杂度评分 | ✅ 内置 | ✅ 增强 | — | ✅ 增强 |
+| 算子分级 | ✅ | — | — | — |
+| 路由决策 | ✅ 内置 | ✅ 建议 | — | ✅ 检查 |
+| 质量门控 | ✅ 基础 | ✅ 记录 | — | ✅ 完整 |
+| 任务分解 | ✅ 基础 | — | ✅ 策略 | ✅ 建议 |
+| 指标收集 | — | ✅ | — | — |
+| 速率限制 | — | ✅ | — | — |
+| 敏感脱敏 | — | ✅ | — | — |
+| 执行轨迹 | — | ✅ | — | — |
+| 成本追踪 | — | ✅ | — | — |
+| 趋势分析 | — | ✅ | — | — |
+| 任务持久化 | — | — | ✅ | — |
+| 检查点 | — | — | ✅ | ✅ |
+| 重试策略 | — | — | — | ✅ |
 
 ---
 
@@ -299,12 +274,12 @@ if (complexity <= 3) {
 │  • 提取描述、步骤数、文件列表                                   │
 │  • 计算复杂度评分 (1-10)                                        │
 │  • 映射到算子等级 (L1-L5)                                       │
-│  • Skill 内置实现，或由 telemetry/exec-monitor 增强             │
+│  • Skill 内置实现，或由 observability/exec-monitor 增强         │
 └────────────────────────────┬────────────────────────────────────┘
                               │
               ┌───────────────┼───────────────┐
               │ 触发 TASK_ANALYZED 事件     │
-              │ telemetry   ✓               │
+              │ observability ✓             │
               │ taskr       ✓               │
               │ exec-monitor ✓              │
               └───────────────┬───────────────┘
@@ -324,20 +299,20 @@ if (complexity <= 3) {
               ┌───────────────────────────────┐
               │  质量门控 (QUALITY_GATE)       │
               │  exec-monitor ✓                │
-              │  trace ✓                      │
+              │  observability ✓              │
               └───────────────────────────────┘
                               │
                               ▼
               ┌───────────────────────────────┐
               │  路由决策 (ROUTE_DECISION)     │
-              │  telemetry ✓ (建议)            │
+              │  observability ✓ (建议)        │
               │  exec-monitor ✓ (检查)         │
               └───────────────────────────────┘
                               │
                               ▼
               ┌───────────────────────────────┐
               │  委派前 (BEFORE_DELEGATION)    │
-              │  telemetry ✓ (速率限制)         │
+              │  observability ✓ (速率限制)     │
               │  exec-monitor ✓ (质量检查)     │
               └───────────────────────────────┘
                               │
@@ -352,8 +327,7 @@ if (complexity <= 3) {
                               ▼
               ┌───────────────────────────────┐
               │  执行完成 (AFTER_EXECUTION)     │
-              │  telemetry ✓ (记录指标)        │
-              │  trace ✓ (记录轨迹)            │
+              │  observability ✓ (记录指标/轨迹) │
               │  taskr ✓ (更新任务状态)         │
               │  exec-monitor ✓ (检查点)       │
               └───────────────────────────────┘
@@ -364,11 +338,11 @@ if (complexity <= 3) {
 
 | 事件 | 触发时机 | 谁监听 | 提供什么 |
 |------|----------|--------|---------|
-| `TASK_ANALYZED` | 任务分析完成 | telemetry, taskr, exec-monitor | 复杂度增强 |
+| `TASK_ANALYZED` | 任务分析完成 | observability, taskr, exec-monitor | 复杂度增强 |
 | `DECOMPOSITION_REQUESTED` | 需要任务分解时 | taskr | 分解策略 |
-| `QUALITY_GATE` | 质量门控检查 | exec-monitor, trace | 验证结果 |
-| `ROUTE_DECISION` | 路由决策时 | telemetry, exec-monitor | 运行时建议 |
-| `BEFORE_DELEGATION` | 任务委派前 | telemetry, exec-monitor | 速率限制/检查 |
+| `QUALITY_GATE` | 质量门控检查 | exec-monitor, observability | 验证结果 |
+| `ROUTE_DECISION` | 路由决策时 | observability, exec-monitor | 运行时建议 |
+| `BEFORE_DELEGATION` | 任务委派前 | observability, exec-monitor | 速率限制/检查 |
 | `AFTER_EXECUTION` | 任务执行完成 | 所有插件 | 记录结果 |
 | `CHECKPOINT_SAVE` | 检查点保存时 | taskr, exec-monitor | 持久化 |
 | `CHECKPOINT_RESTORE` | 检查点恢复时 | taskr, exec-monitor | 恢复决策 |
@@ -475,11 +449,7 @@ sessions_spawn({
 {
   "plugins": {
     "entries": {
-      "subagent-telemetry": {
-        "enabled": true,
-        "config": {}
-      },
-      "subagent-trace": {
+      "subagent-observability": {
         "enabled": true,
         "config": {}
       },
@@ -497,7 +467,7 @@ sessions_spawn({
 
 ```
 
-### 7.3 速率限制配置（telemetry）
+### 7.3 速率限制配置（observability）
 
 ```javascript
 // rate_limiter 默认配置
@@ -509,7 +479,7 @@ sessions_spawn({
 
 ```
 
-### 7.4 成本追踪配置（trace）
+### 7.4 成本追踪配置（observability）
 
 ```javascript
 // cost_tracker 预算配置
@@ -532,7 +502,7 @@ sessions_spawn({
 openclaw skills info subagent-coordinator
 
 # 如果 not found，重新安装
-openclaw skills install subagent-coordinator
+cp -r /path/to/subagent-coordinator/skill ~/.openclaw/skills/subagent-coordinator
 
 ```
 
@@ -543,7 +513,7 @@ openclaw skills install subagent-coordinator
 openclaw plugins list | grep subagent
 
 # 检查具体错误
-openclaw plugins inspect subagent-telemetry
+openclaw plugins inspect subagent-observability
 
 # 常见问题
 # 1. plugin.json 缺少 configSchema
@@ -576,10 +546,10 @@ ERROR: hook already registered: task_analyzed (subagent-taskr)
 ### 8.5 性能问题
 
 ```javascript
-// 使用 telemetry 检查 token 使用
+// 使用 observability 检查 token 使用
 const usage = await getTokenUsage({ sessionId: "your-session" });
 
-// 使用 trace 检查执行瓶颈
+// 使用 observability 检查执行瓶颈
 const breakdown = await getCostBreakdown({
   sessionId: "your-session",
   groupBy: "tool"
