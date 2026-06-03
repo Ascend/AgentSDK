@@ -256,6 +256,53 @@ AgentSDK Openclaw 当前预置的通用 Agent Skill 覆盖多 Agent 协作、安
 | SFTP 支持 | 集成 SFTP 服务，支持文件传输 |
 | 版本管理 | 支持镜像版本切换与回滚 |
 
+### 6. 安全沙箱
+
+MindClaw 集成 Docker 沙箱环境，为 Agent 执行提供安全隔离能力。沙箱相关配置代码位于 `scripts/` 目录下，包括配置模板、健康监控脚本等。
+
+#### 6.1 沙箱配置参数
+
+scripts/templates/openclaw.json.tpl
+
+| 参数 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `mode` | string | `all` | 沙箱模式：`off`（关闭）、`non-main`（仅子 Agent）、`all`（所有 Agent） |
+| `scope` | string | `agent` | 沙箱作用域 |
+| `workspaceAccess` | string | `ro` | 工作区访问权限：`ro`（只读）、`rw`（读写） |
+| `workspaceRoot` | string | `/tmp/openclaw-sandboxes` | 沙箱工作区根目录 |
+| `docker.image` | string | `openclaw-sandbox:bookworm-slim` | 沙箱容器镜像 |
+| `docker.network` | string | `bridge` | 网络模式 |
+| `docker.user` | string | `sandbox` | 运行用户（非 root） |
+| `docker.readOnlyRoot` | bool | `true` | 只读根文件系统 |
+| `docker.capDrop` | array | `["ALL"]` | 移除所有 Linux Capabilities |
+| `docker.memory` | string | `512m` | 内存限制 |
+| `docker.cpus` | int | `2` | CPU 核数限制 |
+| `docker.pidsLimit` | int | `256` | 进程数限制 |
+| `prune.maxAgeDays` | int | `7` | 沙箱清理保留天数 |
+
+#### 6.2 启动命令
+
+```bash
+# 部署脚本
+bash ./scripts/deploy.sh quick \
+  --sandbox          # 显式启用沙箱（默认不启用）
+```
+
+#### 6.3 安全特性
+
+| 安全特性 | 描述 |
+|----------|------|
+| **容器隔离** | 每个 Agent 运行在独立 Docker 容器中 |
+| **只读根文件系统** | 防止恶意代码修改系统文件 |
+| **权限限制** | 使用非 root 用户 `sandbox` 运行 |
+| **Capability 移除** | 移除所有特权能力（`capDrop: ["ALL"]`） |
+| **资源配额** | 限制 CPU、内存、进程数 |
+| **网络隔离** | 使用 bridge 网络，限制外部访问 |
+| **tmpfs 挂载** | `/tmp`、`/var/tmp`、`/run` 使用临时文件系统 |
+| **危险命令拦截** | 拦截 `reboot`、`shutdown`、`kill` 等危险操作 |
+
+---
+
 ## 使用指南
 
 ### 步骤一：清理旧环境（若存在）
