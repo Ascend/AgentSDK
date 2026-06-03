@@ -85,6 +85,6 @@ Agent SDK提供了训练模型示例。
 
 **Agent使用样例请参考[使用指南](user_guide/user_guide.md)**
 
-**Agent Qwen3-4b一键拉起样例请参考[使用指南](model/qwen3-4b.md)**
+**Agent Qwen3-4b Math场景一键拉起样例请参考[使用指南](model/qwen3-4b.md)**
 
 **AgentSDK 支持的后端与模型列表请参考[支持推理后端](appendix.md#支持的推理后端)，[支持训练后端](appendix.md#支持的训练后端)，[支持agent后端](appendix.md#支持的agent后端)，[支持模型列表](appendix.md#支持的模型列表)**
