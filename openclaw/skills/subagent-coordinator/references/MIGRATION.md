@@ -14,7 +14,7 @@ This guide helps you migrate from the Phase 3 monolithic `exec-monitor` to the P
 | Benefit | Description |
 |---------|-------------|
 | **Loose Coupling** | Plugins operate independently; the Skill works without any plugins |
-| **Selective Installation** | Install only the plugins you need (e.g., just telemetry) |
+| **Selective Installation** | Install only the plugins you need (e.g., just observability) |
 | **Independent Updates** | Update or replace plugins without touching the core Skill |
 | **Specialized Functionality** | Each plugin does one thing well |
 | **Testability** | Test each plugin in isolation |
@@ -24,14 +24,14 @@ This guide helps you migrate from the Phase 3 monolithic `exec-monitor` to the P
 
 | Aspect | Phase 3 (Monolithic) | Phase 4+ (Event-Driven) |
 |--------|---------------------|------------------------|
-| **Architecture** | Single exec-monitor module | Skill + 4 independent plugins |
+| **Architecture** | Single exec-monitor module | Skill + 3 independent plugins |
 | **Plugin Loading** | All-or-nothing | Each plugin optional |
 | **Event System** | Internal function calls | Standard event bus |
-| **Complexity Scoring** | Built into exec-monitor | Dedicated service (telemetry or fallback) |
+| **Complexity Scoring** | Built into exec-monitor | Dedicated service (observability or fallback) |
 | **Task Persistence** | exec-monitor only | Dedicated Taskr plugin |
 | **Quality Gates** | exec-monitor only | exec-monitor plugin (or fallback) |
 | **Metrics** | Basic logging | Full telemetry with rate limiting |
-| **Tracing** | None | subagent-trace plugin |
+| **Tracing** | None | subagent-observability plugin |
 
 ---
 
@@ -63,8 +63,7 @@ Main Agent
              │
              ├── Event Bus
              │
-             ├──▶ subagent-telemetry (metrics)
-             ├──▶ subagent-trace (visualization)
+             ├──▶ subagent-observability (metrics, tracing)
              ├──▶ Taskr (persistence)
              └──▶ exec-monitor (quality gates)
 
@@ -89,10 +88,9 @@ subagent-coordinator/
 │   ├── events.ts           # Event contract (shared)
 │   └── references/         # Documentation and resources
 ├── plugins/
-│   ├── exec-monitor/       # Quality gates plugin
-│   ├── subagent-telemetry/ # Metrics plugin
-│   ├── subagent-trace/     # Visualization plugin
-│   └── taskr/              # Persistence plugin
+│   ├── exec-monitor/          # Quality gates plugin
+│   ├── subagent-observability/ # Metrics & tracing plugin
+│   └── taskr/                 # Persistence plugin
 
 ```
 
@@ -169,10 +167,10 @@ export default definePluginEntry({
 |-------------------|-------------------|-------|
 | `beforeDelegation` | `exec-monitor/hooks/before_delegation.ts` | Quality gates |
 | `afterExecution` | `exec-monitor/hooks/after_execution.ts` | Checkpoint save |
-| `analyzeTask` | `subagent-telemetry/hooks/task_analyzed.ts` | Metrics collection |
+| `analyzeTask` | `subagent-observability/hooks/task_analyzed.ts` | Metrics collection |
 | `makeRoutingDecision` | `exec-monitor/hooks/route_decision.ts` | Runtime suggestion |
 | `decomposeTask` | `Taskr/hooks/decomposition_requested.ts` | Decomposition strategy |
-| `calculateComplexity` | `subagent-telemetry/hooks/task_analyzed.ts` | Score enhancement |
+| `calculateComplexity` | `subagent-observability/hooks/task_analyzed.ts` | Score enhancement |
 | `saveCheckpoint` | `exec-monitor/services/checkpoint_manager.ts` | Persistence |
 | `restoreCheckpoint` | `exec-monitor/hooks/checkpoint_restore.ts` | Recovery |
 
@@ -186,7 +184,7 @@ export default definePluginEntry({
 |--------------|----------------|---------------|
 | `beforeDelegation` | `BEFORE_DELEGATION` | `plugins/exec-monitor/hooks/before_delegation.ts` |
 | `afterExecution` | `AFTER_EXECUTION` | `plugins/exec-monitor/hooks/after_execution.ts` |
-| `analyzeTask` | `TASK_ANALYZED` | `plugins/subagent-telemetry/hooks/task_analyzed.ts` |
+| `analyzeTask` | `TASK_ANALYZED` | `plugins/subagent-observability/hooks/task_analyzed.ts` |
 | `decomposeTask` | `DECOMPOSITION_REQUESTED` | `plugins/taskr/hooks/decomposition_requested.ts` |
 | `makeRoutingDecision` | `ROUTE_DECISION` | `plugins/exec-monitor/hooks/route_decision.ts` |
 | `validateQuality` | `QUALITY_GATE` | `plugins/exec-monitor/hooks/quality_gate.ts` |
@@ -313,7 +311,7 @@ interface BeforeDelegationResult {
         "strict": true
       }
     },
-    "subagent-telemetry": {
+    "subagent-observability": {
       "enabled": true,
       "rateLimit": {
         "maxEventsPerSecond": 100
@@ -373,7 +371,7 @@ openclaw agent run worker --task "Copy file a.txt to b.txt"
 
 ```bash
 # 1. Enable plugins one by one
-openclaw plugins enable subagent-telemetry
+openclaw plugins enable subagent-observability
 openclaw plugins enable taskr
 openclaw plugins enable exec-monitor
 
@@ -451,8 +449,7 @@ If Phase 4+ doesn't work for your use case:
 **Step 1: Disable all Phase 4+ plugins**
 
 ```bash
-openclaw plugins disable subagent-telemetry
-openclaw plugins disable subagent-trace
+openclaw plugins disable subagent-observability
 openclaw plugins disable taskr
 openclaw plugins disable exec-monitor
 
@@ -488,8 +485,7 @@ Remove plugin-specific config from `openclaw.json`:
 {
   "plugins": {
     // REMOVE these entries
-    "subagent-telemetry": { ... },
-    "subagent-trace": { ... },
+    "subagent-observability": { ... },
     "taskr": { ... },
     "exec-monitor": { ... }
   }
@@ -697,8 +693,7 @@ export default definePluginEntry({
 | Component | Min Version | Notes |
 |-----------|------------|-------|
 | **subagent-coordinator Skill** | 4.0.0 | Core skill |
-| **subagent-telemetry** | 1.0.0 | Optional plugin |
-| **subagent-trace** | 1.0.0 | Optional plugin |
+| **subagent-observability** | 1.0.0 | Optional plugin |
 | **Taskr** | 1.0.0 | Optional plugin |
 | **exec-monitor** | 4.0.0 | Quality gates plugin |
 

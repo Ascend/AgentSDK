@@ -7,7 +7,7 @@
 
 ## 1. System Overview
 
-The Subagent Coordinator is an event-driven task decomposition and delegation system built on a **Skill + 4 Plugins** architecture.
+The Subagent Coordinator is an event-driven task decomposition and delegation system built on a **Skill + 3 Plugins** architecture.
 
 ### 1.1 Component Diagram
 
@@ -42,23 +42,26 @@ The Subagent Coordinator is an event-driven task decomposition and delegation sy
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                           PLUGIN LAYER                                      │
 │                                                                              │
-│  ┌────────────────────┐  ┌────────────────────┐  ┌────────────────────┐  │
-│  │  subagent-telemetry │  │   subagent-trace   │  │       Taskr         │  │
-│  │                     │  │                    │  │                     │  │
-│  │  • Metrics capture  │  │  • Trace recording │  │  • Task persistence│  │
-│  │  • Token tracking   │  │  • Cost analysis   │  │  • Decomposition   │  │
-│  │  • Rate limiting    │  │  • Trend analysis  │  │  • Task graph      │  │
-│  │  • Sanitisation     │  │  • Dashboard       │  │  • Sync            │  │
-│  └────────────────────┘  └────────────────────┘  └────────────────────┘  │
-│                                                                              │
-│  ┌────────────────────┐                                                     │
-│  │    exec-monitor    │                                                     │
-│  │                     │                                                     │
-│  │  • Quality gates   │                                                     │
-│  │  • Checkpoints     │                                                     │
-│  │  • Retry strategies │                                                    │
-│  │  • Complexity score │                                                    │
-│  └────────────────────┘                                                     │
+│  ┌────────────────────┐  ┌────────────────────┐  │
+│  │    observability   │  │       taskr         │  │
+│  │                     │  │                    │  │
+│  │  • Metrics capture  │  │  • Task persistence│  │
+│  │  • Token tracking   │  │  • Decomposition   │  │
+│  │  • Rate limiting    │  │  • Task graph      │  │
+│  │  • Sanitisation     │  │  • Sync            │  │
+│  │  • Trace recording  │  │                     │  │
+│  │  • Cost analysis    │  │                     │  │
+│  │  • Trend analysis   │  │                     │  │
+│  └────────────────────┘  └────────────────────┘  │
+│                                                   │
+│  ┌────────────────────┐                          │
+│  │    exec-monitor    │                          │
+│  │                     │                          │
+│  │  • Quality gates   │                          │
+│  │  • Checkpoints     │                          │
+│  │  • Retry strategies │                         │
+│  │  • Complexity score │                         │
+│  └────────────────────┘                          │
 │                                                                              │
 └─────────────────────────────────────────────────────────────────────────────┘
 
@@ -69,9 +72,8 @@ The Subagent Coordinator is an event-driven task decomposition and delegation sy
 | Component | Type | Responsibility |
 |-----------|------|---------------|
 | **subagent-coordinator** | Skill | Core orchestration: task analysis, complexity scoring, routing decisions, delegation |
-| **subagent-telemetry** | Plugin | Metrics collection, token usage tracking, rate limiting, data sanitisation |
-| **subagent-trace** | Plugin | Execution trace recording, cost breakdown, trend analysis, real-time dashboard |
-| **Taskr** | Plugin | Hierarchical task planning, persistence, cross-session continuity, task notes |
+| **observability** | Plugin | Metrics collection, token usage tracking, rate limiting, data sanitisation, execution trace recording, cost breakdown, trend analysis |
+| **taskr** | Plugin | Hierarchical task planning, persistence, cross-session continuity, task notes |
 | **exec-monitor** | Plugin | Quality gates, checkpoint management, retry strategies, task decomposition |
 
 ---
@@ -92,7 +94,7 @@ Task Received
 └────────┬────────┘                               │
          │                                       ▼
          │                        ┌─────────────────────────┐
-         │                        │  subagent-telemetry    │
+         │                        │  observability │
          │                        │  (enhances complexity   │
          │                        │   score with ML model)  │
          │                        └─────────────────────────┘
@@ -103,7 +105,7 @@ Task Received
 └────────────┬────────────┘                           │
              │                                        ▼
              │                        ┌─────────────────────────┐
-             │                        │       Taskr             │
+             │                        │       taskr             │
              │                        │  (provides strategic     │
              │                        │   decomposition plan)   │
              │                        └─────────────────────────┘
@@ -133,7 +135,7 @@ Task Received
 └─────────┬───────────┘                               │
           │                                            ▼
           │                        ┌─────────────────────────┐
-          │                        │  subagent-telemetry    │
+          │                        │  observability │
           │                        │  (records delegation    │
           │                        │   metrics)              │
           │                        └─────────────────────────┘
@@ -148,18 +150,19 @@ Task Received
 │   AFTER_EXECUTION   │  ───┬────────────────────────────┐
 └─────────────────────┘      │                            │
                             ▼                            ▼
-          ┌─────────────────────────┐    ┌─────────────────────────┐
-          │  subagent-telemetry     │    │   subagent-trace        │
-          │  (records performance   │    │  (records execution     │
-          │   metrics)             │    │   trace)                 │
-          └─────────────────────────┘    └─────────────────────────┘
-                                              │
-                                              ▼
-                         ┌─────────────────────────┐
-                         │   exec-monitor         │
-                         │  (checkpoint save if   │
-                         │   long-running task)   │
-                         └─────────────────────────┘
+          ┌─────────────────────────┐
+          │  observability │
+          │  (records performance   │
+          │   metrics & execution   │
+          │   trace)                │
+          └─────────────────────────┘
+                        │
+                        ▼
+          ┌─────────────────────────┐
+          │   exec-monitor         │
+          │  (checkpoint save if   │
+          │   long-running task)   │
+          └─────────────────────────┘
 
 ```
 
@@ -247,16 +250,16 @@ interface AfterExecutionEvent {
 
 ## 3. Plugin Responsibilities Matrix
 
-| Event | subagent-telemetry | subagent-trace | Taskr | exec-monitor |
-|-------|-------------------|----------------|-------|--------------|
-| `task_analyzed` | Enhance complexity score | Record analysis trace | — | — |
-| `decomposition_requested` | — | — | Provide decomposition strategy | — |
-| `route_decision` | Log routing metrics | — | — | Suggest runtime |
-| `quality_gate` | — | — | — | **Primary handler** |
-| `before_delegation` | Record delegation metrics | Record delegation trace | — | — |
-| `after_execution` | Record performance metrics | Record execution trace | — | Manage checkpoints |
-| `checkpoint_save` | — | — | Persist task state | Save checkpoint |
-| `checkpoint_restore` | — | — | Restore task state | Restore checkpoint |
+| Event | observability | taskr | exec-monitor |
+|-------|------------------------|-------|--------------|
+| `task_analyzed` | Enhance complexity score, record analysis trace | — | — |
+| `decomposition_requested` | — | Provide decomposition strategy | — |
+| `route_decision` | Log routing metrics | — | Suggest runtime |
+| `quality_gate` | — | — | **Primary handler** |
+| `before_delegation` | Record delegation metrics & trace | — | — |
+| `after_execution` | Record performance metrics & execution trace | — | Manage checkpoints |
+| `checkpoint_save` | — | Persist task state | Save checkpoint |
+| `checkpoint_restore` | — | Restore task state | Restore checkpoint |
 
 ---
 
@@ -378,8 +381,7 @@ Plugin Available?
 ```typescript
 async function detectPlugins() {
   return {
-    hasTelemetry: await checkPluginAvailable("subagent-telemetry"),
-    hasTrace: await checkPluginAvailable("subagent-trace"),
+    hasObservability: await checkPluginAvailable("subagent-observability"),
     hasTaskr: await checkPluginAvailable("openclaw-taskr"),
     hasExecMonitor: await checkPluginAvailable("subagent-exec-monitor"),
   };
@@ -395,10 +397,9 @@ async function detectPlugins() {
 
 | State Type | Scope | Persistence | Managed By |
 |------------|-------|-------------|------------|
-| **Task State** | Per-task | Optional | Taskr or in-memory |
+| **Task State** | Per-task | Optional | taskr or in-memory |
 | **Checkpoint Data** | Per-session | Optional | exec-monitor or memory |
-| **Metrics Data** | Global | Optional | subagent-telemetry |
-| **Trace Data** | Per-task | Optional | subagent-trace |
+| **Metrics & Trace Data** | Global + Per-task | Optional | observability |
 
 ### 6.2 State Flow
 
@@ -408,22 +409,22 @@ Main Agent Session
       │
       ▼
 ┌─────────────────┐
-│  Task Created   │  ──▶ Task State (Taskr or memory)
+│  Task Created   │  ──▶ Task State (taskr or memory)
 └────────┬────────┘
          │
          ▼
 ┌─────────────────┐
-│  Decomposition  │  ──▶ Task Graph (Taskr)
+│  Decomposition  │  ──▶ Task Graph (taskr)
 └────────┬────────┘
          │
          ▼
 ┌─────────────────┐
-│  Delegation     │  ──▶ Delegation Metrics (telemetry)
+│  Delegation     │  ──▶ Delegation Metrics (observability)
 └────────┬────────┘
          │
          ▼
 ┌─────────────────┐
-│  Execution      │  ──▶ Execution Trace (trace)
+│  Execution      │  ──▶ Execution Trace (observability)
 └────────┬────────┘
          │
          ▼
@@ -611,12 +612,7 @@ subagent-coordinator/
     │   │   └── services/
     │   └── README.md
     │
-    ├── subagent-telemetry/      # Metrics collection
-    │   ├── plugin.json
-    │   ├── src/
-    │   └── README.md
-    │
-    ├── subagent-trace/          # Trace visualization
+    ├── observability/  # Observability (metrics, tracing, cost tracking, rate limiting, data sanitisation)
     │   ├── plugin.json
     │   ├── src/
     │   └── README.md
@@ -642,16 +638,14 @@ Main Agent
     │        │
     │        ├──▶ Events (events.ts)
     │        │
-    │        ├──▶ Plugin: subagent-telemetry (optional)
+    │        ├──▶ Plugin: observability (optional)
     │        │        └──▶ Metrics Collector Service
     │        │        └──▶ Rate Limiter Service
     │        │        └──▶ Sanitiser Service
-    │        │
-    │        ├──▶ Plugin: subagent-trace (optional)
     │        │        └──▶ Trace Recorder Service
     │        │        └──▶ Cost Tracker Service
     │        │
-    │        ├──▶ Plugin: Taskr (optional)
+    │        ├──▶ Plugin: taskr (optional)
     │        │        └──▶ Task Store Service
     │        │        └──▶ Task Graph Service
     │        │

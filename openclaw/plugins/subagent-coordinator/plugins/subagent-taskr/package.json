@@ -5,7 +5,7 @@
   "description": "Hierarchical task planning, persistent state management, and cross-agent continuity",
   "openclaw": {
     "extensions": [
-      "./dist/src/index.js"
+      "./index.js"
     ]
   },
   "scripts": {

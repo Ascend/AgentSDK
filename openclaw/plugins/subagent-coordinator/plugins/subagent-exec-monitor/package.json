@@ -5,7 +5,7 @@
   "description": "Quality gates, checkpoints, retry strategies, and task analysis for subagent-coordinator",
   "openclaw": {
     "extensions": [
-      "./dist/src/index.js"
+      "./index.js"
     ]
   },
   "scripts": {
