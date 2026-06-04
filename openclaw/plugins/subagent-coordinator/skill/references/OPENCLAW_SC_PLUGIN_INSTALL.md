@@ -9,6 +9,7 @@
 - 创建 worker 子代理
 - 配置 main → worker 子代理权限
 - 安装插件（符号链接或复制）
+- 将 Skill 同步到工作区目录和 OpenClaw 可发现目录
 - 配置插件加载路径
 - 配置 exec allowlist
 
@@ -29,6 +30,7 @@
 
 - `openclaw` 命令可用（宿主机模式）或容器内 `openclaw` 命令可用（容器模式）
 - `~/.openclaw` 或指定目录存在
+- 如需使用 `--build`，构建环境需要能解析 OpenClaw `plugin-sdk`。完整 OpenClaw 源码树中通常是 `packages/plugin-sdk`，容器镜像中可能是 `/app/packages/plugin-sdk`，宿主机全局安装通常使用 OpenClaw npm 包中的 `dist/plugin-sdk`。脚本会自动尝试发现，无法发现时可设置 `PLUGIN_SDK_SRC=/path/to/plugin-sdk`。
 
 ### 基本用法
 
@@ -45,7 +47,12 @@
 # 指定 OpenClaw 主目录
 ./install-sc-local.sh --openclaw-home /custom/path/.openclaw
 
+# 宿主机无法自动发现 plugin-sdk 时显式指定
+PLUGIN_SDK_SRC=/path/to/openclaw/dist/plugin-sdk ./install-sc-local.sh --build
+
 ```
+
+如果 `pnpm install` 提示 lockfile 与 `package.json` 不一致，应先更新 `pnpm-lock.yaml`，确保依赖声明和锁文件同步后再安装。
 
 ---
 
@@ -132,15 +139,36 @@ openclaw agent --agent worker --message 'Hello'
 
 ### 4. 检查插件加载
 
-重启后观察日志，确认以下插件已加载：
+重启后检查插件列表，确认以下三个插件 ID 都出现：
 
 ```bash
+openclaw plugins list | grep subagent
+```
 
+```text
 @subagent-coordinator/exec-monitor
 @subagent-coordinator/taskr
 @subagent-coordinator/observability
-
 ```
+
+> **宿主机上裸跑 `openclaw` 命令前注意设置 `OPENCLAW_HOME`**。OpenClaw CLI 在宿主机上有两个 `openclaw.json`：
+>
+> - `~/.openclaw/openclaw.json`：宿主机 Gateway 和**默认** CLI 读取的 OUTER 配置。
+> - `~/.openclaw/.openclaw/openclaw.json`：`openclaw plugins install --link` 写入的 INNER 配置。
+>
+> `openclaw plugins install --link` 只会更新 INNER 配置；OUTER 配置的 `plugins.entries` 缺条目时，加载器会**静默丢弃**部分插件。
+>
+> `install-sc-local.sh` 已在配置阶段把三个插件的 entries 同步写入 OUTER 配置，因此默认 CLI 也能看到完整三个插件 ID。
+>
+> 如果宿主机是 OpenClaw systemd service（`HOME=/home/chad`，未设置 `OPENCLAW_HOME`），Gateway 也会用 OUTER 配置加载插件。重跑一次 `./install-sc-local.sh --build` 可修复历史脏状态。
+
+### 5. 检查 Skill 可发现性
+
+```bash
+openclaw skills info subagent-coordinator
+```
+
+该命令应能显示 `subagent-coordinator` 的 Skill 信息。脚本会把 Skill 同步到 `~/.openclaw/workspace/skills/subagent-coordinator/` 和 `~/.openclaw/skills/subagent-coordinator/`；如果只复制到工作区目录而 CLI 仍提示 `Skill not found`，请确认可发现目录中也存在 `SKILL.md`。
 
 ---
 
@@ -157,6 +185,9 @@ openclaw agent --agent worker --message 'Hello'
 │   └── subagent-observability/   # → 符号链接或复制
 └── skills/
     └── subagent-coordinator/    # → 符号链接或复制
+
+~/.openclaw/skills/
+└── subagent-coordinator/        # OpenClaw CLI 可发现的 Skill 副本
 
 ```
 

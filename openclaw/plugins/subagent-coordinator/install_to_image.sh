@@ -64,7 +64,6 @@ if [[ ! -d "$PLUGIN_SDK_DIR" ]]; then
             echo "[install_to_image] 可设置 PLUGIN_SDK_SRC 环境变量指定本地 plugin-sdk 路径"
             exit 1
         fi
-        return
     fi
 fi
 
@@ -153,6 +152,28 @@ for plugin in plugins/*/; do
   "types": "./index.d.ts"
 }
 PKGJSON
+        fi
+
+        # 复制 @sinclair/typebox 运行时依赖到插件的 node_modules。
+        # pnpm 的 .pnpm/ 内容存储对镜像分发不可用，镜像后续执行
+        # `openclaw plugins install --link` 会被安全扫描判定为
+        # "node_modules symlink target outside install root"。直接把 typebox
+        # 真实复制到 dist/plugins/<name>/node_modules/@sinclair/typebox
+        # 以通过扫描并避免运行时缺失。
+        local typebox_source=""
+        typebox_source=$(compgen -G "node_modules/.pnpm/@sinclair+typebox@*/node_modules/@sinclair/typebox" | head -n 1 || true)
+        if [[ -n "$typebox_source" && -d "$typebox_source" ]]; then
+            mkdir -p "${DIST_DIR}/plugins/${plugin_name}/node_modules/@sinclair"
+            cp -RL "$typebox_source" "${DIST_DIR}/plugins/${plugin_name}/node_modules/@sinclair/typebox"
+        else
+            echo "[install_to_image]   警告: 未找到 @sinclair/typebox 源（node_modules/.pnpm/@sinclair+typebox@*/node_modules/@sinclair/typebox），镜像安装时可能需要补充"
+        fi
+
+        # 防御性清理：移除 dist 输出中残留的 pnpm 符号链接（如有）。
+        # install_to_image.sh 本身不复制源码 node_modules，正常情况下无符号链接；
+        # 此步骤应对未来如改动拷贝范围时误带入 pnpm 链接的情形。
+        if [[ -d "${DIST_DIR}/plugins/${plugin_name}/node_modules" ]]; then
+            find "${DIST_DIR}/plugins/${plugin_name}/node_modules" -maxdepth 3 -type l -lname '*/.pnpm/*' -exec rm -f {} \; 2>/dev/null || true
         fi
     fi
 done

@@ -25,6 +25,7 @@ Skill 是使用入口；插件是增强层。即使插件没有全部加载，Sk
 - OpenClaw 命令可用，即可以执行 `openclaw`。
 - 如需从源码构建，需安装 Node.js、pnpm 和 TypeScript 相关依赖。
 - OpenClaw 中需要有可被主代理调用的 worker subagent。
+- 如需执行 `--build`，构建过程需要能解析 OpenClaw `plugin-sdk`。在完整 OpenClaw 源码树中它通常位于 `packages/plugin-sdk`；在容器镜像中可能位于 `/app/packages/plugin-sdk`；宿主机全局安装的 OpenClaw 通常只提供编译后 SDK，例如 `$(dirname $(dirname $(readlink -f $(command -v openclaw))))/lib/node_modules/openclaw/dist/plugin-sdk`。安装脚本会自动尝试这些路径；如果无法发现，可通过 `PLUGIN_SDK_SRC=/path/to/plugin-sdk` 显式指定。
 
 ## 快速安装
 
@@ -40,7 +41,7 @@ Skill 是使用入口；插件是增强层。即使插件没有全部加载，Sk
 2. 执行 `pnpm install` 和 `pnpm build`（因指定了 `--build`）。
 3. 为每个插件生成/修正根 `index.js` 入口，使其指向编译后的 `dist/` 路径。
 4. 将 `plugins/` 下的插件安装到 `~/.openclaw/workspace/plugins/`。
-5. 将 `skill/` 安装到 `~/.openclaw/workspace/skills/subagent-coordinator/`。
+5. 将 `skill/` 安装到 `~/.openclaw/skills/subagent-coordinator/`，确保 `openclaw skills info` 可发现。
 6. 调用 `openclaw plugins install --link` 把插件注册到 OpenClaw。
 7. 若 OpenClaw 服务已部署，尝试创建 `worker` 子代理。
 8. 在 `~/.openclaw/openclaw.json` 中配置 `main -> worker` 的调用权限。
@@ -48,6 +49,8 @@ Skill 是使用入口；插件是增强层。即使插件没有全部加载，Sk
 10. 重新启动 Gateway。
 
 默认安装方式是**复制文件**到 `~/.openclaw/workspace/plugins/`，修改源码后需重新执行脚本。
+
+> **注意**：如果目标文件系统不支持 POSIX `chmod`（例如 WSL2 以 9p/drvfs 挂载 Windows 目录的环境），安装脚本会在开始时自动探测并切换为符号链接模式，以避免被 OpenClaw 安全扫描以 `world-writable path` 拦截。脚本会输出一行 WARN 提示该自动切换。详见下文"容器环境的注意事项"。
 
 如果希望在开发调试时使用符号链接（修改源码后无需重新安装即可生效），执行：
 
@@ -66,6 +69,14 @@ Skill 是使用入口；插件是增强层。即使插件没有全部加载，Sk
 ```bash
 OPENCLAW_HOME=/path/to/.openclaw ./install-sc-local.sh --build
 ```
+
+如果宿主机不是完整 OpenClaw 源码树，且脚本无法自动找到 `plugin-sdk`，可显式指定全局 OpenClaw 安装中的 SDK：
+
+```bash
+PLUGIN_SDK_SRC=/path/to/openclaw/dist/plugin-sdk ./install-sc-local.sh --build
+```
+
+如果 `pnpm install` 提示 lockfile 与 `package.json` 不一致，应先更新并提交 `pnpm-lock.yaml`，确保依赖声明和锁文件同步；不要在构建产物缺失时继续安装。
 
 ### 安装选项
 
@@ -112,9 +123,23 @@ PLUGIN_SDK_SRC=/path/to/openclaw/packages/plugin-sdk \
   ./install-sc-local.sh --build
 ```
 
-3.**插件目录权限**：容器中挂载的目录可能被设置为 `777`（world-writable）且由非 root 用户拥有，OpenClaw 会拒绝加载并提示 `blocked plugin candidate: world-writable path` 或 `suspicious ownership`。安装脚本会自动修复权限（`chmod 755`、`chown root:root`），但仅在以 root 运行时生效。
+3.**插件目录权限**：容器中挂载的目录可能被设置为 `777`（world-writable）且由非 root 用户拥有，OpenClaw 会拒绝加载并提示 `blocked plugin candidate: world-writable path` 或 `suspicious ownership`。
 
-4.**node_modules 符号链接**：`pnpm` 在 `node_modules/` 中创建的符号链接会指向 `.pnpm/` 内容存储目录，被 OpenClaw 安全扫描判定为"install root 之外的依赖"。安装脚本会在调用 `openclaw plugins install` 前自动移除 `node_modules/`，避免安全扫描失败。
+   - **常规文件系统（ext4、tmpfs 等）**：安装脚本会自动修复权限（`chmod 755`、`chown root:root`），但仅在以 root 运行时 `chown` 生效。
+
+   - **WSL2 以 9p/drvfs 挂载 Windows 目录**：此环境下 `chmod` 会被文件系统静默忽略（退出码 0 但 mode 不变），权限修复无效；此时 OpenClaw 会以 `world-writable path` 拦截所有复制出来的插件目录。
+
+     安装脚本在 `check_environment` 之后会执行一次 chmod 探针：在 `$OPENCLAW_HOME` 下建临时目录并 `chmod 755`，若读到的 mode 末位仍为 7，则判定当前文件系统忽略 chmod，自动把 `USE_SYMLINK` 置为 `true`，让插件以符号链接方式部署到 `~/.openclaw/workspace/plugins/`，从根上避开 world-writable 拦截。脚本会输出一行 WARN 提示该自动切换，例如：
+
+     ```text
+     [WARN] 检测到目标文件系统不支持 POSIX chmod (probe mode=777，可能为 WSL2 9p/drvfs)，自动切换为 --symlink 模式以避开 'world-writable path' 拦截
+     ```
+
+     符号链接在 OpenClaw 中只会产生 `untracked local code` 警告（不是 block），可通过 `openclaw.json` 中的 `plugins.allow` 或 `openclaw plugins install --link` 注册记录来固定信任（参见"重要：宿主机上必须设置 `OPENCLAW_HOME`"一节）。
+
+     如果手动运行的宿主机既不是 9p 又没有合适的修复手段，可显式加 `--symlink` 走符号链接路径绕开此问题。
+
+4.**node_modules 符号链接**：`pnpm` 在 `node_modules/` 中创建的符号链接会指向 `.pnpm/` 内容存储目录，被 OpenClaw 安全扫描判定为"install root 之外的依赖"。安装脚本会在调用 `openclaw plugins install --link` 前移除插件目录中的 pnpm 符号链接，并复制插件运行时依赖（`@sinclair/typebox`、`@subagent-coordinator/types` 与 `openclaw` 包），避免安全扫描失败和运行时依赖缺失。在 `--symlink` 模式下，这些清理会通过符号链接作用于源码目录的 `node_modules/`（`openclaw plugins install --link` 才能在 link 模式下通过安全扫描）。
 
 5.**Gateway 重启**：容器中通常没有 systemd，`openclaw gateway restart` 会失败。安装脚本会自动降级为 `pkill` + `nohup openclaw gateway` 后台启动的方式。如果手动重启，使用：
 
@@ -155,7 +180,7 @@ openclaw/plugins/subagent-coordinator/dist/
 openclaw plugins list | grep subagent
 ```
 
-应能看到以下三个插件：
+应能看到以下三个插件，且三项都必须出现才表示插件安装通过：
 
 ```text
 @subagent-coordinator/taskr
@@ -168,6 +193,21 @@ openclaw plugins list | grep subagent
 ```bash
 openclaw skills info subagent-coordinator
 ```
+
+### 关于 OpenClaw 状态目录
+
+OpenClaw 的 canonical config 位于 `$OPENCLAW_STATE_DIR/openclaw.json`（默认 `~/.openclaw/openclaw.json`）。宿主机 Gateway、`openclaw` CLI 和 `openclaw plugins install --link` 都读写这一份文件。`install-sc-local.sh` 内部以 `OPENCLAW_STATE_DIR` 指向安装位置（由 `--openclaw-home` 控制，默认 `~/.openclaw`），因此安装产物与 Gateway 配置始终一致，不会出现 entries 缺失或静默丢弃插件的情况。
+
+`openclaw.json` 中与本插件相关的字段由以下来源维护：
+
+| 字段 | 维护方式 |
+|------|----------|
+| `plugins.entries.<id>` | 由 `openclaw plugins install --link` 写入（CLI 行为） |
+| `plugins.installs.<id>` | 由 `openclaw plugins install --link` 写入（CLI 行为），含 `sourcePath`/`installPath`/`version`/`installedAt` |
+| `plugins.load.paths` | 由 `openclaw plugins install --link` 写入（CLI 行为）。`install-sc-local.sh` 不再单独维护此字段，以避免与 CLI 写入路径产生冲突 |
+| `agents.list[main].subagents.allowAgents` | 由 `install-sc-local.sh` 的 `add_main_worker_permission` 维护，确保 `main` 可调用 `worker` |
+
+如需将整套 OpenClaw 状态目录迁到其他位置，设置 `OPENCLAW_STATE_DIR=/custom/path` 后重跑安装脚本即可。
 
 ## 在 OpenClaw 中如何使用
 
@@ -324,14 +364,16 @@ rm -rf ~/.openclaw/workspace/plugins/subagent-exec-monitor
 rm -rf ~/.openclaw/workspace/plugins/subagent-observability
 
 # 删除 Skill
-rm -rf ~/.openclaw/workspace/skills/subagent-coordinator
+rm -rf ~/.openclaw/skills/subagent-coordinator
 ```
 
 如果安装时使用了 `--symlink`，删除的只是符号链接，不会影响源码目录。
 
 ### 3. 清理 OpenClaw 配置
 
-编辑 `~/.openclaw/openclaw.json`，执行以下清理：
+`install-sc-local.sh` 内部以 `OPENCLAW_STATE_DIR` 指向 `~/.openclaw`，因此 `openclaw plugins install --link` 与宿主机 Gateway 始终读写同一个 `~/.openclaw/openclaw.json`。
+
+编辑 `~/.openclaw/openclaw.json`（若 `--openclaw-home` 指定了其他位置则为对应路径），执行以下清理：
 
 - 从 `plugins.load.paths` 中移除已删除的插件路径。
 - 如果不再需要 worker 子代理，从 `main` agent 的 `subagents.allowAgents` 中移除 `"worker"`。
