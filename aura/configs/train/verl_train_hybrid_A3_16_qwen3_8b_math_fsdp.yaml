@@ -46,7 +46,7 @@ verl_conf:
     init_num_group_batches: 1 # 从DataLoader首次加载数据批次数量 TODO: 与train_server.py中DEFAULT_BATCH_SIZE参数功能一致，需要清理其中一个
     max_queue_size: 256
     weight_save_dir: ${hydra:runtime.cwd}/weights/
-    consumed_train_samples: 0 # 已处理的样本数量 断点续传？
+    consumed_train_samples: 0 # 已处理的样本数量
     traj_output_path: ${train_instances.0.executor_kwargs.rollout_config.traj_output_path}
     agent_service: ${agent_instances.0.name}  # 依赖的 AGENT 服务名称（默认为 `agent_instances` 的第一个）
     infer_service: ${infer_instances.0.name}  # 依赖的 INFER 服务名称（默认为 `infer_instances` 的第一个）
@@ -130,7 +130,7 @@ verl_conf:
   trainer:
     val_before_train: False
     device: npu
-    critic_warmup: 0 # 奖励预热？
+    critic_warmup: 0
     project_name: 'qwen3_8b_math_code_hybrid'
     experiment_name: 'qwen3_8b_math_code_hybrid'
     n_gpus_per_node: 16
@@ -170,7 +170,7 @@ train_instances:
         train_backend: ${train_instances.0.executor_kwargs.train_engine}
         trajectory_timeout: 7200
         n_samples_per_prompt: ${verl_conf.rollout.n}
-        actor_rollout_dispatch_size: 256  # Rollout一次处理的数量 = gbs * n ?  最大是总样本数16*8/推理实例数2 且是n_samples_per_prompt的倍数
+        actor_rollout_dispatch_size: 256  # 控制 Rollout 阶段每次从数据管理器中取数据的批量大小
         validate_n_samples: ${verl_conf.extras.validate_num_samples}
         traj_output_path: ${hydra:runtime.cwd}/outputs/
         tokenizer_name_or_path: ${verl_conf.actor_rollout_ref.model.path}

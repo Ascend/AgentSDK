@@ -121,7 +121,7 @@ verl_conf:
   trainer:
     val_before_train: False
     device: npu
-    critic_warmup: 0 # 奖励预热？
+    critic_warmup: 0
     project_name: 'qwen3_8b_math_code_one_step'
     experiment_name: 'qwen3_8b_math_code_one_step'
     n_gpus_per_node: 16
@@ -161,7 +161,7 @@ train_instances:
         train_backend: ${train_instances.0.executor_kwargs.train_engine}
         trajectory_timeout: 7200
         n_samples_per_prompt: ${verl_conf.rollout.n}
-        actor_rollout_dispatch_size: 256  # Rollout一次处理的数量 = gbs * n ?  最大是总样本数16*8/推理实例数2 且是n_samples_per_prompt的倍数
+        actor_rollout_dispatch_size: 256  # 控制 Rollout 阶段每次从数据管理器中取数据的批量大小
         validate_n_samples: ${verl_conf.extras.validate_num_samples}
         traj_output_path: ${hydra:runtime.cwd}/outputs/
         tokenizer_name_or_path: ${verl_conf.actor_rollout_ref.model.path}
