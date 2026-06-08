@@ -1,88 +1,91 @@
-# subagent-coordinator-exec-monitor
+# @subagent-coordinator/exec-monitor — 执行质量与恢复
 
-Quality gates, checkpoints, retry strategies, and task analysis plugin for subagent-coordinator.
+为 **Subagent Coordinator** 提供质量门禁、检查点保存/恢复和重试策略。
 
-## Features
+## 概述
 
-### Hooks
+**执行监控（Execution Monitor）** 通过执行前后质量门禁检查、管理检查点以实现容错恢复，以及基于错误分类提供重试策略，来保障子代理（subagent）任务的执行质量。它与 Taskr（任务分解）和 Observability（指标/链路追踪）协同工作，形成完整的执行生命周期。
 
-- **before_delegation**: Pre-delegation quality checks and routing suggestions
-- **after_execution**: Execution result recording and checkpoint management
-- **task_analyzed**: Complexity score enhancement
+完整架构设计参见 [RFC: Agent调度插件支持大小模型调度](../../../../../openclaw/docs/rfc/26.1.0/Agent调度插件支持大小模型调度.md)。
 
-### Services
+## 功能特性
 
-- **checkpoint_manager**: Save and restore execution checkpoints
+### 工具（MCP）
 
-### Tools
+| 工具 | 描述 |
+|------|------|
+| `quality_gate_check` | 执行前验证（描述非空、步骤/文件数量在范围内）和执行后结果检查 |
+| `retry_strategy_selector` | 基于错误类型（超时、限流、认证、临时、未知）和执行历史选择最优重试策略 |
+| `save_checkpoint` | 持久化当前子任务执行状态（已完成、待处理、结果）以便后续恢复 |
+| `restore_checkpoint` | 恢复保存的检查点，从最后一个已知状态继续执行 |
 
-- **quality_gate_check**: Execute quality gate checks before/after task execution
-- **retry_strategy_selector**: Select optimal retry strategy based on error type
-- **task_complexity_scorer**: Score task complexity based on multiple factors
-- **operator_classifier**: Classify operator level (L1-L5) from complexity score
-- **decomposition_planner**: Plan task decomposition strategy
+### 钩子（事件）
 
-## Installation
+| 钩子 | 触发时机 | 用途 |
+|------|---------|------|
+| `before_delegation` | 子代理委派前 | 执行委派前质量检查并提供路由建议 |
+| `after_execution` | 任务执行后 | 记录执行结果；触发检查点保存 |
+| `quality_gate` | 质量门禁检查时 | 执行前验证任务合理性，执行后验证结果正确性 |
 
-This plugin is part of the subagent-coordinator skill and is automatically loaded when the skill is active.
+### 服务
 
-## Events Consumed
+- **CheckpointManager** — 内存中的检查点存储，支持保存、恢复和列表操作；具备新鲜度验证和完整性检查功能
 
-| Event | Description |
-|-------|-------------|
-| `subagent-coordinator:before_delegation` | Pre-delegation quality check |
-| `subagent-coordinator:after_execution` | Post-execution recording |
-| `subagent-coordinator:task_analyzed` | Complexity score enhancement |
-
-## Events Produced
-
-This plugin consumes events from subagent-coordinator skill but does not emit additional events for other consumers.
-
-## Configuration
-
-No additional configuration required. Uses sensible defaults for all parameters.
-
-## Architecture
+## 架构
 
 ```text
-plugins/exec-monitor/
-├── plugin.json           # Plugin metadata
+plugins/subagent-exec-monitor/
+├── openclaw.plugin.json            # 插件元数据（@subagent-coordinator/exec-monitor）
 ├── src/
-│   ├── index.ts          # Plugin entry point
+│   ├── index.ts                    # 插件入口：注册 4 个工具 + 3 个钩子
 │   ├── hooks/
-│   │   ├── before_delegation.ts
 │   │   ├── after_execution.ts
+│   │   ├── before_delegation.ts
 │   │   └── quality_gate.ts
 │   ├── services/
 │   │   └── checkpoint_manager.ts
 │   └── tools/
-│       ├── retry_strategy.ts
-│       ├── task_complexity_scorer.ts
-│       ├── operator_classifier.ts
-│       └── decomposition_planner.ts
-└── README.md
+│       └── retry_strategy.ts
+├── package.json
+├── README.md
+└── tsconfig.json
 ```
 
-## Usage
+## 使用方式
 
-This plugin is automatically integrated with the subagent-coordinator skill. No manual intervention required.
-
-### Manual Tool Usage
+当 **subagent-coordinator** 技能激活时，本插件将自动加载。工具可通过标准 MCP 工具调用机制进行调用。
 
 ```javascript
-// Use quality gate check
-const result = await callTool("quality_gate_check", {
-  task: { id: "1", description: "..." },
+// 执行前质量门禁
+const preCheck = await callTool("quality_gate_check", {
+  task: { id: "1", description: "重构认证模块", steps: 12 },
   preExecution: true
 });
 
-// Use retry strategy selector
+// 任务执行中保存检查点
+const cp = await callTool("save_checkpoint", {
+  taskId: "task-1",
+  subtasks: [{ id: "a", description: "数据层" }],
+  completedSubtasks: [],
+  results: {}
+});
+
+// 超时后选择重试策略
 const strategy = await callTool("retry_strategy_selector", {
-  error: "timeout error",
-  history: []
+  error: "timeout",
+  history: [{ timestamp: Date.now(), error: "timeout", strategy: "linear_backoff" }]
+});
+
+// 恢复检查点以继续执行
+const resume = await callTool("restore_checkpoint", {
+  checkpointId: cp.checkpointId
 });
 ```
 
-## License
+## 事件
 
-MIT
+| 消费事件 | 产生事件 |
+|---------|---------|
+| `subagent-coordinator:before_delegation` | — |
+| `subagent-coordinator:after_execution` | — |
+| `subagent-coordinator:quality_gate` | — |
