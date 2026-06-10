@@ -3,7 +3,7 @@
 # 1. hydra.searchpath
 # 2. verl_conf.extras.data_loader.train_data_path
 # 3. verl_conf.actor_rollout_ref.model.path
-# 4. train_instances.rollout_config.llm_tokenizer_path
+# 4. train_instances.executor_kwargs.rollout_config.llm_tokenizer_path
 # =============================================================
 agentic_ai:
   mode: direct # 模式选择：serve | direct
@@ -30,7 +30,7 @@ direct_conf:
 hydra:
   searchpath:
     - file:///verl/verl/trainer/config
-    - file:///mnt/share/mind_test/aura/configs/train/verl_conf
+    - file:///path/to/AgentSDK/aura/configs/train/verl_conf
 
 defaults:
   - fully_async_ppo_trainer
@@ -43,13 +43,12 @@ verl_conf:
     delta: 2  # 清理 x 个版本前的旧权重
     update_weights_interval: 1  # 权重更新间隔
     validate_num_samples: 5 # 验证数据采样
-    init_num_group_batches: 1 # 从DataLoader首次加载数据批次数量 TODO: 与train_server.py中DEFAULT_BATCH_SIZE参数功能一致，需要清理其中一个
+    init_num_group_batches: 1 # 从 DataLoader 首次加载数据批次数量
     max_queue_size: 256
     weight_save_dir: ${hydra:runtime.cwd}/weights/
-    consumed_train_samples: 0 # 已处理的样本数量 断点续传？
+    consumed_train_samples: 0 # 已处理的样本数量
     data_loader:
-      #      train_data_path: /nas_lhf/yeyuming/verl_0.7.1_math/megatron_data/deepscaler_math_01/rl
-      train_data_path: /mnt/share/mindsdk_agent/data/origin_math_train_convert_v1/rl # 分离模式需要修改这个路径
+      train_data_path: /path/to/data/origin_math_train_convert_v1/rl  # 分离模式需要修改这个路径
       split: 100,0,0
       seq_length: 8192
       train_iters: ${verl_conf.total_train_steps}
@@ -62,18 +61,15 @@ verl_conf:
       is_pairwise_dataset: false
   total_train_steps: 200
   data:
-    gen_batch_size: 1 # Number of samples generated, currently only support 1, 当前应该不生效
+    gen_batch_size: 1  # Number of samples generated, currently only support 1, 当前不生效
     return_raw_chat: True
     train_batch_size: 16
-    max_prompt_length: 4096
-    max_response_length: 32768
-    filter_overlong_prompts: True
   actor_rollout_ref:
     model:
-      path: /mnt/share/mindsdk_agent/weights/qwen3-4b # 模型路径
+      path: /path/to/models/Qwen3-30B-A3B
       use_remove_padding: True
       enable_gradient_checkpointing: True
-      enable_activation_offload: False
+      enable_activation_offload: True
     hybrid_engine: False
     rollout:
       n: 8
@@ -81,11 +77,11 @@ verl_conf:
       mode: async
       calculate_log_probs: True
       log_prob_use_dynamic_bsz: False
-      #      log_prob_micro_batch_size: 1
       log_prob_micro_batch_size_per_gpu: 1
+      expert_parallel_size: 16
       tensor_model_parallel_size: 8
       data_parallel_size: 2
-      gpu_memory_utilization: 0.6
+      gpu_memory_utilization: 0.2
       free_cache_engine: true
     actor:
       ppo_micro_batch_size_per_gpu: 1
@@ -94,56 +90,46 @@ verl_conf:
       use_dynamic_bsz: False
       optim:
         lr: 1e-6
-        # lr_decay_steps: 100
       entropy_coeff: 0.0
       use_kl_loss: False
       calculate_entropy: False
       kl_loss_coef: 0.001
       kl_loss_type: low_var_kl
-      # clip_ratio_high: 0.28
-      # loss_agg_mode: seq-mean-token-sum
-      ulysses_sequence_parallel_size: 4
-      use_rollout_log_probs: False
+      clip_ratio_high: 0.28
+      loss_agg_mode: seq-mean-token-sum
+      ulysses_sequence_parallel_size: 8
       fsdp_config:
         strategy: fsdp2
-        param_offload: true #true #True
-        optimizer_offload: true #true #False
-    #        model_dtype: bfloat16
-    #        fsdp_size: -1
-    #        entropy_from_logits_with_chunking: true
-    #        entropy_checkpointing: true
-    #        ulysses_sequence_parallel_size: ${verl_conf.actor_rollout_ref.actor.ulysses_sequence_parallel_size}
-    #        reshard_after_forward: True
-      checkpoint:
-        # 在保存的 checkpoint 中包含什么
-        # 'hf_model' 可以将整个模型保存为 hf 格式
-        save_contents: ['model', 'optimizer', 'extra', 'hf_model']
+        param_offload: true
+        optimizer_offload: true
+        model_dtype: bfloat16
+        fsdp_size: -1
+        entropy_from_logits_with_chunking: true
+        entropy_checkpointing: true
+        ulysses_sequence_parallel_size: ${verl_conf.actor_rollout_ref.actor.ulysses_sequence_parallel_size}
+        reshard_after_forward: True
     ref:
-      #      log_prob_micro_batch_size: 4
       strategy: fsdp2
       log_prob_micro_batch_size_per_gpu: 1
       log_prob_max_token_len_per_gpu: 16384
       ulysses_sequence_parallel_size: ${verl_conf.actor_rollout_ref.actor.ulysses_sequence_parallel_size}
       fsdp_config:
-        #        model_dtype: bfloat16
-        param_offload: true #True
-        optimizer_offload: true #true #False
-  #        ulysses_sequence_parallel_size: ${verl_conf.actor_rollout_ref.actor.ulysses_sequence_parallel_size}
-  #  critic:
-  #    strategy: fsdp2
-  #    ulysses_sequence_parallel_size: ${verl_conf.actor_rollout_ref.actor.ulysses_sequence_parallel_size}
-  #    model:
-  #      ulysses_sequence_parallel_size: ${verl_conf.actor_rollout_ref.actor.ulysses_sequence_parallel_size}
-  #    fsdp_config:
-  ##      model_dtype: bfloat16
-  #      param_offload: true #true #False
-  #      optimizer_offload: true #true #False
+        model_dtype: bfloat16
+        param_offload: true
+        ulysses_sequence_parallel_size: ${verl_conf.actor_rollout_ref.actor.ulysses_sequence_parallel_size}
+  critic:
+    strategy: fsdp2
+    ulysses_sequence_parallel_size: ${verl_conf.actor_rollout_ref.actor.ulysses_sequence_parallel_size}
+    model:
+      ulysses_sequence_parallel_size: ${verl_conf.actor_rollout_ref.actor.ulysses_sequence_parallel_size}
+    fsdp_config:
+      model_dtype: bfloat16
   trainer:
     val_before_train: False
     device: npu
-    critic_warmup: 0 # 奖励预热？
-    project_name: 'qwen3_4b_math_code_one_step'
-    experiment_name: 'qwen3_4b_math_code_one_step'
+    critic_warmup: 0 # 奖励预热
+    project_name: 'qwen3_30b_a3b_math_code'
+    experiment_name: 'qwen3_30b_a3b_math_code'
     n_gpus_per_node: 16
     nnodes: 1
     save_freq: 100 # 保存ckpt的per iter
@@ -162,18 +148,18 @@ verl_conf:
     test_freq: 100
   async_training:
     use_rollout_log_probs: False
-    staleness_threshold: 0.5
+    staleness_threshold: 0.25
     trigger_parameter_sync_step: 1 # 多久 iter 同步一次权重
     partial_rollout: False
   algorithm:
     adv_estimator: grpo
 
 train_instances:
-  - name: RL-QWEN3-4B-WITH-MATH
+  - name: RL-QWEN3-32B-WITH-MATH
     executor_num: 1
     executor_kwargs:
       # 以下参数为 TrainExecutor 初始化参数
-      # hybrid(共卡) | one_step_off(分离) | dummy_train (训练只启动controller, 适配纯rollout验证)
+      # hybrid(共卡) | one_step_off(分离)
       work_mode: one_step_off
       train_engine: verl
       train_config: ${verl_conf}
@@ -181,7 +167,7 @@ train_instances:
         train_backend: ${train_instances.0.executor_kwargs.train_engine}
         trajectory_timeout: 7200
         n_samples_per_prompt: ${verl_conf.rollout.n}
-        actor_rollout_dispatch_size: 256  # Rollout一次处理的数量 = gbs * n ?  最大是总样本数16*8/推理实例数2 且是n_samples_per_prompt的倍数
+        actor_rollout_dispatch_size: 256  # Rollout一次处理的数量 = gbs * n，最大是总样本数16*8/推理实例数2 且是n_samples_per_prompt的倍数
         validate_n_samples: ${verl_conf.extras.validate_num_samples}
         traj_output_path: ${hydra:runtime.cwd}/outputs/
         tokenizer_name_or_path: ${verl_conf.actor_rollout_ref.model.path}
@@ -193,13 +179,12 @@ train_instances:
         train_tensor_parallel_size: ${verl_conf.actor_rollout_ref.rollout.tensor_model_parallel_size}
         infer_expert_parallel_size: ${infer_instances.0.executor_kwargs.engine_kwargs.data_parallel_size}
         enable_version_control: false
-        use_on_policy: true
+        use_on_policy: false
         train_iters: ${verl_conf.extras.data_loader.train_iters}
         data_optimized: false
         hybrid_batch_num: 1
         wait_available_weight_timeout: -1
-        # 该配置临时添加 目前数据不支持qwen35格式, 暂时用25格式解析
-        llm_tokenizer_path: /mnt/share/mindsdk_agent/weights/qwen3-4b # 修改为模型路径
+        llm_tokenizer_path: /path/to/models/Qwen3-30B-A3B
       agent_service: ${agent_instances.0.name}  # 依赖的 AGENT 服务名称（默认为 `agent_instances` 的第一个）
       infer_service: ${infer_instances.0.name}  # 依赖的 INFER 服务名称（默认为 `infer_instances` 的第一个）
     resource_info: [ ]  # MSRL 训练采用 RAY 实现资源分配，在 Executor 层不做资源限制
@@ -219,13 +204,13 @@ agent_instances:
         # 以下参数为 rLLMEngineWrapper 初始化参数
         agent_name: math # RLLMEngineWrapper内置Agent，修改参见：agents/agents_mapping.py
         simplify_think_content: false
-        max_prompt_length: 4096
+        max_prompt_length: 8192
         max_model_len: 32768
-        n_parallel_agents: 1024
+        n_parallel_agents: 512
         token_in_token_out: true
         env_args:
           max_steps: 5
-          tool_timeout: 200  # 工具调用超时设置，默认2000
+          tool_timeout: 200  # 工具调用超时设置，默认200
           trajectory_timeout: 7200  # 单轮轨迹请求超时，默认7200
           tool_url: /home/inputs/tool_url_2 # 行业运维场景为代码生成, tool_url没有用到
         tokenizer: ${verl_conf.actor_rollout_ref.model.path}
@@ -240,11 +225,11 @@ agent_instances:
 
 # =============================================================
 # Infer 预置服务：
-# 1. 提供如：QWen / Deepseek 等大模型推理服务
+# 1. 提供如：Qwen / Deepseek 等大模型推理服务
 # 2. 提供 OpenAI Chat 推理接口
 # =============================================================
 infer_instances:
-  - name: Qwen3-4b
+  - name: Qwen3-30B-A3B
     executor_num: 1
     executor_kwargs:
       # 以下参数为 InferExecutor 初始化参数
@@ -252,11 +237,12 @@ infer_instances:
       engine_kwargs:
         # 以下参数为 vLLMInferServer 初始化参数
         # vllm_proxy模式不需要手动配置, 给下列默认配置即可, 启动脚本会自动修改
-        chat_server: "http://192.168.0.111:8080"
-        prefill_server_list: ["http://192.168.0.111:20012"]
+        chat_server: "http://0.0.0.0:8080"
+        prefill_server_list: ["http://0.0.0.0:20012"]
         decode_server_list: []
-        model_name: Qwen3-4b
+        model_name: Qwen3-30B-A3B
         tensor_parallel_size: 8
+        expert_parallel_size: 16
         data_parallel_size: 2
-        enable_expert_parallel: false
+        enable_expert_parallel: true
     resource_info: []

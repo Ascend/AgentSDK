@@ -20,6 +20,7 @@ import re
 import shutil
 import traceback
 from threading import Lock
+from multiprocessing import Process, Queue
 
 import ray
 from transformers import AutoConfig
@@ -33,10 +34,28 @@ from aura.controllers.rollout_controller.rollout_weight_loader import run_distri
 
 MAX_RETAIN_WEIGHTS_VERSION = 2
 PATH_ITER_PATTERN = r"iter_(\d+)"
+AGGREGATE_TIMEOUT = 1800
+TERMINATE_TIMEOUT = 5
 
 
 def is_empty(path):
     return len(os.listdir(path)) == 0
+
+
+def aggregate_worker(sharded_path, output_file, q):
+    try:
+        storage_reader = dcp.FileSystemReader(sharded_path)
+        metadata = storage_reader.read_metadata()
+        full_container = {}
+        for fqn, param_metadata in metadata.state_dict_metadata.items():
+            full_container[fqn] = torch.empty(
+                param_metadata.size, dtype=param_metadata.properties.dtype
+            )
+        dcp.load(state_dict=full_container, checkpoint_id=sharded_path)
+        save_file(full_container, output_file)
+        q.put(None)
+    except Exception as e:
+        q.put(str(e))
 
 
 @ray.remote
@@ -181,18 +200,43 @@ class RolloutWeightManager:
             traceback.print_exc()
 
     def aggregate_hf_weights(self, sharded_path, output_file):
+        q = Queue()
+        p = Process(target=aggregate_worker, args=(sharded_path, output_file, q))
         self.logger.info(f"aggregate weights, sharded_path: {sharded_path}, output_file: {output_file}")
-        storage_reader = dcp.FileSystemReader(sharded_path)
-        metadata = storage_reader.read_metadata()
-        full_container = {}
-        for fqn, param_metadata in metadata.state_dict_metadata.items():
-            full_container[fqn] = torch.empty(param_metadata.size, dtype=param_metadata.properties.dtype)
-
-        self.logger.info("aggregate weights, dcp loading...")
-        dcp.load(state_dict=full_container, checkpoint_id=sharded_path)
-        self.logger.info("aggregate weights, safe tensors saving...")
-        save_file(full_container, output_file)
+        p.start()
+        p.join(timeout=AGGREGATE_TIMEOUT)
         self.logger.info(f"aggregate weights succeed, output file: {output_file}")
+
+        error_msg = None
+
+        if p.is_alive():
+            p.terminate()
+            p.join(timeout=TERMINATE_TIMEOUT)
+            if p.is_alive():
+                p.kill()
+                p.join()
+            error_msg = (
+                f"aggregate_worker subprocess timed out after {AGGREGATE_TIMEOUT}s"
+            )
+        elif p.exitcode != 0:
+            error_msg = (
+                f"aggregate_worker subprocess exited with code {p.exitcode}"
+            )
+        else:
+            try:
+                err = q.get(timeout=5)
+            except Exception:
+                error_msg = "aggregate_worker subprocess failed (no result returned)"
+            else:
+                if err is not None:
+                    error_msg = err
+
+        if error_msg is not None:
+            if os.path.exists(output_file):
+                os.remove(output_file)
+            raise RuntimeError(error_msg)
+
+        self.logger.info("aggregate subprocess finished")
 
     def _move_weights(self, src_dir, weight_iter):
         self.logger.info("|perf-stat|rollout| start do converted weights ...")

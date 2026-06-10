@@ -85,7 +85,7 @@ clean_old_ckpt=0 # 首次训练前，建议清空default_local_dir下不需要�
 
 ```shell
 # 修改模型权重路径
-infer_mode_path: /path/to/aura/person/Qwen35_27B
+infer_model_path: /path/to/aura/person/Qwen35_27B
 ```
 
 #### 推理如需扩充实例，配置如下
@@ -181,7 +181,7 @@ bash verl_merge.sh $已保存的权重路径(例如：/xxx/global_step_5) $自�
 ### 2.2 推理配置修改
 
 ```shell
-infer_mode_path: /xxx/resume/qwenxxx_5 # 修改为自定义的转换权重路径
+infer_model_path: /xxx/resume/qwenxxx_5 # 修改为自定义的转换权重路径
 ```
 
 ### 2.3 训练配置修改

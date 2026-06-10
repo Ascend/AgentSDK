@@ -1,15 +1,15 @@
 # =============================================================
 # 一键启动需要修改路径的参数如下：
-# 1. infer_mode_path
+# 1. infer_model_path
 # =============================================================
 # vllm版本信息
 vllm_version: 0.16.0
 
 # 模型名称
-infer_model_name: Qwen3-4b
+infer_model_name: Qwen3-4B
 
 # 模型权重路径
-infer_mode_path:  /mnt/share/mindsdk_agent/weights/qwen3-4b
+infer_model_path:  /path/to/models/Qwen3-4B
 
 # 是否开启专家并行, MOE模型默认需要开启, Dense模型需要关闭
 enable_expert_parallel: false
