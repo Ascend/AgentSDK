@@ -8,7 +8,7 @@ root_dir=$(realpath $(dirname ${scripts_dir}))
 save_value="./resume/save_ckpt/" # 默认权重保存路径，将被train的default_local_dir覆盖
 resume_iteration=-1 # 默认值-1，表示首次训练
 status_dir="./resume/status" # 节点状态日志所在路径 ./resume/status/node_${VC_TASK_INDEX}.status
-org_infer_mode_path="" # 记录原始hf权重tokenizer路径，需要包含模型名称
+org_infer_model_path="" # 记录原始hf权重tokenizer路径，需要包含模型名称
 
 source ${scripts_dir}/base/envs.sh
 source ${scripts_dir}/base/utils.sh
@@ -133,19 +133,19 @@ function generate_new_infer_yaml()
   cp -f ${infer_yaml_file} ${infer_resume_yaml_file}
 
   # 记录推理权重原始路径，tokenizer用于替换转换后的权重文件
-  org_infer_mode_path=$(get_verl_conf_val "${infer_resume_yaml_file}" "infer_mode_path")
-  log_info "found original infer_mode_path: $org_infer_mode_path"
+  org_infer_model_path=$(get_verl_conf_val "${infer_resume_yaml_file}" "infer_model_path")
+  log_info "found original infer_model_path: $org_infer_model_path"
 
   # 在续训配置文件末尾新增一行权重转换等待标识if_waiting参数，默认值为true
   sed -i -e '$a\' -e 'if_waiting: true' -e '$a\' "${infer_resume_yaml_file}"
   get_verl_conf_val "${infer_resume_yaml_file}" "if_waiting"
 }
 
-function modify_infer_mode_path()
+function modify_infer_model_path()
 {
   # Step 1 主节点基于resume非0续训的ckpt转换生成新的hf权重
-  # Step 2 替换model_path下的tokenizer.json等文件为原始infer_mode_path目录下的
-  # Step 3 替换infer配置的infer_mode_path
+  # Step 2 替换model_path下的tokenizer.json等文件为原始infer_model_path目录下的
+  # Step 3 替换infer配置的infer_model_path
 
   # 判断非0续训
   if [[ "${resume_iteration}" -lt 1 ]]; then
@@ -154,40 +154,40 @@ function modify_infer_mode_path()
   fi
 
   # 推理续训权重路径
-  converted_infer_mode_path="${root_dir}/resume/resume_hf_path/$(basename ${org_infer_mode_path%/})_resume_${resume_iteration}"
+  converted_infer_model_path="${root_dir}/resume/resume_hf_path/$(basename ${org_infer_model_path%/})_resume_${resume_iteration}"
 
   # 主节点执行权重转换流程: 如果目录不存在，或者目录存在但没有 convert_done 文件，执行流程
-  if [[ ! -d "${converted_infer_mode_path}" ]] || [[ ! -f "${converted_infer_mode_path}/convert_done" ]]; then
+  if [[ ! -d "${converted_infer_model_path}" ]] || [[ ! -f "${converted_infer_model_path}/convert_done" ]]; then
       # 如果转换后的目录存在但未完成，先删除
-      if [[ -d "${converted_infer_mode_path}" ]]; then
+      if [[ -d "${converted_infer_model_path}" ]]; then
         log_info "convert_done not found, removing incomplete directory..."
-        rm -rf "${converted_infer_mode_path}"
+        rm -rf "${converted_infer_model_path}"
       fi
 
       # 执行权重转换脚本
       ckpt_path="${save_value}/global_step_${resume_iteration}"
-      bash ${scripts_dir}/base/verl_merge.sh $ckpt_path $converted_infer_mode_path
+      bash ${scripts_dir}/base/verl_merge.sh $ckpt_path $converted_infer_model_path
       exit_code=$?
       if [ $exit_code -ne 0 ]; then
         log_error "Failed merge verl weights for vllm..."
         exit $exit_code
       fi
 
-      # 在converted_infer_mode_path目录下新增convert_done文件，标识转换已完成
-      touch "${converted_infer_mode_path}/convert_done"
+      # 在converted_infer_model_path目录下新增convert_done文件，标识转换已完成
+      touch "${converted_infer_model_path}/convert_done"
 
       # 替换转换权重路径的tokenizer相关文件，除safetensors及model.safetensors.index.json
-      # find "${org_infer_mode_path}" -type f \
+      # find "${org_infer_model_path}" -type f \
       # ! -name '*.safetensors' \
       # ! -name 'model.safetensors.index.json' \
       # -exec cp -f {} "${converted_infer_model_path}/" \;
   else
       # 转换后的权重已有，则跳过转换
-      log_info "infer weights already converted in ${converted_infer_mode_path}, skipping..."
+      log_info "infer weights already converted in ${converted_infer_model_path}, skipping..."
   fi
 
   # 权重转换准备完成，更新推理配置
-  replace_verl_conf_val "${infer_resume_yaml_file}" "infer_mode_path" "${converted_infer_mode_path}"
+  replace_verl_conf_val "${infer_resume_yaml_file}" "infer_model_path" "${converted_infer_model_path}"
   replace_verl_conf_val "${infer_resume_yaml_file}" "if_waiting" "false"
 }
 
@@ -209,7 +209,7 @@ function modify_infer_yaml()
   # 主节点创建infer续训配置文件，并新增参数if_waiting
   generate_new_infer_yaml
   # 主节点若非0续训，执行推理权重转换流程，生成新的推理可用权重,替换路径下部分文件并更新推理配置
-  modify_infer_mode_path
+  modify_infer_model_path
 }
 
 function get_resume_iteration()

@@ -1,29 +1,29 @@
-# Qwen3-4B快速拉起指南<a name="ZH-CN_TOPIC_0000002459355024"></a>
+# Qwen3-4B快速拉起指南
 
-## **前置<a name="section142771553125211"></a>**
+## **前置**
 
 请确保已经阅读过[快速开始指南](../quick_start.md)。
 
-## **模型获取<a name="section142771553125211"></a>**
+## **模型获取**
 
 本实验使用Qwen3-4b模型，相关模型可以通过[本链接](https://huggingface.co/Qwen/Qwen3-4B)获取。
 
-## **数据集获取<a name="section142771553125211"></a>**
+## **数据集获取**
 
 本实验使用的Math数据集可通过快速安装中的[准备训练数据](../installation_guide.md#准备训练数据)章节查看获取。
 
-## **文件修改<a name="section142771553125211"></a>**
+## **文件修改**
 
-在快速拉起qwen3-4b math场景前，需要您修改以下文件，需要求改的参数可以参照文件头的注释。
+在快速拉起qwen3-4b math场景前，需要您修改以下文件，需要进行修改的参数可以参照文件头的注释。
 
 共卡模式请修改：
 
-1. [共卡配置文件](../../../configs/train/verl_train_hybrid_A3_16_qwen3_4b_math_fsdp.yaml)
+1. [共卡配置文件](../../../configs/train/verl_train_hybrid_A3_t16_qwen3_4b_math_fsdp.yaml)
 
 分离模式请修改：
 
-1. [分离配置文件](../../../configs/train/verl_train_async_A3_32_qwen3_4b_math_fsdp.yaml)
-2. [分离推理配置](../../../configs/infer/vllm_infer_i32_qwen3_4b.yaml)
+1. [分离配置文件](../../../configs/train/verl_train_async_A3_t16_qwen3_4b_math_fsdp.yaml)
+2. [分离推理配置](../../../configs/infer/vllm_infer_i16_qwen3_4b.yaml)
 
 > [!NOTE] 说明
 >

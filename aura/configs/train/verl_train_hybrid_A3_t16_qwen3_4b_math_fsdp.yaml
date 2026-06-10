@@ -31,7 +31,7 @@ direct_conf:
 hydra:
   searchpath:
     - file:///verl/verl/trainer/config
-    - file:///path/to/aura/configs/train/verl/config # 改为当前代码仓中aura/configs/train/verl/config目录所在的绝对路径
+    - file:///path/to/AgentSDK/aura/configs/train/verl_conf # 改为当前代码仓中aura/configs/train/verl/config目录所在的绝对路径
 
 defaults:
   - ppo_trainer
@@ -44,7 +44,7 @@ verl_conf:
     delta: 2  # 清理 x 个版本前的旧权重
     update_weights_interval: 1  # 权重更新间隔
     validate_num_samples: 5 # 验证数据采样
-    init_num_group_batches: 1 # 从DataLoader首次加载数据批次数量 TODO: 与train_server.py中DEFAULT_BATCH_SIZE参数功能一致，需要清理其中一个
+    init_num_group_batches: 1 # 从 DataLoader 首次加载数据批次数量
     max_queue_size: 256
     weight_save_dir: ${hydra:runtime.cwd}/weights/
     consumed_train_samples: 0 # 已处理的样本数量 断点续传？
@@ -53,7 +53,7 @@ verl_conf:
     infer_service: ${infer_instances.0.name}  # 依赖的 INFER 服务名称（默认为 `infer_instances` 的第一个）
     server_addresses: ${infer_instances.0.executor_kwargs.engine_kwargs.chat_server}
     data_loader:
-      train_data_path: /mnt/share/mindsdk_agent/data # verl 共卡不生效
+      train_data_path: /path/to/data # 分离模式所用数据集，共卡模型下不生效
       split: 100,0,0
       seq_length: 8192
       train_iters: ${verl_conf.total_train_steps}
@@ -66,15 +66,15 @@ verl_conf:
       is_pairwise_dataset: false
   total_train_steps: 200
   data:
-    train_files: /mnt/share/mindsdk_agent/data/train.parquet # verl 共卡模式需要修改，数据集文件绝对路径
-    val_files: /mnt/share/mindsdk_agent/data/test.parquet # verl 共卡模式需要修改，数据集文件绝对路径
+    train_files: /mnt/share/mindsdk_agent/data/train.parquet # 共卡模式所需训练数据集路径
+    val_files: /mnt/share/mindsdk_agent/data/test.parquet # 共卡模式所需测试数据集路径
     train_batch_size: 16
     max_prompt_length: 4096
     max_response_length: 32768
     filter_overlong_prompts: True
   actor_rollout_ref:
     model:
-      path: /mnt/share/mindsdk_agent/weights/qwen3-4b # 模型路径
+      path: /path/to/models/Qwen3-4B # 模型路径
       use_remove_padding: True
       enable_gradient_checkpointing: True
       enable_activation_offload: False
@@ -85,7 +85,6 @@ verl_conf:
       mode: async
       calculate_log_probs: True
       log_prob_use_dynamic_bsz: False
-#      log_prob_micro_batch_size: 1
       log_prob_micro_batch_size_per_gpu: 1
       tensor_model_parallel_size: 4
       gpu_memory_utilization: 0.6
@@ -107,50 +106,29 @@ verl_conf:
       use_dynamic_bsz: False
       optim:
         lr: 1e-6
-        # lr_decay_steps: 100
       entropy_coeff: 0.0
       use_kl_loss: False
       calculate_entropy: False
       kl_loss_coef: 0.001
       kl_loss_type: low_var_kl
-      # clip_ratio_high: 0.28
-      # loss_agg_mode: seq-mean-token-sum
       ulysses_sequence_parallel_size: 4
       use_rollout_log_probs: False
       fsdp_config:
         strategy: fsdp2
-        param_offload: true #true #True
-        optimizer_offload: true #true #False
-#        model_dtype: bfloat16
-#        fsdp_size: -1
-#        entropy_from_logits_with_chunking: true
-#        entropy_checkpointing: true
-#        ulysses_sequence_parallel_size: ${verl_conf.actor_rollout_ref.actor.ulysses_sequence_parallel_size}
-#        reshard_after_forward: True
+        param_offload: true
+        optimizer_offload: true
     ref:
-#      log_prob_micro_batch_size: 4
       strategy: fsdp2
       log_prob_micro_batch_size_per_gpu: 1
       log_prob_max_token_len_per_gpu: 16384
       ulysses_sequence_parallel_size: ${verl_conf.actor_rollout_ref.actor.ulysses_sequence_parallel_size}
       fsdp_config:
-#        model_dtype: bfloat16
-        param_offload: true #True
-        optimizer_offload: true #true #False
-#        ulysses_sequence_parallel_size: ${verl_conf.actor_rollout_ref.actor.ulysses_sequence_parallel_size}
-#  critic:
-#    strategy: fsdp2
-#    ulysses_sequence_parallel_size: ${verl_conf.actor_rollout_ref.actor.ulysses_sequence_parallel_size}
-#    model:
-#      ulysses_sequence_parallel_size: ${verl_conf.actor_rollout_ref.actor.ulysses_sequence_parallel_size}
-#    fsdp_config:
-##      model_dtype: bfloat16
-#      param_offload: true #true #False
-#      optimizer_offload: true #true #False
+        param_offload: true
+        optimizer_offload: true
   trainer:
     val_before_train: False
     device: npu
-    critic_warmup: 0 # 奖励预热？
+    critic_warmup: 0 # 奖励预热
     project_name: 'qwen3_4b_math_code_hybrid'
     experiment_name: 'qwen3_4b_math_code_hybrid'
     n_gpus_per_node: 16
@@ -182,7 +160,7 @@ train_instances:
     executor_num: 1
     executor_kwargs:
       # 以下参数为 TrainExecutor 初始化参数
-      # hybrid(共卡) | one_step_off(分离) | dummy_train (训练只启动controller, 适配纯rollout验证)
+      # hybrid(共卡) | one_step_off(分离)
       work_mode: hybrid
       train_engine: verl
       train_config: ${verl_conf}
@@ -190,7 +168,7 @@ train_instances:
         train_backend: ${train_instances.0.executor_kwargs.train_engine}
         trajectory_timeout: 7200
         n_samples_per_prompt: ${verl_conf.rollout.n}
-        actor_rollout_dispatch_size: 256  # Rollout一次处理的数量 = gbs * n ?  最大是总样本数16*8/推理实例数2 且是n_samples_per_prompt的倍数
+        actor_rollout_dispatch_size: 256  # 控制 Rollout 阶段每次从数据管理器中取数据的批量大小
         validate_n_samples: ${verl_conf.extras.validate_num_samples}
         traj_output_path: ${hydra:runtime.cwd}/outputs/
         tokenizer_name_or_path: ${verl_conf.actor_rollout_ref.model.path}
@@ -207,7 +185,7 @@ train_instances:
         data_optimized: false
         hybrid_batch_num: 1
         wait_available_weight_timeout: -1
-        llm_tokenizer_path: /mnt/share/mindsdk_agent/weights/qwen3-4b # 需要修改为模型路径
+        llm_tokenizer_path: /path/to/models/Qwen3-4B # 需要修改为模型路径
       agent_service: ${agent_instances.0.name}  # 依赖的 AGENT 服务名称（默认为 `agent_instances` 的第一个）
       infer_service: ${infer_instances.0.name}  # 依赖的 INFER 服务名称（默认为 `infer_instances` 的第一个）
     resource_info: [ ]  # MSRL 训练采用 RAY 实现资源分配，在 Executor 层不做资源限制
@@ -233,7 +211,7 @@ agent_instances:
         token_in_token_out: true
         env_args:
           max_steps: 5
-          tool_timeout: 200  # 工具调用超时设置，默认2000
+          tool_timeout: 200  # 工具调用超时设置，默认200
           trajectory_timeout: 7200  # 单轮轨迹请求超时，默认7200
           tool_url: /home/inputs/tool_url_2 # 行业运维场景为代码生成, tool_url没有用到
         tokenizer: ${verl_conf.actor_rollout_ref.model.path}
@@ -248,7 +226,7 @@ agent_instances:
 
 # =============================================================
 # Infer 预置服务：
-# 1. 提供如：QWen / Deepseek 等大模型推理服务
+# 1. 提供如：Qwen / Deepseek 等大模型推理服务
 # 2. 提供 OpenAI Chat 推理接口
 # =============================================================
 infer_instances:

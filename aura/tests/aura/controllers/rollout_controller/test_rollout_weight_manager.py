@@ -41,9 +41,15 @@ def fake_env():
     fake_traceback = types.ModuleType("traceback")
     fake_traceback.print_exc = MagicMock()
 
-    # ---- fake threading.Lock ----
+    # ---- fake threading (inherit real threading, only override Lock) ----
+    import threading as _real_threading
     fake_threading = types.ModuleType("threading")
+    fake_threading.__dict__.update(_real_threading.__dict__)
     class FakeLock:
+        def acquire(self, blocking=True, timeout=-1):
+            return True
+        def release(self):
+            pass
         def __enter__(self):
             pass
         def __exit__(self, exc_type, exc_val, exc_tb):
@@ -110,6 +116,9 @@ def fake_env():
     fake_aura_controllers_rollout.__path__ = [
         os.path.join(base, "controllers/rollout_controller")
     ]
+
+    fake_aura.controllers = fake_aura_controllers
+    fake_aura_controllers.rollout_controller = fake_aura_controllers_rollout
 
     fakes = {
         "shutil": fake_shutil,
@@ -313,24 +322,134 @@ class TestDoWeightsUpdateWithAssemble:
         assert mgr.weights_version == 0
 
 
-class TestAggregateHFWeights:
-    def test_aggregates_and_saves(self, fake_env):
-        """aggregate_hf_weights loads DCP, creates tensor, and saves with safetensors."""
-        mgr = make_manager(fake_env)
+class TestAggregateWorker:
+    def test_loads_and_saves(self, fake_env):
+        """aggregate_worker reads DCP checkpoint and saves as safetensors."""
         fake_dcp = fake_env["fake_dcp"]
         reader_mock = MagicMock()
         fake_dcp.FileSystemReader.return_value = reader_mock
-        reader_mock.read_metadata.return_value = MagicMock(state_dict_metadata={"key": MagicMock(size=10, properties=MagicMock(dtype="float"))})
+        reader_mock.read_metadata.return_value = MagicMock(
+            state_dict_metadata={"key": MagicMock(size=10, properties=MagicMock(dtype="float"))}
+        )
         fake_env["fake_torch"].empty.return_value = "tensor"
         fake_dcp.load = MagicMock()
         fake_save = fake_env["fake_safetensors_torch"].save_file
 
-        mgr.aggregate_hf_weights("/shards", "/out.safetensors")
+        q = MagicMock()
+        fake_env["mod"].aggregate_worker("/shards", "/out.safetensors", q)
 
         fake_dcp.FileSystemReader.assert_called_once_with("/shards")
         reader_mock.read_metadata.assert_called_once()
         fake_dcp.load.assert_called_once_with(state_dict=ANY, checkpoint_id="/shards")
         fake_save.assert_called_once_with(ANY, "/out.safetensors")
+        q.put.assert_called_once_with(None)
+
+    def test_exception_puts_error(self, fake_env):
+        """aggregate_worker puts error message on exception."""
+        fake_dcp = fake_env["fake_dcp"]
+        fake_dcp.FileSystemReader.side_effect = Exception("read error")
+
+        q = MagicMock()
+        fake_env["mod"].aggregate_worker("/shards", "/out.safetensors", q)
+
+        q.put.assert_called_once()
+        assert "read error" in str(q.put.call_args[0][0])
+
+
+class TestAggregateHFWeights:
+    def test_success(self, fake_env):
+        """aggregate_hf_weights spawns process and returns on success."""
+        mgr = make_manager(fake_env)
+
+        with patch.object(fake_env["mod"], "Process") as mock_process_class, \
+             patch.object(fake_env["mod"], "Queue") as mock_queue_class:
+            mock_process = MagicMock()
+            mock_process.is_alive.return_value = False
+            mock_process.exitcode = 0
+            mock_process_class.return_value = mock_process
+
+            mock_q = MagicMock()
+            mock_q.get.return_value = None
+            mock_queue_class.return_value = mock_q
+
+            mgr.aggregate_hf_weights("/shards", "/out.safetensors")
+
+            mock_process_class.assert_called_once()
+            mock_process.start.assert_called_once()
+            mock_process.join.assert_called_once_with(timeout=1800)
+
+    def test_timeout_raises(self, fake_env):
+        """aggregate_hf_weights raises RuntimeError on timeout and cleans up output_file."""
+        mgr = make_manager(fake_env)
+
+        with patch.object(fake_env["mod"], "Process") as mock_process_class, \
+             patch.object(fake_env["mod"], "Queue") as mock_queue_class, \
+             patch("os.path.exists", return_value=True) as mock_exists, \
+             patch("os.remove") as mock_remove:
+            mock_process = MagicMock()
+            mock_process.is_alive.return_value = True
+            mock_process_class.return_value = mock_process
+
+            with pytest.raises(RuntimeError, match="timed out"):
+                mgr.aggregate_hf_weights("/shards", "/out.safetensors")
+
+            mock_process.terminate.assert_called_once()
+            mock_process.kill.assert_called_once()
+            mock_process.join.assert_any_call(timeout=5)
+            mock_process.join.assert_any_call()
+            mock_exists.assert_called_with("/out.safetensors")
+            mock_remove.assert_called_with("/out.safetensors")
+
+
+    def test_nonzero_exit_raises(self, fake_env):
+        """aggregate_hf_weights raises RuntimeError on non-zero exit code."""
+        mgr = make_manager(fake_env)
+
+        with patch.object(fake_env["mod"], "Process") as mock_process_class, \
+             patch.object(fake_env["mod"], "Queue") as mock_queue_class:
+            mock_process = MagicMock()
+            mock_process.is_alive.return_value = False
+            mock_process.exitcode = 1
+            mock_process_class.return_value = mock_process
+
+            with pytest.raises(RuntimeError, match="exited with code 1"):
+                mgr.aggregate_hf_weights("/shards", "/out.safetensors")
+
+    def test_error_result_raises(self, fake_env):
+        """aggregate_hf_weights raises RuntimeError with worker error message."""
+        mgr = make_manager(fake_env)
+
+        with patch.object(fake_env["mod"], "Process") as mock_process_class, \
+             patch.object(fake_env["mod"], "Queue") as mock_queue_class:
+            mock_process = MagicMock()
+            mock_process.is_alive.return_value = False
+            mock_process.exitcode = 0
+            mock_process_class.return_value = mock_process
+
+            mock_q = MagicMock()
+            mock_q.get.return_value = "worker failure"
+            mock_queue_class.return_value = mock_q
+
+            with pytest.raises(RuntimeError, match="worker failure"):
+                mgr.aggregate_hf_weights("/shards", "/out.safetensors")
+
+    def test_no_result_raises(self, fake_env):
+        """aggregate_hf_weights raises RuntimeError when queue.get fails."""
+        mgr = make_manager(fake_env)
+
+        with patch.object(fake_env["mod"], "Process") as mock_process_class, \
+             patch.object(fake_env["mod"], "Queue") as mock_queue_class:
+            mock_process = MagicMock()
+            mock_process.is_alive.return_value = False
+            mock_process.exitcode = 0
+            mock_process_class.return_value = mock_process
+
+            mock_q = MagicMock()
+            mock_q.get.side_effect = Exception("queue empty")
+            mock_queue_class.return_value = mock_q
+
+            with pytest.raises(RuntimeError, match="no result returned"):
+                mgr.aggregate_hf_weights("/shards", "/out.safetensors")
 
 
 class TestMoveWeights:

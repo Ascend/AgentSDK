@@ -15,7 +15,7 @@ log_info "================parse infer params begin================="
 export VLLM_VERSION=$(python3 ${scripts_dir}/base/get_yaml.py ${CONFIG_FILE} vllm_version)
 
 export SERVED_MODEL_NAME=$(python3 ${scripts_dir}/base/get_yaml.py ${CONFIG_FILE} infer_model_name)
-export MODEL_PATH=$(python3 ${scripts_dir}/base/get_yaml.py ${CONFIG_FILE} infer_mode_path)
+export MODEL_PATH=$(python3 ${scripts_dir}/base/get_yaml.py ${CONFIG_FILE} infer_model_path)
 
 export USE_PD=$(python3 ${scripts_dir}/base/get_yaml.py ${CONFIG_FILE} pd_mode)
 
