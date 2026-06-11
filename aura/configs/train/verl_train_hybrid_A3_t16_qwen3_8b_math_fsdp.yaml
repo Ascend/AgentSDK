@@ -53,7 +53,7 @@ verl_conf:
     infer_service: ${infer_instances.0.name}  # 依赖的 INFER 服务名称（默认为 `infer_instances` 的第一个）
     server_addresses: ${infer_instances.0.executor_kwargs.engine_kwargs.chat_server}
     data_loader:
-      train_data_path: /path/to/data # 分离模式所用数据集，共卡模型下不生效
+      train_data_path: /path/to/data/math_train_dataset/rl # 分离模式所用数据集，共卡模型下不生效
       split: 100,0,0
       seq_length: 8192
       train_iters: ${verl_conf.total_train_steps}
@@ -74,7 +74,7 @@ verl_conf:
     filter_overlong_prompts: True
   actor_rollout_ref:
     model:
-      path: /path/to/models/Qwen3-8B # 模型路径
+      path: /path/to/models/Qwen3-8B # 需要修改为模型路径
       use_remove_padding: True
       enable_gradient_checkpointing: True
       enable_activation_offload: False

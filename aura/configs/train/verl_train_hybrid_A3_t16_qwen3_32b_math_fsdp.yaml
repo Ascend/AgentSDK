@@ -1,9 +1,10 @@
 # =============================================================
 # 一键启动需要修改路径的参数如下：
 # 1. hydra.searchpath
-# 2. verl_conf.extras.data_loader.train_data_path
-# 3. verl_conf.actor_rollout_ref.model.path
-# 4. train_instances.executor_kwargs.rollout_config.llm_tokenizer_path
+# 2. verl_conf.data.train_files
+# 3. verl_conf.data.val_files
+# 4. verl_conf.actor_rollout_ref.model.path
+# 5. train_instances.rollout_config.llm_tokenizer_path
 # =============================================================
 agentic_ai:
   mode: direct # 模式选择：serve | direct
@@ -33,8 +34,8 @@ hydra:
     - file:///path/to/AgentSDK/aura/configs/train/verl_conf # 改为当前代码仓中aura/configs/train/verl/config目录所在的绝对路径
 
 defaults:
-  - fully_async_ppo_trainer
-  - fully_async_ppo_trainer@verl_conf
+  - ppo_trainer
+  - ppo_trainer@verl_conf
   - _self_
 
 # 覆盖VERL模板中的参数
@@ -47,8 +48,12 @@ verl_conf:
     max_queue_size: 256
     weight_save_dir: ${hydra:runtime.cwd}/weights/
     consumed_train_samples: 0 # 已处理的样本数量
+    traj_output_path: ${train_instances.0.executor_kwargs.rollout_config.traj_output_path}
+    agent_service: ${agent_instances.0.name}  # 依赖的 AGENT 服务名称（默认为 `agent_instances` 的第一个）
+    infer_service: ${infer_instances.0.name}  # 依赖的 INFER 服务名称（默认为 `infer_instances` 的第一个）
+    server_addresses: ${infer_instances.0.executor_kwargs.engine_kwargs.chat_server}
     data_loader:
-      train_data_path: /path/to/data/math_train_dataset/rl # 分离模式使用的数据集路径，末尾需要加上/rl
+      train_data_path: /path/to/data/math_train_dataset/rl # 分离模式所用数据集，共卡模型下不生效
       split: 100,0,0
       seq_length: 8192
       train_iters: ${verl_conf.total_train_steps}
@@ -61,19 +66,19 @@ verl_conf:
       is_pairwise_dataset: false
   total_train_steps: 200
   data:
-    gen_batch_size: 1  # Number of samples generated, currently only support 1, 当前不生效
-    return_raw_chat: True
+    train_files: /path/to/data/train.parquet # 共卡模式所需训练数据集路径
+    val_files: /path/to/data/test.parquet # 共卡模式所需测试数据集路径
     train_batch_size: 16
     max_prompt_length: 4096
     max_response_length: 32768
     filter_overlong_prompts: True
   actor_rollout_ref:
     model:
-      path: /path/to/models/Qwen3-8B # 需要修改为模型权重路径
+      path: /path/to/models/Qwen3-32B # 需要修改为模型路径
       use_remove_padding: True
       enable_gradient_checkpointing: True
       enable_activation_offload: False
-    hybrid_engine: False
+    hybrid_engine: True
     rollout:
       n: 8
       name: vllm
@@ -81,10 +86,19 @@ verl_conf:
       calculate_log_probs: True
       log_prob_use_dynamic_bsz: False
       log_prob_micro_batch_size_per_gpu: 1
-      tensor_model_parallel_size: 8
-      data_parallel_size: 2
+      tensor_model_parallel_size: 4
       gpu_memory_utilization: 0.6
+      max_num_seqs: 128
+      data_parallel_size: 2
+      max_num_batched_tokens: 8192
+      max_model_len: 32768
       free_cache_engine: true
+      temperature: ${agent_instances.0.executor_kwargs.infer_service_params.temperature}
+      agent:
+        agent_loop_manager_class: aura.trainer.train_adapter.verl.hybrid.agent_loop_manager.HybridAgentLoopManager
+      checkpoint_engine:
+        backend: naive
+        update_weights_bucket_megabytes: 8192
     actor:
       ppo_micro_batch_size_per_gpu: 1
       ppo_mini_batch_size: 4
@@ -103,10 +117,6 @@ verl_conf:
         strategy: fsdp2
         param_offload: true
         optimizer_offload: true
-      checkpoint:
-        # 在保存的 checkpoint 中包含什么
-        # 'hf_model' 可以将整个模型保存为 hf 格式
-        save_contents: ['model', 'optimizer', 'extra', 'hf_model']
     ref:
       strategy: fsdp2
       log_prob_micro_batch_size_per_gpu: 1
@@ -119,8 +129,8 @@ verl_conf:
     val_before_train: False
     device: npu
     critic_warmup: 0
-    project_name: 'qwen3_8b_math_code_one_step'
-    experiment_name: 'qwen3_8b_math_code_one_step'
+    project_name: 'qwen3_32b_math_code_hybrid'
+    experiment_name: 'qwen3_32b_math_code_hybrid'
     n_gpus_per_node: 16
     nnodes: 1
     save_freq: 100 # 保存ckpt的per iter
@@ -139,19 +149,19 @@ verl_conf:
     test_freq: 100
   async_training:
     use_rollout_log_probs: False
-    staleness_threshold: 0.5
+    staleness_threshold: 0
     trigger_parameter_sync_step: 1 # 多久 iter 同步一次权重
     partial_rollout: False
   algorithm:
     adv_estimator: grpo
 
 train_instances:
-  - name: RL-QWEN3-8B-WITH-MATH
+  - name: RL-QWEN3-32B-WITH-MATH
     executor_num: 1
     executor_kwargs:
       # 以下参数为 TrainExecutor 初始化参数
-      # hybrid(共卡) | one_step_off(分离)
-      work_mode: one_step_off
+      # hybrid(共卡) | one_step_off(分离) | dummy_train (训练只启动controller, 适配纯rollout验证)
+      work_mode: hybrid
       train_engine: verl
       train_config: ${verl_conf}
       rollout_config:
@@ -170,12 +180,12 @@ train_instances:
         train_tensor_parallel_size: ${verl_conf.actor_rollout_ref.rollout.tensor_model_parallel_size}
         infer_expert_parallel_size: ${infer_instances.0.executor_kwargs.engine_kwargs.data_parallel_size}
         enable_version_control: false
-        use_on_policy: false
+        use_on_policy: true
         train_iters: ${verl_conf.extras.data_loader.train_iters}
         data_optimized: false
         hybrid_batch_num: 1
         wait_available_weight_timeout: -1
-        llm_tokenizer_path: /path/to/models/Qwen3-8B # 需要修改为模型权重路径
+        llm_tokenizer_path: /path/to/models/Qwen3-32B # 需要修改为模型路径
       agent_service: ${agent_instances.0.name}  # 依赖的 AGENT 服务名称（默认为 `agent_instances` 的第一个）
       infer_service: ${infer_instances.0.name}  # 依赖的 INFER 服务名称（默认为 `infer_instances` 的第一个）
     resource_info: [ ]  # MSRL 训练采用 RAY 实现资源分配，在 Executor 层不做资源限制
@@ -220,7 +230,7 @@ agent_instances:
 # 2. 提供 OpenAI Chat 推理接口
 # =============================================================
 infer_instances:
-  - name: Qwen3-8B
+  - name: Qwen3-32B
     executor_num: 1
     executor_kwargs:
       # 以下参数为 InferExecutor 初始化参数
@@ -229,10 +239,10 @@ infer_instances:
         # 以下参数为 vLLMInferServer 初始化参数
         # vllm_proxy模式不需要手动配置, 给下列默认配置即可, 启动脚本会自动修改
         chat_server: "http://0.0.0.0:8080"
-        prefill_server_list: ["http://0.0.0.0:20012"]
+        prefill_server_list: []
         decode_server_list: []
-        model_name: Qwen3-8B
-        tensor_parallel_size: 8
+        model_name: Qwen3-32B
+        tensor_parallel_size: 4
         data_parallel_size: 2
         enable_expert_parallel: false
     resource_info: []

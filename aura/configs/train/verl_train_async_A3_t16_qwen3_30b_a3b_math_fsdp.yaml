@@ -30,7 +30,7 @@ direct_conf:
 hydra:
   searchpath:
     - file:///verl/verl/trainer/config
-    - file:///path/to/AgentSDK/aura/configs/train/verl_conf
+    - file:///path/to/AgentSDK/aura/configs/train/verl_conf # 改为当前代码仓中aura/configs/train/verl/config目录所在的绝对路径
 
 defaults:
   - fully_async_ppo_trainer
@@ -48,7 +48,7 @@ verl_conf:
     weight_save_dir: ${hydra:runtime.cwd}/weights/
     consumed_train_samples: 0 # 已处理的样本数量
     data_loader:
-      train_data_path: /path/to/data/origin_math_train_convert_v1/rl  # 分离模式需要修改这个路径
+      train_data_path: /path/to/data/math_train_dataset/rl # 分离模式使用的数据集路径，末尾需要加上/rl
       split: 100,0,0
       seq_length: 8192
       train_iters: ${verl_conf.total_train_steps}
@@ -66,7 +66,7 @@ verl_conf:
     train_batch_size: 16
   actor_rollout_ref:
     model:
-      path: /path/to/models/Qwen3-30B-A3B
+      path: /path/to/models/Qwen3-30B-A3B # 需要修改为模型权重路径
       use_remove_padding: True
       enable_gradient_checkpointing: True
       enable_activation_offload: True
@@ -184,7 +184,7 @@ train_instances:
         data_optimized: false
         hybrid_batch_num: 1
         wait_available_weight_timeout: -1
-        llm_tokenizer_path: /path/to/models/Qwen3-30B-A3B
+        llm_tokenizer_path: /path/to/models/Qwen3-30B-A3B # 需要修改为模型权重路径
       agent_service: ${agent_instances.0.name}  # 依赖的 AGENT 服务名称（默认为 `agent_instances` 的第一个）
       infer_service: ${infer_instances.0.name}  # 依赖的 INFER 服务名称（默认为 `infer_instances` 的第一个）
     resource_info: [ ]  # MSRL 训练采用 RAY 实现资源分配，在 Executor 层不做资源限制
