@@ -18,12 +18,12 @@
 
 共卡模式请修改：
 
-1. [共卡配置文件](../../../configs/train/verl_train_hybrid_A3_16_qwen3_32b_math_fsdp.yaml)
+1. [共卡配置文件](../../../configs/train/verl_train_hybrid_A3_t16_qwen3_32b_math_fsdp.yaml)
 
 分离模式请修改：
 
-1. [分离配置文件](../../../configs/train/verl_train_async_A3_32_qwen3_32b_math_fsdp.yaml)
-2. [分离推理配置](../../../configs/infer/vllm_infer_i32_qwen3_32b.yaml)
+1. [分离配置文件](../../../configs/train/verl_train_async_A3_t16_qwen3_32b_math_fsdp.yaml)
+2. [分离推理配置](../../../configs/infer/vllm_infer_i16_qwen3_32b.yaml)
 
 > [!NOTE] 说明
 >
