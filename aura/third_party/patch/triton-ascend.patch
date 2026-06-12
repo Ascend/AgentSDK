@@ -1,0 +1,75 @@
+diff --git a/ascend/backend/driver.py b/ascend/backend/driver.py
+index 5eff88ebe..c677ff502 100644
+--- a/ascend/backend/driver.py
++++ b/ascend/backend/driver.py
+@@ -99,19 +99,6 @@ class NPUUtils(object):
+     def get_aivector_core_num(self):
+         return self.get_device_properties("npu")["num_vectorcore"]
+
+-    @functools.lru_cache()
+-    def set_device_limit(self, device, ty, val):
+-        """
+-        Set npu device limit
+-
+-        Args:
+-            device: Device id
+-            ty: The type of the limit, valid types include:
+-                "LOW_POWER_TIMEOUT", "WARP_STACK_SIZE", "DVG_WARP_STACK_SIZE", "STACK_SIZE"
+-            val: The specific meaning of the value depends on the type of limit.
+-        """
+-        self.npu_utils_mod.set_device_limit(device, ty, val)
+-
+
+ class NPULauncher(object):
+     def __init__(self, src, metadata):
+diff --git a/ascend/backend/npu_utils.cpp b/ascend/backend/npu_utils.cpp
+index 264b1808d..3cbd30d57 100644
+--- a/ascend/backend/npu_utils.cpp
++++ b/ascend/backend/npu_utils.cpp
+@@ -316,38 +316,6 @@ static PyObject* copyMemory(PyObject* self, PyObject* args) {
+ 	return Py_None;
+ }
+
+-static const std::unordered_map<std::string, rtLimitType_t> LimitTypeMap = {
+-	{"LOW_POWER_TIMEOUT", rtLimitType_t::RT_LIMIT_TYPE_LOW_POWER_TIMEOUT},
+-	{"WARP_STACK_SIZE", rtLimitType_t::RT_LIMIT_TYPE_SIMT_WARP_STACK_SIZE},
+-	{"DVG_WARP_STACK_SIZE", rtLimitType_t::RT_LIMIT_TYPE_SIMT_DVG_WARP_STACK_SIZE},
+-	{"STACK_SIZE", rtLimitType_t::RT_LIMIT_TYPE_STACK_SIZE}
+-  };
+-
+-  static PyObject *setDeviceLimit(PyObject *self, PyObject *args) {
+-	int device;              // device ID
+-	const char *type_str;
+-	uint32_t val;
+-	if (!PyArg_ParseTuple(args, "isI", &device, &type_str, &val)) {
+-	  return NULL;
+-	}
+-
+-	auto it = LimitTypeMap.find(type_str);
+-	if (it == LimitTypeMap.end()) {
+-	  printf("Invalid limit type: %s.\n", type_str);
+-	  return NULL;
+-	}
+-
+-	rtError_t rtRet = rtDeviceSetLimit(device, it->second, val);
+-	if (rtRet != RT_ERROR_NONE) {
+-	  printf("rtDeviceSetLimit failed, 0x%x\n", rtRet);
+-	  return NULL;
+-	}
+-	if (PyErr_Occurred()) {
+-	  return NULL;
+-	}
+-	return Py_None;
+-  }
+-
+ static PyMethodDef NpuUtilsMethods[] = {
+     {"load_kernel_binary", loadKernelBinary, METH_VARARGS,
+      "Load NPU kernel binary into NPU driver"},
+@@ -360,7 +328,6 @@ static PyMethodDef NpuUtilsMethods[] = {
+ 	{"allocate_device_memory", allocateDeviceMemory, METH_VARARGS, "Allocate device memory"},
+ 	{"allocate_host_memory", allocateHostMemory, METH_VARARGS, "Allocate host memory"},
+ 	{"copy_memory", copyMemory, METH_VARARGS, "Copy data between host and device"},
+-	{"set_device_limit", setDeviceLimit, METH_VARARGS, "Set the limit of NPU"},
+     {NULL, NULL, 0, NULL}};
+
+ static PyModuleDef ModuleDef = {
