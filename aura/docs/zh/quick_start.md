@@ -6,7 +6,24 @@ Agent SDK使用脚本`start_rl_with_verl_vllm.sh`来启动，本章节通过介�
 
 ## **环境准备<a name="section543617275526"></a>**
 
-使用预构建镜像创建容器，具体操作请参见【[容器环境部署](installation_guide.md#ZH-CN_TOPIC_0000002492554173)】。
+Agent SDK 提供两种构建运行环境的方式，用户可根据实际情况任选其一：
+
+1. **使用预构建镜像创建容器**（推荐）
+
+    直接基于预构建镜像运行容器。具体操作请参见【[容器环境部署](installation_guide.md#ZH-CN_TOPIC_0000002492554173)】。
+
+2. **在 CANN 9.0.0 容器中使用一键拉起脚本**
+
+    如果您已经在 CANN 9.0.0 的基础镜像容器内，可以执行一键脚本完成 Agent SDK 及其所有依赖（vLLM、vllm-ascend、MindSpeed、Megatron-LM、verl、transformers 等）的安装：
+
+    ```shell
+    cd /home/work/AgentSDK/aura
+    bash dockers/build_env.sh
+    ```
+
+> [!NOTE] 注意
+>
+> 一键拉起脚本 `dockers/build_env.sh` 会对当前 Python 环境执行全局 `pip install -e .`、`pip install`、`pip uninstall` 等操作，并克隆多个仓库到 `/home/work`，因此**请勿在宿主机原生 Python 环境或已有其他项目依赖的虚拟环境中执行**。建议仅在全新的 CANN 9.0.0 容器内使用；若需要隔离环境，请自行创建独立虚拟环境后再运行该脚本。
 
 ## **使用流程<a name="section167395353541"></a>**
 

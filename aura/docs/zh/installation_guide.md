@@ -16,12 +16,14 @@ Agent SDK的安装部署流程包含以下三个主要步骤：
 
 ```shell
 cd /path/to/dockerfile_directory
-docker build -t aura:26.0.0 .
+bash build_image.sh
 ```
 
-> 预构建的镜像链接将在后续进行更新，用户可直接从镜像仓库拉取。
+构建脚本将根据自动识别服务器类型，构建对应的镜像。
 
-### 步骤2：创建并启动容器
+### 步骤2：创建容器
+
+以Atlas A3镜像为例，创建容器：
 
 ```shell
 docker run --name your_container_name --privileged \
@@ -32,6 +34,10 @@ docker run --name your_container_name --privileged \
     --device=/dev/davinci2 --device=/dev/davinci3 \
     --device=/dev/davinci4 --device=/dev/davinci5 \
     --device=/dev/davinci6 --device=/dev/davinci7 \
+    --device=/dev/davinci8 --device=/dev/davinci9 \
+    --device=/dev/davinci10 --device=/dev/davinci11 \
+    --device=/dev/davinci12 --device=/dev/davinci13 \
+    --device=/dev/davinci14 --device=/dev/davinci15 \
     --device=/dev/davinci_manager \
     --device=/dev/hisi_hdc \
     --device=/dev/devmm_svm \
@@ -41,9 +47,11 @@ docker run --name your_container_name --privileged \
     -v /etc/ascend_install.info:/etc/ascend_install.info \
     -v /usr/share/zoneinfo/Asia/Shanghai:/etc/localtime \
     -v /usr/local/sbin:/usr/local/sbin \
-    aura:26.0.0 \
+    aura-a3:26.1.0  \
     sleep infinity
 ```
+
+> 说明：根据NPU数量的不同，挂载不同数量的设备ID。例如：Atlas A3有16个NPU，需挂载16个设备ID，每个设备ID对应一个NPU。
 
 ### 步骤3：进入容器
 

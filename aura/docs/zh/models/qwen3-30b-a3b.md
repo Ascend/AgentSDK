@@ -25,6 +25,15 @@
 1. [分离配置文件](../../../configs/train/verl_train_async_A3_t16_qwen3_30b_a3b_math_fsdp.yaml)
 2. [分离推理配置](../../../configs/infer/vllm_infer_i16_qwen3_30b_a3b.yaml)
 
+## **环境配置**
+
+如果您参照[快速开始指南](../quick_start.md)使用预构建镜像或一键拉起脚本构建环境，您需要通过下面的方式切换到该模型的运行环境：
+
+```shell
+cd /home/work/model_env/qwen3_moe
+source bin/activate
+```
+
 > [!NOTE] 说明
 >
 >- 共卡模式使用verl后端默认使用parquet数据集
