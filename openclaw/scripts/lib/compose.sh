@@ -72,7 +72,7 @@ generate_compose_file() {
         if [ "$SANDBOX_ENABLED" != "true" ]; then
             "${SED_I[@]}" "/docker.sock/d" "$compose_file"
         fi
-        done
+    done
 
     # 修复编码：Windows Git Bash 下 envsubst 可能输出 GBK，docker compose 要求 UTF-8
     if [[ "$(uname -s)" == MINGW* || "$(uname -s)" == MSYS* ]]; then
