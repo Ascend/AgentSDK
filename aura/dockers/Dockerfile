@@ -45,6 +45,7 @@ RUN cd /home/work/transformers && \
 
 RUN bash /home/work/AgentSDK/aura/dockers/env/build_common.sh
 RUN bash /home/work/AgentSDK/aura/dockers/patch/patch_triton_ascend.sh
+RUN bash /home/work/AgentSDK/aura/dockers/patch/patch_vllm_ascend.sh
 
 RUN pip install uv && \
     mkdir -p /home/work/model_env && \

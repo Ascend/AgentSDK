@@ -30,8 +30,8 @@
 
 # ⚙️ 功能介绍
 
-- 支持训推共卡和训推分离模式(待补充链接)。
-- 支持自定义 agent 接入(待补充链接)。
+- 支持[训推共卡](docs/zh/user_guide/hybrid.md)和[训推分离](docs/zh/user_guide/one_step_off.md)模式。
+- 支持[自定义 agent 接入](docs/zh/user_guide/custom_agent.md)。
 - 支持[Qwen3-4B](docs/zh/models/qwen3-4b.md)、[Qwen3-8B](docs/zh/models/qwen3_8b.md)、[Qwen3-32B](docs/zh/models/qwen3_32b.md)、[Qwen3-30B-A3B](docs/zh/models/qwen3-30b-a3b.md)模型。
 - 支持 verl 训练引擎，vllm 推理引擎。
 - 支持 rLLM agent 引擎。
