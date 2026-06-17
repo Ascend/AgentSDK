@@ -4,7 +4,7 @@
 
 **问题现象<a name="faq_001_phenomenon"></a>**
 
-启动Agent SDK后，出现如下报错信息。
+启动 Aura 后，出现如下报错信息。
 
 ```text
 eth0: error fetching interface information: Device not found
@@ -50,7 +50,7 @@ eth0: error fetching interface information: Device not found
 
 **问题现象<a name="faq_002_phenomenon"></a>**
 
-启动Agent SDK后，出现如下报错信息。
+启动 Aura 后，出现如下报错信息。
 
 ```text
 $'\r': command not found
@@ -73,7 +73,7 @@ find /path/to/AgentSDK -type f -name "*.sh" -exec dos2unix {} +
 
 **问题现象<a name="faq_003_phenomenon"></a>**
 
-启动 Agent SDK后，出现如下报错信息：
+启动 Aura 后，出现如下报错信息：
 
 ```text
 RuntimeError: createHCCLCommOrigin:build/CMakeFiles/torch_npu.dir/compiler_depend.ts:2314 HCCL function error: HcclGetRootInfo(&hcclID)，error code is 7
