@@ -1,4 +1,4 @@
-# 简介<a name="ZH-CN_TOPIC_0000002459514656"></a>
+# 简介
 
 Agent SDK用来帮助用户快速训练AI智能体。
 
@@ -11,30 +11,32 @@ Agent SDK用来帮助用户快速训练AI智能体。
 
 如果对于相关流程已比较熟悉，可以直接跳转到[Python接口说明](api_python.md#python接口说明)获取需要的函数接口，加速数据处理流程。
 
-# 软件架构<a name="ZH-CN_TOPIC_0000002492554225"></a>
+# 软件架构
 
-Agent SDK软件架构如[图1](#fig173917397815)所示。
+<a id="fig173917397815"></a>
 
-**图 1**  Agent SDK软件架构<a id="fig173917397815"></a>
-![](figures/Agent-SDK软件架构.png "Agent-SDK软件架构")
+Agent SDK 软件架构如**图 1**所示。
 
-**表 1**  架构图模块介绍
+<div align="center">
+
+**图1 Agent SDK 软件架构**
+
+![](figures/Aura框架架构图.png)
+
+</div>
+
+**表1 架构图模块介绍**
 
 |模块|说明|
 |--|--|
-|**外部工具 Plugins**|外部工具插件，如Math、Code等，Agent可调用的外部能力|
 |**第三方 Agent 引擎**|支持多种Agent引擎，包括rLLM、Langchain等|
-|**Serve 模式**|服务化部署模式，提供HTTP API接口，包含infer_router和agent_router|
+|**Serve (训推通信)**|支持训练侧向推理侧和agent侧的http通信|
 |**Rollouter (轨迹生成)**|负责Agent轨迹生成，包含agent_manager、agent_executor、agent_engine_wrapper|
-|**Scheduler**|推理请求调度器，支持PD分离和负载均衡|
+|**Scheduler**|推理请求调度器，支持负载均衡|
 |**Memory**|轨迹数据持久化存储，使用Episode格式|
-|**Trainer (训练任务编排)**|训练任务管理和编排，包含buffer和data_manager|
-|**infer_manager / infer_executor**|推理服务管理和执行|
-|**rollout_controller**|轨迹生成控制器，协调推理和数据流动|
-|**train_manager / train_executor**|训练服务管理和执行|
-|**train_controller**|训练控制器，协调训练和数据流动|
-|**推理引擎**|支持多种推理引擎，包括vllm-ascend、omni-infer、SGLang|
-|**训练引擎**|支持多种训练引擎，包括MindSpeed-RL、verl|
+|**Trainer (训练任务编排)**|训练任务管理和编排，通过data_manager协调训练和推理的数据流动。|
+|**推理引擎**|支持第三方推理引擎，包括vllm-ascend|
+|**训练引擎**|支持第三方训练引擎，包括verl|
 |**RAY 分布式资源管理**|基于Ray的分布式资源管理，支持共卡/分离部署|
 
 # 支持特性

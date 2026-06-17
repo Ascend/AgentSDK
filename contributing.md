@@ -310,7 +310,7 @@ CI 检查项目包括：
 - `UT_cpp`：C++ 单元测试
 - `UT_python`：Python 单元测试
 
-任意一项失败，都可以通过详情链接查看具体问题。如果属于 CI 自身故障，请[联系 committer](https://gitcode.com/Ascend/community/blob/master/MindSeriesSDK/sigs/AgentSDK/sig-info.yaml)，或通过评论 `rebuild` 尝试重新构建。
+任意一项失败，都可以通过详情链接查看具体问题。如果属于 CI 自身故障，请[联系 committer](https://gitcode.com/Ascend/community/blob/master/MindSDK/sigs/AgentSDK/sig-info.yaml)，或通过评论 `rebuild` 尝试重新构建。
 
 # 社区准则
 
@@ -359,4 +359,4 @@ CI 检查项目包括：
 
 ## 成员列表
 
-[SIG 成员列表](https://gitcode.com/Ascend/community/blob/master/MindSeriesSDK/sigs/AgentSDK/sig-info.yaml)。
+[SIG 成员列表](https://gitcode.com/Ascend/community/blob/master/MindSDK/sigs/AgentSDK/sig-info.yaml)。
