@@ -46,7 +46,7 @@ verl_conf:
     validate_num_samples: 5 # 验证数据采样
     init_num_group_batches: 1 # 从 DataLoader 首次加载数据批次数量
     max_queue_size: 256
-    weight_save_dir: ${hydra:runtime.cwd}/weights/
+    weight_save_dir: ${hydra:runtime.cwd}/weights
     consumed_train_samples: 0 # 已处理的样本数量
     traj_output_path: ${train_instances.0.executor_kwargs.rollout_config.traj_output_path}
     agent_service: ${agent_instances.0.name}  # 依赖的 AGENT 服务名称（默认为 `agent_instances` 的第一个）

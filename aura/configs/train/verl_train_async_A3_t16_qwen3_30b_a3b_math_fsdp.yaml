@@ -45,7 +45,7 @@ verl_conf:
     validate_num_samples: 5 # 验证数据采样
     init_num_group_batches: 1 # 从 DataLoader 首次加载数据批次数量
     max_queue_size: 256
-    weight_save_dir: ${hydra:runtime.cwd}/weights/
+    weight_save_dir: ${hydra:runtime.cwd}/weights
     consumed_train_samples: 0 # 已处理的样本数量
     data_loader:
       train_data_path: /path/to/data/math_train_dataset/rl # 分离模式使用的数据集路径，末尾需要加上/rl
@@ -128,8 +128,8 @@ verl_conf:
     val_before_train: False
     device: npu
     critic_warmup: 0 # 奖励预热
-    project_name: 'qwen3_30b_a3b_math_code'
-    experiment_name: 'qwen3_30b_a3b_math_code'
+    project_name: 'qwen3_30b_a3b_math_code_one_step'
+    experiment_name: 'qwen3_30b_a3b_math_code_one_step'
     n_gpus_per_node: 16
     nnodes: 1
     save_freq: 100 # 保存ckpt的per iter

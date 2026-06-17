@@ -1,5 +1,0 @@
-megatron==core_r0.8.0
-mindspeed==ca70c1338f1b3d1ce46a0ea426e5779ae1312e2e
-mindspeed_llm==fe7d93c5b6dd36043203e6080e2d2566604e4860
-mindspeed_rl==d8a9378c3f5c0aaf974750ea6031a32a59ce0609
-rllm==0.1
