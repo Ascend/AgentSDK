@@ -302,11 +302,6 @@ function start_rollout_and_train()
   fi
 }
 
-function upgrade_transformers()
-{
-  export TRANSFORMERS_VERSION=5.3.0
-  source ${train_dir}/verl/upgrade_transformers.sh
-}
 
 function set_hccl_timeout()
 {
@@ -368,7 +363,6 @@ set_hccl_timeout
 patch_verl
 patch_megatron_bridge
 disable_compile
-#upgrade_transformers
 
 log_info "[train] ASCEND_RT_VISIBLE_DEVICES: ${ASCEND_RT_VISIBLE_DEVICES}"
 
