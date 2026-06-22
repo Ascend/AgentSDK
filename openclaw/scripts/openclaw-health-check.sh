@@ -54,7 +54,7 @@ fi
 
 set -u
 
-# 错误处理：捕获导致 set -e 退出的错误（调试用）
+# 错误处理：捕获导致 set -e 退出的错误
 handle_error() {
   echo "ERROR: Script failed near line $1" >&2
   sed -n "$((($1)-2)),$((($1)+2))p" "$0" >&2

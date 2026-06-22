@@ -26,7 +26,7 @@ from typing import List, Optional
 
 def get_project_root() -> Path:
     """Get the project root directory path."""
-    return Path(__file__).resolve().parent.parent.parent
+    return Path(__file__).resolve().parent.parent.parent.parent
 
 
 def get_configs_dir() -> Path:
@@ -36,7 +36,7 @@ def get_configs_dir() -> Path:
 
 def get_presmoke_configs_dir() -> Path:
     """Get the presmoke test configs directory path."""
-    return get_project_root() / "presmoke" / "configs"
+    return get_project_root() / "presmoke" / "aura" / "configs"
 
 
 @dataclass

@@ -1,6 +1,6 @@
 #!/bin/bash
 # Copyright Huawei Technologies Co., Ltd. 2021-2021. All rights reserved.
-# 三方件下载
+# 三方件下载脚本
 
 root_dir=$(realpath $(dirname $0))
 third_party_dir=${root_dir}/third_party
