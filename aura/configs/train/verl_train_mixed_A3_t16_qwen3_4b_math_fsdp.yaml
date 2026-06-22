@@ -4,6 +4,10 @@
 # 2. verl_conf.extras.data_loader.train_data_path
 # 3. verl_conf.actor_rollout_ref.model.path
 # 4. train_instances.rollout_config.llm_tokenizer_path
+# 开启混合批次调度时需要修改的参数如下：
+# 1. verl_conf.extras.init_num_group_batches
+# 2. train_instances.executor_kwargs.rollout_config.enable_version_control
+# 3. train_instances.executor_kwargs.rollout_config.hybrid_batch_num
 # =============================================================
 agentic_ai:
   mode: direct # 模式选择：serve | direct
@@ -43,7 +47,7 @@ verl_conf:
     delta: 2  # 清理 x 个版本前的旧权重
     update_weights_interval: 1  # 权重更新间隔
     validate_num_samples: 5 # 验证数据采样
-    init_num_group_batches: 1 # 从 DataLoader 首次加载数据批次数量
+    init_num_group_batches: 2 # 从 DataLoader 首次加载数据批次数量，开启混合批次调度时需要修改为2
     max_queue_size: 256
     weight_save_dir: ${hydra:runtime.cwd}/weights
     consumed_train_samples: 0 # 已处理的样本数量 断点续传？
@@ -169,11 +173,11 @@ train_instances:
         infer_tensor_parallel_size: ${infer_instances.0.executor_kwargs.engine_kwargs.tensor_parallel_size}
         train_tensor_parallel_size: ${verl_conf.actor_rollout_ref.rollout.tensor_model_parallel_size}
         infer_expert_parallel_size: ${infer_instances.0.executor_kwargs.engine_kwargs.data_parallel_size}
-        enable_version_control: false
+        enable_version_control: true  # 版本控制，开启混合批次调度时需要修改为true
         use_on_policy: false
         train_iters: ${verl_conf.extras.data_loader.train_iters}
         data_optimized: false
-        hybrid_batch_num: 1
+        hybrid_batch_num: 2 # 混合批次数，开启混合批次调度时需要修改为2
         wait_available_weight_timeout: -1
         llm_tokenizer_path: /path/to/models/Qwen3-4B # 需要修改为模型权重路径
       agent_service: ${agent_instances.0.name}  # 依赖的 AGENT 服务名称（默认为 `agent_instances` 的第一个）

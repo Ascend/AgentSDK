@@ -31,6 +31,7 @@
 # ⚙️ 功能介绍
 
 - 支持[训推共卡](docs/zh/user_guide/hybrid.md)和[训推分离](docs/zh/user_guide/one_step_off.md)模式。
+- 支持[混合批次调度](docs/zh/user_guide/mixed_batch.md)（实验特性）。
 - 支持[自定义 agent 接入](docs/zh/user_guide/custom_agent.md)。
 - 支持[Qwen3-4B](docs/zh/models/qwen3-4b.md)、[Qwen3-8B](docs/zh/models/qwen3_8b.md)、[Qwen3-32B](docs/zh/models/qwen3_32b.md)、[Qwen3-30B-A3B](docs/zh/models/qwen3-30b-a3b.md)模型。
 - 支持 verl 训练引擎，vllm 推理引擎。
@@ -55,6 +56,7 @@
 
 - 训推分离模式（资源充足）：请参考[训推分离使用指南](docs/zh/user_guide/one_step_off.md)。
 - 训推共卡模式（资源受限）：请参考[训推共卡使用指南](docs/zh/user_guide/hybrid.md)。
+- 混合批次调度（实验特性）：请参考[混合批次调度使用指南](docs/zh/user_guide/mixed_batch.md)。
 - 定义 Agent 内容、接入自有数据与工具链：请参考[自定义 Agent 接入指南](docs/zh/user_guide/custom_agent.md)。
 
 # ❓ FAQ
