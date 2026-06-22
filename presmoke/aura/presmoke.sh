@@ -12,7 +12,7 @@ echo "======================================"
 # ------------------------------------------------------------------------------
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 LOG_FILE="${SCRIPT_DIR}/presmoke_cases.log"
-PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
 echo "[INFO] Script dir    : $SCRIPT_DIR"
 echo "[INFO] Log file      : $LOG_FILE"
@@ -41,7 +41,7 @@ export PYTHONPATH="$PROJECT_ROOT/aura":$PYTHONPATH
 # Run all test cases (Test 1-10)
 echo "" | tee -a "$LOG_FILE"
 echo "[TEST 1-10] Running all pytest test cases" | tee -a "$LOG_FILE"
-pytest presmoke/cases/test_endtoend.py -v --tb=short 2>&1 | tee -a "$LOG_FILE"
+pytest presmoke/aura/cases/test_endtoend.py -v --tb=short 2>&1 | tee -a "$LOG_FILE"
 pytest_exit_code=${PIPESTATUS[0]}
 
 if [ $pytest_exit_code -ne 0 ]; then

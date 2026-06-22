@@ -38,7 +38,9 @@ function pre_install() {
  cd $workdir
 
  # 安装python包
- echo "[INFO] >>>>>>>>>>> start install python packages >>>>>>>>>>>"
+echo "======================================"
+echo "[INFO] Installing python packages"
+echo "======================================"
  pip3 install transformers==4.52.3 \
  sympy==1.13.1 \
  pylatexenc==2.10 \
@@ -97,67 +99,186 @@ function run_test() {
   export LD_PRELOAD=$LD_PRELOAD:/opt/buildtools/python-3.11.4/lib/python3.11/site-packages/sklearn/utils/../../scikit_learn.libs/libgomp-947d5fa1.so.1.0.0
 #  export PYTHONPATH=$PYTHONPATH:$ALL_THIRD_PYTHONPATH
 
-  cd aura
+  # ----------------------------------------------------------------------------
+  # Change analysis: decide which module's UT needs to run.
+  # The change file is produced by `git diff --name-only --no-commit-id`, so
+  # each non-empty line is just a repository-relative file path, e.g.:
+  #     aura/setup.py
+  #     openclaw/skillhub/cli.py
+  # There are NO `diff --git` headers. We detect module scope by checking
+  # whether any changed path starts with `aura/` or `openclaw/`.
+  # ----------------------------------------------------------------------------
+  CHANGE_FILE="/workspace/change.txt"
+  RUN_AURA_UT=false
+  RUN_OPENCLAW_UT=false
+
   echo ""
-  echo "[INFO] >>>>>>>>>>> start running tests >>>>>>>>>>>"
-  python3 -m pytest \
-    --cov=aura/ \
-    --cov-report=term \
-    --cov-report=html:script/coverage/html \
-    --cov-report=xml:script/coverage/coverage.xml \
-    --junit-xml=script/coverage/final.xml \
-    --html=script/coverage/final.html \
-    --self-contained-html \
-    --cov-branch \
-    -vs tests/
-  echo "[INFO] >>>>>>>>>>> finish running tests >>>>>>>>>>>"
+  echo "======================================"
+  echo "[INFO] UT change analysis"
+  echo "======================================"
+  echo "[INFO] Change file : $CHANGE_FILE"
+
+  if [ ! -f "$CHANGE_FILE" ]; then
+    echo "[ERROR] change file not found: $CHANGE_FILE"
+    echo "[ERROR] Cannot determine which module to test, aborting."
+    exit 1
+  fi
+
+  echo "[INFO] Collecting changed file paths (name-only format)..."
+  mapfile -t CHANGED_FILES < <(grep -vE "^[[:space:]]*$" "$CHANGE_FILE" || true)
+  echo "[INFO] Found ${#CHANGED_FILES[@]} changed file(s) in the change file."
+  if [ "${#CHANGED_FILES[@]}" -gt 0 ]; then
+    echo "[INFO] Changed file list:"
+    for f in "${CHANGED_FILES[@]}"; do
+      echo "  - $f"
+    done
+  fi
+
+  for line in "${CHANGED_FILES[@]}"; do
+    if [[ "$line" == aura/* ]]; then
+      RUN_AURA_UT=true
+      break
+    fi
+  done
+
+  for line in "${CHANGED_FILES[@]}"; do
+    if [[ "$line" == openclaw/* ]]; then
+      RUN_OPENCLAW_UT=true
+      break
+    fi
+  done
+
   echo ""
+  echo "[INFO] Diff analysis result:"
+  if [ "$RUN_AURA_UT" = true ]; then
+    echo "  - aura     : CHANGED  -> aura UT will be executed"
+  else
+    echo "  - aura     : untouched -> aura UT skipped"
+  fi
+  if [ "$RUN_OPENCLAW_UT" = true ]; then
+    echo "  - openclaw : CHANGED  -> openclaw UT will be executed"
+  else
+    echo "  - openclaw : untouched -> openclaw UT skipped"
+  fi
 
-  echo "[INFO] Coverage report generated:"
-  echo "  HTML: ${workdir}/script/coverage/htmlcov/index.html"
-  echo "  XML : ${workdir}/script/coverage/coverage.xml"
-  echo "  JUnit: ${workdir}/script/coverage/final.xml"
-  echo "  HTML test report: ${workdir}/script/coverage/final.html"
+  if [ "$RUN_AURA_UT" = false ] && [ "$RUN_OPENCLAW_UT" = false ]; then
+    echo ""
+    echo "[INFO] No changes detected under aura/ or openclaw/."
+    echo "[INFO] Nothing to do for UT, exiting successfully."
+    echo "======================================"
+    echo "[SUCCESS] UT skipped (no relevant changes)"
+    echo "======================================"
+    return 0
+  fi
 
-  LINE_RATE=$(grep -o 'line-rate="[^"]*"' ${workdir}/script/coverage/coverage.xml | head -1 | cut -d'"' -f2)
- 	BRANCH_RATE=$(grep -o 'branch-rate="[^"]*"' ${workdir}/script/coverage/coverage.xml | head -1 | cut -d'"' -f2)
+  # ----------------------------------------------------------------------------
+  # aura UT
+  # ----------------------------------------------------------------------------
+  if [ "$RUN_AURA_UT" = true ]; then
+    pre_install
+    cd $workdir/aura
+    echo ""
+    echo "======================================"
+    echo "[INFO] >>>>>>>>>>> start running aura tests >>>>>>>>>>>"
+    echo "======================================"
+    python3 -m pytest \
+      --cov=aura/ \
+      --cov-report=term \
+      --cov-report=html:script/coverage/html \
+      --cov-report=xml:script/coverage/coverage.xml \
+      --junit-xml=script/coverage/final.xml \
+      --html=script/coverage/final.html \
+      --self-contained-html \
+      --cov-branch \
+      -vs tests/
+    echo "[INFO] >>>>>>>>>>> finish running aura tests >>>>>>>>>>>"
+    echo ""
 
- 	echo "[INFO] Line coverage   : $(awk "BEGIN {print ${LINE_RATE}*100}")%"
- 	echo "[INFO] Branch coverage : $(awk "BEGIN {print ${BRANCH_RATE}*100}")%"
+    echo "[INFO] Aura coverage report generated:"
+    echo "  HTML: ${workdir}/script/coverage/htmlcov/index.html"
+    echo "  XML : ${workdir}/script/coverage/coverage.xml"
+    echo "  JUnit: ${workdir}/script/coverage/final.xml"
+    echo "  HTML test report: ${workdir}/script/coverage/final.html"
 
-  # Run openclaw tests
-  unset LD_PRELOAD
-  cd $workdir/openclaw
+    LINE_RATE=$(grep -o 'line-rate="[^"]*"' ${workdir}/script/coverage/coverage.xml | head -1 | cut -d'"' -f2)
+   	BRANCH_RATE=$(grep -o 'branch-rate="[^"]*"' ${workdir}/script/coverage/coverage.xml | head -1 | cut -d'"' -f2)
+
+   	echo "[INFO] Aura line coverage   : $(awk "BEGIN {print ${LINE_RATE}*100}")%"
+   	echo "[INFO] Aura branch coverage : $(awk "BEGIN {print ${BRANCH_RATE}*100}")%"
+  else
+    echo ""
+    echo "[INFO] Skipping aura UT (no aura changes detected)."
+  fi
+
+  # ----------------------------------------------------------------------------
+  # openclaw UT
+  # ----------------------------------------------------------------------------
+  if [ "$RUN_OPENCLAW_UT" = true ]; then
+    unset LD_PRELOAD
+    cd $workdir/openclaw
+    echo ""
+    echo "======================================"
+    echo "[INFO] >>>>>>>>>>> start running openclaw tests >>>>>>>>>>>"
+    echo "======================================"
+    python3 -m pytest \
+      --cov=skillhub \
+      --cov-report=term \
+      --cov-report=html:../script/coverage/openclaw/html \
+      --cov-report=xml:../script/coverage/openclaw/coverage.xml \
+      --junit-xml=../script/coverage/openclaw/final.xml \
+      --html=../script/coverage/openclaw/final.html \
+      --self-contained-html \
+      --cov-branch \
+      -vs tests/ \
+      --tb=short
+    echo "[INFO] >>>>>>>>>>> finish running openclaw tests >>>>>>>>>>>"
+    echo ""
+
+    echo "[INFO] Openclaw coverage report generated:"
+    echo "  HTML: ${workdir}/script/coverage/openclaw/htmlcov/index.html"
+    echo "  XML : ${workdir}/script/coverage/openclaw/coverage.xml"
+    echo "  JUnit: ${workdir}/script/coverage/openclaw/final.xml"
+    echo "  HTML test report: ${workdir}/script/coverage/openclaw/final.html"
+
+    OPENCLAW_LINE_RATE=$(grep -o 'line-rate="[^"]*"' ${workdir}/script/coverage/openclaw/coverage.xml | head -1 | cut -d'"' -f2)
+    OPENCLAW_BRANCH_RATE=$(grep -o 'branch-rate="[^"]*"' ${workdir}/script/coverage/openclaw/coverage.xml | head -1 | cut -d'"' -f2)
+
+    echo "[INFO] Openclaw line coverage   : $(awk "BEGIN {print ${OPENCLAW_LINE_RATE}*100}")%"
+    echo "[INFO] Openclaw branch coverage : $(awk "BEGIN {print ${OPENCLAW_BRANCH_RATE}*100}")%"
+  else
+    echo ""
+    echo "[INFO] Skipping openclaw UT (no openclaw changes detected)."
+  fi
+
   echo ""
-  echo "[INFO] >>>>>>>>>>> start running openclaw tests >>>>>>>>>>>"
-  python3 -m pytest \
-    --cov=skillhub \
-    --cov-report=term \
-    --cov-report=html:../script/coverage/openclaw/html \
-    --cov-report=xml:../script/coverage/openclaw/coverage.xml \
-    --junit-xml=../script/coverage/openclaw/final.xml \
-    --html=../script/coverage/openclaw/final.html \
-    --self-contained-html \
-    --cov-branch \
-    -vs tests/ \
-    --tb=short
-  echo "[INFO] >>>>>>>>>>> finish running openclaw tests >>>>>>>>>>>"
-  echo ""
-
-  echo "[INFO] Openclaw coverage report generated:"
-  echo "  HTML: ${workdir}/script/coverage/openclaw/htmlcov/index.html"
-  echo "  XML : ${workdir}/script/coverage/openclaw/coverage.xml"
-  echo "  JUnit: ${workdir}/script/coverage/openclaw/final.xml"
-  echo "  HTML test report: ${workdir}/script/coverage/openclaw/final.html"
-
-  OPENCLAW_LINE_RATE=$(grep -o 'line-rate="[^"]*"' ${workdir}/script/coverage/openclaw/coverage.xml | head -1 | cut -d'"' -f2)
-  OPENCLAW_BRANCH_RATE=$(grep -o 'branch-rate="[^"]*"' ${workdir}/script/coverage/openclaw/coverage.xml | head -1 | cut -d'"' -f2)
-
-  echo "[INFO] Openclaw line coverage   : $(awk "BEGIN {print ${OPENCLAW_LINE_RATE}*100}")%"
-  echo "[INFO] Openclaw branch coverage : $(awk "BEGIN {print ${OPENCLAW_BRANCH_RATE}*100}")%"
-
-  echo "[INFO] All tests done!"
+  echo "======================================"
+  echo "[INFO] UT summary"
+  echo "======================================"
+  if [ "$RUN_AURA_UT" = true ]; then
+    echo "  - aura UT     : DONE"
+  else
+    echo "  - aura UT     : SKIPPED"
+  fi
+  if [ "$RUN_OPENCLAW_UT" = true ]; then
+    echo "  - openclaw UT : DONE"
+  else
+    echo "  - openclaw UT : SKIPPED"
+  fi
+  echo "[INFO] All requested tests done!"
+  echo "======================================"
 }
 
-pre_install
+echo ""
+echo "======================================"
+echo "[INFO] test.sh start"
+echo "======================================"
+echo "[INFO] http_proxy  : ${http_proxy}"
+echo "[INFO] https_proxy : ${https_proxy}"
+echo "[INFO] workdir     : ${workdir}"
+
 run_test
+
+echo ""
+echo "======================================"
+echo "[SUCCESS] test.sh finished"
+echo "======================================"
