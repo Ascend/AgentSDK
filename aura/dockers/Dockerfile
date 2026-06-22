@@ -1,7 +1,7 @@
 ARG BASE_IMAGE=swr.cn-south-1.myhuaweicloud.com/ascendhub/cann:9.0.0-a3-ubuntu22.04-py3.11
-ARG SOC_VERSION=ascend910_9391
 
 FROM ${BASE_IMAGE}
+ARG SOC_VERSION=ascend910_9391
 
 ENV SOC_VERSION=${SOC_VERSION}
 ENV DEBIAN_FRONTEND=noninteractive
