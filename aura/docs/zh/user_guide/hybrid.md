@@ -88,13 +88,13 @@ train_config_name=verl_train_hybrid_A3_t16_qwen3_4b_math_fsdp
 
 #### 3.1 必须修改的路径参数
 
-| 参数 | 说明 | 示例 |
-|------|------|------|
-| `hydra.searchpath` | verl 配置模板路径，改为本机 aura 代码仓中 `configs/train/verl/config` 目录的绝对路径 | `file:///home/work/aura/configs/train/verl/config` |
-| `verl_conf.data.train_files` | 训练数据集路径（parquet 格式） | `/data/train.parquet` |
-| `verl_conf.data.val_files` | 验证数据集路径（parquet 格式） | `/data/test.parquet` |
-| `verl_conf.actor_rollout_ref.model.path` | 模型权重路径 | `/data/weights/qwen3-4b` |
-| `train_instances.rollout_config.llm_tokenizer_path` | 分词器路径（与模型路径一致） | `/data/weights/qwen3-4b` |
+| 参数 | 说明 | 示例                                                 |
+|------|------|----------------------------------------------------|
+| `hydra.searchpath` | verl 配置模板路径，改为本机 aura 代码仓中 `configs/train/verl_conf` 目录的绝对路径 | `file:///home/work/aura/configs/train/verl_conf` |
+| `verl_conf.data.train_files` | 训练数据集路径（parquet 格式） | `/data/train.parquet`                              |
+| `verl_conf.data.val_files` | 验证数据集路径（parquet 格式） | `/data/test.parquet`                               |
+| `verl_conf.actor_rollout_ref.model.path` | 模型权重路径 | `/data/weights/qwen3-4B`                           |
+| `train_instances.rollout_config.llm_tokenizer_path` | 分词器路径（与模型路径一致） | `/data/weights/qwen3-4B`                           |
 
 #### 3.2 共卡模式关键配置项
 
