@@ -4,20 +4,14 @@
 # 包含：SSH / uv / bun / pnpm / npm全局包 / pip包 / playwright chromium
 #
 # 构建参数：
-#   OPENCLAW_BASE_TAG      → 镜像版本标签（默认 latest）
-#   OPENCLAW_NODE_IMAGE    → 基础 node 镜像
 #
 # 使用方式：
-#   docker build -t openclaw-base:2026.4.1 -f Dockerfile.openclaw-base .
-#
-# 更新日志：
-#   每次 OpenClaw 依赖有变化时重建，版本化保存
+#   docker build -t openclaw:base-2026.5.22 -f Dockerfile.openclaw-base .
 # =============================================================================
 
-# ── 阶段 1: uv-install（下载 uv 工具）──────────────────────────────────────
 FROM node:24-bookworm AS uv-install
 ARG OPENCLAW_NODE_IMAGE
-# Docker Desktop Linux VM 无法直接访问 GitHub，改用 pip 安装 uv（pip 走清华镜像）
+# Docker Desktop Linux VM 无法直接访问 GitHub，改用 pip 安装 uv
 RUN rm -rf /etc/apt/sources.list.d/* /var/lib/apt/lists/* && \
     echo 'deb https://mirrors.aliyun.com/debian/ bookworm main contrib non-free non-free-firmware' > /etc/apt/sources.list && \
     echo 'deb https://mirrors.aliyun.com/debian-security/ bookworm-security main contrib non-free' >> /etc/apt/sources.list && \
@@ -34,7 +28,6 @@ RUN rm -rf /etc/apt/sources.list.d/* /var/lib/apt/lists/* && \
     chmod +x /root/.local/bin/uv && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# ── 阶段 2: openclaw-base（最终基础镜像）───────────────────────────────────
 FROM node:24-bookworm AS openclaw-base
 ARG OPENCLAW_BASE_TAG=latest
 
@@ -43,22 +36,33 @@ LABEL org.opencontainers.image.title="OpenClaw Base"
 LABEL org.opencontainers.image.description="OpenClaw 基础设施镜像：SSH/uv/bun/pnpm/npm全局包/pip包/playwright"
 LABEL org.openclaw.version="${OPENCLAW_BASE_TAG}"
 
-# ── 系统依赖（清华源）───────────────────────────────────────────────────────
 USER root
 COPY --from=uv-install /root/.local/bin/uv /usr/local/bin/uv
 RUN chmod +x /usr/local/bin/uv && \
     ln -sf /usr/local/bin/uv /usr/local/bin/uvx
 
-# apt 源（先清除默认源，再用清华镜像）
-RUN apt-get update && \
+# 替换为阿里云镜像源；安装 gosu + Chromium 依赖 + ffmpeg
+RUN rm -rf /etc/apt/sources.list.d/* /var/lib/apt/lists/* && \
+    echo 'deb https://mirrors.aliyun.com/debian/ bookworm main contrib non-free non-free-firmware' > /etc/apt/sources.list && \
+    echo 'deb https://mirrors.aliyun.com/debian-security/ bookworm-security main contrib non-free' >> /etc/apt/sources.list && \
+    echo 'deb https://mirrors.aliyun.com/debian/ bookworm-updates main contrib non-free' >> /etc/apt/sources.list && \
+    apt-get update && \
     DEBIAN_FRONTEND=noninteractive \
     apt-get install -y --no-install-recommends --fix-missing \
         procps hostname curl git lsof openssl \
         openssh-server python3 python3-pip python3-venv \
-        iputils-ping vim unzip && \
+        iputils-ping vim unzip \
+        gosu \
+        ffmpeg \
+        libxfixes3 \
+        libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 \
+        libcups2 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 \
+        libxrandr2 libgbm1 libpango-1.0-0 libcairo2 \
+        libasound2 libatspi2.0-0 libwayland-client0 \
+        rsync && \
     apt-get clean && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
 
-# SSH（Port 2222，无密码 root 登录禁用）
+# SSH（Port 2222，禁用密码登录）
 RUN mkdir -p /run/sshd && \
     sed -i 's/#Port 22/Port 2222/' /etc/ssh/sshd_config && \
     sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin no/' /etc/ssh/sshd_config && \
@@ -68,18 +72,18 @@ RUN mkdir -p /run/sshd && \
 ENV PATH="/root/.bun/bin:/usr/local/bin:$PATH"
 ENV UV_SYSTEM_PYTHON=1
 
-# ── bun（npm 全局安装）─────────────────────────────────────────────────────
+# ── bun（npm 全局安装）────────────────────────────────
 RUN npm config set registry https://registry.npmmirror.com && \
     npm install -g bun --legacy-peer-deps && \
     mkdir -p /root/.bun/bin && \
     ln -sf /usr/local/bin/bun /root/.bun/bin/bun && \
     chmod +x /root/.bun/bin/bun
 
-# ── pnpm（npm 全局安装）────────────────────────────────────────────────────
+# ── pnpm ────────────────────────────────────────────────
 RUN npm config set registry https://registry.npmmirror.com && \
     npm install -g pnpm --legacy-peer-deps
 
-# ── npm 全局包（文档处理相关）───────────────────────────────────────────────
+# ── npm 全局包（文档处理）───────────────────────────────
 RUN npm config set registry https://registry.npmmirror.com && \
     npm install -g \
         pptxgenjs react-icons sharp docx xlsx \
@@ -90,13 +94,40 @@ RUN npm config set registry https://registry.npmmirror.com && \
         react react-dom @types/react @types/react-dom \
         --legacy-peer-deps
 
-# ── pip 包（清华镜像）─────────────────────────────────────────────────────
-RUN python3 -m pip install --break-system-packages \
+# ── pip 包 ───────────────────────────────────────────────
+RUN python3 -m pip config set global.timeout 120 && \
+    python3 -m pip config set global.retries 5 && \
+    python3 -m pip install --break-system-packages \
         -i https://mirrors.aliyun.com/pypi/simple \
+        --extra-index-url https://pypi.tuna.tsinghua.edu.cn/simple \
+        --extra-index-url https://pypi.org/simple \
         markitdown[pptx] python-pptx python-docx \
         lxml openpyxl pillow pdf2image pdfminer.six
 
-# ── 运行时用户（应用镜像会用这个用户运行）────────────────────────────────
+# ── Playwright Chromium（app + overlay 层迁移至此）─────
+ARG http_proxy
+ARG https_proxy
+ARG PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT=300000
+RUN mkdir -p /home/node/.cache/ms-playwright && \
+    npm install -g playwright --legacy-peer-deps --no-cache && \
+    PLAYWRIGHT_BROWSERS_PATH=/home/node/.cache/ms-playwright \
+    PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT=${PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT} \
+    http_proxy=${http_proxy} https_proxy=${https_proxy} \
+    npx playwright install --with-deps chromium && \
+    npm cache clean --force && \
+    test -d /home/node/.cache/ms-playwright/chromium-* && echo "Chromium installed" && \
+    chown -R node:node /home/node/.cache/ms-playwright
+
+# ── Chromium 版本兼容符号链接 ────────────────────────────
+RUN if [ -d /home/node/.cache/ms-playwright ]; then \
+        latest=$(ls -d /home/node/.cache/ms-playwright/chromium-* 2>/dev/null | grep -v headless_shell | sort | tail -1); \
+        if [ -n "$latest" ] && [ -d "$latest" ]; then \
+            ln -sfn "$latest" /home/node/.cache/ms-playwright/chromium-latest; \
+            chown -h node:node /home/node/.cache/ms-playwright/chromium-latest; \
+        fi; \
+    fi
+
+# ── 运行时用户 ────────────────────────────────────────────
 ARG OPENCLAW_UID=1000
 ARG OPENCLAW_GID=1000
 RUN groupadd -g ${OPENCLAW_GID} node 2>/dev/null || true && \

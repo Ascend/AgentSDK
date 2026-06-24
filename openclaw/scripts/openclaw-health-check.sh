@@ -1,40 +1,14 @@
 #!/bin/bash
 # =============================================================================
 # OpenClaw 容器健康状态校验脚本
-#
-# 用途：CI/CD 流水线中用于验证容器拉起后的健康状态，
-#      替代手动逐项检查，覆盖 OpenClaw/Hermes/浏览器/依赖/插件/端口等
-#
-# 用法（在宿主机执行）：
-#   # 单实例
-#   bash openclaw-health-check.sh --instance 1 --port 18789 --token <TOKEN>
-#
-#   # 多实例（检查所有）
-#   bash openclaw-health-check.sh --scan-all --base-port 18789
-#
-#   # 仅镜像层静态检查（不访问 API，适合 API 未就绪时）
-#   bash openclaw-health-check.sh --image-only
-#
-#   # 健康探针自动重启测试
-#   bash openclaw-health-check.sh --probe-test --instance 1 --port 18789 --token <TOKEN>
-#
-#   # 详细输出（包含警告）
-#   bash openclaw-health-check.sh --instance 1 --port 18789 --token <TOKEN> --verbose
-#
-#   # 输出 CI 友好格式（TAP）
-#   bash openclaw-health-check.sh --instance 1 --port 18789 --token <TOKEN> --format tap
-#
-# 环境变量（可选）：
-#   OPENCLAW_GW_PORT   Gateway 端口（默认 18789）
-#   OPENCLAW_TOKEN     Gateway Token（优先于 --token 参数）
-#   OPENCLAW_CONTAINER Container 名称/ID（默认 openclaw-instance-1）
-#   OPENCLAW_HEALTH_TIMEOUT 每个实例整体超时秒数（默认 360）
-#   SKIP_RESTART_TEST  设为 1 跳过健康探针重启测试
-#
-# 依赖：curl jq nc node python3 openssl（容器内已有）
+# =============================================================================
+# 用法: bash openclaw-health-check.sh --instance 1 --port 18789 --token <TOKEN>
+#        bash openclaw-health-check.sh --scan-all --base-port 18789
+#        bash openclaw-health-check.sh --image-only
+#        bash openclaw-health-check.sh --probe-test --instance 1 --port 18789 --token <TOKEN>
 # =============================================================================
 
-# 颜色（默认启用）- 在 set -euo pipefail 之前定义，避免 unbound variable
+# 颜色（set -euo pipefail 之前定义，避免 unbound variable）
 RED=$'\033[0;31m'
 GREEN=$'\033[0;32m'
 YELLOW=$'\033[0;33m'
@@ -54,7 +28,7 @@ fi
 
 set -u
 
-# 错误处理：捕获导致 set -e 退出的错误
+# 错误处理（调试用）
 handle_error() {
   echo "ERROR: Script failed near line $1" >&2
   sed -n "$((($1)-2)),$((($1)+2))p" "$0" >&2
@@ -78,8 +52,7 @@ CONTAINER_NAME="${OPENCLAW_CONTAINER:-}"
 SKIP_RESTART="${SKIP_RESTART_TEST:-0}"
 INSTANCE_TIMEOUT="${OPENCLAW_HEALTH_TIMEOUT:-360}"
 HEALTH_TIMEOUT_CHILD="${OPENCLAW_HEALTH_TIMEOUT_CHILD:-0}"
-# 指定 mindclaw 源码目录路径（用于 Skills 交集比对）
-# 默认为容器挂载的宿主机 mindclaw/skills 路径
+# Skills 交集比对的源码目录
 MINDCLAW_SKILLS_DIR="${MINDCLAW_SKILLS_DIR:-}"
 PASS_COUNT=0
 FAIL_COUNT=0
@@ -96,14 +69,7 @@ GATEWAY_PID_FILE="$TMPDIR/openclaw-gateway-pid-$$"
 START_TIME=$(date +%s)
 ORIGINAL_ARGS=("$@")
 
-# 端口计算规则（容器内部端口 → 宿主机映射端口）
-# 12345 Gateway → 12345（直等）
-# 12346 SFTP   → 12346（直等）
-# 37700 Worker → 12347（固定偏移，非 instance*4）
-# 8080  Memex  → 12348（直等）
-MEMEX_PORT_OFFSET=3   # GW_PORT + 3 = Memex 内部端口 8080
-CLAUDE_MEM_PORT=37700        # Worker 容器内部端口
-CLAUDE_MEM_HOST_PORT=12347   # Worker 映射到宿主机的端口（固定）
+# 端口计算：容器端口 = 宿主机映射端口
 
 
 # -----------------------------------------------
@@ -558,8 +524,15 @@ section_browser() {
     shell_path=$(find /home -name "chrome" -type f 2>/dev/null | grep "chromium_headless_shell" | head -1)
     [ -n "$shell_path" ] && echo "[SHELL_PATH] $shell_path" || echo "[SHELL_PATH] NOT_FOUND"
 
-    ffmpeg_path=$(find /home -name "ffmpeg" -type f 2>/dev/null | grep "ms-playwright/ffmpeg" | head -1)
-    [ -n "$ffmpeg_path" ] && echo "[FFMPEG_PATH] $ffmpeg_path" || echo "[FFMPEG_PATH] NOT_FOUND"
+    # ffmpeg: 先检查系统路径，再检查 Playwright 自带
+    ffmpeg_path=""
+    if command -v ffmpeg >/dev/null 2>&1; then
+      ffmpeg_path=$(command -v ffmpeg)
+      echo "[FFMPEG_PATH] $ffmpeg_path"
+    else
+      ffmpeg_path=$(find /home -name "ffmpeg" -type f 2>/dev/null | grep "ms-playwright/ffmpeg" | head -1)
+      [ -n "$ffmpeg_path" ] && echo "[FFMPEG_PATH] $ffmpeg_path" || echo "[FFMPEG_PATH] NOT_FOUND"
+    fi
 
     pw_ver=$(npx playwright --version 2>/dev/null || true)
     [ -n "$pw_ver" ] && echo "[PW_VER] $pw_ver" || echo "[PW_VER] FAIL"
@@ -729,7 +702,7 @@ section_skills() {
   local batch_result
   batch_result=$(exec_in_container_batch '
     echo "[SKILLS_BEGIN]"
-    find "/home/node/.openclaw/skills" "/app/extensions" "/home/node/.claude/plugins" "/home/node/.hermes" -name "SKILL.md" -not -path "*/node_modules/*" 2>/dev/null |
+    find "/home/node/.openclaw/skills" "/app/skills" "/app/extensions" "/home/node/.claude/plugins" "/home/node/.hermes" -name "SKILL.md" -not -path "*/node_modules/*" 2>/dev/null |
     while IFS= read -r f; do dirname "$f"; done | sort -u |
     while IFS= read -r d; do basename "$d"; done | sort -u
     echo "[SKILLS_END]"
@@ -741,6 +714,7 @@ section_skills() {
     fi
 
     echo "[COUNT_OPENCLAW] $(find "/home/node/.openclaw/skills" -name "SKILL.md" -not -path "*/node_modules/*" 2>/dev/null | wc -l | tr -d "\n")"
+    echo "[COUNT_BUNDLED] $(find "/app/skills" -name "SKILL.md" -not -path "*/node_modules/*" 2>/dev/null | wc -l | tr -d "\n")"
     echo "[COUNT_CLAUDE_PLUGINS] $(find "/home/node/.claude/plugins" -name "SKILL.md" -not -path "*/node_modules/*" 2>/dev/null | wc -l | tr -d "\n")"
     echo "[COUNT_HERMES] $(find "/home/node/.hermes" -name "SKILL.md" -not -path "*/node_modules/*" 2>/dev/null | wc -l | tr -d "\n")"
     echo "[COUNT_EXTENSIONS] $(find "/app/extensions" -name "SKILL.md" -not -path "*/node_modules/*" 2>/dev/null | wc -l | tr -d "\n")"
@@ -750,6 +724,7 @@ section_skills() {
   local all_skill_names=""
   local in_skill_list=0
   local openclaw_skill_count=0
+  local bundled_skill_count=0
   local claude_plugin_skill_count=0
   local hermes_skill_count=0
   local extension_skill_count=0
@@ -773,6 +748,9 @@ section_skills() {
         ;;
       "[COUNT_OPENCLAW] "*)
         openclaw_skill_count=${line#"[COUNT_OPENCLAW] "}
+        ;;
+      "[COUNT_BUNDLED] "*)
+        bundled_skill_count=${line#"[COUNT_BUNDLED] "}
         ;;
       "[COUNT_CLAUDE_PLUGINS] "*)
         claude_plugin_skill_count=${line#"[COUNT_CLAUDE_PLUGINS] "}
@@ -811,6 +789,7 @@ section_skills() {
   # Per-location counts
   log_item INFO "容器内技能分布位置:"
   log_detail "  /home/node/.openclaw/skills: $openclaw_skill_count"
+  log_detail "  /app/skills (原生 bundled): $bundled_skill_count"
   log_detail "  /home/node/.claude/plugins: $claude_plugin_skill_count"
   log_detail "  /home/node/.hermes: $hermes_skill_count"
   log_detail "  /app/extensions: $extension_skill_count"
@@ -818,8 +797,8 @@ section_skills() {
   # ------------------------------------------------
   # B. mindclaw source reference set
   # ------------------------------------------------
-  local ref_skills_dir
-  if [ -n "$MINDCLAW_SKILLS_DIR" ] && [ -d "$MINDCLAW_SKILLS_DIR" ]; then
+  local ref_skills_dir=""
+  if [ -n "${MINDCLAW_SKILLS_DIR:-}" ] && [ -d "$MINDCLAW_SKILLS_DIR" ]; then
     ref_skills_dir="$MINDCLAW_SKILLS_DIR"
   elif [ -f "/mnt/c/WorkSpace/mindclaw/skills/SKILL.md" ] || [ -d "/mnt/c/WorkSpace/mindclaw/skills" ]; then
     ref_skills_dir="/mnt/c/WorkSpace/mindclaw/skills"
@@ -943,14 +922,6 @@ section_plugins() {
 
   local batch_result
   batch_result=$(exec_in_container_batch '
-    # claude-mem plugin
-    [ -d "/app/extensions/claude-mem" ] && echo "[CM_DIR] OK" || echo "[CM_DIR] FAIL"
-    owner=$(stat -c "%U:%G" "/app/extensions/claude-mem" 2>/dev/null || echo "unknown")
-    echo "[CM_OWNER] $owner"
-    skill_count=$(find "/app/extensions/claude-mem/skills" -name "*.md" 2>/dev/null | wc -l | tr -d "\n")
-    echo "[CM_SKILLS] $skill_count"
-    [ -f "/usr/local/lib/node_modules/claude-mem/modes/code.json" ] && echo "[CM_MODES] OK" || echo "[CM_MODES] FAIL"
-    [ -f "/usr/local/lib/node_modules/claude-mem/scripts/worker-service.cjs" ] && echo "[CM_WORKER] OK" || echo "[CM_WORKER] FAIL"
     # subagent plugins
     for plugin in subagent-exec-monitor subagent-taskr subagent-observability; do
       dir="/app/extensions/$plugin"
@@ -960,17 +931,11 @@ section_plugins() {
         [ -f "$dir/index.js" ] && echo "[PLUGIN_$plugin] INDEX_OK" || echo "[PLUGIN_$plugin] FAIL"
       }
     done
-    [ -d "/home/node/.claude" ] && echo "[CCB_DIR] OK" || echo "[CCB_DIR] FAIL"
   ')
 
   while IFS= read -r line; do
     [ -z "$line" ] && continue
     case "$line" in
-      \[CM_DIR\]*) [ "$(echo "$line" | sed 's/\[CM_DIR\] //')" = "OK" ] && log_item PASS "claude-mem 插件目录存在" || log_item FAIL "claude-mem 插件目录不存在" ;;
-      \[CM_OWNER\]*) log_item PASS "claude-mem 插件权限" "所有者: $(echo "$line" | sed 's/\[CM_OWNER\] //')" ;;
-      \[CM_MODES\]*) [ "$(echo "$line" | sed 's/\[CM_MODES\] //')" = "OK" ] && log_item PASS "claude-mem modes/code.json 存在" || log_item FAIL "claude-mem modes/code.json 缺失" ;;
-      \[CM_WORKER\]*) [ "$(echo "$line" | sed 's/\[CM_WORKER\] //')" = "OK" ] && log_item PASS "claude-mem worker-service.cjs 存在" || log_item FAIL "claude-mem worker-service.cjs 缺失" ;;
-      \[CCB_DIR\]*) [ "$(echo "$line" | sed 's/\[CCB_DIR\] //')" = "OK" ] && log_item PASS "ccb 配置目录存在" || log_item WARN "ccb 配置目录不存在" ;;
       \[PLUGIN_subagent-*)
         plugin=$(echo "$line" | sed 's/\[PLUGIN_\(.*\)\] .*/\1/')
         val=$(echo "$line" | sed 's/\[PLUGIN_[^]]*] //')
@@ -983,14 +948,109 @@ section_plugins() {
           log_item PASS "插件 $plugin 已部署" "入口文件 index.js"
         fi
         ;;
-      \[CM_SKILLS\]*)
-        count=$(echo "$line" | sed 's/\[CM_SKILLS\] //')
-        if [ -n "$count" ] && [ "$count" -gt 0 ] 2>/dev/null; then
-          log_item PASS "claude-mem skills 存在" "检测到 $count 个 skill 文件"
+    esac
+  done <<< "$batch_result"
+}
+
+# -----------------------------------------------
+# Section 10: 记忆系统插件状态
+# -----------------------------------------------
+section_memory_plugins() {
+  log_section "记忆系统插件状态"
+
+  local batch_result
+  batch_result=$(exec_in_container_batch '
+    # 写入 Python 检查脚本（base64 编码，避免 shell 转义问题）
+    echo "aW1wb3J0IGpzb24Kd2l0aCBvcGVuKCcvaG9tZS9ub2RlLy5vcGVuY2xhdy9vcGVuY2xhdy5qc29uJykgYXMgZjoKICAgIGRhdGEgPSBqc29uLmxvYWQoZikKZW50cmllcyA9IGRhdGEuZ2V0KCdwbHVnaW5zJywge30pLmdldCgnZW50cmllcycsIHt9KQptYyA9IGVudHJpZXMuZ2V0KCdtZW1vcnktY29yZScsIHt9KQptdyA9IGVudHJpZXMuZ2V0KCdtZW1vcnktd2lraScsIHt9KQpwcmludCgnW01FTV9NQ19FTkFCTEVEXSAnICsgc3RyKG1jLmdldCgnZW5hYmxlZCcsIEZhbHNlKSkpCnByaW50KCdbTUVNX01XX0VOQUJMRURdICcgKyBzdHIobXcuZ2V0KCdlbmFibGVkJywgRmFsc2UpKSkKc2xvdHMgPSBkYXRhLmdldCgncGx1Z2lucycsIHt9KS5nZXQoJ3Nsb3RzJywge30pCnByaW50KCdbTUVNX1NMT1RdICcgKyBzdHIoc2xvdHMuZ2V0KCdtZW1vcnknLCAnbm9uZScpKSkKbXMgPSBkYXRhLmdldCgnYWdlbnRzJywge30pLmdldCgnZGVmYXVsdHMnLCB7fSkuZ2V0KCdtZW1vcnlTZWFyY2gnLCB7fSkKcHJpbnQoJ1tNRU1fU0VBUkNIXSAnICsgc3RyKG1zLmdldCgnZW5hYmxlZCcsIEZhbHNlKSkpCg==" | base64 -d > /tmp/_mem_check.py
+
+    # memory-core
+    mc_dir="/app/extensions/memory-core"
+    if [ -d "$mc_dir" ]; then
+      echo "[MEM_MC_DIR] OK"
+    else
+      echo "[MEM_MC_DIR] MISSING"
+    fi
+
+    # memory-wiki
+    mw_dir="/app/extensions/memory-wiki"
+    if [ -d "$mw_dir" ]; then
+      echo "[MEM_MW_DIR] OK"
+    else
+      echo "[MEM_MW_DIR] MISSING"
+    fi
+
+    # 从 openclaw.json 读取插件和记忆配置
+    python3 /tmp/_mem_check.py 2>/dev/null && rm -f /tmp/_mem_check.py || { echo "[MEM_CONFIG] FAIL"; rm -f /tmp/_mem_check.py; }
+
+    # wiki vault
+    wiki_index="/home/node/.openclaw/wiki/main/index.md"
+    if [ -f "$wiki_index" ]; then
+      page_count=$(grep -o "Total pages: [0-9]*" "$wiki_index" 2>/dev/null | grep -o "[0-9]*" || echo "?")
+      echo "[MEM_WIKI_PAGES] $page_count"
+    else
+      echo "[MEM_WIKI_PAGES] 0"
+    fi
+
+    # memory store
+    mem_store="/home/node/.openclaw/memory/main.sqlite"
+    if [ -f "$mem_store" ]; then
+      mem_size=$(stat -c "%s" "$mem_store" 2>/dev/null || echo "?")
+      echo "[MEM_STORE] SIZE:$mem_size"
+    else
+      echo "[MEM_STORE] MISSING"
+    fi
+
+    echo "[MEM_DONE]"
+  ')
+
+  while IFS= read -r line; do
+    [ -z "$line" ] && continue
+    case "$line" in
+      \[MEM_DONE\]) ;;
+      \[MEM_MC_DIR\]\ OK)
+        log_item PASS "memory-core 插件目录存在" "/app/extensions/memory-core" ;;
+      \[MEM_MC_DIR\]\ MISSING)
+        log_item FAIL "memory-core 插件目录不存在" ;;
+      \[MEM_MW_DIR\]\ OK)
+        log_item PASS "memory-wiki 插件目录存在" "/app/extensions/memory-wiki" ;;
+      \[MEM_MW_DIR\]\ MISSING)
+        log_item FAIL "memory-wiki 插件目录不存在" ;;
+      \[MEM_MC_ENABLED\]\ True)
+        log_item PASS "memory-core 已启用" ;;
+      \[MEM_MC_ENABLED\]\ False)
+        log_item FAIL "memory-core 未启用" "doctor --fix 可能覆盖了配置" ;;
+      \[MEM_MW_ENABLED\]\ True)
+        log_item PASS "memory-wiki 已启用" ;;
+      \[MEM_MW_ENABLED\]\ False)
+        log_item FAIL "memory-wiki 未启用" ;;
+      \[MEM_SLOT\]\ memory-core)
+        log_item PASS "memory slot 指向 memory-core" ;;
+      \[MEM_SLOT\]\ none)
+        log_item WARN "memory slot 未设置" ;;
+      \[MEM_SLOT\]\ *)
+        val=$(printf '%s' "$line" | sed 's/^\[MEM_SLOT\] //')
+        log_item INFO "memory slot 指向 $val" ;;
+      \[MEM_WIKI_PAGES\]\ *)
+        pages=$(printf '%s' "$line" | sed 's/^\[MEM_WIKI_PAGES\] //')
+        if [ "$pages" -gt 0 ] 2>/dev/null; then
+          log_item PASS "Wiki vault 存在" "$pages 页"
         else
-          log_item FAIL "claude-mem skills 不存在" "未检测到 skill 文件"
+          log_item WARN "Wiki vault 为空" "0 页"
         fi
         ;;
+      \[MEM_STORE\]\ SIZE:*)
+        size=$(printf '%s' "$line" | sed 's/^\[MEM_STORE\] SIZE://')
+        log_item PASS "记忆存储文件存在" "$(echo "scale=1; $size / 1024" | bc 2>/dev/null || echo "$size") KB" ;;
+      \[MEM_STORE\]\ MISSING)
+        log_item WARN "记忆存储文件尚未创建" "首次对话后自动生成" ;;
+      \[MEM_SEARCH\]\ True)
+        log_item PASS "记忆搜索（memorySearch）已配置" ;;
+      \[MEM_SEARCH\]\ False)
+        log_item WARN "记忆搜索（memorySearch）未启用" ;;
+      \[MEM_SEARCH\]\ FAIL)
+        log_item FAIL "记忆搜索配置读取失败" ;;
+      \[MEM_CONFIG\]\ FAIL)
+        log_item FAIL "openclaw.json 插件配置读取失败" ;;
     esac
   done <<< "$batch_result"
 }
@@ -1038,58 +1098,7 @@ section_ports() {
 
 
 # -----------------------------------------------
-# Section 11: claude-mem worker 健康状态
-# -----------------------------------------------
-section_claude_mem_worker() {
-  log_section "claude-mem worker 健康状态"
-
-  # Worker health API — 在容器内执行（端口 37700 映射到宿主机 12347）
-  local worker_url="http://127.0.0.1:$CLAUDE_MEM_PORT/api/health"
-  local worker_resp
-  worker_resp=$(exec_in_container "wget -q -O - -T 10 '$worker_url' 2>/dev/null || curl -s -f -m 10 '$worker_url' 2>/dev/null || echo ''")
-
-  if [ -z "$worker_resp" ]; then
-    log_item FAIL "claude-mem worker health 异常" "Worker 容器内无响应: $worker_url"
-    return 1
-  fi
-
-  local status
-  status=$(echo "$worker_resp" | grep -o '"status":"[^"]*"' | cut -d'"' -f4 || echo "unknown")
-  if [ "$status" = "ok" ]; then
-    log_item PASS "claude-mem worker health 正常" "status: $status"
-  else
-    log_item FAIL "claude-mem worker health 异常" "status: $status"
-  fi
-
-  local initialized
-  initialized=$(echo "$worker_resp" | grep -o '"initialized":[^,}]*' | cut -d':' -f2- | tr -d ' ' || echo "unknown")
-  if [ "$initialized" = "true" ]; then
-    log_item PASS "claude-mem initialized=true" "Worker 已完成初始化"
-  else
-    log_item FAIL "claude-mem initialized=$initialized" "Worker 初始化未完成"
-  fi
-
-  local mcp_ready
-  mcp_ready=$(echo "$worker_resp" | grep -o '"mcpReady":[^,}]*' | cut -d':' -f2- | tr -d ' ' || echo "unknown")
-  if [ "$mcp_ready" = "true" ]; then
-    log_item PASS "claude-mem mcpReady=true" "MCP 协议已就绪"
-  else
-    log_item WARN "claude-mem mcpReady=$mcp_ready" "MCP 协议未就绪"
-  fi
-
-  # Session 初始化测试（容器内执行）
-  local session_url="http://127.0.0.1:$CLAUDE_MEM_PORT/api/sessions/init"
-  local session_resp
-  session_resp=$(exec_in_container "wget -q -O - -T 10 --post-data='{\"contentSessionId\":\"health-check-test\",\"project\":\"health-check\",\"prompt\":\"test\"}' --header='Content-Type: application/json' '$session_url' 2>/dev/null || curl -s -f -m 10 -X POST -H 'Content-Type: application/json' -d '{\"contentSessionId\":\"health-check-test\",\"project\":\"health-check\",\"prompt\":\"test\"}' '$session_url' 2>/dev/null || echo ''")
-  if echo "$session_resp" | grep -q "sessionDbId\|id"; then
-    log_item PASS "claude-mem session 初始化成功"
-  else
-    log_item WARN "claude-mem session 初始化响应异常" "${session_resp:0:100}"
-  fi
-}
-
-# -----------------------------------------------
-# Section 12: OpenClaw 插件可见性
+# Section 11: OpenClaw 插件可见性
 # -----------------------------------------------
 section_plugin_visibility() {
   log_section "OpenClaw 插件可见性"
@@ -1138,23 +1147,8 @@ section_plugin_functional_test() {
   # 注意：Gateway 工具系统通过 WebSocket 注册，/api/tools 返回空是正常
   # 通过 Worker 健康检查 + 插件 manifest 存在性做功能验证
 
-  # claude-mem worker 健康检查（已在 section_claude_mem_worker 中执行，这里做补充验证）
-  local worker_url="http://127.0.0.1:$CLAUDE_MEM_PORT/api/health"
-  local worker_resp
-  worker_resp=$(exec_in_container "wget -q -O - -T 10 '$worker_url' 2>/dev/null || curl -s -f -m 10 '$worker_url' 2>/dev/null || echo ''")
-  if echo "$worker_resp" | grep -q '"status":"ok"'; then
-    log_item PASS "claude-mem worker 功能正常" "Worker 端健康检查通过"
-  else
-    log_item WARN "claude-mem worker 功能异常" "${worker_resp:0:100}"
-  fi
-
-  # 通过 exec_in_container 验证 Gateway 工具注册状态（WS 模式）
-  # Gateway 的工具通过 WS 暴露，这里通过健康状态间接验证
-  if echo "$worker_resp" | grep -q '"mcpReady":true'; then
-    log_item PASS "Gateway MCP 工具就绪" "MCP 协议已正常初始化"
-  else
-    log_item WARN "Gateway MCP 工具未就绪" "MCPReady: false"
-  fi
+  # Gateway 工具通过 WebSocket 注册，这里通过健康状态间接验证
+  # （插件功能验证由 Gateway /health 探活 + 插件 manifest 静态检查覆盖）
 }
 
 # -----------------------------------------------
@@ -1363,7 +1357,7 @@ main() {
   if [ "$IMAGE_ONLY" = "0" ]; then
     section_gateway_connectivity || true
     section_gateway_talkability || true
-    section_claude_mem_worker || true
+
     section_plugin_visibility || true
     section_plugin_functional_test || true
     section_health_probe_test || true
@@ -1377,6 +1371,7 @@ main() {
   section_npm_deps
   section_skills
   section_plugins
+  section_memory_plugins
   section_ports
 
   # 汇总
