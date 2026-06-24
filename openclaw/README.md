@@ -62,18 +62,16 @@ bash ./build-openclaw.sh --skip-base --skip-app
 
 # 离线构建（使用本地源码）
 OPENCLAW_SRC=/path/to/openclaw-src \
-CLAUDE_MEM_SRC=/path/to/claude-mem-src \
-bash ./build-openclaw.sh --offline --skip-base --skip-app \
-  --claude-code-src /path/to/claude-code-best
+bash ./build-openclaw.sh --offline
 ```
 
 #### 三层镜像架构
 
-| 层级 | 镜像名称 | 说明 |
+| 层级 | 镜像标签 | 说明 |
 |------|---------|------|
-| **Layer 1** | `openclaw-base` | SSH/uv/pip/npm 全局包/Playwright 等基础设施 |
-| **Layer 2** | `openclaw` | 官方 OpenClaw 构建 |
-| **Layer 3** | `openclaw-overlay` | 插件 + skills 定制层 |
+| **Layer 1** | `openclaw:base-{版本号}` | SSH/uv/bun/pnpm/npm全局包/pip包/Playwright/Chromium/gosu/ffmpeg/rsync 等基础设施 |
+| **Layer 2** | `openclaw:app-{版本号}` | 官方 OpenClaw 构建产物（多阶段构建） |
+| **Layer 3** | `openclaw:{版本号}` | subagent-coordinator + Hermes + skills 定制层 |
 
 #### 构建脚本参数
 
@@ -86,10 +84,8 @@ bash ./build-openclaw.sh --offline --skip-base --skip-app \
 | `--skip-app` | 跳过 Layer 2 构建 |
 | `--skip-overlay` | 跳过 Layer 3 构建 |
 | `--skip-plugins` | 跳过插件准备 |
-| `--include-claude-code-best` | 启用 claude-code-best 打包 |
 | `--openclaw-src PATH` | openclaw 源码目录 |
-| `--claude-mem-src PATH` | claude-mem 源码目录 |
-| `--claude-code-src PATH` | claude-code-best 源码目录 |
+| `--hermes-src PATH` | Hermes Agent 源码目录 |
 | `--npmmirror URL` | npm 镜像地址 |
 
 ### 2. 执行部署
@@ -243,6 +239,19 @@ AgentSDK Openclaw 当前预置的通用 Agent Skill 覆盖多 Agent 协作、安
 | 版本管理 | 支持 Skill 版本控制与依赖管理 |
 | 自定义扩展 | 用户可开发并添加自定义 Skill |
 
+**动态添加技能**（容器运行后，无需重建镜像）：
+
+```bash
+# 宿主机直接操作合并目录
+cp -r ./my-skill openclaw-configs/skills-merged/my-skill/
+chmod -R 755 openclaw-configs/skills-merged/my-skill/
+
+# 或通过容器内路径（等价，因 /home/node/.openclaw/skills/ 是 bind mount）
+docker cp ./my-skill openclaw-1:/home/node/.openclaw/skills/my-skill/
+```
+
+放入后重启 Gateway 使其生效：在 WebUI 中输入 `/restart`，或执行 `docker exec openclaw-1 pkill -u node -f gateway`（健康探针会自动拉起）。
+
 ### 5. 容器化与部署
 
 | 功能点 | 描述 |
@@ -258,7 +267,7 @@ AgentSDK Openclaw 当前预置的通用 Agent Skill 覆盖多 Agent 协作、安
 
 ### 6. 安全沙箱
 
-MindClaw 集成 Docker 沙箱环境，为 Agent 执行提供安全隔离能力。沙箱相关配置代码位于 `scripts/` 目录下，包括配置模板、健康监控脚本等。
+AgentSDK Openclaw 集成 Docker 沙箱环境，为 Agent 执行提供安全隔离能力。沙箱相关配置代码位于 `scripts/` 目录下，包括配置模板、健康监控脚本等。
 
 #### 6.1 沙箱配置参数
 
