@@ -1,153 +1,51 @@
 # =============================================================================
 # OpenClaw Customization Overlay - 第三层
 # =============================================================================
-# 功能：在官方 openclaw 镜像基础上，注入 claude-mem 插件、ccb 和浏览器
-# 特点：
-#   - 不重新构建 OpenClaw，复用官方镜像
-#   - 插件通过预编译 dist 包注入，构建失败风险低
-#   - 易于扩展其他插件（只需 COPY 到 /app/extensions）
+# 在 openclaw 镜像基础上注入 subagent-coordinator 插件、Hermes Agent 和项目技能
 #
-# 构建参数：
-#   OPENCLAW_BASE_IMAGE   → 官方基础镜像（默认 openclaw:2026.4.1）
-#   CLAUDE_MEM_SRC       → claude-mem-dist 目录路径（默认 ./claude-mem-dist）
-#   CLAUDE_CODE_SRC      → claude-code-best-dist 目录路径（已废弃，直接使用固定路径）
-#   INCLUDE_CLAUDE_CODE_BEST → 是否打包 claude-code-best（默认 false，测试功能）
-#   BROWSER_SRC          → playwright chromium 缓存目录（可选）
-#   PLUGINS_DIR          → plugins 源码目录路径（默认 ./plugins）
-#   SKILLS_SRC           → skills 目录路径（默认 ./skills）
-#
-# 构建顺序（三层）：
-#   1. docker build -t openclaw-base:X.Y.Z -f Dockerfile.openclaw-base .
-#   2. docker build -t openclaw:X.Y.Z -f Dockerfile . --build-arg OPENCLAW_VERSION=X.Y.Z
-#   3. docker build -t openclaw:X.Y.Z-plus -f Dockerfile.openclaw-overlay .
+# 构建顺序：
+#   1. docker build -t openclaw:base-X.Y.Z -f Dockerfile.openclaw-base .
+#   2. docker build -t openclaw:app-X.Y.Z -f Dockerfile.openclaw-app . --build-arg OPENCLAW_VERSION=X.Y.Z
+#   3. docker build -t openclaw:X.Y.Z -f Dockerfile.openclaw-overlay .
 #
 # 统一构建：使用 build-openclaw.sh 脚本
 # =============================================================================
 
-# ── 第一步：复用官方镜像作为基础 ────────────────────────────────────────────
-ARG OPENCLAW_BASE_IMAGE=openclaw:2026.4.1
-FROM ${OPENCLAW_BASE_IMAGE} AS overlay-base
+ARG OPENCLAW_APP_IMAGE=openclaw:app-2026.5.22
+FROM ${OPENCLAW_APP_IMAGE} AS overlay-base
 
 LABEL org.opencontainers.image.title="OpenClaw Customization Overlay"
-LABEL org.opencontainers.image.description="OpenClaw + claude-mem + ccb + browser overlay"
+LABEL org.opencontainers.image.description="OpenClaw + subagent-coordinator + hermes + skills overlay"
 LABEL org.openclaw.layer="overlay"
 
 USER root
 
-# ── 安装 gosu（安全权限降权）+ Chromium 缺失依赖 ──────────────────────────
-RUN apt-get update && \
-    DEBIAN_FRONTEND=noninteractive \
-    apt-get install -y --no-install-recommends \
-        gosu \
-        libxfixes3 \
-        ffmpeg \
-        rsync \
-    && apt-get clean && rm -rf /var/lib/apt/lists/*
-
-# ── 第二步：注入 claude-mem ─────────────────────────────────────────────────
-# claude-mem-dist/plugin/  → 全局 npm 模块（/usr/local/lib/node_modules/claude-mem）
-# claude-mem-dist/openclaw/ → OpenClaw 插件包（/app/extensions/claude-mem）
-ARG CLAUDE_MEM_SRC=./claude-mem-dist
-COPY --chown=root:root ${CLAUDE_MEM_SRC}/plugin/. /usr/local/lib/node_modules/claude-mem/
-COPY --chown=root:root ${CLAUDE_MEM_SRC}/openclaw/. /tmp/claude-mem-plugin/
-
-# 修复 npmPackageRootDirectory 路径解析（bun 特有行为导致误判 npm root）
-RUN echo "{}" > /usr/local/lib/node_modules/package.json && chmod 644 /usr/local/lib/node_modules/package.json
-
-# claude-mem npx-cli 实际路径为 npx-cli/index.js，通过 symlink 兼容旧路径
-RUN mkdir -p /usr/local/lib/node_modules/claude-mem/dist && \
-    ln -sfn /usr/local/lib/node_modules/claude-mem/npx-cli /usr/local/lib/node_modules/claude-mem/dist/npx-cli && \
-    echo '#!/bin/sh\nexec node /usr/local/lib/node_modules/claude-mem/dist/npx-cli/index.js "$@"' > /usr/local/bin/claude-mem && \
-    chmod +x /usr/local/bin/claude-mem && \
-    chown -R node:node /usr/local/lib/node_modules/claude-mem
-
-# claude-mem worker-cli.js 硬编码了 ~/.claude/plugins/marketplaces/thedotmack/plugin 路径
-# 复制真实目录（符号链接会导致 bun 在 symlink cwd 下解析失败）
-RUN mkdir -p /home/node/.claude/plugins/marketplaces/thedotmack/plugin && \
-    cp -r /usr/local/lib/node_modules/claude-mem/* /home/node/.claude/plugins/marketplaces/thedotmack/plugin/ && \
-    chown -R node:node /home/node/.claude/plugins
-
-# claude-mem 插件安装到 /app/extensions/claude-mem（OpenClaw 插件发现路径）
-RUN mkdir -p /app/extensions/claude-mem && \
-    cp -r /tmp/claude-mem-plugin/* /app/extensions/claude-mem/ && \
-    chown -R root:root /app/extensions/claude-mem
-
-# claude-mem 的 skills 位于 claude-mem-dist/plugin/skills/，需要单独 COPY
-# OpenClaw 按 /app/extensions/<plugin-id>/skills/<skill-name> 查找 skill
-COPY --chown=root:root ${CLAUDE_MEM_SRC}/plugin/skills/. /app/extensions/claude-mem/skills/
-
-# claude-mem 的 scripts 目录（worker-service.cjs 等）也需要复制到插件目录
-COPY --chown=root:root ${CLAUDE_MEM_SRC}/plugin/scripts/. /app/extensions/claude-mem/scripts/
-
-# ── 第三步：注入 claude-code-best 预编译包（如有）─────────────────────────
-# 直接使用 COPY（不使用 shell 变量展开），避免 glob 或 cp 路径问题
-ARG INCLUDE_CLAUDE_CODE_BEST=false
-COPY --chown=root:root claude-code-best-dist/. /home/node/.claude/
-RUN if [ -d "/home/node/.claude/node_modules" ]; then cd /home/node/.claude/node_modules && npm install ws; fi
-RUN chown -R node:node /home/node/.claude/
-
-# ── 第四步：注入项目技能 ──────────────────────────────────────────────────
-# 复制项目skills目录到镜像内的/home/node/.openclaw/skills
-# 构建上下文为 docker/，skills 位于上级目录（由 build-openclaw.sh 临时复制到 ./skills）
+# 注入项目技能（部署时通过 --skills 参数与宿主机合并）
 ARG SKILLS_SRC=./skills
-COPY --chown=root:root ${SKILLS_SRC}/. /home/node/.openclaw/skills/
-RUN chown -R node:node /home/node/.openclaw/skills/ && \
-    chmod -R 755 /home/node/.openclaw/skills/
+COPY --chown=root:root ${SKILLS_SRC}/. /home/node/.openclaw/skills-shared/
+RUN chown -R node:node /home/node/.openclaw/skills-shared/ && \
+    chmod -R 755 /home/node/.openclaw/skills-shared/
 
-# ── 第五步：注入 Playwright Chromium（如有） ───────────────────────────────
-# 如果宿主机有 playwright 缓存，可以 COPY 进来
-ARG BROWSER_SRC=
-RUN if [ -n "${BROWSER_SRC}" ] && [ -d "${BROWSER_SRC}" ]; then \
-        mkdir -p /home/node/.cache/ms-playwright && \
-        cp -r ${BROWSER_SRC}/* /home/node/.cache/ms-playwright/ 2>/dev/null || true && \
-        chown -R node:node /home/node/.cache/ms-playwright; \
-    fi
-
-# ── Chromium 版本兼容：创建 chromium-latest 符号链接 ───────────────────────
-RUN if [ -d /home/node/.cache/ms-playwright ]; then \
-        latest=$(ls -d /home/node/.cache/ms-playwright/chromium-* 2>/dev/null | grep -v headless_shell | sort | tail -1); \
-        if [ -n "$latest" ] && [ -d "$latest" ]; then \
-            ln -sfn "$latest" /home/node/.cache/ms-playwright/chromium-latest; \
-            chown -h node:node /home/node/.cache/ms-playwright/chromium-latest; \
-        fi; \
-    fi
-
-# ── 第六步：注入 plugins 目录下所有插件 ───────────────────────────────────
-# 插件产物目录结构：
-#   docker/<plugin-name>-dist/
-#     plugins/
-#       <sub-plugin-1>/dist/...
-#       <sub-plugin-2>/dist/...
-#     packages/types/dist/...
-# 构建脚本会自动准备这些目录
-
-# subagent-coordinator 插件（预置到镜像，文件所有者为 root）
-# OpenClaw 要求插件目录所有者为 root (uid=0)
-# 类型包已嵌入到每个插件的 node_modules/@subagent-coordinator/types/ 中
+# 注入 subagent-coordinator 插件（OpenClaw 要求插件目录所有者为 root）
 COPY --chown=root:root subagent-coordinator-dist/plugins/. /app/extensions/
 
-# 修复 ESM import 路径：TypeScript 输出的 import 不带 .js 扩展名
-# Node.js ESM 必须要有扩展名才能正确解析
-# 只处理相对路径导入（以 ./ 或 ../ 开头），不处理包名导入
+# TypeScript 输出的 import 不带 .js，需修复相对路径导入
 RUN for f in $(find /app/extensions/subagent-exec-monitor /app/extensions/subagent-observability /app/extensions/subagent-taskr -name "*.js" -type f); do \
         sed -i -E 's/(from "\.(\.\.)?\/[^"]+)"/\1.js"/g' "$f"; \
     done
 
-# 为 subagent 插件添加 enabledByDefault: true（默认禁用，需显式启用）
+# 启用 subagent 插件
 RUN for f in /app/extensions/subagent-exec-monitor/openclaw.plugin.json /app/extensions/subagent-observability/openclaw.plugin.json /app/extensions/subagent-taskr/openclaw.plugin.json; do \
         sed -i 's/"id":/"enabledByDefault": true,\n  "id":/g' "$f" 2>/dev/null || true; \
     done
 
-# 修复插件权限：subagent-coordinator 插件需要可执行权限，但不能是 world-writable
-# world-writable 会被 OpenClaw 安全检查拒绝加载
+# 修复插件权限（world-writable 会被 OpenClaw 安全检查拒绝）
 RUN find /app/extensions/subagent-exec-monitor /app/extensions/subagent-observability /app/extensions/subagent-taskr -type d -exec chmod 755 {} \; && \
     find /app/extensions/subagent-exec-monitor /app/extensions/subagent-observability /app/extensions/subagent-taskr -type f -exec chmod 644 {} \;
 
-# ── 第六步：预装 Hermes Agent ──────────────────────────────────────────────
-# clone 仓库 + 创建 venv + 安装依赖，构建时完成，启动时零等待
-RUN cd /home/node && \
-    git clone --depth 1 https://github.com/NousResearch/hermes-agent.git .hermes/hermes-agent && \
-    cd .hermes/hermes-agent && \
+# 预装 Hermes Agent（使用本地源码，避免容器内 git clone）
+COPY --chown=node:node hermes-src /home/node/.hermes/hermes-agent
+RUN cd /home/node/.hermes/hermes-agent && \
     python3 -m venv venv && \
     ./venv/bin/python -m ensurepip && \
     ./venv/bin/python -m pip install --upgrade pip && \
@@ -158,15 +56,7 @@ RUN cd /home/node && \
 # 支持MCP
 RUN npm install -g mcporter --legacy-peer-deps
 
-# ── 统一修复运行时文件所有权（方案 A）────────────────────────────────────
-# 容器以 node 用户运行时，需要读写以下路径：
-#   /app/dist        → openclaw-gateway 运行时读取
-#   /app/docs        → control-ui 等组件读取
-#   /app/extensions  → 插件加载
-#   /home/node       → node 用户 home 目录
-# 注意：COPY --chown 只影响 COPY 创建的文件，但 base 镜像中的 /app/dist
-# 和 /app/extensions 已是 root 持有（COPY 自 root 构建的 app 镜像），
-# 必须显式 chown 才能让 node 用户访问。
+# 修复运行时文件所有权（node 用户需读写 /app/dist, /app/docs, /home/node）
 RUN chown -R node:node /app/dist && \
     chown -R node:node /app/docs && \
     chown -R node:node /home/node
@@ -174,33 +64,16 @@ RUN chown -R node:node /app/dist && \
 # ── SSH 主机密钥（首次生成）─────────────────────────────────────────────────
 RUN ssh-keygen -A 2>/dev/null || true
 
-# ── CLI 命令行工具 ──────────────────────────────────────────────────────────
-# ccb: claude-code-best CLI（ccb = claude-code-best）
-RUN if [ -f /home/node/.claude/cli-node.js ]; then \
-        echo '#!/bin/sh\nexec node /home/node/.claude/cli-node.js "$@"' > /usr/local/bin/ccb && \
-        chmod +x /usr/local/bin/ccb && \
-        chown node:node /usr/local/bin/ccb; \
-    fi
-
-# ccb: claude-code-best CLI (clawcode 为别名)
-RUN if [ -f /usr/local/bin/ccb ]; then \
-        ln -sf /usr/local/bin/ccb /usr/local/bin/clawcode; \
-    fi
-
-# openclaw: OpenClaw 主 CLI
 RUN echo '#!/bin/sh\nexec node /app/dist/index.js "$@"' > /usr/local/bin/openclaw && \
     chmod +x /usr/local/bin/openclaw && \
     chown node:node /usr/local/bin/openclaw
 
-# ── 环境变量（补充）─────────────────────────────────────────────────────────
 ENV PATH="/root/.bun/bin:/home/node/.local/bin:/usr/local/bin:$PATH"
 ENV NODE_OPTIONS="--max-old-space-size=1536"
 
 # 工作目录
 WORKDIR /app
 
-# 暴露端口（与官方一致）
-EXPOSE 2222 18792
+EXPOSE 2222 18789 18792
 
-# 启动命令（复用官方 CMD）
-CMD ["node", "/app/dist/index.js"]
+CMD ["node", "openclaw.mjs", "gateway"]

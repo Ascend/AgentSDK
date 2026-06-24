@@ -218,6 +218,22 @@ function run_test() {
     cd $workdir/openclaw
     echo ""
     echo "======================================"
+    echo "[INFO] >>>>>>>>>>> installing openclaw dependencies >>>>>>>>>>>"
+    echo "======================================"
+    pip3 install \
+      pydantic==2.0.0 \
+      pydantic-settings==2.0.0 \
+      httpx[http2]==0.24.0 \
+      typer==0.15.0 \
+      click==8.1.7 \
+      rich==13.0.0 \
+      keyring==23.0.0 \
+      keyrings.alt==4.0.0 \
+      diskcache==5.0.0 \
+      platformdirs==3.0.0 \
+      pyyaml==6.0.0
+    echo ""
+    echo "======================================"
     echo "[INFO] >>>>>>>>>>> start running openclaw tests >>>>>>>>>>>"
     echo "======================================"
     python3 -m pytest \
