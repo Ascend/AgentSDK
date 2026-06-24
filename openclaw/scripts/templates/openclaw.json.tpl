@@ -131,6 +131,33 @@
         "idleTimeoutSeconds": 1200
       },
       "memorySearch": {
+        "enabled": true,
+        "provider": "none",
+        "sync": {
+          "watch": true,
+          "watchDebounceMs": 1500
+        },
+        "query": {
+          "maxResults": 8,
+          "hybrid": {
+            "enabled": true,
+            "vectorWeight": 0,
+            "textWeight": 1,
+            "candidateMultiplier": 4,
+            "mmr": {
+              "enabled": false,
+              "lambda": 0.7
+            },
+            "temporalDecay": {
+              "enabled": true,
+              "halfLifeDays": 30
+            }
+          }
+        },
+        "cache": {
+          "enabled": true,
+          "maxEntries": 50000
+        },
         "store": {
           "path": "/home/node/.openclaw/memory/{agentId}.sqlite"
         }
@@ -176,11 +203,13 @@
       "dangerouslyAllowPrivateNetwork": true
     }
   },
+  "memory": {
+    "backend": "builtin"
+  },
   "plugins": {
     "enabled": true,
     "load": {
       "paths": [
-        "/app/extensions/claude-mem",
         "/app/extensions/subagent-exec-monitor",
         "/app/extensions/subagent-observability",
         "/app/extensions/subagent-taskr",
@@ -188,22 +217,71 @@
       ]
     },
     "slots": {
-      "memory": "claude-mem"
+      "memory": "memory-core"
     },
     "entries": {
-      "claude-mem": {
-        "enabled": true,
-        "config": {
-          "workerPort": ${CLAUDE_MEM_WORKER_PORT},
-          "project": "${CLAUDE_MEM_PROJECT}"
-        }
-      },
       "acpx": {
         "enabled": true,
         "config": {
           "permissionMode": "approve-reads",
           "nonInteractivePermissions": "fail",
           "timeoutSeconds": 300
+        }
+      },
+      "memory-core": {
+        "enabled": true,
+        "config": {
+          "dreaming": {
+            "enabled": true,
+            "frequency": "0 3 * * *",
+            "timezone": "Asia/Shanghai",
+            "phases": {
+              "deep": {
+                "enabled": true,
+                "limit": 10,
+                "minScore": 0.8,
+                "minRecallCount": 3,
+                "minUniqueQueries": 3,
+                "recencyHalfLifeDays": 14,
+                "maxAgeDays": 30
+              }
+            }
+          }
+        }
+      },
+      "memory-wiki": {
+        "enabled": true,
+        "config": {
+          "vaultMode": "bridge",
+          "vault": {
+            "path": "/home/node/.openclaw/wiki/main",
+            "renderMode": "native"
+          },
+          "bridge": {
+            "enabled": true,
+            "readMemoryArtifacts": true,
+            "indexDreamReports": true,
+            "indexDailyNotes": true,
+            "indexMemoryRoot": true,
+            "followMemoryEvents": true
+          },
+          "search": {
+            "backend": "shared",
+            "corpus": "all"
+          },
+          "render": {
+            "preserveHumanBlocks": true,
+            "createBacklinks": true,
+            "createDashboards": true
+          },
+          "ingest": {
+            "autoCompile": true,
+            "maxConcurrentJobs": 1,
+            "allowUrlIngest": true
+          },
+          "context": {
+            "includeCompiledDigestPrompt": false
+          }
         }
       }
     }

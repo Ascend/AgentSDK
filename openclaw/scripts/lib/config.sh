@@ -77,7 +77,6 @@ generate_instance_config() {
     export GW_PORT=$((BASE_PORT + (i - 1) * 4))
     export SFTP_PORT=$((GW_PORT + 1))
     export MDNS_PORT_HOST=$((GW_PORT + 2))
-    export MEMEX_PORT=$((GW_PORT + 3))
 
     # 生成随机密码
     local sftp_password
@@ -102,9 +101,8 @@ generate_instance_config() {
 
     # 导出所有需要的变量
     export OPENCLAW_TOKEN MODEL_NAME MODEL_PROVIDER INFER_URL MDNS_PORT API_KEY
-    export CLAUDE_MEM_WORKER_PORT CLAUDE_MEM_PROJECT
     export SUBAGENT_COORDINATOR_DIR SANDBOX_ENABLED
-    # 非 local 供应商时，Claude 需要 /anthropic 后缀
+    # 非 local 供应商时需要 /anthropic 后缀
     if [ "$MODEL_PROVIDER" != "local" ]; then
         export ANTHROPIC_SUFFIX="/anthropic"
     else
@@ -143,7 +141,7 @@ generate_instance_config() {
     # 生成 Claude Code 配置
     mkdir -p "$config_dir/.claude"
     render_template         "$TEMPLATES_DIR/claude-settings.json.tpl"         "$config_dir/.claude/settings.json"         '${INFER_URL} ${MODEL_NAME} ${API_KEY} ${ANTHROPIC_SUFFIX}'
-    # 生成 Hermes Agent 配置（hermes 已在镜像中，始终生成）
+    # 生成 Hermes Agent 配置
     mkdir -p "$config_dir/.hermes"
     render_template \
         "$TEMPLATES_DIR/hermes-config.yaml.tpl" \
@@ -160,7 +158,7 @@ generate_instance_config() {
     copy_template "$TEMPLATES_DIR/ssh/start_sshd.sh.tpl" "$config_dir/ssh/start_sshd.sh"
     copy_template "$TEMPLATES_DIR/health_monitor.sh.tpl" "$config_dir/health_monitor.sh"
 
-    # 修复 Windows CRLF 换行符（确保 Linux 容器能执行）
+    # 修复 Windows CRLF 换行符
     sed -i 's/\r$//' "$config_dir/ssh/start_sshd.sh" 2>/dev/null || true
     sed -i 's/\r$//' "$config_dir/health_monitor.sh" 2>/dev/null || true
 
@@ -177,23 +175,6 @@ generate_instance_config() {
 
     # 保存 Gateway Token（供 compose 生成时读取）
     echo "$OPENCLAW_TOKEN" > "$config_dir/.gateway_token"
-
-    # =============================================================================
-    # claude-mem 插件补丁：为解决 workspaceDir 不可用问题，需要替换插件入口文件
-    # 详见: https://github.com/thedotmack/claude-mem/issues/XXX
-    # 补丁版本: v2026.4.11
-    # 原始文件: /app/extensions/claude-mem/dist/index.js (在 Docker 镜像内)
-    # 挂载后文件: /app/extensions/claude-mem/dist/index.js (覆盖镜像内文件)
-    # =============================================================================
-    CLAUDE_MEM_PATCH_SRC="$SCRIPT_DIR/patches/claude-mem/claude-mem-index.js.v2026.4.11.patched"
-    if [ -f "$CLAUDE_MEM_PATCH_SRC" ]; then
-        mkdir -p "$config_dir/plugins/claude-mem/dist"
-        cp "$CLAUDE_MEM_PATCH_SRC" "$config_dir/plugins/claude-mem/dist/index.js"
-        # 注意：权限会在后续 chown 阶段统一处理
-        log_info "已应用 claude-mem 插件补丁 (workspaceDir fix)"
-    else
-        log_warn "未找到 claude-mem 插件补丁文件: $CLAUDE_MEM_PATCH_SRC"
-    fi
 
     # 修复文件所有权
     chown 1000:1000 -R "$config_dir" 2>/dev/null || true
