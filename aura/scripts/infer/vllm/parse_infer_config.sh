@@ -10,6 +10,16 @@ root_dir=$(realpath $(dirname $scripts_dir))
 source ${scripts_dir}/base/utils.sh
 export CONFIG_FILE=${root_dir}/configs/infer/${INFER_CONF_NAME}.yaml
 
+if [[ -z "${INFER_CONF_NAME}" ]]; then
+  log_error "infer_config_name is not set in base.conf"
+  exit 1
+fi
+
+if [[ ! -f "${CONFIG_FILE}" ]]; then
+  log_error "infer config file not found: ${CONFIG_FILE}"
+  exit 1
+fi
+
 log_info "CONFIG_FILE: ${CONFIG_FILE}"
 log_info "================parse infer params begin================="
 export VLLM_VERSION=$(python3 ${scripts_dir}/base/get_yaml.py ${CONFIG_FILE} vllm_version)
