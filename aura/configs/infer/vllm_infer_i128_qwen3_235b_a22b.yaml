@@ -1,0 +1,67 @@
+# =============================================================
+# 一键启动需要修改路径的参数如下：
+# 1. infer_model_path
+# =============================================================
+# vllm版本信息
+vllm_version: 0.16.0
+
+# 模型名称
+infer_model_name: Qwen3-235B-A22B
+
+# 模型权重路径
+infer_model_path: /path/to/models/Qwen3-235B-A22B # 需要修改为模型权重路径
+
+# 是否开启专家并行, MOE模型默认需要开启, Dense模型需要关闭
+enable_expert_parallel: true
+
+# 推理部署是否使用PD分离, 1:PD separate, 0:PD hybrid
+pd_mode: 0
+
+# prefill实例数量
+prefill_instance_count: 1
+
+# decode实例数量, 注意：PD混部时decode实例数要配置为0
+decode_instance_count: 0
+
+# prefill/decode tp size
+tensor_parallel_size: 8
+
+# prefill/decode dp size
+data_parallel_size: 16
+
+# prefill/decode ep size
+expert_parallel_size: 128
+
+# 模型输出最大长度
+max_model_len: 40960
+
+# max-num-batched-tokens
+max_num_batched_tokens: 8192
+
+# gpu-memory-utilization
+gpu_memory_utilization: 0.7
+
+# max-num-seqs
+max_num_seqs: 32
+
+# 图模式的capture size
+cudagraph_capture_sizes: [4,8,12,16,24]
+
+# kv cache PD之间同步传输后端: mooncake 或 llmdatadist
+kv_backend: mooncake
+
+# 统计开关
+enable_vllm_stat: false
+
+# 权重相似度检查开关
+enable_tensor_similarity_check: false
+
+# flash comm算法支持: 0关闭, 1开启
+vllm_ascend_enable_flashcomm: 1
+vllm_ascend_enable_flashcomm1: 1
+
+# 开启tool call支持
+tool_call_enable: true
+
+# 是否使用优化vllm
+use_vllm_opt: false

@@ -1,10 +1,9 @@
 # =============================================================
 # 一键启动需要修改路径的参数如下：
 # 1. hydra.searchpath
-# 2. verl_conf.data.train_files
-# 3. verl_conf.data.val_files
-# 4. verl_conf.actor_rollout_ref.model.path
-# 5. train_instances.rollout_config.llm_tokenizer_path
+# 2. verl_conf.extras.data_loader.train_data_path
+# 3. verl_conf.actor_rollout_ref.model.path
+# 4. train_instances.executor_kwargs.rollout_config.llm_tokenizer_path
 # =============================================================
 agentic_ai:
   mode: direct # 模式选择：serve | direct
@@ -34,8 +33,8 @@ hydra:
     - file:///path/to/AgentSDK/aura/configs/train/verl_conf # 改为当前代码仓中aura/configs/train/verl_conf目录所在的绝对路径
 
 defaults:
-  - ppo_trainer
-  - ppo_trainer@verl_conf
+  - fully_async_ppo_trainer
+  - fully_async_ppo_trainer@verl_conf
   - _self_
 
 # 覆盖VERL模板中的参数
@@ -48,12 +47,8 @@ verl_conf:
     max_queue_size: 256
     weight_save_dir: ${hydra:runtime.cwd}/weights
     consumed_train_samples: 0 # 已处理的样本数量
-    traj_output_path: ${train_instances.0.executor_kwargs.rollout_config.traj_output_path}
-    agent_service: ${agent_instances.0.name}  # 依赖的 AGENT 服务名称（默认为 `agent_instances` 的第一个）
-    infer_service: ${infer_instances.0.name}  # 依赖的 INFER 服务名称（默认为 `infer_instances` 的第一个）
-    server_addresses: ${infer_instances.0.executor_kwargs.engine_kwargs.chat_server}
     data_loader:
-      train_data_path: /path/to/data/math_train_dataset/rl # 分离模式所用数据集，共卡模型下不生效
+      train_data_path: /path/to/data/math_train_dataset/rl # 分离模式使用的数据集路径，末尾需要加上/rl
       split: 100,0,0
       seq_length: 8192
       train_iters: ${verl_conf.total_train_steps}
@@ -66,19 +61,16 @@ verl_conf:
       is_pairwise_dataset: false
   total_train_steps: 200
   data:
-    train_files: /path/to/data/train.parquet # 共卡模式所需训练数据集路径
-    val_files: /path/to/data/test.parquet # 共卡模式所需测试数据集路径
-    train_batch_size: 16
-    max_prompt_length: 4096
-    max_response_length: 32768
-    filter_overlong_prompts: True
+    gen_batch_size: 1  # Number of samples generated, currently only support 1, 当前不生效
+    return_raw_chat: True
+    train_batch_size: 32
   actor_rollout_ref:
     model:
-      path: /path/to/models/Qwen3-8B # 需要修改为模型路径
+      path: /path/to/models/Qwen3-235B-A22B # 需要修改为模型权重路径
       use_remove_padding: True
       enable_gradient_checkpointing: True
-      enable_activation_offload: False
-    hybrid_engine: True
+      enable_activation_offload: True
+    hybrid_engine: False
     rollout:
       n: 8
       name: vllm
@@ -86,19 +78,11 @@ verl_conf:
       calculate_log_probs: True
       log_prob_use_dynamic_bsz: False
       log_prob_micro_batch_size_per_gpu: 1
-      tensor_model_parallel_size: 4
-      gpu_memory_utilization: 0.6
-      max_num_seqs: 128
+      tensor_model_parallel_size: 8
       data_parallel_size: 2
-      max_num_batched_tokens: 8192
-      max_model_len: 32768
+      expert_parallel_size: 16
+      gpu_memory_utilization: 0.2
       free_cache_engine: true
-      temperature: ${agent_instances.0.executor_kwargs.infer_service_params.temperature}
-      agent:
-        agent_loop_manager_class: aura.trainer.train_adapter.verl.hybrid.agent_loop_manager.HybridAgentLoopManager
-      checkpoint_engine:
-        backend: naive
-        update_weights_bucket_megabytes: 8192
     actor:
       ppo_micro_batch_size_per_gpu: 1
       ppo_mini_batch_size: 4
@@ -111,28 +95,43 @@ verl_conf:
       calculate_entropy: False
       kl_loss_coef: 0.001
       kl_loss_type: low_var_kl
-      ulysses_sequence_parallel_size: 4
-      use_rollout_log_probs: False
+      clip_ratio_high: 0.28
+      loss_agg_mode: seq-mean-token-sum
+      ulysses_sequence_parallel_size: 8
       fsdp_config:
         strategy: fsdp2
         param_offload: true
         optimizer_offload: true
+        model_dtype: bfloat16
+        fsdp_size: -1
+        entropy_from_logits_with_chunking: true
+        entropy_checkpointing: true
+        ulysses_sequence_parallel_size: ${verl_conf.actor_rollout_ref.actor.ulysses_sequence_parallel_size}
+        reshard_after_forward: True
     ref:
       strategy: fsdp2
       log_prob_micro_batch_size_per_gpu: 1
       log_prob_max_token_len_per_gpu: 16384
       ulysses_sequence_parallel_size: ${verl_conf.actor_rollout_ref.actor.ulysses_sequence_parallel_size}
       fsdp_config:
+        model_dtype: bfloat16
         param_offload: true
-        optimizer_offload: true
+        ulysses_sequence_parallel_size: ${verl_conf.actor_rollout_ref.actor.ulysses_sequence_parallel_size}
+  critic:
+    strategy: fsdp2
+    ulysses_sequence_parallel_size: ${verl_conf.actor_rollout_ref.actor.ulysses_sequence_parallel_size}
+    model:
+      ulysses_sequence_parallel_size: ${verl_conf.actor_rollout_ref.actor.ulysses_sequence_parallel_size}
+    fsdp_config:
+      model_dtype: bfloat16
   trainer:
     val_before_train: False
     device: npu
-    critic_warmup: 0
-    project_name: 'qwen3_8b_math_code_hybrid'
-    experiment_name: 'qwen3_8b_math_code_hybrid'
+    critic_warmup: 0 # 奖励预热
+    project_name: 'qwen3_235b_a22b_math_code_one_step'
+    experiment_name: 'qwen3_235b_a22b_math_code_one_step'
     n_gpus_per_node: 16
-    nnodes: 1
+    nnodes: 8
     save_freq: 100 # 保存ckpt的per iter
     default_local_dir: ${hydra:runtime.cwd}/weights/rollout_data_dir/ # ckpt
     resume_mode: disable # disable / auto (load from default_local_dir) / resume path (load from resume_from_path)
@@ -149,26 +148,26 @@ verl_conf:
     test_freq: 100
   async_training:
     use_rollout_log_probs: False
-    staleness_threshold: 0
+    staleness_threshold: 0.25
     trigger_parameter_sync_step: 1 # 多久 iter 同步一次权重
     partial_rollout: False
   algorithm:
     adv_estimator: grpo
 
 train_instances:
-  - name: RL-QWEN3-8B-WITH-MATH
+  - name: RL-QWEN3-235B-A22B-WITH-MATH
     executor_num: 1
     executor_kwargs:
       # 以下参数为 TrainExecutor 初始化参数
       # hybrid(共卡) | one_step_off(分离)
-      work_mode: hybrid
+      work_mode: one_step_off
       train_engine: verl
       train_config: ${verl_conf}
       rollout_config:
         train_backend: ${train_instances.0.executor_kwargs.train_engine}
         trajectory_timeout: 7200
         n_samples_per_prompt: ${verl_conf.rollout.n}
-        actor_rollout_dispatch_size: 256  # 控制 Rollout 阶段每次从数据管理器中取数据的批量大小
+        actor_rollout_dispatch_size: 256  # Rollout一次处理的数量 = gbs * n，最大是总样本数16*8/推理实例数2 且是n_samples_per_prompt的倍数
         validate_n_samples: ${verl_conf.extras.validate_num_samples}
         traj_output_path: ${hydra:runtime.cwd}/outputs/
         tokenizer_name_or_path: ${verl_conf.actor_rollout_ref.model.path}
@@ -180,12 +179,12 @@ train_instances:
         train_tensor_parallel_size: ${verl_conf.actor_rollout_ref.rollout.tensor_model_parallel_size}
         infer_expert_parallel_size: ${infer_instances.0.executor_kwargs.engine_kwargs.data_parallel_size}
         enable_version_control: false
-        use_on_policy: true
+        use_on_policy: false
         train_iters: ${verl_conf.extras.data_loader.train_iters}
         data_optimized: false
         hybrid_batch_num: 1
         wait_available_weight_timeout: -1
-        llm_tokenizer_path: /path/to/models/Qwen3-8B # 需要修改为模型路径
+        llm_tokenizer_path: /path/to/models/Qwen3-235B-A22B # 需要修改为模型权重路径
       agent_service: ${agent_instances.0.name}  # 依赖的 AGENT 服务名称（默认为 `agent_instances` 的第一个）
       infer_service: ${infer_instances.0.name}  # 依赖的 INFER 服务名称（默认为 `infer_instances` 的第一个）
     resource_info: [ ]  # MSRL 训练采用 RAY 实现资源分配，在 Executor 层不做资源限制
@@ -205,8 +204,8 @@ agent_instances:
         # 以下参数为 rLLMEngineWrapper 初始化参数
         agent_name: math # RLLMEngineWrapper内置Agent，修改参见：agents/agents_mapping.py
         simplify_think_content: false
-        max_prompt_length: 4096
-        max_model_len: 32768
+        max_prompt_length: 8192
+        max_model_len: 40960
         n_parallel_agents: 512
         token_in_token_out: true
         env_args:
@@ -230,7 +229,7 @@ agent_instances:
 # 2. 提供 OpenAI Chat 推理接口
 # =============================================================
 infer_instances:
-  - name: Qwen3-8B
+  - name: Qwen3-235B-A22B
     executor_num: 1
     executor_kwargs:
       # 以下参数为 InferExecutor 初始化参数
@@ -239,10 +238,11 @@ infer_instances:
         # 以下参数为 vLLMInferServer 初始化参数
         # vllm_proxy模式不需要手动配置, 给下列默认配置即可, 启动脚本会自动修改
         chat_server: "http://0.0.0.0:8080"
-        prefill_server_list: []
+        prefill_server_list: ["http://0.0.0.0:20012"]
         decode_server_list: []
-        model_name: Qwen3-8B
-        tensor_parallel_size: 4
+        model_name: Qwen3-235B-A22B
+        tensor_parallel_size: 8
         data_parallel_size: 2
-        enable_expert_parallel: false
+        expert_parallel_size: 16
+        enable_expert_parallel: true
     resource_info: []
