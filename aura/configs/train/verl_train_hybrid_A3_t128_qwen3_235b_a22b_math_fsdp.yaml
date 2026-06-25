@@ -47,7 +47,7 @@ verl_conf:
     init_num_group_batches: 1 # 从 DataLoader 首次加载数据批次数量
     max_queue_size: 256
     weight_save_dir: ${hydra:runtime.cwd}/weights
-    consumed_train_samples: 0 # 已处理的样本数量
+    consumed_train_samples: 0 # 已处理的样本数量 断点续传？
     traj_output_path: ${train_instances.0.executor_kwargs.rollout_config.traj_output_path}
     agent_service: ${agent_instances.0.name}  # 依赖的 AGENT 服务名称（默认为 `agent_instances` 的第一个）
     infer_service: ${infer_instances.0.name}  # 依赖的 INFER 服务名称（默认为 `infer_instances` 的第一个）
@@ -70,11 +70,11 @@ verl_conf:
     val_files: /path/to/data/test.parquet # 共卡模式所需测试数据集路径
     train_batch_size: 16
     max_prompt_length: 4096
-    max_response_length: 32768
+    max_response_length: 40960
     filter_overlong_prompts: True
   actor_rollout_ref:
     model:
-      path: /path/to/models/Qwen3-8B # 需要修改为模型路径
+      path: /path/to/models/Qwen3-235B-A22B # 需要修改为模型路径
       use_remove_padding: True
       enable_gradient_checkpointing: True
       enable_activation_offload: False
@@ -85,13 +85,14 @@ verl_conf:
       mode: async
       calculate_log_probs: True
       log_prob_use_dynamic_bsz: False
+      tensor_model_parallel_size: 8
+      data_parallel_size: ${infer_instances.0.executor_kwargs.engine_kwargs.data_parallel_size}
+      expert_parallel_size: 128
       log_prob_micro_batch_size_per_gpu: 1
-      tensor_model_parallel_size: 4
-      gpu_memory_utilization: 0.6
+      gpu_memory_utilization: 0.7
       max_num_seqs: 128
-      data_parallel_size: 2
       max_num_batched_tokens: 8192
-      max_model_len: 32768
+      max_model_len: 40960
       free_cache_engine: true
       temperature: ${agent_instances.0.executor_kwargs.infer_service_params.temperature}
       agent:
@@ -111,7 +112,7 @@ verl_conf:
       calculate_entropy: False
       kl_loss_coef: 0.001
       kl_loss_type: low_var_kl
-      ulysses_sequence_parallel_size: 4
+      ulysses_sequence_parallel_size: 8
       use_rollout_log_probs: False
       fsdp_config:
         strategy: fsdp2
@@ -128,11 +129,11 @@ verl_conf:
   trainer:
     val_before_train: False
     device: npu
-    critic_warmup: 0
-    project_name: 'qwen3_8b_math_code_hybrid'
-    experiment_name: 'qwen3_8b_math_code_hybrid'
+    critic_warmup: 0 # 奖励预热
+    project_name: 'qwen3_235b_a22b_math_code_hybrid'
+    experiment_name: 'qwen3_235b_a22b_math_code_hybrid'
     n_gpus_per_node: 16
-    nnodes: 1
+    nnodes: 8
     save_freq: 100 # 保存ckpt的per iter
     default_local_dir: ${hydra:runtime.cwd}/weights/rollout_data_dir/ # ckpt
     resume_mode: disable # disable / auto (load from default_local_dir) / resume path (load from resume_from_path)
@@ -156,7 +157,7 @@ verl_conf:
     adv_estimator: grpo
 
 train_instances:
-  - name: RL-QWEN3-8B-WITH-MATH
+  - name: RL-QWEN-235B-A22B-WITH-MATH
     executor_num: 1
     executor_kwargs:
       # 以下参数为 TrainExecutor 初始化参数
@@ -185,7 +186,7 @@ train_instances:
         data_optimized: false
         hybrid_batch_num: 1
         wait_available_weight_timeout: -1
-        llm_tokenizer_path: /path/to/models/Qwen3-8B # 需要修改为模型路径
+        llm_tokenizer_path: /path/to/models/Qwen3-235B-A22B # 需要修改为模型路径
       agent_service: ${agent_instances.0.name}  # 依赖的 AGENT 服务名称（默认为 `agent_instances` 的第一个）
       infer_service: ${infer_instances.0.name}  # 依赖的 INFER 服务名称（默认为 `infer_instances` 的第一个）
     resource_info: [ ]  # MSRL 训练采用 RAY 实现资源分配，在 Executor 层不做资源限制
@@ -206,8 +207,8 @@ agent_instances:
         agent_name: math # RLLMEngineWrapper内置Agent，修改参见：agents/agents_mapping.py
         simplify_think_content: false
         max_prompt_length: 4096
-        max_model_len: 32768
-        n_parallel_agents: 512
+        max_model_len: 40960
+        n_parallel_agents: 1024
         token_in_token_out: true
         env_args:
           max_steps: 5
@@ -230,7 +231,7 @@ agent_instances:
 # 2. 提供 OpenAI Chat 推理接口
 # =============================================================
 infer_instances:
-  - name: Qwen3-8B
+  - name: Qwen3-235B-A22B
     executor_num: 1
     executor_kwargs:
       # 以下参数为 InferExecutor 初始化参数
@@ -241,8 +242,9 @@ infer_instances:
         chat_server: "http://0.0.0.0:8080"
         prefill_server_list: []
         decode_server_list: []
-        model_name: Qwen3-8B
-        tensor_parallel_size: 4
-        data_parallel_size: 2
-        enable_expert_parallel: false
+        model_name: Qwen3-235B-A22B
+        tensor_parallel_size: 8
+        data_parallel_size: 16
+        expert_parallel_size: 128
+        enable_expert_parallel: true
     resource_info: []
