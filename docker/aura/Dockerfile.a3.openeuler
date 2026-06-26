@@ -4,9 +4,9 @@ ARG GIT_BRANCH=branch_v26.1.0
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-RUN apt update && \
-    apt install -y net-tools dos2unix ca-certificates curl wget numactl jemalloc clang patch && \
-    update-ca-certificates || true
+RUN yum -y update && \
+    yum -y install net-tools dos2unix ca-certificates curl wget numactl jemalloc clang patch && \
+    update-ca-trust || true
 
 RUN mkdir -p /home/work
 

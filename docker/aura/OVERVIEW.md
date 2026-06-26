@@ -67,7 +67,14 @@ docker run --name your_container_name \
     --hostname agent \
     --network host \
     -it -d --shm-size=500g \
-    --device=/dev \
+    --device=/dev/davinci0 --device=/dev/davinci1 \
+    --device=/dev/davinci2 --device=/dev/davinci3 \
+    --device=/dev/davinci4 --device=/dev/davinci5 \
+    --device=/dev/davinci6 --device=/dev/davinci7 \
+    --device=/dev/davinci8 --device=/dev/davinci9 \
+    --device=/dev/davinci10 --device=/dev/davinci11 \
+    --device=/dev/davinci12 --device=/dev/davinci13 \
+    --device=/dev/davinci14 --device=/dev/davinci15 \
     --device=/dev/davinci_manager \
     --device=/dev/hisi_hdc \
     --device=/dev/devmm_svm \
@@ -80,6 +87,11 @@ docker run --name your_container_name \
     aura-a3:26.1.0  \
     sleep infinity
 ```
+
+> [!NOTE] NOTE
+>
+> 1. Depending on the number of NPUs, mount a different number of device IDs. For example, Atlas A3 has 16 NPUs, so 16 device IDs need to be mounted, with each device ID corresponding to one NPU.
+> 2. The default working directory inside the container is /home/work. Therefore, it is not recommended to mount the entire /home directory, as this may overwrite the default workspace inside the container or cause permission conflicts.
 
 ### 4.3 Quick-start Demo
 
