@@ -31,7 +31,7 @@ direct_conf:
 hydra:
   searchpath:
     - file:///verl/verl/trainer/config
-    - file:///path/to/AgentSDK/aura/configs/train/verl_conf # 改为当前代码仓中aura/configs/train/verl/config目录所在的绝对路径
+    - file:///path/to/AgentSDK/aura/configs/train/verl_conf # 改为当前代码仓中aura/configs/train/verl_config目录所在的绝对路径
 
 defaults:
   - ppo_trainer

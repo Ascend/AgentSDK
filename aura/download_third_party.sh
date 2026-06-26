@@ -57,7 +57,7 @@ function download_mindspeed_rl_src_code()
 
   mkdir -p ${root_dir}/tmp/mindspeed_rl
   cd ${root_dir}/tmp/mindspeed_rl
-  git clone https://github.com/Ascend/MindSpeed-RL.git
+  git clone https://gitcode.com/Ascend/MindSpeed-RL.git
   cd MindSpeed-RL
   git branch
   git checkout ${commit_id}
@@ -76,7 +76,7 @@ function download_megatron_src_code()
 
   mkdir -p ${root_dir}/tmp/megatron
   cd ${root_dir}/tmp/megatron
-  git clone -b core_r0.8.0 https://github.com/NVIDIA/Megatron-LM.git
+  git clone -b core_r0.8.0 https://gitcode.com/GitHub_Trending/me/Megatron-LM.git
   cd Megatron-LM
   git branch
   git checkout ${branch_id}
@@ -94,7 +94,7 @@ function download_mindspeed_src_code()
 
   mkdir -p ${root_dir}/tmp/mindspeed
   cd ${root_dir}/tmp/mindspeed
-  git clone https://github.com/Ascend/MindSpeed.git
+  git clone https://gitcode.com/Ascend/MindSpeed.git
   cd MindSpeed
   git branch
   git checkout ${commit_id}
@@ -113,7 +113,7 @@ function download_mindspeed_llm_src_code()
 
   mkdir -p ${root_dir}/tmp/mindspeed_llm
   cd ${root_dir}/tmp/mindspeed_llm
-  git clone https://github.com/Ascend/MindSpeed-LLM.git
+  git clone https://gitcode.com/Ascend/MindSpeed-LLM.git
   cd MindSpeed-LLM
   git branch
   git checkout ${commit_id}
@@ -135,10 +135,10 @@ function download_rllm_src_code()
 
   mkdir -p ${root_dir}/tmp/rllm
   cd ${root_dir}/tmp/rllm
-  git clone -b main https://github.com/agentica-project/rllm.git
+  git clone -b main https://gitcode.com/gh_mirrors/dee/rllm.git
   cd rllm
   git branch
-  git checkout -b ${branch_id}
+  git checkout ${branch_id}
   git branch
   check_succeed rllm ${branch_id}
   cd ${root_dir}/tmp/rllm

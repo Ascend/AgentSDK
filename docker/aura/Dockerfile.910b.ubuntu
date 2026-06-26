@@ -1,9 +1,7 @@
-ARG BASE_IMAGE=swr.cn-south-1.myhuaweicloud.com/ascendhub/cann:9.0.0-a3-ubuntu22.04-py3.11
+FROM swr.cn-south-1.myhuaweicloud.com/ascendhub/cann:9.0.0-910b-ubuntu22.04-py3.11
+ENV SOC_VERSION=ascend910b1
+ARG GIT_BRANCH=branch_v26.1.0
 
-FROM ${BASE_IMAGE}
-ARG SOC_VERSION=ascend910_9391
-
-ENV SOC_VERSION=${SOC_VERSION}
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt update && \
@@ -14,12 +12,16 @@ RUN mkdir -p /home/work
 
 WORKDIR /home/work
 
-RUN git clone https://gitcode.com/Ascend/AgentSDK.git && \
+RUN git clone -b ${GIT_BRANCH} https://gitcode.com/Ascend/AgentSDK.git && \
     rm -rf /home/work/AgentSDK/aura/tests && \
-    bash /home/work/AgentSDK/aura/dockers/env/build_repos.sh
+    bash /home/work/AgentSDK/docker/aura/env/build_repos.sh
 
 RUN pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/
 RUN pip config set global.trusted-host mirrors.aliyun.com
+
+RUN cd /home/work/vllm && \
+    git checkout 4034c3d32 && \
+    VLLM_TARGET_DEVICE=empty pip install -v -e .
 
 RUN cd /home/work/vllm-ascend && \
     git checkout fe4cad24e && \
@@ -43,9 +45,9 @@ RUN cd /home/work/transformers && \
     git checkout cc7ab9be508ce6ed3637bba9e50367b29b742dc6 && \
     pip install -v -e .
 
-RUN bash /home/work/AgentSDK/aura/dockers/env/build_common.sh
-RUN bash /home/work/AgentSDK/aura/dockers/patch/patch_triton_ascend.sh
-RUN bash /home/work/AgentSDK/aura/dockers/patch/patch_vllm_ascend.sh
+RUN bash /home/work/AgentSDK/docker/aura/env/build_common.sh
+RUN bash /home/work/AgentSDK/docker/aura/patch/patch_triton_ascend.sh
+RUN bash /home/work/AgentSDK/docker/aura/patch/patch_vllm_ascend.sh
 
 RUN pip install uv && \
     mkdir -p /home/work/model_env && \
@@ -53,7 +55,10 @@ RUN pip install uv && \
     cd /home/work/model_env/qwen3_moe && \
     source bin/activate && \
     hash -r && \
-    bash /home/work/AgentSDK/aura/dockers/env/build_qwen3_moe_env.sh && \
+    python -m ensurepip --upgrade || true && \
+    python -m pip install -U pip setuptools wheel && \
+    hash -r && \
+    bash /home/work/AgentSDK/docker/aura/env/build_qwen3_moe_env.sh && \
     deactivate
 
 WORKDIR /home/work/AgentSDK/aura

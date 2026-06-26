@@ -233,7 +233,7 @@ AgenticRL
       - base.conf  # 运行配置
       - infer/  # 推理配置目录
       - train/  # 训练配置目录
-   - dockers/
+   - docker/
    - examples/
    - logs/  # 运行推理及训练日志目录
    - outputs/  # 轨迹数据保存目录
