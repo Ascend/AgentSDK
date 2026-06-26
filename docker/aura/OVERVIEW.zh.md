@@ -66,7 +66,14 @@ docker run --name your_container_name \
     --hostname agent \
     --network host \
     -it -d --shm-size=500g \
-    --device=/dev \
+    --device=/dev/davinci0 --device=/dev/davinci1 \
+    --device=/dev/davinci2 --device=/dev/davinci3 \
+    --device=/dev/davinci4 --device=/dev/davinci5 \
+    --device=/dev/davinci6 --device=/dev/davinci7 \
+    --device=/dev/davinci8 --device=/dev/davinci9 \
+    --device=/dev/davinci10 --device=/dev/davinci11 \
+    --device=/dev/davinci12 --device=/dev/davinci13 \
+    --device=/dev/davinci14 --device=/dev/davinci15 \
     --device=/dev/davinci_manager \
     --device=/dev/hisi_hdc \
     --device=/dev/devmm_svm \
@@ -79,6 +86,11 @@ docker run --name your_container_name \
     aura-a3:26.1.0  \
     sleep infinity
 ```
+
+> [!NOTE] 说明
+>
+> 1. 根据 NPU 数量的不同，挂载不同数量的设备 ID。例如： Atlas A3 有 16 个 NPU，需挂载 16 个设备 ID，每个设备 ID 对应一个 NPU。
+> 2. 镜像内默认工作目录为 /home/work，因此不建议挂载整个 /home 目录，以避免覆盖容器内默认工作空间或引发权限冲突。
 
 ### 4.3 快速启动用例
 
