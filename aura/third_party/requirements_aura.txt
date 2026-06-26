@@ -1,0 +1,12 @@
+setuptools==80.10.2
+sentence_transformers
+vertexai
+protobuf==6.33.6
+torch==2.9.0
+torchvision==0.24.0
+torchaudio==2.9.0
+triton-ascend==3.2.0
+latex2sympy2==1.9.1
+word2number==1.1
+openai
+uvicorn
