@@ -2,15 +2,12 @@
 
 ## **容器环境部署**
 
-第一步：进入 dockers 目录，执行构建镜像脚本：
+第一步：进入 docker 目录，执行构建镜像脚本：
 
 ```shell
-cd /path/to/AgentSDK/aura/dockers
-bash build_image.sh
+cd /path/to/AgentSDK/docker/aura
+docker build -f Dockerfile.a3.ubuntu -t your_image_name .
 ```
-
-> [!NOTE] 说明
-> 如果服务器架构为 A3，会生成镜像 `aura-a3:26.1.0`。
 
 第二步：创建容器：
 
@@ -30,7 +27,7 @@ docker run --name your_container_name \
     -v /etc/ascend_install.info:/etc/ascend_install.info \
     -v /usr/share/zoneinfo/Asia/Shanghai:/etc/localtime \
     -v /usr/local/sbin:/usr/local/sbin \
-    aura-a3:26.1.0  \
+    your_image_name  \
     sleep infinity
 ```
 

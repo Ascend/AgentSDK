@@ -36,7 +36,18 @@ fi
 
 pip install mlflow -i https://mirrors.aliyun.com/pypi/simple
 pip install ray==2.53.0 -i https://mirrors.aliyun.com/pypi/simple --timeout 1000
+apt update
+apt install net-tools -y
+apt install iproute2 -y
 export PYTHONPATH="$PROJECT_ROOT/aura":$PYTHONPATH
+
+LOCAL_IP=$(hostname -I | awk '{print $1}')
+echo "[INFO] Local IP             : $LOCAL_IP"
+export LOCAL_IP
+
+DEFAULT_SOCKET_IFNAME=$(ip -o addr show | awk -v ip="$LOCAL_IP" '$4 ~ "^"ip"/" {print $2}')
+echo "[INFO] Default socket ifname: $DEFAULT_SOCKET_IFNAME"
+export DEFAULT_SOCKET_IFNAME
 
 # Run all test cases (Test 1-10)
 echo "" | tee -a "$LOG_FILE"
