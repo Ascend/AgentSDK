@@ -17,8 +17,8 @@ Aura 提供两种构建运行环境的方式，用户可根据实际情况任选
     如果您已经在 CANN 9.0.0 的基础镜像容器内，可以执行一键拉起脚本完成 Aura 及其所有依赖（vLLM、 vllm-ascend、 MindSpeed、 Megatron-LM、 verl、 transformers 等）的安装：
 
     ```shell
-    cd /home/work/AgentSDK/aura
-    bash dockers/build_env.sh
+    cd /home/work/AgentSDK/docker/aura
+    bash build_env.sh
     ```
 
 > [!NOTE] 说明

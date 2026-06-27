@@ -2,11 +2,11 @@
 
 ## **容器环境部署**
 
-第一步：进入 dockers 目录，执行构建镜像脚本：
+第一步：进入 docker 目录，执行构建镜像脚本：
 
 ```shell
-cd /path/to/AgentSDK/aura/dockers
-bash build_image.sh
+cd /path/to/AgentSDK/docker/aura
+docker build -f Dockerfile.a3.ubuntu -t your_image_name .
 ```
 
 > [!NOTE] 说明

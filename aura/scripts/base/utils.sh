@@ -156,6 +156,11 @@ function config_vc_hosts()
       export MASTER_INFER_INDEX=$id
     fi
   done < <(grep -vE '^\s*#|^\s*$' ${root_dir}/configs/hosts.conf)
+
+  if [[ -z "${VC_TASK_INDEX}" ]]; then
+    log_error "no host in hosts.conf matches local IP (${local_ip}), please check configs/hosts.conf"
+    exit 1
+  fi
 }
 
 function get_conf_val()
@@ -180,6 +185,15 @@ function parse_train_conf()
     log_error "get WORK_MODE from ${BASE_CONF} failed, please confirm the conf"
     exit 1
   fi
+
+  case "${WORK_MODE}" in
+    hybrid|one_step_off)
+      ;;
+    *)
+      log_error "invalid WORK_MODE '${WORK_MODE}' in ${BASE_CONF}, supported values: hybrid, one_step_off"
+      exit 1
+      ;;
+  esac
 }
 
 function parse_resume_conf()
