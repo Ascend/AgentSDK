@@ -2,7 +2,7 @@ torch>=2.9.0
 torch-npu>=2.9.0
 megatron-core>=0.12.1
 mindspeed>=0.12.1
-rllm>=v0.1
+rllm @ git+https://github.com/rllm-org/rllm.git@v0.1
 transformers>=5.3.0
 ray>=2.55.1
 verl==0.8.0
