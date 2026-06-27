@@ -1,7 +1,7 @@
-diff --git a/vllm_ascend/patch/worker/patch_v2_eagle.py b/vllm_ascend/patch/worker/patch_v2_eagle.py
+diff --git a/patch/worker/patch_v2_eagle.py b/patch/worker/patch_v2_eagle.py
 index 3b83f937..45f6592f 100644
---- a/vllm_ascend/patch/worker/patch_v2_eagle.py
-+++ b/vllm_ascend/patch/worker/patch_v2_eagle.py
+--- a/patch/worker/patch_v2_eagle.py
++++ b/patch/worker/patch_v2_eagle.py
 @@ -24,10 +24,11 @@ from vllm.v1.worker.gpu.sample.gumbel import gumbel_sample
 
  from vllm_ascend.utils import vllm_version_is
@@ -31,10 +31,10 @@ index 3b83f937..45f6592f 100644
 +#else:
 +#    vllm.v1.worker.gpu.spec_decode.eagle.speculator.EagleSpeculator.propose = propose
 +vllm.v1.worker.gpu.spec_decode.eagle.speculator.EagleSpeculator.propose = propose
-diff --git a/vllm_ascend/worker/model_runner_v1.py b/vllm_ascend/worker/model_runner_v1.py
+diff --git a/worker/model_runner_v1.py b/worker/model_runner_v1.py
 index cee31250..1a618022 100644
---- a/vllm_ascend/worker/model_runner_v1.py
-+++ b/vllm_ascend/worker/model_runner_v1.py
+--- a/worker/model_runner_v1.py
++++ b/worker/model_runner_v1.py
 @@ -1894,7 +1894,7 @@ class NPUModelRunner(GPUModelRunner):
                      num_tokens=num_tokens,
                      has_lora=has_lora,

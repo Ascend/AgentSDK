@@ -11,20 +11,20 @@
 容器环境部署有两种方式：
 
 1. 从 Dockerfile 构建镜像
-2. 基于 CANN9.0.0 的容器环境，执行一键式环境配置脚本 build_env.sh(../../dockers/build_env.sh)
+2. 基于 CANN9.0.0 的容器环境，执行一键式环境配置脚本 build_env.sh(../../../docker/aura/build_env.sh)
 
 ### 从 Dockerfile 构建镜像
 
-通过 Dockerfile 可快速构建镜像， Dockerfile 可在 Aura 项目源码的 [`dockers`](../../dockers) 目录下获取，用户可根据实际需求修改 Dockerfile 中的路径参数。
+通过 Dockerfile 可快速构建镜像， Dockerfile 可在 [`docker`](../../../docker) 目录下获取，用户可根据实际需求修改 Dockerfile 中的路径参数。
 
 #### 步骤 1：构建镜像
 
-拉取 Aura 项目源码，进入 dockers 目录，执行构建镜像脚本：
+拉取 Aura 项目源码，进入 docker 目录，构建镜像，以a3-ubuntu的Dockerfile为例：
 
 ```shell
 git clone https://gitcode.com/Ascend/AgentSDK.git
-cd /path/to/AgentSDK/aura/dockers
-bash build_image.sh
+cd /path/to/AgentSDK/docker/aura
+docker build -f Dockerfile.a3.ubuntu -t your_image_name .
 ```
 
 构建脚本将根据自动识别服务器类型，构建对应的镜像。
@@ -59,7 +59,10 @@ docker run --name your_container_name \
     sleep infinity
 ```
 
-> 说明：根据 NPU 数量的不同，挂载不同数量的设备 ID。例如： Atlas A3 有 16 个 NPU，需挂载 16 个设备 ID，每个设备 ID 对应一个 NPU。
+> [!NOTE] 说明
+>
+> 1. 根据 NPU 数量的不同，挂载不同数量的设备 ID。例如： Atlas A3 有 16 个 NPU，需挂载 16 个设备 ID，每个设备 ID 对应一个 NPU。
+> 2. 镜像内默认工作目录为 /home/work，因此不建议挂载整个 /home 目录，以避免覆盖容器内默认工作空间或引发权限冲突。
 
 #### 步骤 3：进入容器
 
@@ -72,7 +75,7 @@ docker exec -it your_container_name bash
 使用一键式环境配置脚本前，需提前准备好 CANN9.0.0 的容器环境，包括安装 CANN9.0.0 的驱动、配置环境变量等，用户可根据实际需求，修改第三方库安装路径。一键式环境配置脚本将自动安装 Aura 及其所有依赖，包含 vLLM、 vllm-ascend、 MindSpeed、 Megatron-LM、 verl、 transformers 等第三方库依赖，以及 python 相关依赖。
 
 ```shell
-cd /path/to/AgentSDK/aura/dockers
+cd /path/to/AgentSDK/docker/aura
 bash build_env.sh
 ```
 

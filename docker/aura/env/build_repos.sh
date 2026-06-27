@@ -15,7 +15,7 @@ cd ..
 
 git clone --depth 1 --branch core_v0.12.1 https://gitcode.com/GitHub_Trending/me/Megatron-LM.git
 
-git clone https://github.com/verl-project/verl.git /verl
-git clone https://github.com/huggingface/transformers.git /home/work/transformers
+git clone https://gitcode.com/GitHub_Trending/ve/verl.git /verl
+git clone https://gitcode.com/GitHub_Trending/tra/transformers.git /home/work/transformers
 
 echo "[clone] 所有依赖仓库就绪"

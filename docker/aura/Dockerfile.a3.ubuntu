@@ -1,0 +1,66 @@
+FROM swr.cn-south-1.myhuaweicloud.com/ascendhub/cann:9.0.0-a3-ubuntu22.04-py3.11
+ENV SOC_VERSION=ascend910_9391
+ARG GIT_BRANCH=branch_v26.1.0
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt update && \
+    apt install -y net-tools dos2unix ca-certificates curl wget && \
+    update-ca-certificates || true
+
+RUN mkdir -p /home/work
+
+WORKDIR /home/work
+
+RUN git clone -b ${GIT_BRANCH} https://gitcode.com/Ascend/AgentSDK.git && \
+    rm -rf /home/work/AgentSDK/aura/tests && \
+    bash /home/work/AgentSDK/docker/aura/env/build_repos.sh
+
+RUN pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/
+RUN pip config set global.trusted-host mirrors.aliyun.com
+
+RUN cd /home/work/vllm && \
+    git checkout 4034c3d32 && \
+    VLLM_TARGET_DEVICE=empty pip install -v -e .
+
+ENV CPLUS_INCLUDE_PATH="/usr/local/Ascend/cann-9.0.0/opp/built-in/op_impl/ai_core/tbe/impl/ops_transformer/ascendc/common/inc/kernel:${CPLUS_INCLUDE_PATH}"
+
+RUN cd /home/work/vllm-ascend && \
+    git checkout fe4cad24e && \
+    export COMPILE_CUSTOM_KERNELS=1 && \
+    source /usr/local/Ascend/ascend-toolkit/set_env.sh && \
+    source /usr/local/Ascend/cann-9.0.0/share/info/ascendnpu-ir/bin/set_env.sh && \
+    source /usr/local/Ascend/nnal/atb/set_env.sh && \
+    pip install -v -e .
+
+RUN pip install -e /home/work/MindSpeed && \
+    pip install -e /home/work/Megatron-LM && \
+    pip uninstall -y triton && \
+    pip install mbridge
+
+RUN cd /verl && \
+    git checkout e9972368aa6a6078eacd7f0678bdfdd0196ce7b5 && \
+    pip install -r requirements-npu.txt && \
+    pip install -v -e .
+
+RUN cd /home/work/transformers && \
+    git checkout cc7ab9be508ce6ed3637bba9e50367b29b742dc6 && \
+    pip install -v -e .
+
+RUN bash /home/work/AgentSDK/docker/aura/env/build_common.sh
+RUN bash /home/work/AgentSDK/docker/aura/patch/patch_triton_ascend.sh
+RUN bash /home/work/AgentSDK/docker/aura/patch/patch_vllm_ascend.sh
+
+RUN pip install uv && \
+    mkdir -p /home/work/model_env && \
+    uv venv /home/work/model_env/qwen3_moe && \
+    cd /home/work/model_env/qwen3_moe && \
+    source bin/activate && \
+    hash -r && \
+    python -m ensurepip --upgrade || true && \
+    python -m pip install -U pip setuptools wheel && \
+    hash -r && \
+    bash /home/work/AgentSDK/docker/aura/env/build_qwen3_moe_env.sh && \
+    deactivate
+
+WORKDIR /home/work/AgentSDK/aura

@@ -14,7 +14,7 @@ echo "[build_env] mkdir -p /home/work"
 mkdir -p /home/work
 
 echo "[build_env] clone 依赖仓库"
-bash /home/work/AgentSDK/aura/dockers/env/build_repos.sh
+bash /home/work/AgentSDK/docker/aura/env/build_repos.sh
 
 echo "[build_env] pip 源"
 pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/
@@ -60,10 +60,10 @@ git checkout cc7ab9be508ce6ed3637bba9e50367b29b742dc6
 pip install -v -e .
 
 echo "[build_env] 安装 AgentSDK + third_party"
-bash /home/work/AgentSDK/aura/dockers/env/build_common.sh
+bash /home/work/AgentSDK/docker/aura/env/build_common.sh
 
 echo "[build_env] patch triton-ascend for CANN 9.0.0"
-bash /home/work/AgentSDK/aura/dockers/patch/patch_triton_ascend.sh
+bash /home/work/AgentSDK/docker/aura/patch/patch_triton_ascend.sh
 
 echo "[build_env] 安装 uv"
 pip install uv
@@ -76,7 +76,7 @@ echo "[build_env] 在虚拟环境中执行 build_qwen3_moe_env.sh"
 cd /home/work/model_env/qwen3_moe
 source bin/activate
 hash -r
-bash /home/work/AgentSDK/aura/dockers/env/build_qwen3_moe_env.sh
+bash /home/work/AgentSDK/docker/aura/env/build_qwen3_moe_env.sh
 deactivate
 
 cd /home/work/AgentSDK/aura

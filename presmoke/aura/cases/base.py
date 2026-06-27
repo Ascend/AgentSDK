@@ -17,11 +17,13 @@ See the Mulan PSL v2 for more details.
 """
 
 import os
+import re
+import shutil
 import subprocess
 import unittest
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Tuple, Union
 
 
 def get_project_root() -> Path:
@@ -37,6 +39,46 @@ def get_configs_dir() -> Path:
 def get_presmoke_configs_dir() -> Path:
     """Get the presmoke test configs directory path."""
     return get_project_root() / "presmoke" / "aura" / "configs"
+
+
+def get_train_configs_dir() -> Path:
+    """Get the aura train configs directory path."""
+    return get_project_root() / "aura" / "configs" / "train"
+
+
+def get_local_ip() -> str:
+    """
+    Get the local IPv4 address.
+
+    Resolution order:
+    1. LOCAL_IP environment variable (injected by presmoke.sh via
+       ``hostname -I | awk '{print $1}'``).
+    2. The IPv4 address of the network interface specified by
+       DEFAULT_SOCKET_IFNAME (default eth0), mirroring the logic in
+       aura/scripts/base/utils.sh.
+    """
+    env_ip = os.environ.get("LOCAL_IP", "").strip()
+    if env_ip:
+        return env_ip
+
+    ifname = os.environ.get("DEFAULT_SOCKET_IFNAME", "eth0")
+    try:
+        output = subprocess.run(
+            ["ifconfig", ifname],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=10,
+        ).stdout
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return ""
+
+    for line in output.splitlines():
+        if "inet " in line:
+            match = re.search(r"(\d+\.\d+\.\d+\.\d+)", line)
+            if match:
+                return match.group(1)
+    return ""
 
 
 @dataclass
@@ -73,43 +115,23 @@ class SourceRunner:
         """
         self.timeout = timeout
         self.project_root = get_project_root()
-        self.run_script = self.project_root / "aura" / "scripts" / "start_rl_with_verl_vllm.sh"
-        self.presmoke_configs_dir = get_presmoke_configs_dir()
+        self.aura_dir = self.project_root / "aura"
+        self.run_script = self.aura_dir / "scripts" / "start_rl_with_verl_vllm.sh"
 
-    def run(self, config_name: str, extra_args: Optional[List[str]] = None, expect_error: bool = False):
+    def run(self):
         """
-        Run the training script with the specified config name.
-
-        Args:
-            config_name: Name of the YAML configuration file (will look in presmoke/configs/).
-            extra_args: Optional list of additional CLI arguments.
-            expect_error: If True, don't raise exception on script not found.
+        Run the training script.
 
         Returns:
             CLIResult containing exit code and captured output.
+
+        Raises:
+            RuntimeError: If start_rl_with_verl_vllm.sh does not exist.
         """
         if not self.run_script.exists():
-            if expect_error:
-                return CLIResult(
-                    exit_code=1,
-                    stdout="",
-                    stderr=f"start_rl_with_verl_vllm.sh not found at: {self.run_script}",
-                    combined_output=f"start_rl_with_verl_vllm.sh not found at: {self.run_script}",
-                )
             raise RuntimeError(f"start_rl_with_verl_vllm.sh not found at: {self.run_script}")
 
-        # Check if config file exists in presmoke/configs/
-        config_path = self.presmoke_configs_dir / config_name
-        if config_path.exists():
-            # Use absolute path for presmoke configs
-            full_config_path = str(config_path.absolute())
-            cmd = ["bash", str(self.run_script), "--config-name", full_config_path]
-        else:
-            # Use config name directly (will look in configs/ directory)
-            cmd = ["bash", str(self.run_script), "--config-name", config_name]
-
-        if extra_args:
-            cmd.extend(extra_args)
+        cmd = ["bash", "scripts/start_rl_with_verl_vllm.sh"]
 
         try:
             result = subprocess.run(
@@ -118,7 +140,7 @@ class SourceRunner:
                 encoding='utf-8',
                 errors='replace',
                 timeout=self.timeout,
-                cwd=str(self.project_root),
+                cwd=str(self.aura_dir),
             )
             combined = result.stdout + "\n" + result.stderr
             return CLIResult(
@@ -137,35 +159,6 @@ class SourceRunner:
                 combined_output=stdout + "\n" + stderr,
             )
 
-    def run_without_args(self) -> CLIResult:
-        """Run the script without any arguments."""
-        cmd = ["bash", str(self.run_script)]
-        try:
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                encoding='utf-8',
-                errors='replace',
-                timeout=30,
-                cwd=str(self.project_root),
-            )
-            combined = result.stdout + "\n" + result.stderr
-            return CLIResult(
-                exit_code=result.returncode,
-                stdout=result.stdout,
-                stderr=result.stderr,
-                combined_output=combined,
-            )
-        except subprocess.TimeoutExpired as e:
-            stdout = e.stdout.decode('utf-8', errors='replace') if e.stdout else ""
-            stderr = e.stderr.decode('utf-8', errors='replace') if e.stderr else ""
-            return CLIResult(
-                exit_code=-1,
-                stdout=stdout,
-                stderr=stderr + "\n[TIMEOUT]",
-                combined_output=stdout + "\n" + stderr,
-            )
-
 
 class LogAssertions:
     """Utility class for asserting log content patterns."""
@@ -181,6 +174,167 @@ class LogAssertions:
         return any(pattern in output for pattern in patterns)
 
 
+class FileOps:
+    """
+    Utility class for file operations during tests.
+
+    Supports modifying existing config files (with automatic restoration)
+    and copying config files to the train configs directory (with automatic
+    cleanup). All operations are tracked so they can be rolled back in
+    tearDown.
+    """
+
+    def __init__(self):
+        self._modified_files: List[Tuple[Path, str]] = []
+        self._copied_files: List[Path] = []
+        self._deleted_files: List[Tuple[Path, str]] = []
+
+    def modify_file(self, file_path: Union[str, Path], new_content: str) -> Path:
+        """
+        Overwrite an existing file with new content. The original content is
+        backed up so it can be restored during cleanup.
+
+        Args:
+            file_path: Path to the file to modify.
+            new_content: New content to write into the file.
+
+        Returns:
+            The resolved Path of the modified file.
+
+        Raises:
+            FileNotFoundError: If the target file does not exist.
+        """
+        path = Path(file_path).resolve()
+        if not path.exists():
+            raise FileNotFoundError(f"Cannot modify non-existent file: {path}")
+
+        original_content = path.read_text(encoding="utf-8")
+        self._modified_files.append((path, original_content))
+        path.write_text(new_content, encoding="utf-8")
+        return path
+
+    def replace_in_file(
+        self,
+        file_path: Union[str, Path],
+        old: str,
+        new: str,
+        count: int = -1,
+    ) -> Path:
+        """
+        Replace occurrences of ``old`` with ``new`` in a file. The original
+        content is backed up for restoration during cleanup.
+
+        Args:
+            file_path: Path to the file to modify.
+            old: Substring to be replaced.
+            new: Substring to replace with.
+            count: Maximum number of occurrences to replace. -1 means all.
+
+        Returns:
+            The resolved Path of the modified file.
+
+        Raises:
+            FileNotFoundError: If the target file does not exist.
+            ValueError: If ``old`` is not found in the file.
+        """
+        path = Path(file_path).resolve()
+        if not path.exists():
+            raise FileNotFoundError(f"Cannot modify non-existent file: {path}")
+
+        original_content = path.read_text(encoding="utf-8")
+        if old not in original_content:
+            raise ValueError(f"Pattern not found in {path}: {old!r}")
+
+        self._modified_files.append((path, original_content))
+        new_content = original_content.replace(old, new, count)
+        path.write_text(new_content, encoding="utf-8")
+        return path
+
+    def copy_to_train_configs(
+        self,
+        src: Union[str, Path],
+        dest_name: Optional[str] = None,
+    ) -> Path:
+        """
+        Copy a config file into the aura train configs directory. The copied
+        file is tracked and will be removed during cleanup.
+
+        Args:
+            src: Path to the source config file. If a relative name is given,
+                it is resolved against the presmoke configs directory.
+            dest_name: Optional name for the destination file. If omitted, the
+                source file name is used.
+
+        Returns:
+            The resolved Path of the copied file in the train configs dir.
+
+        Raises:
+            FileNotFoundError: If the source file does not exist.
+        """
+        src_path = Path(src)
+        if not src_path.is_absolute():
+            src_path = get_presmoke_configs_dir() / src_path
+        src_path = src_path.resolve()
+        if not src_path.exists():
+            raise FileNotFoundError(f"Source config not found: {src_path}")
+
+        dest_dir = get_train_configs_dir()
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        dest_path = (dest_dir / (dest_name or src_path.name)).resolve()
+
+        shutil.copy2(src_path, dest_path)
+        self._copied_files.append(dest_path)
+        return dest_path
+
+    def delete_file(self, file_path: Union[str, Path]) -> Path:
+        """
+        Delete a file. The original content is backed up so the file can be
+        restored during cleanup.
+
+        Args:
+            file_path: Path to the file to delete.
+
+        Returns:
+            The resolved Path of the deleted file.
+
+        Raises:
+            FileNotFoundError: If the target file does not exist.
+        """
+        path = Path(file_path).resolve()
+        if not path.exists():
+            raise FileNotFoundError(f"Cannot delete non-existent file: {path}")
+
+        original_content = path.read_text(encoding="utf-8")
+        self._deleted_files.append((path, original_content))
+        path.unlink()
+        return path
+
+    def cleanup(self):
+        """Restore modified/deleted files and remove copied files."""
+        for path, original_content in reversed(self._modified_files):
+            try:
+                path.write_text(original_content, encoding="utf-8")
+            except OSError:
+                pass
+        self._modified_files.clear()
+
+        for path, original_content in reversed(self._deleted_files):
+            try:
+                if not path.exists():
+                    path.write_text(original_content, encoding="utf-8")
+            except OSError:
+                pass
+        self._deleted_files.clear()
+
+        for path in self._copied_files:
+            try:
+                if path.exists():
+                    path.unlink()
+            except OSError:
+                pass
+        self._copied_files.clear()
+
+
 class SystemTestBase(unittest.TestCase):
     """Base class for AgenticRL system tests."""
 
@@ -192,6 +346,7 @@ class SystemTestBase(unittest.TestCase):
         cls.project_root = get_project_root()
         cls.configs_dir = get_configs_dir()
         cls.presmoke_configs_dir = get_presmoke_configs_dir()
+        cls.train_configs_dir = get_train_configs_dir()
         cls.cli_runner = SourceRunner(timeout=cls.cli_timeout)
         cls.log_assert = LogAssertions()
         cls._temp_files: List[str] = []
@@ -209,9 +364,11 @@ class SystemTestBase(unittest.TestCase):
     def setUp(self):
         """Set up test-level fixtures."""
         self._test_temp_files: List[str] = []
+        self.file_ops = FileOps()
 
     def tearDown(self):
         """Clean up test-level fixtures."""
+        self.file_ops.cleanup()
         for temp_file in self._test_temp_files:
             try:
                 if os.path.exists(temp_file):
@@ -219,21 +376,14 @@ class SystemTestBase(unittest.TestCase):
             except OSError:
                 pass
 
-    def get_config_name(self, filename: str) -> str:
-        """Get the config name for use with run_start_in_local.sh."""
-        return filename
-
-    def run_cli(self, config_name: str) -> CLIResult:
+    def run_cli(self) -> CLIResult:
         """
-        Run the CLI with the given config name.
-
-        Args:
-            config_name: Name of the configuration file.
+        Run the CLI.
 
         Returns:
             CLIResult with exit code and captured output.
         """
-        return self.cli_runner.run(config_name)
+        return self.cli_runner.run()
 
     def assertExitSuccess(self, result: CLIResult, msg: Optional[str] = None):
         """Assert that the CLI command succeeded (exit code 0)."""
@@ -270,3 +420,29 @@ class SystemTestBase(unittest.TestCase):
             failure_msg = msg or f"Missing expected patterns in output: {missing}"
             failure_msg += f"\n\nOutput:\n{result.combined_output}"
             self.fail(failure_msg)
+
+    def modify_file(self, file_path: Union[str, Path], new_content: str) -> Path:
+        """Overwrite a file with new content (original is restored on tearDown)."""
+        return self.file_ops.modify_file(file_path, new_content)
+
+    def replace_in_file(
+        self,
+        file_path: Union[str, Path],
+        old: str,
+        new: str,
+        count: int = -1,
+    ) -> Path:
+        """Replace occurrences of ``old`` with ``new`` in a file (restored on tearDown)."""
+        return self.file_ops.replace_in_file(file_path, old, new, count)
+
+    def copy_to_train_configs(
+        self,
+        src: Union[str, Path],
+        dest_name: Optional[str] = None,
+    ) -> Path:
+        """Copy a config file into the aura train configs directory (removed on tearDown)."""
+        return self.file_ops.copy_to_train_configs(src, dest_name)
+
+    def delete_file(self, file_path: Union[str, Path]) -> Path:
+        """Delete a file (restored on tearDown)."""
+        return self.file_ops.delete_file(file_path)

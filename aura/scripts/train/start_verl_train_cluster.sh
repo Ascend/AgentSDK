@@ -31,6 +31,18 @@ while [[ "$#" -gt 0 ]]; do
   shift
 done
 
+if [[ -z "${CONFIG_NAME}" ]]; then
+  log_error "missing required argument --config-name"
+  exit 1
+fi
+
+export CONFIG_EXT=${CONFIG_EXT:-".yaml"}
+TRAIN_CONFIG_FILE="${root_dir}/configs/train/${CONFIG_NAME}${CONFIG_EXT}"
+if [[ ! -f "${TRAIN_CONFIG_FILE}" ]]; then
+  log_error "train config file not found: ${TRAIN_CONFIG_FILE}"
+  exit 1
+fi
+
 export GLOO_SOCKET_IFNAME=${DEFAULT_SOCKET_IFNAME:-"eth0"}
 export TP_SOCKET_IFNAME=${DEFAULT_SOCKET_IFNAME:-"eth0"}
 
@@ -130,8 +142,8 @@ function replace_infer_server_config()
         -e "s|\btensor_parallel_size:.*|tensor_parallel_size: ${TENSOR_PARALLEL_SIZE}|" \
         -e "s|\bdata_parallel_size:.*|data_parallel_size: ${DATA_PARALLEL_SIZE}|" \
         -e "s|enable_expert_parallel:.*|enable_expert_parallel: ${ENABLE_EXPERT_PARALLEL}|" \
-        ${root_dir}/configs/train/${CONFIG_NAME}.yaml > tmp.yaml
-    cp -f tmp.yaml ${root_dir}/configs/train/${CONFIG_NAME}.yaml
+        ${root_dir}/configs/train/${CONFIG_NAME}${CONFIG_EXT} > tmp.yaml
+    cp -f tmp.yaml ${root_dir}/configs/train/${CONFIG_NAME}${CONFIG_EXT}
     rm -f tmp.yaml
   fi
 }
@@ -141,7 +153,7 @@ function regitster_sandbox_infer_model() {
     if [[ $VC_TASK_INDEX -ne $MASTER_TRAIN_INDEX ]]; then
        return
     fi
-    local yaml_file=${root_dir}/configs/train/${CONFIG_NAME}.yaml
+    local yaml_file=${root_dir}/configs/train/${CONFIG_NAME}${CONFIG_EXT}
 
     # 1. 提取核心配置（并生成临时的 run_id）
     # 修改点：使用更直接的 get(0) 逻辑获取列表元素，并确保 run_id 打印
