@@ -326,7 +326,7 @@ class TestTrainService:
             )
         }):
             with patch('aura.trainer.train_adapter.mindspeed_rl.one_step_off_policy.train_service.ray') as mock_ray:
-                mock_ray.get_runtime_context.return_value.node_id = 'test-node-id'
+                mock_ray.get_runtime_context.return_value.node_id = 'a' * 56
 
                 create_rollout_worker(
                     config=mock_config,

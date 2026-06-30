@@ -35,7 +35,7 @@ if ! command -v pytest &> /dev/null && ! python -m pytest --version &> /dev/null
 fi
 
 pip install mlflow -i https://mirrors.aliyun.com/pypi/simple
-pip install ray==2.53.0 -i https://mirrors.aliyun.com/pypi/simple --timeout 1000
+pip install ray==2.55.1 -i https://mirrors.aliyun.com/pypi/simple --timeout 1000
 apt update
 apt install net-tools -y
 apt install iproute2 -y
