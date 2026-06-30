@@ -54,7 +54,7 @@ echo "======================================"
  word2number==1.1 \
  codetiming==1.4.0 \
  torchvision==0.20.1 \
- ray==2.42.1 \
+ ray==2.55.1 \
  uvicorn==0.38.0 \
  datasets==4.4.1 \
  tensorboard==2.20.0 \
