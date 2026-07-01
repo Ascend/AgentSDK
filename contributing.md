@@ -82,7 +82,7 @@
 - 按照 [docs/zh/installation_guide.md](aura/docs/zh/installation_guide.md) 完成 Python 依赖、CANN 依赖和第三方仓库依赖安装，并设置对应环境变量
 - 在仓库根目录执行 `pip3 install -e .` 安装本地开发版本。安装完成后会注册命令行入口 `agentic_rl`
 - 额外安装测试工具：`pytest`、`pytest-html`、`pytest-cov`
-- `script/test.sh` 依赖 `bash` 和 `python3`，建议在 Linux 开发环境中执行
+- `script/aura_ut.sh`、`script/openclaw_ut.sh` 依赖 `bash` 和 `python3`，建议在 Linux 开发环境中执行
 
 源码启动命令示例：
 
@@ -90,17 +90,32 @@
 agentic_rl --config-path /absolute/path/to/config.yaml
 ```
 
-统一测试脚本如下：
+单元测试按模块拆分为两个独立脚本，CI 流水线可按需调用：
 
 ```bash
-bash script/test.sh
+# aura 单元测试
+bash script/aura_ut.sh
+
+# openclaw 单元测试
+bash script/openclaw_ut.sh
+```
+
+预冒烟测试同样按模块拆分：
+
+```bash
+# aura 预冒烟
+bash run_presmoke_aura.sh
+
+# openclaw 预冒烟
+bash run_presmoke_openclaw.sh
 ```
 
 说明：
 
-- 测试脚本会先安装运行测试所需的 Python 依赖，再执行 `tests/` 目录下的 Python 单元测试。具体依赖请以仓库当前的依赖声明文件和测试脚本中的安装命令为准，例如 `setup.py` 与 `script/test.sh`
-- 测试脚本会补充第三方仓库到 `PYTHONPATH`。如果您的第三方仓库安装路径与脚本默认值不一致，请先调整 `script/test.sh` 中的路径配置或手动设置 `PYTHONPATH`
-- 测试过程中会生成覆盖率及测试报告，输出目录为 `script/coverage/`。其中 HTML 覆盖率报告默认位于 `script/coverage/html/index.html`，JUnit 报告位于 `script/coverage/final.xml`，HTML 测试报告位于 `script/coverage/final.html`
+- 各模块的 UT 脚本会先安装该模块运行测试所需的 Python 依赖，再执行对应模块 `tests/` 目录下的 Python 单元测试。具体依赖请以仓库当前的依赖声明文件和测试脚本中的安装命令为准，例如 `setup.py` 与 `script/aura_ut.sh`、`script/openclaw_ut.sh`
+- `aura_ut.sh` 会补充第三方仓库到 `PYTHONPATH`。如果您的第三方仓库安装路径与脚本默认值不一致，请先调整 `script/aura_ut.sh` 中的路径配置或手动设置 `PYTHONPATH`
+- aura 测试过程中会生成覆盖率及测试报告，输出目录为 `script/coverage/`。其中 HTML 覆盖率报告位于 `script/coverage/html/index.html`，JUnit 报告位于 `script/coverage/final.xml`，HTML 测试报告位于 `script/coverage/final.html`
+- openclaw 测试报告输出目录为 `script/coverage/openclaw/`，HTML 覆盖率报告位于 `script/coverage/openclaw/html/index.html`，JUnit 报告位于 `script/coverage/openclaw/final.xml`，HTML 测试报告位于 `script/coverage/openclaw/final.html`
 - 如仅需验证局部改动，也可以使用 `python3 -m pytest -vs tests/<path>` 对指定测试进行快速验证
 
 ## 添加测试
