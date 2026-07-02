@@ -1,6 +1,6 @@
 FROM swr.cn-south-1.myhuaweicloud.com/ascendhub/cann:9.0.0-910b-ubuntu22.04-py3.11
 ENV SOC_VERSION=ascend910b1
-ARG GIT_BRANCH=master
+ARG GIT_BRANCH=branch_v26.1.0
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -22,10 +22,6 @@ RUN pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/ && \
     pip config set global.trusted-host download.pytorch.org
 
 RUN pip install torch==2.9.0+cpu --index-url https://download.pytorch.org/whl/cpu
-
-RUN cd /home/work/vllm && \
-    git checkout 4034c3d32 && \
-    VLLM_TARGET_DEVICE=empty pip install -v -e .
 
 RUN cd /home/work/vllm && \
     git checkout 4034c3d32 && \
