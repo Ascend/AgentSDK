@@ -6,7 +6,7 @@
 
 ```shell
 cd /path/to/AgentSDK/docker/aura
-docker build -f Dockerfile.a3.ubuntu -t your_image_name .
+docker build -f Dockerfile.a3.ubuntu -t your_image_name:your_image_tag .
 ```
 
 > [!NOTE] 说明
@@ -169,7 +169,7 @@ python3 gsm8k.py \
 
 在快速拉起 qwen3-4b math 场景前，需要您修改以下配置文件，需要进行修改的参数可以参照文件头的注释。
 
- [共卡配置文件](../../../../configs/train/verl_train_hybrid_A3_t16_qwen3_4b_math_fsdp.yaml)
+ [共卡配置文件](../../../../../aura/configs/train/verl_train_hybrid_A3_t16_qwen3_4b_math_fsdp.yaml)
 
 ## **配置环境变量**
 
@@ -222,4 +222,4 @@ bash scripts/start_rl_with_verl_vllm.sh
 ```
 
 > [!NOTE] 说明
-> 本文档专门针对 Qwen3-4B 共卡模式（hybrid）的启动示例，提供该场景下的快速拉起步骤；通用且详细的完整启动流程请参考 [快速入门指南](../../quick_start.md)。
+> 本文档专门针对 Qwen3-4B 共卡模式（hybrid）的启动示例，提供该场景下的快速拉起步骤；通用且详细的完整启动流程请参考 [快速入门指南](../../03_quick_start.md)。

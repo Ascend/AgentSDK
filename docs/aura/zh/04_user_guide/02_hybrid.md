@@ -32,7 +32,7 @@ AgentSDK 的训推共卡采用两层设计：
 - 希望推理直接复用训练已加载的模型权重，避免重复加载
 
 > [!TIP] 提示
-> 如果集群资源充足，且希望训练与推理并行执行以提升吞吐，可参考[训推分离模式使用指南](one_step_off.md)。分离模式采用 Off-Policy 策略（One-Step-Off），训练使用上一轮策略产生的轨迹数据。
+> 如果集群资源充足，且希望训练与推理并行执行以提升吞吐，可参考[训推分离模式使用指南](03_one_step_off.md)。分离模式采用 Off-Policy 策略（One-Step-Off），训练使用上一轮策略产生的轨迹数据。
 
 ## 使用方法
 
@@ -208,24 +208,24 @@ bash scripts/start_rl_with_verl_vllm.sh
 
 ### 启动流程
 
-1. **入口脚本** [`start_rl_with_verl_vllm.sh`](../../../scripts/start_rl_with_verl_vllm.sh)：`get_node_type()` 根据 `MASTER_TRAIN_INDEX` 和 `MASTER_INFER_INDEX` 判定节点为 `hybrid` 类型，在同一节点上启动训练和推理进程
-2. **训练集群启动** [`start_verl_train_cluster.sh`](../../../scripts/train/start_verl_train_cluster.sh)：启动 Ray 集群，调用 `aura/start.py` 提交训练任务
-3. **任务路由** [`train_register.py`](../../../aura/trainer/trainer_register/train_register.py)：根据 `train_engine=verl` 和 `work_mode=hybrid` 注册并路由到 `verl_hybrid_train`
+1. **入口脚本** [`start_rl_with_verl_vllm.sh`](../../../../aura/scripts/start_rl_with_verl_vllm.sh)：`get_node_type()` 根据 `MASTER_TRAIN_INDEX` 和 `MASTER_INFER_INDEX` 判定节点为 `hybrid` 类型，在同一节点上启动训练和推理进程
+2. **训练集群启动** [`start_verl_train_cluster.sh`](../../../../aura/scripts/train/start_verl_train_cluster.sh)：启动 Ray 集群，调用 `aura/start.py` 提交训练任务
+3. **任务路由** [`train_register.py`](../../../../aura/aura/trainer/trainer_register/train_register.py)：根据 `train_engine=verl` 和 `work_mode=hybrid` 注册并路由到 `verl_hybrid_train`
 
 ### 训练核心链路
 
 | 组件 | 源码位置 | 说明 |
 |------|---------|------|
-| 任务入口 | [`hybrid/train_main.py`](../../../aura/trainer/train_adapter/verl/hybrid/train_main.py) | `HybridTaskRunner` 初始化资源池和 worker，调用 `run_ppo()` |
-| 训练器 | [`hybrid/ray_trainer.py`](../../../aura/trainer/train_adapter/verl/hybrid/ray_trainer.py) | `HybridTrainer` 继承 verl 的 `RayPPOTrainer`，管理训练和推理的交替执行 |
-| Agent 循环 | [`hybrid/agent_loop_manager.py`](../../../aura/trainer/train_adapter/verl/hybrid/agent_loop_manager.py) | `HybridAgentLoopManager` 管理共卡模式下的 rollout 循环，协调推理请求和结果收集 |
+| 任务入口 | [`hybrid/train_main.py`](../../../../aura/aura/trainer/train_adapter/verl/hybrid/train_main.py) | `HybridTaskRunner` 初始化资源池和 worker，调用 `run_ppo()` |
+| 训练器 | [`hybrid/ray_trainer.py`](../../../../aura/aura/trainer/train_adapter/verl/hybrid/ray_trainer.py) | `HybridTrainer` 继承 verl 的 `RayPPOTrainer`，管理训练和推理的交替执行 |
+| Agent 循环 | [`hybrid/agent_loop_manager.py`](../../../../aura/aura/trainer/train_adapter/verl/hybrid/agent_loop_manager.py) | `HybridAgentLoopManager` 管理共卡模式下的 rollout 循环，协调推理请求和结果收集 |
 
 ### 推理核心链路
 
 | 组件 | 源码位置 | 说明 |
 |------|---------|------|
-| 推理服务管理 | [`async_server.py`](../../../aura/runner/infer_adapter/async_server.py) | `AsyncServerProxyManager` 管理共卡模式下的推理引擎实例，支持 wake_up/sleep 显存切换 |
-| 权重同步 | [`rollout_weight_manager.py`](../../../aura/controllers/rollout_controller/rollout_weight_manager.py) | `RolloutWeightManager` 负责训练权重到推理引擎的同步更新 |
+| 推理服务管理 | [`async_server.py`](../../../../aura/aura/runner/infer_adapter/async_server.py) | `AsyncServerProxyManager` 管理共卡模式下的推理引擎实例，支持 wake_up/sleep 显存切换 |
+| 权重同步 | [`rollout_weight_manager.py`](../../../../aura/aura/controllers/rollout_controller/rollout_weight_manager.py) | `RolloutWeightManager` 负责训练权重到推理引擎的同步更新 |
 
 ### 显存时分复用机制
 

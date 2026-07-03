@@ -30,7 +30,7 @@ AgentSDK 的训推分离采用两层设计：
 - 推理请求量大，需要独立的推理集群提供稳定服务
 
 > [!TIP] 提示
-> 如果集群资源有限，希望训练和推理共享同一组卡，可参考[训推共卡模式使用指南](hybrid.md)。
+> 如果集群资源有限，希望训练和推理共享同一组卡，可参考[训推共卡模式使用指南](02_hybrid.md)。
 
 ### 与共卡模式的区别
 
@@ -67,7 +67,7 @@ AgentSDK 的训推分离采用两层设计：
 | infer_master_index | 推理主节点标识。**分离模式下不配置此参数** |
 
 > [!IMPORTANT] 关键配置
-> 分离模式的关键标志是**不配置 `infer_master_index`**。系统根据 `VC_TASK_INDEX < MASTER_TRAIN_INDEX` 判定节点为推理节点，`VC_TASK_INDEX >= MASTER_TRAIN_INDEX` 判定为训练节点。推理节点必须排在训练节点前面（节点类型判断逻辑详见 [start_rl_with_verl_vllm.sh](../../../scripts/start_rl_with_verl_vllm.sh)，参数解析详见 [utils.sh](../../../scripts/base/utils.sh)）。
+> 分离模式的关键标志是**不配置 `infer_master_index`**。系统根据 `VC_TASK_INDEX < MASTER_TRAIN_INDEX` 判定节点为推理节点，`VC_TASK_INDEX >= MASTER_TRAIN_INDEX` 判定为训练节点。推理节点必须排在训练节点前面（节点类型判断逻辑详见 [start_rl_with_verl_vllm.sh](../../../../aura/scripts/start_rl_with_verl_vllm.sh)，参数解析详见 [utils.sh](../../../../aura/scripts/base/utils.sh)）。
 
 ### 步骤 2：修改 base.conf
 
@@ -155,7 +155,7 @@ verl_conf:
 
 **推理引擎配置（infer_instances）：**
 
-分离模式下，`infer_instances` 中的以下参数无需手动配置，启动脚本会自动从推理集群获取并替换（[替换逻辑详见 start_verl_train_cluster.sh](../../../scripts/train/start_verl_train_cluster.sh)）：
+分离模式下，`infer_instances` 中的以下参数无需手动配置，启动脚本会自动从推理集群获取并替换（[替换逻辑详见 start_verl_train_cluster.sh](../../../../aura/scripts/train/start_verl_train_cluster.sh)）：
 
 - `chat_server`：推理服务地址（由启动脚本用推理主节点 IP 拼接）
 - `prefill_server_list`：Prefill 实例地址列表（由启动脚本根据推理节点 IP 自动计算）
@@ -260,36 +260,36 @@ bash scripts/start_rl_with_verl_vllm.sh
 
 ### 启动流程
 
-1. **入口脚本** [`start_rl_with_verl_vllm.sh`](../../../scripts/start_rl_with_verl_vllm.sh)：`get_node_type()` 根据 `VC_TASK_INDEX` 和 `MASTER_TRAIN_INDEX` 判定节点为 `infer` 或 `train` 类型，分别启动推理和训练进程
-2. **推理集群启动** [`start_vllm_infer_cluster.sh`](../../../scripts/infer/start_vllm_infer_cluster.sh)：解析推理配置，启动 vLLM 推理服务，将服务地址写入共享存储
-3. **推理配置解析** [`parse_infer_config.sh`](../../../scripts/infer/vllm/parse_infer_config.sh)：从推理 YAML 读取并行度参数，自动分配节点 IP，写入 `conf_for_train/` 临时文件
-4. **训练集群启动** [`start_verl_train_cluster.sh`](../../../scripts/train/start_verl_train_cluster.sh)：等待推理集群就绪，读取临时文件替换训练 YAML 中的推理配置，启动训练
-5. **任务路由** [`train_register.py`](../../../aura/trainer/trainer_register/train_register.py)：根据 `train_engine=verl` 和 `work_mode=one_step_off` 注册并路由到 `verl_async_train`
+1. **入口脚本** [`start_rl_with_verl_vllm.sh`](../../../../aura/scripts/start_rl_with_verl_vllm.sh)：`get_node_type()` 根据 `VC_TASK_INDEX` 和 `MASTER_TRAIN_INDEX` 判定节点为 `infer` 或 `train` 类型，分别启动推理和训练进程
+2. **推理集群启动** [`start_vllm_infer_cluster.sh`](../../../../aura/scripts/infer/start_vllm_infer_cluster.sh)：解析推理配置，启动 vLLM 推理服务，将服务地址写入共享存储
+3. **推理配置解析** [`parse_infer_config.sh`](../../../../aura/scripts/infer/vllm/parse_infer_config.sh)：从推理 YAML 读取并行度参数，自动分配节点 IP，写入 `conf_for_train/` 临时文件
+4. **训练集群启动** [`start_verl_train_cluster.sh`](../../../../aura/scripts/train/start_verl_train_cluster.sh)：等待推理集群就绪，读取临时文件替换训练 YAML 中的推理配置，启动训练
+5. **任务路由** [`train_register.py`](../../../../aura/aura/trainer/trainer_register/train_register.py)：根据 `train_engine=verl` 和 `work_mode=one_step_off` 注册并路由到 `verl_async_train`
 
 ### 训练核心链路
 
 | 组件 | 源码位置 | 说明 |
 |------|---------|------|
-| 任务入口 | [`full_async/train_main.py`](../../../aura/trainer/train_adapter/verl/full_async/train_main.py) | `FullyAsyncTaskRunner` 初始化训练组件，异步启动 rollout 和训练 |
-| 训练器 | [`full_async/full_async_trainer.py`](../../../aura/trainer/train_adapter/verl/full_async/full_async_trainer.py) | `FullyAsyncTrainer` 继承 verl 的 `SeparateRayPPOTrainer`，管理异步训练循环和权重同步 |
-| 训练控制器 | [`train_controller.py`](../../../aura/controllers/train_controller/train_controller.py) | `TrainController` 管理训练数据分发、rollout 调度和权重版本控制 |
-| 数据管理 | [`data_manager.py`](../../../aura/data_manager/data_manager.py) | `DataManager` 管理训练数据的加载和分发 |
+| 任务入口 | [`full_async/train_main.py`](../../../../aura/aura/trainer/train_adapter/verl/full_async/train_main.py) | `FullyAsyncTaskRunner` 初始化训练组件，异步启动 rollout 和训练 |
+| 训练器 | [`full_async/full_async_trainer.py`](../../../../aura/aura/trainer/train_adapter/verl/full_async/full_async_trainer.py) | `FullyAsyncTrainer` 继承 verl 的 `SeparateRayPPOTrainer`，管理异步训练循环和权重同步 |
+| 训练控制器 | [`train_controller.py`](../../../../aura/aura/controllers/train_controller/train_controller.py) | `TrainController` 管理训练数据分发、rollout 调度和权重版本控制 |
+| 数据管理 | [`data_manager.py`](../../../../aura/aura/data_manager/data_manager.py) | `DataManager` 管理训练数据的加载和分发 |
 
 ### 推理核心链路
 
 | 组件 | 源码位置 | 说明 |
 |------|---------|------|
-| Rollout 服务 | [`rollout_service.py`](../../../aura/trainer/rollout/rollout_service.py) | `start_rollout()` 启动 rollout 进程，与推理集群交互生成 rollout 数据 |
-| 推理服务管理 | [`async_server.py`](../../../aura/runner/infer_adapter/async_server.py) | `AsyncServerManager` 管理分离模式下的推理引擎实例 |
-| 权重同步 | [`rollout_weight_manager.py`](../../../aura/controllers/rollout_controller/rollout_weight_manager.py) | `RolloutWeightManager` 负责训练权重到推理引擎的异步同步更新 |
+| Rollout 服务 | [`rollout_service.py`](../../../../aura/aura/trainer/rollout/rollout_service.py) | `start_rollout()` 启动 rollout 进程，与推理集群交互生成 rollout 数据 |
+| 推理服务管理 | [`async_server.py`](../../../../aura/aura/runner/infer_adapter/async_server.py) | `AsyncServerManager` 管理分离模式下的推理引擎实例 |
+| 权重同步 | [`rollout_weight_manager.py`](../../../../aura/aura/controllers/rollout_controller/rollout_weight_manager.py) | `RolloutWeightManager` 负责训练权重到推理引擎的异步同步更新 |
 
 ### 配置自动替换机制
 
 分离模式下，训练 YAML 中的推理配置由启动脚本自动替换，流程如下：
 
-1. 推理集群启动时，[`write_infer_server_list()`](../../../scripts/infer/vllm/parse_infer_config.sh) 和 [`write_infer_parallel_size()`](../../../scripts/infer/vllm/parse_infer_config.sh) 将服务地址和并行度写入共享存储的临时文件
-2. 训练集群启动时，[`get_infer_server_config()`](../../../scripts/train/start_verl_train_cluster.sh) 读取临时文件
-3. [`replace_infer_server_config()`](../../../scripts/train/start_verl_train_cluster.sh) 用 sed 替换训练 YAML 中的 `chat_server`、`prefill_server_list`、`decode_server_list`、`tensor_parallel_size`、`data_parallel_size`、`enable_expert_parallel`（仅训练主节点执行替换，依赖共享文件系统）
+1. 推理集群启动时，[`write_infer_server_list()`](../../../../aura/scripts/infer/vllm/parse_infer_config.sh) 和 [`write_infer_parallel_size()`](../../../../aura/scripts/infer/vllm/parse_infer_config.sh) 将服务地址和并行度写入共享存储的临时文件
+2. 训练集群启动时，[`get_infer_server_config()`](../../../../aura/scripts/train/start_verl_train_cluster.sh) 读取临时文件
+3. [`replace_infer_server_config()`](../../../../aura/scripts/train/start_verl_train_cluster.sh) 用 sed 替换训练 YAML 中的 `chat_server`、`prefill_server_list`、`decode_server_list`、`tensor_parallel_size`、`data_parallel_size`、`enable_expert_parallel`（仅训练主节点执行替换，依赖共享文件系统）
 
 ## 常见问题
 

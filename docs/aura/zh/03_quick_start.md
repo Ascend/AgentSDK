@@ -10,7 +10,7 @@ Aura 提供两种构建运行环境的方式，用户可根据实际情况任选
 
 1. **使用预构建镜像创建容器**（推荐）
 
-    直接基于预构建镜像运行容器。具体操作请参见【[容器环境部署](installation_guide.md#ZH-CN_TOPIC_0000002492554173)】。
+    直接基于预构建镜像运行容器。具体操作请参见【[容器环境部署](02_installation_guide.md#ZH-CN_TOPIC_0000002492554173)】。
 
 2. **在 CANN 9.0.0 容器中使用一键拉起脚本**
 
@@ -29,10 +29,10 @@ Aura 提供两种构建运行环境的方式，用户可根据实际情况任选
 
 Aura 提供了训练模型示例。
 
-- 准备训练模型和数据集，具体操作请参见【[准备模型权重](installation_guide.md#准备模型权重)】与【[准备训练数据](installation_guide.md#准备训练数据)】。
-- 配置环境变量，具体操作请参见【[环境变量配置](installation_guide.md#环境变量配置)】。
-- 根据实际环境修改 YAML 配置文件中的路径参数，完整示例请参见【[配置文件示例](command_api.md#section_config_example)】。
-- 根据实际环境修改 hosts.conf 和 base.conf 配置文件，完整示例请参见【[配置文件示例](command_api.md)】。
+- 准备训练模型和数据集，具体操作请参见【[准备模型权重](02_installation_guide.md#准备模型权重)】与【[准备训练数据](02_installation_guide.md#准备训练数据)】。
+- 配置环境变量，具体操作请参见【[环境变量配置](02_installation_guide.md#环境变量配置)】。
+- 根据实际环境修改 YAML 配置文件中的路径参数，完整示例请参见【[配置文件示例](05_api_python.md#section_config)】。
+- 根据实际环境修改 hosts.conf 和 base.conf 配置文件，完整示例请参见【[配置文件示例](05_api_python.md#section_service_start)】。
 
 在 A3 环境上，以模型 Qwen3-32B，基于 math 场景启动分离模式为例，设置配置文件与启动方式如下。
 
@@ -139,7 +139,7 @@ bash scripts/start_rl_with_verl_vllm.sh
 
 ## **后续步骤<a name="section167395353541"></a>**
 
-**Aura 使用样例请参考[使用指南](user_guide/user_guide.md)**
+**Aura 使用样例请参考[使用指南](04_user_guide/01_user_guide.md)**
 
 **Aura Qwen3-4B Math 场景一键拉起样例请参考[使用指南](models/qwen3-4b.md)**
 
@@ -149,4 +149,4 @@ bash scripts/start_rl_with_verl_vllm.sh
 
 **Aura Qwen3-32B Math 场景一键拉起样例请参考[使用指南](models/qwen3_32b.md)**
 
-**Aura 支持的后端与模型列表请参考[支持推理后端](appendix.md#支持的推理后端)，[支持训练后端](appendix.md#支持的训练后端)，[支持agent后端](appendix.md#支持的agent后端)，[支持模型列表](appendix.md#支持的模型列表)**
+**Aura 支持的后端与模型列表请参考[支持推理后端](10_appendix.md#支持的推理后端)，[支持训练后端](10_appendix.md#支持的训练后端)，[支持agent后端](10_appendix.md#支持的agent后端)，[支持模型列表](10_appendix.md#支持的模型列表)**
