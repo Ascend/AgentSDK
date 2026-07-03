@@ -8,7 +8,7 @@
 
     - [Issue Feedback](https://gitcode.com/Ascend/AgentSDK/issues)
     - [Aura Code](https://gitcode.com/Ascend/AgentSDK/aura)
-    - [AgentSDK Quick-start Documentation](https://gitcode.com/Ascend/AgentSDK/blob/master/aura/docs/zh/quick_start.md)
+    - [AgentSDK Quick-start Documentation](../../docs/aura/zh/03_quick_start.md)
     - [Community](https://www.hiascend.com/)
 
 ## 2.Aura Overview
@@ -60,8 +60,6 @@ Tags follow this pattern:
 
 - Driver and Toolchain Mounting: Mount driver files and toolchain directories (such as /usr/local/Ascend/driver and /usr/local/bin/npu-smi) from the host to the container in read-only mode to ensure consistent runtime environment. In the example code below, /dev/davinci1 represents mounting device 1.
 
-- After -ti, specify the corresponding image tag, for example: -it swr.cn-south-1.myhuaweicloud.com/ascendhub/AgentSDK:26.0.0-910b-ubuntu22.04-py3.11
-
 ```bash
 docker run --name your_container_name \
     --hostname agent \
@@ -84,7 +82,7 @@ docker run --name your_container_name \
     -v /etc/ascend_install.info:/etc/ascend_install.info \
     -v /usr/share/zoneinfo/Asia/Shanghai:/etc/localtime \
     -v /usr/local/sbin:/usr/local/sbin \
-    aura-a3:26.1.0  \
+    your_image_name:your_image_tag  \
     sleep infinity
 ```
 
@@ -95,7 +93,7 @@ docker run --name your_container_name \
 
 ### 4.3 Quick-start Demo
 
-Quick start reference: [Qwen3-4B hybrid mode quick start](../../aura/docs/zh/models/qwen3-4b/qwen3-4b-hybrid.md)
+Quick start reference: [Qwen3-4B hybrid mode quick start](../../docs/aura/zh/models/qwen3-4b_quick_start/qwen3-4b-hybrid.md)
 
 ---
 

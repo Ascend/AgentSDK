@@ -6,6 +6,10 @@
 
 * [AgentSDK 项目说明](aura/README.md)
 
+## 签署贡献者许可协议（CLA）
+
+贡献前，请先签署[开放项目贡献者许可协议（CLA）](https://clasign.osinfra.cn/sign/gitee_ascend-1611222220829317930)。完成签署后才能提交 Pull Request，未签署的 PR 将无法合入。
+
 ## 贡献方式
 
 您可以通过以下方式参与 AgentSDK 社区建设：
@@ -79,7 +83,7 @@
 
 在提交代码前，请确保本地测试通过。若您需要在源码仓中启动 AgentSDK 或运行测试，建议先完成以下准备：
 
-- 按照 [docs/zh/installation_guide.md](aura/docs/zh/installation_guide.md) 完成 Python 依赖、CANN 依赖和第三方仓库依赖安装，并设置对应环境变量
+- 按照 [docs/zh/installation_guide.md](docs/aura/zh/02_installation_guide.md) 完成 Python 依赖、CANN 依赖和第三方仓库依赖安装，并设置对应环境变量
 - 在仓库根目录执行 `pip3 install -e .` 安装本地开发版本。安装完成后会注册命令行入口 `agentic_rl`
 - 额外安装测试工具：`pytest`、`pytest-html`、`pytest-cov`
 - `script/aura_ut.sh`、`script/openclaw_ut.sh` 依赖 `bash` 和 `python3`，建议在 Linux 开发环境中执行
@@ -134,9 +138,8 @@ bash run_presmoke_openclaw.sh
 如果您的变更影响用户使用方式、接口行为或部署配置，请同步更新相关文档：
 
 - 项目总览与快速入口：[README.md](aura/README.md)
-- 中文文档：[docs/zh/](aura/docs/zh)
-- Python API 文档：[docs/zh/api_python.md](aura/docs/zh/api_python.md)
-- 命令行/API 说明：[docs/zh/command_api.md](aura/docs/zh/command_api.md)
+- 中文文档：[docs/zh/](docs/aura/zh)
+- Python API 文档：[docs/zh/api_python.md](docs/aura/zh/05_api_python.md)
 
 ## 文档规范
 
@@ -182,6 +185,44 @@ bash run_presmoke_openclaw.sh
 - 详细说明变更原因、方案和影响范围
 - 说明与之前行为的差异
 - 可以多行编写，建议每行不超过 72 个字符
+
+# 分支管理
+
+## 分支命名规则
+
+| 分支类型 | 命名格式 | 示例 | 说明 |
+|---------|---------|------|------|
+| release 分支 | `branch_v<版本号>` | `branch_v26.0.0`、`branch_v26.1.0` | 正式版本发布分支 |
+| 新代码仓分支 | `branch_v<版本号>` | `branch_v26.0.0`、`branch_v26.1.0` | 新代码仓初始化分支，命名与 release 分支保持一致 |
+| 预研分支 | `tech_v<版本号>` | `tech_v26.0.0`、`tech_v26.1.0` | OBP 时间内、无计划合入主干的特性研发分支 |
+
+## Release Tag 命名规则
+
+| Tag 类型 | 命名格式 | 示例 | 说明 |
+|---------|---------|------|------|
+| 正式版本 | `v<主版本>.<次版本>.<修订号>` | `v26.0.1`、`v26.0.2`、`v26.0.3` | 正式发布的版本 |
+| 补丁版本 | `v<主版本>.<次版本>.<修订号>` | `v26.0.1`、`v26.0.2`、`v26.0.3` | 基于 release 分支的补丁修复版本，命名与正式版本一致 |
+| POC/beta 版本 | `v<主版本>.<次版本>.<修订号>-beta.<序号>` | `v26.0.0-beta.0`、`v26.0.0-beta.1` | 预发布测试版本 |
+| 预研版本 | `tech_v<主版本>.<次版本>.<修订号>-beta.<序号>` | `tech_v26.0.0-beta.0`、`tech_v26.0.0-beta.1` | 预研分支的测试版本 |
+
+## 分支维护策略
+
+版本分支遵循定义的维护阶段：
+
+| 状态 | 时间 | 说明 |
+|------|------|------|
+| 计划 | 1-3个月 | 特性规划 |
+| 开发 | 3个月 | 新特性开发和问题修复，定期发布 |
+| 维护 | 3-12个月 | 常规分支维护3个月，长期支持分支维护12个月。仅修复重大BUG，不加入新特性 |
+| 生命周期终止（EOL） | N/A | 分支不再接受任何修改 |
+
+## 版本维护策略
+
+| 版本    | 维护策略 | 当前状态 | 发布日期 | 后续状态 | EOL日期 |
+|-------|----------|----------|----------|----------|---------|
+| master | 长期支持 | 开发 | 在研分支，不发布 | 持续开发 | - |
+| 26.0.0.beta.1 | 常规分支 | 维护 | 2026-04-25 | 预计2026/7/25起进入无维护状态 | 2026-07-25 |
+| 26.1.0 | 常规分支 | 维护 | 2026-07-10 | 预计2026/10/10起进入无维护状态 | 2026-10-10 |
 
 # PullRequest
 
