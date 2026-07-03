@@ -1,235 +1,108 @@
-# Agent SDK
-
-- [Agent SDK](#agent-sdk)
-- [Latest News](#latest-news)
-- [Overview](#overview)
-- [Directory Structure](#directory-structure)
-- [Release Notes](#release-notes)
-- [Compatibility Information](#compatibility-information)
-- [Environment Deployment](#environment-deployment)
-- [Quick Start](#quick-start)
-- [Features](#features)
-- [API Reference](#api-reference)
-- [FAQ](#faq)
-- [Security Statement](#security-statement)
-- [Branch Maintenance Strategy](#branch-maintenance-strategy)
-- [Version Maintenance Strategy](#version-maintenance-strategy)
-- [Disclaimer](#disclaimer)
-- [License](#license)
-- [Contribution Statement](#contribution-statement)
-- [Suggestions and Feedback](#suggestions-and-feedback)
-
-# Latest News
-
-- [2026.01.28]: 🚀 Integrated the MindSpeed-RL training framework and added support for the GRPO algorithm.
-- [2026.01.28]: 🚀 Provided the `BaseEngineWrapper` abstract interface to support custom agent logic.
-
-# Overview
-
-AgentSDK provides an enterprise-grade Agentic RL training and inference framework with layered decoupling and Ascend affinity.
-It helps you build, run, and scale LLM agents with tool use and multi-step reasoning on Ascend NPU infrastructure.
-By integrating agent logic and controllable tool calling, it helps developers build domain-specific agentic applications quickly.
-
-For details, see [Introduction](docs/en/introduction.md).
+<h1 align="center">Aura: An Integrated Training-Inference-Tuning Framework for AI Agents</h1>
 
 <div align="center">
 
-[![Zread](https://img.shields.io/badge/Zread-Ask_AI-_.svg?style=flat&color=0052D9&labelColor=000000&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHZpZXdCb3g9IjAgMCAxNiAxNiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTQuOTYxNTYgMS42MDAxSDIuMjQxNTZDMS44ODgxIDEuNjAwMSAxLjYwMTU2IDEuODg2NjQgMS42MDE1NiAyLjI0MDFWNC45NjAxQzEuNjAxNTYgNS4zMTM1NiAxLjg4ODEgNS42MDAxIDIuMjQxNTYgNS42MDAxSDQuOTYxNTZDNS4zMTUwMiA1LjYwMDEgNS42MDE1NiA1LjMxMzU2IDUuNjAxNTYgNC45NjAxVjIuMjQwMUM1LjYwMTU2IDEuODg2NjQgNS4zMTUwMiAxLjYwMDEgNC45NjE1NiAxLjYwMDFaIiBmaWxsPSIjZmZmIi8%2BCjxwYXRoIGQ9Ik00Ljk2MTU2IDEwLjM5OTlIMi4yNDE1NkMxLjg4ODEgMTAuMzk5OSAxLjYwMTU2IDEwLjY4NjQgMS42MDE1NiAxMS4wMzk5VjEzLjc1OTlDMS42MDE1NiAxNC4xMTM0IDEuODg4MSAxNC4zOTk5IDIuMjQxNTYgMTQuMzk5OUg0Ljk2MTU2QzUuMzE1MDIgMTQuMzk5OSA1LjYwMTU2IDE0LjExMzQgNS42MDE1NiAxMy43NTk5VjExLjAzOTlDNS42MDE1NiAxMC42ODY0IDUuMzE1MDIgMTAuMzk5OSA0Ljk2MTU2IDEwLjM5OTlaIiBmaWxsPSIjZmZmIi8%2BCjxwYXRoIGQ9Ik0xMy43NTg0IDEuNjAwMUgxMS4wMzg0QzEwLjY4NSAxLjYwMDEgMTAuMzk4NCAxLjg4NjY0IDEwLjM5ODQgMi4yNDAxVjQuOTYwMUMxMC4zOTg0IDUuMzEzNTYgMTAuNjg1IDUuNjAwMSAxMS4wMzg0IDUuNjAwMUgxMy43NTg0QzE0LjExMTkgNS42MDAxIDE0LjM5ODQgNS4zMTM1NiAxNC4zOTg0IDQuOTYwMVYyLjI0MDFDMTQuMzk4NCAxLjg4NjY0IDE0LjExMTkgMS42MDAxIDEzLjc1ODQgMS42MDAxWiIgZmlsbD0iI2ZmZiIvPgo8cGF0aCBkPSJNNCAxMkwxMiA0TDQgMTJaIiBmaWxsPSIjZmZmIi8%2BCjxwYXRoIGQ9Ik00IDEyTDEyIDQiIHN0cm9rZT0iI2ZmZiIgc3Ryb2tlLXdpZHRoPSIxLjUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgo8L3N2Zz4K&logoColor=ffffff)](https://zread.ai/Ascend/AgentSDK)&nbsp;&nbsp;&nbsp;&nbsp;
+[![Ascend](https://img.shields.io/badge/Community-MindSDK-blue.svg)](https://www.hiascend.com/cn/developer/software/mindsdk)
+[![License](https://badgen.net/badge/License/MulanPSL-2.0/blue)](../LICENSE.md)
+[![Zread](https://img.shields.io/badge/Zread-Ask_AI-_.svg?style=flat&color=0052D9&labelColor=000000&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHZpZXdCb3g9IjAgMCAxNiAxNiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTQuOTYxNTYgMS42MDAxSDIuMjQxNTZDMS44ODgxIDEuNjAwMSAxLjYwMTU2IDEuODg2NjQgMS42MDE1NiAyLjI0MDFWNC45NjAxQzEuNjAxNTYgNS4zMTM1NiAxLjg4ODEgNS42MDAxIDIuMjQxNTYgNS42MDAxSDQuOTYxNTZDNS4zMTUwMiA1LjYwMDEgNS42MDE1NiA1LjMxMzU2IDUuNjAxNTYgNC45NjAxVjIuMjQwMUM1LjYwMTU2IDEuODg2NjQgNS4zMTUwMiAxLjYwMDEgNC45NjE1NiAxLjYwMDFaIiBmaWxsPSIjZmZmIi8%2BCjxwYXRoIGQ9Ik00Ljk2MTU2IDEwLjM5OTlIMi4yNDE1NkMxLjg4ODEgMTAuMzk5OSAxLjYwMTU2IDEwLjY4NjQgMS42MDE1NiAxMS4wMzk5VjEzLjc1OTlDMS42MDE1NiAxNC4xMTM0IDEuODg4MSAxNC4zOTk5IDIuMjQxNTYgMTQuMzk5OUg0Ljk2MTU2QzUuMzE1MDIgMTQuMzk5OSA1LjYwMTU2IDE0LjExMzQgNS42MDE1NiAxMy43NTk5VjExLjAzOTlDNS42MDE1NiAxMC42ODY0IDUuMzE1MDIgMTAuMzk5OSA0Ljk2MTU2IDEwLjM5OTlaIiBmaWxsPSIjZmZmIi8%2BCjxwYXRoIGQ9Ik0xMy43NTg0IDEuNjAwMUgxMS4wMzg0QzEwLjY4NSAxLjYwMDEgMTAuMzk4NCAxLjg4NjY0IDEwLjM5ODQgMi4yNDAxVjQuOTYwMUMxMC4zOTg0IDUuMzEzNTYgMTAuNjg1IDUuNjAwMSAxMS4wMzg0IDUuNjAwMUgxMy43NTg0QzE0LjExMTkgNS42MDAxIDE0LjM5ODQgNS4zMTM1NiAxNC4zOTg0IDQuOTYwMVYyLjI0MDFDMTQuMzk4NCAxLjg4NjY0IDE0LjExMTkgMS42MDAxIDEzLjc1ODQgMS42MDAxWiIgZmlsbD0iI2ZmZiIvPgo8cGF0aCBkPSJNNCAxMkwxMiA0TDQgMTJaIiBmaWxsPSIjZmZmIi8%2BCjxwYXRoIGQ9Ik00IDEyTDEyIDQiIHN0cm9rZT0iI2ZmZiIgc3Ryb2tlLXdpZHRoPSIxLjUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgo8L3N2Zz4K&logoColor=ffffff)](https://zread.ai/Ascend/AgentSDK)
 [![DeepWiki](https://img.shields.io/badge/DeepWiki-Ask_AI-_.svg?style=flat&color=0052D9&labelColor=000000&logo=data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACwAAAAyCAYAAAAnWDnqAAAAAXNSR0IArs4c6QAAA05JREFUaEPtmUtyEzEQhtWTQyQLHNak2AB7ZnyXZMEjXMGeK/AIi+QuHrMnbChYY7MIh8g01fJoopFb0uhhEqqcbWTp06/uv1saEDv4O3n3dV60RfP947Mm9/SQc0ICFQgzfc4CYZoTPAswgSJCCUJUnAAoRHOAUOcATwbmVLWdGoH//PB8mnKqScAhsD0kYP3j/Yt5LPQe2KvcXmGvRHcDnpxfL2zOYJ1mFwrryWTz0advv1Ut4CJgf5uhDuDj5eUcAUoahrdY/56ebRWeraTjMt/00Sh3UDtjgHtQNHwcRGOC98BJEAEymycmYcWwOprTgcB6VZ5JK5TAJ+fXGLBm3FDAmn6oPPjR4rKCAoJCal2eAiQp2x0vxTPB3ALO2CRkwmDy5WohzBDwSEFKRwPbknEggCPB/imwrycgxX2NzoMCHhPkDwqYMr9tRcP5qNrMZHkVnOjRMWwLCcr8ohBVb1OMjxLwGCvjTikrsBOiA6fNyCrm8V1rP93iVPpwaE+gO0SsWmPiXB+jikdf6SizrT5qKasx5j8ABbHpFTx+vFXp9EnYQmLx02h1QTTrl6eDqxLnGjporxl3NL3agEvXdT0WmEost648sQOYAeJS9Q7bfUVoMGnjo4AZdUMQku50McDcMWcBPvr0SzbTAFDfvJqwLzgxwATnCgnp4wDl6Aa+Ax283gghmj+vj7feE2KBBRMW3FzOpLOADl0Isb5587h/U4gGvkt5v60Z1VLG8BhYjbzRwyQZemwAd6cCR5/XFWLYZRIMpX39AR0tjaGGiGzLVyhse5C9RKC6ai42ppWPKiBagOvaYk8lO7DajerabOZP46Lby5wKjw1HCRx7p9sVMOWGzb/vA1hwiWc6jm3MvQDTogQkiqIhJV0nBQBTU+3okKCFDy9WwferkHjtxib7t3xIUQtHxnIwtx4mpg26/HfwVNVDb4oI9RHmx5WGelRVlrtiw43zboCLaxv46AZeB3IlTkwouebTr1y2NjSpHz68WNFjHvupy3q8TFn3Hos2IAk4Ju5dCo8B3wP7VPr/FGaKiG+T+v+TQqIrOqMTL1VdWV1DdmcbO8KXBz6esmYWYKPwDL5b5FA1a0hwapHiom0r/cKaoqr+27/XcrS5UwSMbQAAAABJRU5ErkJggg==)](https://deepwiki.com/Ascend/AgentSDK)
+
 </div>
 
-# Directory Structure
+# ✨ Latest News
 
-```text
-│  __init__.py
-│
-├─base
-│  │  __init__.py
-│  │
-│  ├─log
-│  │      loggers.py
-│  │      __init__.py
-│  │
-│  ├─utils
-│  │      checker.py
-│  │      class_loader.py
-│  │      data_loader.py
-│  │      file_utils.py
-│  │      get_local_rank.py
-│  │      logger_patch.py
-│  │      ray_secure_init.py
-│  │      __init__.py
-│  │
-│  └─weight_loaders
-│          megatron_weight_loaders.py
-│          __init__.py
-│
-├─configs
-│      agentic_rl_config.py
-│      ray_env_config.py
-│      __init__.py
-│
-├─data_manager
-│      data_manager.py
-│      data_registry.py
-│      data_transform.py
-│      mindspeed_rl_data.py
-│      __init__.py
-│
-├─memory
-│      constants.py
-│      memory_base.py
-│      memory_config.py
-│      memory_simple.py
-│      memory_summary.py
-│      prompts.py
-│      summary_client.py
-│      token_counter.py
-│      utils.py
-│      __init__.py
-│
-├─runner
-│  │  runner_worker.py
-│  │  __init__.py
-│  │
-│  ├─agent_engine_wrapper
-│  │      base.py
-│  │      base_engine_wrapper.py
-│  │      __init__.py
-│  │
-│  └─infer_adapter
-│      │  async_server.py
-│      │  async_server_base.py
-│      │  infer_registry.py
-│      │  __init__.py
-│      │
-│      └─vllm
-│          │  base_inference_engine.py
-│          │  cache_manager.py
-│          │  memory_manager.py
-│          │  vllm_async_server.py
-│          │  vllm_megatron_weight_loaders.py
-│          │  vllm_worker.py
-│          │  weight_manager.py
-│          │  __init__.py
-│          │
-│          └─patch
-│                  ca_mem_sleep.py
-│                  worker_v1_sleep.py
-│                  __init__.py
-│
-└─trainer
-    │  main.py
-    │  __init__.py
-    │
-    ├─rollout
-    │      rollout_worker.py
-    │      __init__.py
-    │
-    └─train_adapter
-        │  __init__.py
-        │
-        └─mindspeed_rl
-            │  agent_grpo_trainer.py
-            │  train_agent_grpo.py
-            │  __init__.py
-            │
-            ├─configs
-            │      parse_config.py
-            │      __init__.py
-            │
-            ├─patch
-            │      compute_utils.py
-            │      get_current_node_ip.py
-            │      grpo_actor_loss_func.py
-            │      launcher.py
-            |      logprob_computer.py
-            │      __init__.py
-            │
-            └─workers
-                    actor_hybrid_worker.py
-                    integrated_worker.py
-                    __init__.py
-```
+- [2026.06.12]: 🚀 Added support for Qwen3-4B, Qwen3-8B, Qwen3-32B, and Qwen3-30B-A3B models, with [quick start guides](../docs/aura/zh/models) provided.
+- [2026.04.25]: 🚀 Released AgentSDK's brand-new training-inference-tuning framework **Aura**, supporting both hybrid and separate deployment modes.
 
-# Release Notes
+# ℹ️ Introduction
 
-For details about the Agent SDK version mapping, see [Version Mapping](docs/en/release_notes.md#version-mapping).
+**Aura (Agentic Ultra-fast Reinforcement Architecture)** is an integrated training-inference-tuning framework for foundation models. It continuously optimizes foundation models based on task trajectories and reward signals. Through reinforcement learning and other optimization methods, models gradually acquire Agentic capabilities such as planning, tool use, and long-horizon decision-making via post-training.
 
-# Compatibility Information
+**Aura** is compatible with various training engines, inference engines, and Agent frameworks through unified abstract interfaces. It supports users to flexibly integrate custom models and toolchains, helping developers quickly build, train, and deploy their own Agents.
 
-For Agent SDK version compatibility information, see [Version Compatibility](docs/en/release_notes.md#version-compatibility).
+<a id="fig173917397815"></a>
 
-# Environment Deployment
+<div align="center">
 
-You can install Agent SDK from source. For detailed steps, see the [Installation Guide](docs/en/installation_guide.md).
+![](../docs/aura/zh/figures/Aura框架架构图.png)
 
-# Quick Start
+</div>
 
-Get started with Agent SDK by running a complete Agent loop example. The example demonstrates tool definition, agent execution, and trajectory observation. The quick start includes creating a custom `BaseEngineWrapper` implementation, configuring training parameters, and launching the `agentic_rl` command.
+# ⚙️ Features
 
-- See [Quick Start](docs/en/quick_start.md) for a hands-on tutorial.
+- Supports [hybrid training-inference](../docs/aura/zh/04_user_guide/02_hybrid.md) and [separate training-inference](../docs/aura/zh/04_user_guide/03_one_step_off.md) modes.
+- Supports [custom Agent integration](../docs/aura/zh/04_user_guide/04_custom_agent.md).
+- Supports [Qwen3-4B](../docs/aura/zh/models/qwen3-4b.md), [Qwen3-8B](../docs/aura/zh/models/qwen3_8b.md), [Qwen3-32B](../docs/aura/zh/models/qwen3_32b.md), and [Qwen3-30B-A3B](../docs/aura/zh/models/qwen3-30b-a3b.md) models.
+- Supports verl training engine and vllm inference engine.
+- Supports rLLM agent engine.
+- Uses TensorBoard to record training metrics.
+- Hardware support: Ascend A2/A3 architecture servers.
 
-- See the [Examples and Guidance](docs/en/user_guide/user_guide.md) for custom agent examples.
+# 🚀 Quick Start
 
-# Features
+| Training Framework | Model | Scenario | Server Architecture | Recommended Minimum Compute Resources | Quick Start Guide |
+| --- | --- | --- | --- | --- | --- |
+| verl+vllm+fsdp2+Hybrid | Qwen3-4B | Math | A3 | Single node 4*64GB memory | [Qwen3-4B Hybrid Mode Quick Start Guide](../docs/aura/zh/models/qwen3-4b_quick_start/qwen3-4b-hybrid.md) |
+| verl+vllm+fsdp2+Separate | Qwen3-4B | Math | A3 | Dual node 4*64GB memory | [Qwen3-4B Separate Mode Quick Start Guide](../docs/aura/zh/models/qwen3-4b_quick_start/qwen3-4b-one-step-off.md) |
 
-- For Agent SDK environment variables, model support, and backend support, see [Appendix](docs/en/appendix.md).
+- For the complete general quick start workflow, please refer to: [Quick Start Guide](../docs/aura/zh/03_quick_start.md).
 
-# API Reference
+# 📦 Installation Guide
 
-See [Python API](docs/en/api_python.md) and [CLI API](docs/en/command_api.md) for the API reference.
+Currently, Aura only provides environment deployment procedures, including container environment deployment, model weight preparation, and training data preparation.
 
-# FAQ
+**Prerequisites**: Python, Docker (for container environment deployment)
 
-For FAQ, see [FAQ](docs/en/faq.md).
+**Python Dependencies**: [requirements.txt](requirements.txt), containing the base dependencies required for the Aura core framework to run (such as torch, transformers, ray, etc.).
 
-# Security Statement
+**Third-party Dependencies**: [third_party/requirements_with_verl_vllm.txt](third_party/requirements_with_verl_vllm.txt), containing third-party repository dependencies such as megatron, mindspeed, and rllm.
 
-- When you use an API to read a file, ensure that you own the file and that its permissions are no more permissive than `640`. This helps prevent privilege escalation and similar security issues. Software code or programs downloaded from external sources may pose risks. You must guarantee the security of their functions.
-- Communication matrix: The Agent SDK development kit does not actively open or depend on any port. Therefore, no communication matrix is involved.
-- For public network addresses, see [Public network addresses](docs/en/resource/AgentSDK_public_network_addresses_0000002516443057.xlsx). URLs in the Agent SDK installation package are removed after installation, so they are not accessed and do not pose a risk.
-- For the security hardening guide, see [Agent SDK Security Hardening Guide](docs/en/security_hardening.md).
+For detailed steps, please follow the [Installation Guide](../docs/aura/zh/02_installation_guide.md).
 
-# Branch Maintenance Strategy
+# 📖 Usage Guide
 
-Version branches follow the defined maintenance phases.
+**Prerequisites**: It is recommended to familiarize yourself with the following dependency frameworks before using Aura:
 
-| Status| Time| Description|
-|------|------|------|
-| Planning| 1 to 3 months| Feature planning|
-| Development| 3 months| New feature development and issue fixes, released regularly|
-| Maintenance| 3 to 12 months| Regular branches receive 3 months of maintenance. Long-term support branches receive 12 months of maintenance. Only major bugs are fixed. No new features are added.|
-| End of life (EOL)| N/A | The branch no longer accepts any changes.|
+- [vllm-ascend](https://docs.vllm.ai/projects/vllm-ascend-cn/zh-cn/latest/): vLLM inference backend on Ascend NPUs
+- [verl](https://verl.org.cn/en/latest/index.html): Reinforcement learning training framework
 
-# Version Maintenance Strategy
+**Usage Guides**:
 
-| Version   | Maintenance Strategy| Current Status| Release Date| Next Status| EOL Date|
-|-------|----------|----------|----------|----------|---------|
-| master | Long-term support| Development| Under active development and not yet released| Continuous development| - |
-| v26.0 | Regular branch| Maintenance| 2026-01-28 | Expected to enter unsupported status on April 28, 2026.| 2026-04-28 |
+- Separate training-inference mode (sufficient resources): Please refer to the [Separate Mode Usage Guide](../docs/aura/zh/04_user_guide/03_one_step_off.md).
+- Hybrid training-inference mode (limited resources): Please refer to the [Hybrid Mode Usage Guide](../docs/aura/zh/04_user_guide/02_hybrid.md).
+- Defining Agent content and integrating custom data and toolchains: Please refer to the [Custom Agent Integration Guide](../docs/aura/zh/04_user_guide/04_custom_agent.md).
 
-# Disclaimer
+# ❓ FAQ
 
-- This repository contains multiple development branches, which may include unfinished, experimental, or untested features. These branches should not be used in any production environment or service-critical projects before an official release. Ensure you use our official release versions to guarantee stability and security.
-This project and its contributors are not responsible for any issues, losses, or data corruption resulting from the use of development branches.
+The FAQ includes error solutions that may be needed during environment deployment or operation. For related FAQs, please refer to: [FAQ](../docs/aura/zh/07_faq.md).
 
-- For version update notes, see [Release Notes](docs/en/release_notes.md#change-description).
+# 🛠️ Contribution Guide
 
-# License
+- Before contributing, please sign the [Open Project Contributor License Agreement (CLA)](https://clasign.osinfra.cn/sign/gitee_ascend-1611222220829317930).
+- If you encounter a bug, please submit an [issue](https://gitcode.com/Ascend/AgentSDK/issues).
+- If you plan to contribute bug fixes, please submit a Pull Request. See [specific requirements](../contributing.md).
+- If you plan to contribute new features or functionality, please create an issue to discuss with us first. Describe the requirement background/purpose, design approach, and impact on existing APIs. Submitting a PR without prior discussion may result in rejection, as the project evolution direction may differ from your ideas.
+- For a more detailed contribution process, please refer to the [Contribution Guide](../contributing.md).
 
-Agent SDK is licensed under Mulan PSL v2. The license text can be found in [LICENSE](../LICENSE.md).
+# ⚖️ Related Information
 
-Documents in the `docs` directory of Agent SDK are licensed under CC-BY 4.0. For details, see [LICENSE](./docs/LICENSE).
+🔹 《[Release Notes](../docs/aura/zh/08_release_notes.md)》<br>
+🔹 《[License Statement](../LICENSE.md)》<br>
+🔹 《[Document License Statement](../docs/aura/LICENSE)》<br>
+🔹 《[Disclaimer](../docs/aura/zh/09_disclaimer.md)》<br>
+🔹 《[Security Statement](../docs/aura/zh/06_security_hardening.md)》<br>
+🔹 《[Appendix](../docs/aura/zh/10_appendix.md)》<br>
 
-# Contribution Statement
+# 🤝 Suggestions and Feedback
 
-- Before contributing, sign the [Open Project Contributor License Agreement (CLA)](https://clasign.osinfra.cn/sign/gitee_ascend-1611222220829317930).
-- If you encounter a bug, submit an [issue](https://gitcode.com/Ascend/AgentSDK/issues).
-- If you plan to contribute bug fixes, submit a pull request (PR). See [Contribution Requirements](../contributing.md).
-- If you plan to contribute new features or functionality, create an issue to discuss it with us first. Describe the background or purpose of the requirement, the design, and its impact on existing APIs. Submitting a PR without prior discussion may lead to rejection, as the evolution direction of the project might differ from your ideas.
-- For a detailed contribution process, see the [Contribution Guide](../contributing.md).
+Everyone is welcome to contribute to the community. If you have any questions or suggestions, please submit an [issue](https://gitcode.com/Ascend/AgentSDK/issues), and we will reply as soon as possible. Thank you for your support.
 
-# Suggestions and Feedback
+# 🙏 Acknowledgments
 
-You are welcome to contribute to the community. If you have any questions or suggestions, please submit a [Issues](https://gitcode.com/Ascend/AgentSDK/issues). We will reply as soon as possible. Thank you for your support.
+Aura is jointly contributed by the following departments of Huawei:
+
+- Ascend Application Enablement Development Department
+- 2012 Systems Engineering Laboratory
+- Huawei Global Technical Services Department - AI Computing Laboratory
+
+Thank you for every PR from the community. Contributions to Aura are welcome!
