@@ -95,7 +95,7 @@ None
 
 | Document                                         | Description                                        | Update Notes                                              |
 |-----------------------------------------------|----------------------------------------------|----------------------------------------------------|
-| [Agent SDK 26.0.0 User Guide](../../README.md)| Describes the introduction, installation and deployment, quick start, API reference, and other common operations of Agent SDK.| For details about the changes, see [Agent SDK 26.0.0 User Guide](../../README.md).|
+| [Agent SDK 26.0.0 User Guide](../../../aura/README.md)| Describes the introduction, installation and deployment, quick start, API reference, and other common operations of Agent SDK.| For details about the changes, see [Agent SDK 26.0.0 User Guide](../../../aura/README.md).|
 
 # Vulnerability Patch List
 

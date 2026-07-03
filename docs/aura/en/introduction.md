@@ -9,7 +9,7 @@ Agent SDK helps users train AI agents quickly.
 
 If you are using this software for the first time, start with the example in [Quick Start](quick_start.md#quick-start) and make sure you prepare the required environment and packages as described there.
 
-If you are already familiar with the process, go directly to [Python API](./api_python.md) to get the function interfaces you need and streamline data processing.
+If you are already familiar with the process, go directly to [Python API](api_python.md) to get the function interfaces you need and streamline data processing.
 
 # Software Architecture<a name="ZH-CN_TOPIC_0000002492554225"></a>
 

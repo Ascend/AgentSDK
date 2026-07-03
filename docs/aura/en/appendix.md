@@ -6,7 +6,7 @@ The websites in the Agent SDK installation package will be cleared and will not 
 
 The SDK itself does not access the public URLs and email addresses in this manual. Therefore, they do not pose any risk.
 
-For more public network addresses, see [AgentSDK Public Network Addresses.xlsx](./resource/AgentSDK_public_network_addresses_0000002516443057.xlsx).
+For more public network addresses, see [AgentSDK Public Network Addresses.xlsx](resource/AgentSDK_public_network_addresses_0000002516443057.xlsx).
 
 ## Environment Variable Usage
 

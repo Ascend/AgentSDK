@@ -59,8 +59,6 @@ Tag 遵循以下格式：
 
 - 驱动与工具链挂载 ：将宿主机上的驱动文件和工具链目录（如 /usr/local/Ascend/driver 和 /usr/local/bin/npu-smi）以只读方式挂载到容器中，保证容器内的运行环境与宿主机一致。 以下样例代码中，/dev/davinci1 表示挂载 1 号设备。
 
-- -ti后接对应的镜像标签，例如：-it swr.cn-south-1.myhuaweicloud.com/ascendhub/AgentSDK:26.0.0-910b-ubuntu22.04-py3.11
-
 ```bash
 docker run --name your_container_name \
     --hostname agent \
@@ -83,7 +81,7 @@ docker run --name your_container_name \
     -v /etc/ascend_install.info:/etc/ascend_install.info \
     -v /usr/share/zoneinfo/Asia/Shanghai:/etc/localtime \
     -v /usr/local/sbin:/usr/local/sbin \
-    aura-a3:26.1.0  \
+    your_image_name:your_image_tag  \
     sleep infinity
 ```
 
@@ -94,7 +92,7 @@ docker run --name your_container_name \
 
 ### 4.3 快速启动用例
 
-快速启动参考：[Qwen3-4B 共卡模式快速拉起指南](../../aura/docs/zh/models/qwen3-4b/qwen3-4b-hybrid.md)
+快速启动参考：[Qwen3-4B 共卡模式快速拉起指南](../../docs/aura/zh/models/qwen3-4b_quick_start/qwen3-4b-hybrid.md)
 
 ---
 

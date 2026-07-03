@@ -8,8 +8,32 @@ AgentSDK 支持两种运行模式：
 
 | 模式 | 说明 |
 |------|------|
-| **Serve 模式** | 服务化部署，提供 HTTP API 接口，仅支持推理 |
 | **Direct 模式** | 本地部署，本地执行训练和推理任务 |
+| **Serve 模式** | 服务化部署，提供 HTTP API 接口，仅支持推理 |
+
+### Direct 模式
+
+Direct 模式用于执行训练和推理任务，任务完成后自动退出。该模式同时支持训练和推理功能。
+
+**启动方式**
+
+```bash
+cd /home/work/AgentSDK/aura
+bash scripts/start_rl_with_verl_vllm.sh
+```
+
+**配置示例**
+
+```yaml
+agentic_ai:
+  mode: direct
+
+direct_conf:
+  entrypoints:
+    - job_type: train
+      job_name: ${train_instances.0.name}
+      job_kwargs: {}
+```
 
 ### Serve 模式
 
@@ -18,7 +42,8 @@ Serve 模式启动后，系统将长期运行并提供 HTTP API 服务。该模�
 **启动方式**
 
 ```bash
-bash run_start_in_local.sh --config-name your_serve_config.yaml
+cd /home/work/AgentSDK/aura
+bash scripts/start_rl_with_verl_vllm.sh
 ```
 
 **配置示例**
@@ -57,34 +82,11 @@ curl -X POST http://localhost:8030/v1/chat/completions \
   -d '{"model": "qwen", "messages": [{"role": "user", "content": "Hello"}], "stream": false}'
 ```
 
-### Direct 模式
-
-Direct 模式用于执行训练和推理任务，任务完成后自动退出。该模式同时支持训练和推理功能。
-
-**启动方式**
-
-```bash
-bash run_start_in_local.sh --config-name your_direct_config.yaml
-```
-
-**配置示例**
-
-```yaml
-agentic_ai:
-  mode: direct
-
-direct_conf:
-  entrypoints:
-    - job_type: train
-      job_name: ${train_instances.0.name}
-      job_kwargs: {}
-```
-
 ---
 
 ## 自定义 Agent 开发<a name="section_custom_agent"></a>
 
-详见 [自定义 Agent 接入指南](custom_agent.md)。
+详见 [自定义 Agent 接入指南](04_custom_agent.md)。
 
 ---
 
@@ -266,7 +268,7 @@ trainer:
   project_name: 'my_project'  # 来自当前yaml
 ```
 
-完整配置文件示例可参考：【[配置文件示例](../command_api.md#section_config_example)】
+完整配置文件示例可参考：【[配置文件示例](../05_api_python.md#section_config_example)】
 
 ---
 
@@ -343,9 +345,11 @@ data_registry.register(
 
 ---
 
-## 更多 Agent 场景实践<a name="section_more_examples"></a>
+## 更多实践指南<a name="section_more_examples"></a>
 
-- 数学 Math Agent 请参考：[Math Agent](math_agent.md)
+- 训推共卡模式（On-Policy 策略）：[02_hybrid.md](02_hybrid.md)
+- 训推分离模式（One-Step-Off 策略）：[03_one_step_off.md](03_one_step_off.md)
+- 自定义 Agent 接入指南：[04_custom_agent.md](04_custom_agent.md)
 
 ---
 
@@ -353,7 +357,6 @@ data_registry.register(
 
 | 文档 | 说明 |
 |------|------|
-| [Python 接口说明](../api_python.md) | 框架对外暴露的 Python 接口 |
-| [命令行接口说明](../command_api.md) | 命令行参数和配置文件说明 |
-| [快速入门](../quick_start.md) | 快速上手指南 |
-| [附录](../appendix.md) | 支持的后端和模型列表 |
+| [Python 接口说明](../05_api_python.md) | 框架对外暴露的 Python 接口 |
+| [快速入门](../03_quick_start.md) | 快速上手指南 |
+| [附录](../10_appendix.md) | 支持的后端和模型列表 |
