@@ -11,7 +11,7 @@
 
 # ✨ 最新消息
 
-- [2026.06.12]: 🚀 新增支持 Qwen3-4B, Qwen3-8B, Qwen3-32B, Qwen3-30B-A3B 模型，并提供[快速拉起指南](../docs/aura/zh/models)
+- [2026.06.12]: 🚀 新增支持 Qwen3-4B, Qwen3-8B, Qwen3-32B, Qwen3-30B-A3B 模型，并提供[快速拉起指南](../docs/zh/aura/models)
 - [2026.04.25]: 🚀 发布 AgentSDK 全新训推调框架 **Aura** ，支持训推共卡与训推分离模式
 
 # ℹ️ 简介
@@ -24,15 +24,15 @@
 
 <div align="center">
 
-![](../docs/aura/zh/figures/Aura框架架构图.png)
+![](../docs/zh/aura/figures/Aura框架架构图.png)
 
 </div>
 
 # ⚙️ 功能介绍
 
-- 支持[训推共卡](../docs/aura/zh/04_user_guide/02_hybrid.md)和[训推分离](../docs/aura/zh/04_user_guide/03_one_step_off.md)模式。
-- 支持[自定义 agent 接入](../docs/aura/zh/04_user_guide/04_custom_agent.md)。
-- 支持[Qwen3-4B](../docs/aura/zh/models/qwen3-4b.md)、[Qwen3-8B](../docs/aura/zh/models/qwen3_8b.md)、[Qwen3-32B](../docs/aura/zh/models/qwen3_32b.md)、[Qwen3-30B-A3B](../docs/aura/zh/models/qwen3-30b-a3b.md)模型。
+- 支持[训推共卡](../docs/zh/aura/04_user_guide/02_hybrid.md)和[训推分离](../docs/zh/aura/04_user_guide/03_one_step_off.md)模式。
+- 支持[自定义 agent 接入](../docs/zh/aura/04_user_guide/04_custom_agent.md)。
+- 支持[Qwen3-4B](../docs/zh/aura/models/qwen3-4b.md)、[Qwen3-8B](../docs/zh/aura/models/qwen3_8b.md)、[Qwen3-32B](../docs/zh/aura/models/qwen3_32b.md)、[Qwen3-30B-A3B](../docs/zh/aura/models/qwen3-30b-a3b.md)模型。
 - 支持 verl 训练引擎，vllm 推理引擎。
 - 支持 rLLM agent 引擎。
 - 使用 tensorboard 记录训练指标。
@@ -42,10 +42,10 @@
 
 | 训练框架 | 训练模型 | 训练场景 | 服务器架构 | 推荐最小算力资源 | 快速入门指南 |
 | --- | --- | --- | --- | --- | --- |
-| verl+vllm+fsdp2+训推共卡 | Qwen3-4B | Math | A3 | 单机 4*64GB 显存 | [Qwen3-4B 共卡模式快速拉起指南](../docs/aura/zh/models/qwen3-4b_quick_start/qwen3-4b-hybrid.md)      |
-| verl+vllm+fsdp2+训推分离 | Qwen3-4B | Math | A3 | 双机 4*64GB 显存 | [Qwen3-4B 分离模式快速拉起指南](../docs/aura/zh/models/qwen3-4b_quick_start/qwen3-4b-one-step-off.md) |
+| verl+vllm+fsdp2+训推共卡 | Qwen3-4B | Math | A3 | 单机 4*64GB 显存 | [Qwen3-4B 共卡模式快速拉起指南](../docs/zh/aura/models/qwen3-4b_quick_start/qwen3-4b-hybrid.md)      |
+| verl+vllm+fsdp2+训推分离 | Qwen3-4B | Math | A3 | 双机 4*64GB 显存 | [Qwen3-4B 分离模式快速拉起指南](../docs/zh/aura/models/qwen3-4b_quick_start/qwen3-4b-one-step-off.md) |
 
-- 如果想了解模型通用的完整快速入门流程，请参考：[快速入门指南](../docs/aura/zh/03_quick_start.md)。
+- 如果想了解模型通用的完整快速入门流程，请参考：[快速入门指南](../docs/zh/aura/03_quick_start.md)。
 
 # 📦 安装指南
 
@@ -57,7 +57,7 @@
 
 **第三方依赖**：[third_party/requirements_with_verl_vllm.txt](third_party/requirements_with_verl_vllm.txt)，包含 megatron、mindspeed、rllm 等第三方仓库依赖。
 
-详细步骤请遵循[安装指南](../docs/aura/zh/02_installation_guide.md)。
+详细步骤请遵循[安装指南](../docs/zh/aura/02_installation_guide.md)。
 
 # 📖 使用指南
 
@@ -68,13 +68,13 @@
 
 **使用指南**：
 
-- 训推分离模式（资源充足）：请参考[训推分离使用指南](../docs/aura/zh/04_user_guide/03_one_step_off.md)。
-- 训推共卡模式（资源受限）：请参考[训推共卡使用指南](../docs/aura/zh/04_user_guide/02_hybrid.md)。
-- 定义 Agent 内容、接入自有数据与工具链：请参考[自定义 Agent 接入指南](../docs/aura/zh/04_user_guide/04_custom_agent.md)。
+- 训推分离模式（资源充足）：请参考[训推分离使用指南](../docs/zh/aura/04_user_guide/03_one_step_off.md)。
+- 训推共卡模式（资源受限）：请参考[训推共卡使用指南](../docs/zh/aura/04_user_guide/02_hybrid.md)。
+- 定义 Agent 内容、接入自有数据与工具链：请参考[自定义 Agent 接入指南](../docs/zh/aura/04_user_guide/04_custom_agent.md)。
 
 # ❓ FAQ
 
-FAQ 包含环境部署或运行过程中可能需要的报错及解决方案，相关 FAQ 请参考：[FAQ](../docs/aura/zh/07_faq.md)。
+FAQ 包含环境部署或运行过程中可能需要的报错及解决方案，相关 FAQ 请参考：[FAQ](../docs/zh/aura/07_faq.md)。
 
 # 🛠️ 贡献指南
 
@@ -86,12 +86,12 @@ FAQ 包含环境部署或运行过程中可能需要的报错及解决方案，�
 
 # ⚖️ 相关说明
 
-🔹 《[版本说明](../docs/aura/zh/08_release_notes.md)》<br>
+🔹 《[版本说明](../docs/zh/aura/08_release_notes.md)》<br>
 🔹 《[许可证声明](../LICENSE.md)》<br>
-🔹 《[文档许可证声明](../docs/aura/LICENSE)》<br>
-🔹 《[免责声明](../docs/aura/zh/09_disclaimer.md)》<br>
-🔹 《[安全声明](../docs/aura/zh/06_security_hardening.md)》<br>
-🔹 《[附录](../docs/aura/zh/10_appendix.md)》<br>
+🔹 《[文档许可证声明](../docs/LICENSE)》<br>
+🔹 《[免责声明](../docs/zh/aura/09_disclaimer.md)》<br>
+🔹 《[安全声明](../docs/zh/aura/06_security_hardening.md)》<br>
+🔹 《[附录](../docs/zh/aura/10_appendix.md)》<br>
 
 # 🤝 建议与交流
 

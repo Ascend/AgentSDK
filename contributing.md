@@ -83,7 +83,7 @@
 
 在提交代码前，请确保本地测试通过。若您需要在源码仓中启动 AgentSDK 或运行测试，建议先完成以下准备：
 
-- 按照 [docs/zh/installation_guide.md](docs/aura/zh/02_installation_guide.md) 完成 Python 依赖、CANN 依赖和第三方仓库依赖安装，并设置对应环境变量
+- 按照 [docs/zh/installation_guide.md](docs/zh/aura/02_installation_guide.md) 完成 Python 依赖、CANN 依赖和第三方仓库依赖安装，并设置对应环境变量
 - 在仓库根目录执行 `pip3 install -e .` 安装本地开发版本。安装完成后会注册命令行入口 `agentic_rl`
 - 额外安装测试工具：`pytest`、`pytest-html`、`pytest-cov`
 - `script/aura_ut.sh`、`script/openclaw_ut.sh` 依赖 `bash` 和 `python3`，建议在 Linux 开发环境中执行
@@ -138,8 +138,8 @@ bash run_presmoke_openclaw.sh
 如果您的变更影响用户使用方式、接口行为或部署配置，请同步更新相关文档：
 
 - 项目总览与快速入口：[README.md](aura/README.md)
-- 中文文档：[docs/zh/](docs/aura/zh)
-- Python API 文档：[docs/zh/api_python.md](docs/aura/zh/05_api_python.md)
+- 中文文档：[docs/zh/](docs/zh)
+- Python API 文档：[docs/zh/api_python.md](docs/zh/aura/05_api_python.md)
 
 ## 文档规范
 
@@ -190,11 +190,12 @@ bash run_presmoke_openclaw.sh
 
 ## 分支命名规则
 
-| 分支类型 | 命名格式 | 示例 | 说明 |
-|---------|---------|------|------|
-| release 分支 | `branch_v<版本号>` | `branch_v26.0.0`、`branch_v26.1.0` | 正式版本发布分支 |
-| 新代码仓分支 | `branch_v<版本号>` | `branch_v26.0.0`、`branch_v26.1.0` | 新代码仓初始化分支，命名与 release 分支保持一致 |
-| 预研分支 | `tech_v<版本号>` | `tech_v26.0.0`、`tech_v26.1.0` | OBP 时间内、无计划合入主干的特性研发分支 |
+| 分支类型       | 命名格式            | 示例                                | 说明                                        |
+|------------|-----------------|-----------------------------------|-------------------------------------------|
+| release 分支 | `branch_v<版本号>` | `branch_v26.0.0`、`branch_v26.1.0` | 正式版本发布分支                                  |
+| 新代码仓分支     | `branch_v<版本号>` | `branch_v26.0.0`、`branch_v26.1.0` | 新代码仓初始化分支，命名与 release 分支保持一致              |
+| 预研分支       | `tech_v<版本号>`   | `tech_v26.0.0`、`tech_v26.1.0`     | OBP 时间内、无计划合入主干的特性研发分支                    |
+| fork社区分支   | `<社区版本>-<内部版本>` | `v2.7.1-26.0.0`、`v2.10.0-26.1.0`  | 基于社区上游版本 fork 并适配内部版本的分支，命名需同时体现社区版本与内部版本 |
 
 ## Release Tag 命名规则
 

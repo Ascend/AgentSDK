@@ -11,7 +11,7 @@
 
 # ✨ Latest News
 
-- [2026.06.12]: 🚀 Added support for Qwen3-4B, Qwen3-8B, Qwen3-32B, and Qwen3-30B-A3B models, with [quick start guides](../docs/aura/zh/models) provided.
+- [2026.06.12]: 🚀 Added support for Qwen3-4B, Qwen3-8B, Qwen3-32B, and Qwen3-30B-A3B models, with [quick start guides](../docs/zh/aura/models) provided.
 - [2026.04.25]: 🚀 Released AgentSDK's brand-new training-inference-tuning framework **Aura**, supporting both hybrid and separate deployment modes.
 
 # ℹ️ Introduction
@@ -24,15 +24,15 @@
 
 <div align="center">
 
-![](../docs/aura/zh/figures/Aura框架架构图.png)
+![](../docs/zh/aura/figures/Aura框架架构图.png)
 
 </div>
 
 # ⚙️ Features
 
-- Supports [hybrid training-inference](../docs/aura/zh/04_user_guide/02_hybrid.md) and [separate training-inference](../docs/aura/zh/04_user_guide/03_one_step_off.md) modes.
-- Supports [custom Agent integration](../docs/aura/zh/04_user_guide/04_custom_agent.md).
-- Supports [Qwen3-4B](../docs/aura/zh/models/qwen3-4b.md), [Qwen3-8B](../docs/aura/zh/models/qwen3_8b.md), [Qwen3-32B](../docs/aura/zh/models/qwen3_32b.md), and [Qwen3-30B-A3B](../docs/aura/zh/models/qwen3-30b-a3b.md) models.
+- Supports [hybrid training-inference](../docs/zh/aura/04_user_guide/02_hybrid.md) and [separate training-inference](../docs/zh/aura/04_user_guide/03_one_step_off.md) modes.
+- Supports [custom Agent integration](../docs/zh/aura/04_user_guide/04_custom_agent.md).
+- Supports [Qwen3-4B](../docs/zh/aura/models/qwen3-4b.md), [Qwen3-8B](../docs/zh/aura/models/qwen3_8b.md), [Qwen3-32B](../docs/zh/aura/models/qwen3_32b.md), and [Qwen3-30B-A3B](../docs/zh/aura/models/qwen3-30b-a3b.md) models.
 - Supports verl training engine and vllm inference engine.
 - Supports rLLM agent engine.
 - Uses TensorBoard to record training metrics.
@@ -42,10 +42,10 @@
 
 | Training Framework | Model | Scenario | Server Architecture | Recommended Minimum Compute Resources | Quick Start Guide |
 | --- | --- | --- | --- | --- | --- |
-| verl+vllm+fsdp2+Hybrid | Qwen3-4B | Math | A3 | Single node 4*64GB memory | [Qwen3-4B Hybrid Mode Quick Start Guide](../docs/aura/zh/models/qwen3-4b_quick_start/qwen3-4b-hybrid.md) |
-| verl+vllm+fsdp2+Separate | Qwen3-4B | Math | A3 | Dual node 4*64GB memory | [Qwen3-4B Separate Mode Quick Start Guide](../docs/aura/zh/models/qwen3-4b_quick_start/qwen3-4b-one-step-off.md) |
+| verl+vllm+fsdp2+Hybrid | Qwen3-4B | Math | A3 | Single node 4*64GB memory | [Qwen3-4B Hybrid Mode Quick Start Guide](../docs/zh/aura/models/qwen3-4b_quick_start/qwen3-4b-hybrid.md) |
+| verl+vllm+fsdp2+Separate | Qwen3-4B | Math | A3 | Dual node 4*64GB memory | [Qwen3-4B Separate Mode Quick Start Guide](../docs/zh/aura/models/qwen3-4b_quick_start/qwen3-4b-one-step-off.md) |
 
-- For the complete general quick start workflow, please refer to: [Quick Start Guide](../docs/aura/zh/03_quick_start.md).
+- For the complete general quick start workflow, please refer to: [Quick Start Guide](../docs/zh/aura/03_quick_start.md).
 
 # 📦 Installation Guide
 
@@ -57,7 +57,7 @@ Currently, Aura only provides environment deployment procedures, including conta
 
 **Third-party Dependencies**: [third_party/requirements_with_verl_vllm.txt](third_party/requirements_with_verl_vllm.txt), containing third-party repository dependencies such as megatron, mindspeed, and rllm.
 
-For detailed steps, please follow the [Installation Guide](../docs/aura/zh/02_installation_guide.md).
+For detailed steps, please follow the [Installation Guide](../docs/zh/aura/02_installation_guide.md).
 
 # 📖 Usage Guide
 
@@ -68,13 +68,13 @@ For detailed steps, please follow the [Installation Guide](../docs/aura/zh/02_in
 
 **Usage Guides**:
 
-- Separate training-inference mode (sufficient resources): Please refer to the [Separate Mode Usage Guide](../docs/aura/zh/04_user_guide/03_one_step_off.md).
-- Hybrid training-inference mode (limited resources): Please refer to the [Hybrid Mode Usage Guide](../docs/aura/zh/04_user_guide/02_hybrid.md).
-- Defining Agent content and integrating custom data and toolchains: Please refer to the [Custom Agent Integration Guide](../docs/aura/zh/04_user_guide/04_custom_agent.md).
+- Separate training-inference mode (sufficient resources): Please refer to the [Separate Mode Usage Guide](../docs/zh/aura/04_user_guide/03_one_step_off.md).
+- Hybrid training-inference mode (limited resources): Please refer to the [Hybrid Mode Usage Guide](../docs/zh/aura/04_user_guide/02_hybrid.md).
+- Defining Agent content and integrating custom data and toolchains: Please refer to the [Custom Agent Integration Guide](../docs/zh/aura/04_user_guide/04_custom_agent.md).
 
 # ❓ FAQ
 
-The FAQ includes error solutions that may be needed during environment deployment or operation. For related FAQs, please refer to: [FAQ](../docs/aura/zh/07_faq.md).
+The FAQ includes error solutions that may be needed during environment deployment or operation. For related FAQs, please refer to: [FAQ](../docs/zh/aura/07_faq.md).
 
 # 🛠️ Contribution Guide
 
@@ -86,12 +86,12 @@ The FAQ includes error solutions that may be needed during environment deploymen
 
 # ⚖️ Related Information
 
-🔹 《[Release Notes](../docs/aura/zh/08_release_notes.md)》<br>
+🔹 《[Release Notes](../docs/zh/aura/08_release_notes.md)》<br>
 🔹 《[License Statement](../LICENSE.md)》<br>
-🔹 《[Document License Statement](../docs/aura/LICENSE)》<br>
-🔹 《[Disclaimer](../docs/aura/zh/09_disclaimer.md)》<br>
-🔹 《[Security Statement](../docs/aura/zh/06_security_hardening.md)》<br>
-🔹 《[Appendix](../docs/aura/zh/10_appendix.md)》<br>
+🔹 《[Document License Statement](../docs/LICENSE)》<br>
+🔹 《[Disclaimer](../docs/zh/aura/09_disclaimer.md)》<br>
+🔹 《[Security Statement](../docs/zh/aura/06_security_hardening.md)》<br>
+🔹 《[Appendix](../docs/zh/aura/10_appendix.md)》<br>
 
 # 🤝 Suggestions and Feedback
 
