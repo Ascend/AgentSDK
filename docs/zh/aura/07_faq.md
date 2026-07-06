@@ -130,11 +130,22 @@ CANN8.5.1存在该文件，而CANN9.0.0已去除该文件，可通过下面的�
 grep -R RT_LIMIT_TYPE_SIMT_WARP_STACK_SIZE /usr/local/Ascend/ascend-toolkit/latest/include/experiment/runtime/runtime
 ```
 
-triton-ascend 3.2.0 存在该问题，可以打patch(../third_party/patch/triton-ascend.patch)进行修复，triton-ascend对应PR：<https://gitcode.com/Ascend/triton-ascend/pull/1525/diffs>
+triton-ascend 3.2.0 存在该问题，可以打以下补丁进行修复：
+
+- [triton-ascend_driver.patch](../../../aura/third_party/patch/triton-ascend_driver.patch)
+- [triton-ascend_npu_utils.patch](../../../aura/third_party/patch/triton-ascend_npu_utils.patch)
+
+triton-ascend对应PR：<https://gitcode.com/Ascend/triton-ascend/pull/1525/diffs>
 
 **解决方案<a name="faq_005_solution"></a>**
 
-对triton-ascend 3.2.0该部分进行补丁修改。
+可直接运行提供的脚本一键打补丁：
+
+```bash
+bash /home/work/AgentSDK/docker/aura/patch/patch_triton_ascend.sh
+```
+
+也可手动对triton-ascend 3.2.0该部分进行补丁修改。
 
 ## 提示缺少模块pkg_resources<a name="faq_006"></a>
 

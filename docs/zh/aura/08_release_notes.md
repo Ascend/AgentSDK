@@ -27,9 +27,9 @@
 
 **表 1**  Agent SDK软件版本配套表
 
-| Agent SDK   | CANN版本 | Ascend HDK版本 |
-|--------| ------------- | ------------ |
-| 26.1.0 | 9.0.0           | Ascend HDK 25.7.RC1<br>Ascend HDK 26.0.RC1<br>Ascend HDK 25.5.X<br>Ascend HDK 25.3.X<br>Ascend HDK 25.2.X<br>Ascend HDK 25.0.X       |
+| Agent SDK | CANN版本 | Ascend HDK版本      |
+|-----------|--------|-------------------|
+| 26.1.0    | 9.0.0  | Ascend HDK 26.1.0 |
 
 ## 版本兼容性说明<a name="ZH-CN_TOPIC_0000002545284919"></a>
 
