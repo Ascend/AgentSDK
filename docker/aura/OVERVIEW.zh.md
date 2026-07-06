@@ -6,8 +6,8 @@
 
 - 从哪里获取帮助
     - [issue 反馈](https://gitcode.com/Ascend/AgentSDK/issues)
-    - [AgentSDK 代码](https://gitcode.com/Ascend/AgentSDK/aura)
-    - [Aura 快速启动文档](https://gitcode.com/Ascend/AgentSDK/blob/master/aura/docs/zh/quick_start.md)
+    - [AgentSDK 代码](https://gitcode.com/Ascend/AgentSDK/tree/master/aura)
+    - [Aura 快速启动文档](../../docs/zh/aura/03_quick_start.md)
     - [社区](https://www.hiascend.com/)
 
 ## 2.Aura简介
@@ -92,7 +92,7 @@ docker run --name your_container_name \
 
 ### 4.3 快速启动用例
 
-快速启动参考：[Qwen3-4B 共卡模式快速拉起指南](../../docs/aura/zh/models/qwen3-4b_quick_start/qwen3-4b-hybrid.md)
+快速启动参考：[Qwen3-4B 共卡模式快速拉起指南](../../docs/zh/aura/models/qwen3-4b_quick_start/qwen3-4b-hybrid.md)
 
 ---
 

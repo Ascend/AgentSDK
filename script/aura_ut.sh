@@ -67,7 +67,8 @@ echo "======================================"
  keyrings.alt==4.0.0 \
  diskcache==5.0.0 \
  platformdirs==3.0.0 \
- pyyaml==6.0.0
+ pyyaml==6.0.0 \
+ prometheus_client==0.25.0
  echo "[INFO] >>>>>>>>>>> finish install python packages >>>>>>>>>>>"
  mkdir -p $THIRD_PARTY_DIR
  cd $THIRD_PARTY_DIR

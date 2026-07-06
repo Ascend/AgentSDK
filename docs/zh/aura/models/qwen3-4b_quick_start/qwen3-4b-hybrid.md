@@ -2,15 +2,14 @@
 
 ## **容器环境部署**
 
+本文档以 Atlas A3 服务器 16 卡为例进行说明。
+
 第一步：进入 docker 目录，执行构建镜像脚本：
 
 ```shell
 cd /path/to/AgentSDK/docker/aura
 docker build -f Dockerfile.a3.ubuntu -t your_image_name:your_image_tag .
 ```
-
-> [!NOTE] 说明
-> 如果服务器架构为 A3，会生成镜像 `aura-a3:26.1.0`。
 
 第二步：创建容器：
 
@@ -21,6 +20,12 @@ docker run --name your_container_name \
     -it -d --shm-size=500g \
     --device=/dev/davinci0 --device=/dev/davinci1 \
     --device=/dev/davinci2 --device=/dev/davinci3 \
+    --device=/dev/davinci4 --device=/dev/davinci5 \
+    --device=/dev/davinci6 --device=/dev/davinci7 \
+    --device=/dev/davinci8 --device=/dev/davinci9 \
+    --device=/dev/davinci10 --device=/dev/davinci11 \
+    --device=/dev/davinci12 --device=/dev/davinci13 \
+    --device=/dev/davinci14 --device=/dev/davinci15 \
     --device=/dev/davinci_manager \
     --device=/dev/hisi_hdc \
     --device=/dev/devmm_svm \
@@ -30,7 +35,7 @@ docker run --name your_container_name \
     -v /etc/ascend_install.info:/etc/ascend_install.info \
     -v /usr/share/zoneinfo/Asia/Shanghai:/etc/localtime \
     -v /usr/local/sbin:/usr/local/sbin \
-    aura-a3:26.1.0  \
+    your_image_name:your_image_tag  \
     sleep infinity
 ```
 
@@ -100,7 +105,7 @@ if __name__ == "__main__":
     data_source = "openai/gsm8k"
 
     if local_dataset_path is not None:
-        dataset = datasets.load_dataset(local_dataset_path)
+        dataset = datasets.load_dataset(local_dataset_path, "main")
     else:
         dataset = datasets.load_dataset(data_source, "main")
 
@@ -169,7 +174,43 @@ python3 gsm8k.py \
 
 在快速拉起 qwen3-4b math 场景前，需要您修改以下配置文件，需要进行修改的参数可以参照文件头的注释。
 
- [共卡配置文件](../../../../../aura/configs/train/verl_train_hybrid_A3_t16_qwen3_4b_math_fsdp.yaml)
+1. [共卡训练配置文件](../../../../../aura/configs/train/verl_train_hybrid_A3_t16_qwen3_4b_math_fsdp.yaml)
+2. [共卡推理配置文件](../../../../../aura/configs/infer/vllm_infer_i16_qwen3_4b.yaml)
+
+### 修改hosts.conf
+
+```shell
+# [单机训练+推理]
+# 单机，训推共节点部署, 方便本地调测
+# host,index,train_master_index,infer_master_index(可选)
+192.168.0.1,0,1,1
+```
+
+### 修改base.conf
+
+```shell
+# [train]
+# 启动训练相关参数
+# 工作模式：hybrid 共卡模式 | one_step_off 全异步分离模式
+work_mode=hybrid
+
+# 共卡和分离模式均需要配置训练yaml文件
+train_config_name=verl_train_hybrid_A3_t16_qwen3_4b_math_fsdp
+
+# 分离模式需要单独配置推理yaml文件
+infer_config_name=vllm_infer_i16_qwen3_4b
+
+# [resume]
+# 启动断点续训相关参数
+# 需要监控的启动脚本：start_rl_with_msrl_vllm.sh | start_rl_with_verl_vllm.sh
+monitor_cmd=start_rl_with_verl_vllm.sh
+
+# 断点续训重试次数, 默认100次
+max_retries=100
+
+# 第一次启动是否需要清空ckpt文件夹: 0 不清理; 1 需要清理
+clean_old_ckpt=0
+```
 
 ## **配置环境变量**
 
@@ -207,7 +248,7 @@ python3 gsm8k.py \
 配置可用的 NPU 的卡数。
 
 ```shell
-export ASCEND_RT_VISIBLE_DEVICES=0,1,2,3
+export ASCEND_RT_VISIBLE_DEVICES=0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
 ```
 
 ## **启动训练**

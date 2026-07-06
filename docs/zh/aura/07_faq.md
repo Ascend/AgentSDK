@@ -328,3 +328,31 @@ You should exec "export VC_TASK_INDEX={0|1|2...}" to configure the host index
 192.168.0.1,0,0
 192.168.0.2,1,1
 ```
+
+## 提示ray启动失败<a name="faq_014"></a>
+
+**问题现象<a name="faq_014_phenomenon"></a>**
+
+启动脚本后，出现如下报错信息：
+
+```text
+ConnectionError: Could not find any running Ray instance. Please specify the one to connect to by setting the --address flag or RAY_ADDRESS environment variable.
+```
+
+**原因分析<a name="faq_014_analysis"></a>**
+
+环境问题导致ray启动失败。
+
+**解决方案<a name="faq_014_solution"></a>**
+
+尝试手动起ray，判断是否是环境存在问题，执行下面的指令前需保证指令使用的端口没有被占用：
+
+```shell
+ray start --head --port=7894 --dashboard-port=7895
+```
+
+如果ray存在报错，需排查环境问题，下面提供一些排查方向：
+
+1. 保证ray使用的端口没有被占用
+2. 保证有足够的文件描述符供raylet进程使用
+3. 机器上其他容器是否有ray进程正在运行
