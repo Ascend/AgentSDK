@@ -7,8 +7,8 @@
 - Where to get help
 
     - [Issue Feedback](https://gitcode.com/Ascend/AgentSDK/issues)
-    - [Aura Code](https://gitcode.com/Ascend/AgentSDK/aura)
-    - [AgentSDK Quick-start Documentation](https://gitcode.com/Ascend/AgentSDK/blob/master/aura/docs/zh/quick_start.md)
+    - [Aura Code](https://gitcode.com/Ascend/AgentSDK/tree/master/aura)
+    - [AgentSDK Quick-start Documentation](../../docs/zh/aura/03_quick_start.md)
     - [Community](https://www.hiascend.com/)
 
 ## 2.Aura Overview
@@ -93,7 +93,7 @@ docker run --name your_container_name \
 
 ### 4.3 Quick-start Demo
 
-Quick start reference: [Qwen3-4B hybrid mode quick start](../../docs/aura/zh/models/qwen3-4b_quick_start/qwen3-4b-hybrid.md)
+Quick start reference: [Qwen3-4B hybrid mode quick start](../../docs/zh/aura/models/qwen3-4b_quick_start/qwen3-4b-hybrid.md)
 
 ---
 

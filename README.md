@@ -17,7 +17,8 @@ AgentSDK 仓库包含以下两个核心产品，点击进入各自的详细介�
 
 | 目录 | 说明 |
 |------|------|
-| [presmoke](./presmoke) | 提供 AgentSDK 的前冒烟测试用例，用于正式部署前验证框架的基本功能和配置正确性 |
+| [docker](./docker) | 提供 AgentSDK 的 Dockerfile 和环境构建脚本，用于快速构建容器镜像和配置运行环境 |
 | [docs](./docs) | 提供 AgentSDK 相关说明文档，包括安装指南、快速入门、API 参考、FAQ 等 |
-| [script](./script) | 提供 AgentSDK 的构建、测试、安装等辅助脚本 |
 | [pre-commit](./pre-commit) | 提供代码提交前的自动化检查配置，包括拼写检查、代码规范、安全扫描等 |
+| [presmoke](./presmoke) | 提供 AgentSDK 的前冒烟测试用例，用于正式部署前验证框架的基本功能和配置正确性 |
+| [script](./script) | 提供 AgentSDK 的构建、测试、安装等辅助脚本 |
