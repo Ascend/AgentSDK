@@ -292,7 +292,7 @@ map_keys: {"query":"", "response":"labels", "prompt": "question"}
 
 ```shell
 # 处理训练集
-python3 /path/to/AgentSDK/cli/preprocess_data.py gsm8k
+python3 /path/to/AgentSDK/aura/cli/preprocess_data.py gsm8k
 ```
 
 **生成文件**

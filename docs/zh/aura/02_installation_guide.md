@@ -93,12 +93,6 @@ bash build_env.sh
 modelscope download --model Qwen/Qwen2.5-7B-Instruct --local_dir /path/to/Qwen2.5-7B-Instruct
 ```
 
-### 处理模型权重<a name="ZH-CN_TOPIC_0000002492554173"></a>
-
-模型权重下载完成后，需根据使用的训练后端以及训练并行策略，决定是否将其转换为 Megatron 格式。
-
-> 说明：详细的权重处理步骤将在后续版本中更新。
-
 ## 准备训练数据<a name="ZH-CN_TOPIC_0000002492554221"></a>
 
 ### 下载训练数据<a name="ZH-CN_TOPIC_0000002492554173"></a>
