@@ -26,7 +26,7 @@ echo "[patch_triton_ascend] cwd=$(pwd)"
 
 if [ -f "$DRIVER_PATCH" ]; then
     echo "[patch] applying driver patch"
-    if patch -p0 -N < "$DRIVER_PATCH"; then
+    if patch -p0 -N -l < "$DRIVER_PATCH"; then
         echo "[patch] driver patch done"
     else
         echo "[patch] driver patch failed (or already applied)"
@@ -37,7 +37,7 @@ fi
 
 if [ -f "$NPU_PATCH" ]; then
     echo "[patch] applying npu_utils patch"
-    if patch -p0 -N < "$NPU_PATCH"; then
+    if patch -p0 -N -l < "$NPU_PATCH"; then
         echo "[patch] npu_utils patch done"
     else
         echo "[patch] npu_utils patch failed"

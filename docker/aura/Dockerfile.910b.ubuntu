@@ -65,4 +65,9 @@ RUN pip install uv && \
     bash /home/work/AgentSDK/docker/aura/env/build_qwen3_moe_env.sh && \
     deactivate
 
+ENV http_proxy="" \
+    https_proxy="" \
+    HTTP_PROXY="" \
+    HTTPS_PROXY=""
+
 WORKDIR /home/work/AgentSDK/aura
