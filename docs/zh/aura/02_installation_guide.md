@@ -1,15 +1,37 @@
-# Qwen3-4B 分离模式快速拉起指南
+# 安装指南<a name="ZH-CN_TOPIC_0000002492554169"></a>
 
-## **容器环境部署**
+当前 Aura 仅提供环境部署流程，Aura 的环境部署流程包含以下三个主要步骤：
 
-第一步：进入 docker 目录，执行构建镜像脚本：
+1. 容器环境部署
+2. 准备模型权重
+3. 准备训练数据
+
+## 容器环境部署<a name="ZH-CN_TOPIC_0000002492554221"></a>
+
+容器环境部署有两种方式：
+
+1. 从 Dockerfile 构建镜像
+2. 基于 CANN9.0.0 的容器环境，执行一键式环境配置脚本 [`build_env.sh`](../../../docker/aura/build_env.sh)
+
+### 从 Dockerfile 构建镜像
+
+通过 Dockerfile 可快速构建镜像， Dockerfile 可在 [`docker`](../../../docker) 目录下获取，用户可根据实际需求修改 Dockerfile 中的路径参数。
+
+#### 步骤 1：构建镜像
+
+拉取 Aura 项目源码，进入 docker 目录，构建镜像，以a3-ubuntu的Dockerfile为例：
 
 ```shell
+git clone https://gitcode.com/Ascend/AgentSDK.git
 cd /path/to/AgentSDK/docker/aura
 docker build -f Dockerfile.a3.ubuntu -t your_image_name:your_image_tag .
 ```
 
-第二步：创建容器：
+用户需根据服务器类型选择对应的 Dockerfile 构建镜像。
+
+#### 步骤 2：创建容器
+
+以 Atlas A3服务器16卡为例，创建容器：
 
 ```shell
 docker run --name your_container_name \
@@ -18,6 +40,12 @@ docker run --name your_container_name \
     -it -d --shm-size=500g \
     --device=/dev/davinci0 --device=/dev/davinci1 \
     --device=/dev/davinci2 --device=/dev/davinci3 \
+    --device=/dev/davinci4 --device=/dev/davinci5 \
+    --device=/dev/davinci6 --device=/dev/davinci7 \
+    --device=/dev/davinci8 --device=/dev/davinci9 \
+    --device=/dev/davinci10 --device=/dev/davinci11 \
+    --device=/dev/davinci12 --device=/dev/davinci13 \
+    --device=/dev/davinci14 --device=/dev/davinci15 \
     --device=/dev/davinci_manager \
     --device=/dev/hisi_hdc \
     --device=/dev/devmm_svm \
@@ -31,40 +59,69 @@ docker run --name your_container_name \
     sleep infinity
 ```
 
-第三步：进入容器环境
+> [!NOTE] 说明
+>
+> 1. 根据 NPU 数量的不同，挂载不同数量的设备 ID。例如： Atlas A3 有 16 个 NPU，需挂载 16 个设备 ID，每个设备 ID 对应一个 NPU。
+> 2. 镜像内默认工作目录为 /home/work，因此不建议挂载整个 /home 目录，以避免覆盖容器内默认工作空间或引发权限冲突。
+
+#### 步骤 3：进入容器
 
 ```shell
 docker exec -it your_container_name bash
 ```
 
-> [!NOTE] 说明
->
->- 后续将提供预构建镜像下载链接，用户可直接下载预构建的镜像
+### 使用一键式环境配置脚本 build_env.sh
 
-## **模型获取**
-
-本实验使用 Qwen3-4b 模型，相关模型可以通过[本链接](https://www.modelscope.cn/models/Qwen/Qwen3-4B)获取。
+使用一键式环境配置脚本前，需提前准备好 CANN9.0.0 的容器环境，包括安装 CANN9.0.0 的驱动、配置环境变量等，用户可根据实际需求，修改第三方库安装路径。一键式环境配置脚本将自动安装 Aura 及其所有依赖，包含 vLLM、 vllm-ascend、 MindSpeed、 Megatron-LM、 verl、 transformers 等第三方库依赖，以及 python 相关依赖。
 
 ```shell
-modelscope download --model Qwen/Qwen3-4B --local_dir /path/to/Qwen3-4B
+cd /path/to/AgentSDK/docker/aura
+bash build_env.sh
 ```
 
-## **数据集获取**
+> [!NOTE] 注意
+>
+> 一键拉起脚本 `build_env.sh` 会对当前 Python 环境执行全局 `pip install -e .` 等操作，并克隆多个仓库到 `/home/work`，因此**请勿在宿主机原生 Python 环境或已有其他项目依赖的虚拟环境中执行**。建议仅在全新的 CANN 9.0.0 容器内使用；若需要隔离环境，请自行创建独立虚拟环境后再运行该脚本。
 
-### **下载数据集**
+## 准备模型权重<a name="ZH-CN_TOPIC_0000002459514672"></a>
 
-本实验使用的 Math 领域的 gsm8k 数据集可通过[本链接](https://www.modelscope.cn/datasets/AI-ModelScope/gsm8k)获取。
+### 下载模型权重<a name="ZH-CN_TOPIC_0000002492554173"></a>
+
+本小节介绍 Aura 所需模型权重的下载方式。用户可根据实际需求选择合适的模型，以下以[Qwen2.5-7B-Instruct](https://www.modelscope.cn/models/Qwen/Qwen2.5-7B-Instruct)为例：
 
 ```shell
+modelscope download --model Qwen/Qwen2.5-7B-Instruct --local_dir /path/to/Qwen2.5-7B-Instruct
+```
+
+## 准备训练数据<a name="ZH-CN_TOPIC_0000002492554221"></a>
+
+### 下载训练数据<a name="ZH-CN_TOPIC_0000002492554173"></a>
+
+本小节介绍 Aura 训练数据的获取方式。以数学 Agent 场景为例，我们使用[gsm8k](https://www.modelscope.cn/datasets/AI-ModelScope/gsm8k)数据集，包含训练集和测试集数据：
+
+```shell
+# 下载数据集
 modelscope download --dataset AI-ModelScope/gsm8k --local_dir /path/to/gsm8k
 ```
 
-### **数据集处理**
+> 说明： 首次训练时，应根据模型能力选择合适的数据集，参数量较低的模型应选择较为简单的数据集，便于模型学习
 
-使用下面 verl 官方提供的数据处理脚本[gsm8k.py](https://github.com/verl-project/verl/blob/v0.7.0/examples/data_preprocess/gsm8k.py)处理数据集：
+### 处理训练数据<a name="ZH-CN_TOPIC_0000002492554173"></a>
+
+根据训练模式的不同，数据处理方式也有所区别：
+
+| 训练模式 | 数据处理方式 | 说明 |
+|---------|-------------|------|
+| **共卡模式 (Hybrid)** | verl 官方脚本 | 数据格式为 parquet |
+| **分离模式 (One-Step-Off)** | Aura 脚本 | 数据格式为 Megatron |
+
+#### 共卡模式数据处理
+
+使用 verl 官方提供的数据处理脚本处理数据集：
+
+- [gsm8k.py](https://github.com/verl-project/verl/blob/v0.7.0/examples/data_preprocess/gsm8k.py)：处理数据集
 
 ```python
-# gsm8k.py
 import argparse
 import os
 import re
@@ -162,7 +219,7 @@ python3 gsm8k.py \
     --local_save_dir /path/to/gsm8k-output
 ```
 
-### **数据格式转换**
+#### 分离模式数据处理
 
 分离模式需要将数据集转换为 bin/idx 格式。训练集和测试集的处理流程一致，以下以训练集为例进行说明，转换流程如下：
 
@@ -170,9 +227,13 @@ python3 gsm8k.py \
 parquet → jsonl → bin/idx
 ```
 
-#### **parquet 转 jsonl**
+> **说明**：后续版本将与共卡模式进行统一，数据格式将统一为 parquet。
 
-创建转换脚本 `convert_data.py`：
+##### 步骤 1： parquet 转换为 jsonl
+
+首先，与共卡模式相同，通过 gsm8k.py 将 gsm8k 数据集转换为标准格式数据集
+
+其次，创建转换脚本 `convert_data.py`：
 
 ```python
 import pandas as pd
@@ -238,7 +299,7 @@ python convert_data.py --input train.parquet --output train.jsonl
 python convert_data.py --input test.parquet --output test.jsonl
 ```
 
-#### **jsonl 转 bin/idx**
+##### 步骤 2： jsonl 转换为 bin/idx
 
 **准备配置文件**
 
@@ -284,8 +345,10 @@ map_keys: {"query":"", "response":"labels", "prompt": "question"}
 
 ```shell
 # 处理训练集
-python3 /path/to/AgentSDK/cli/preprocess_data.py gsm8k
+python3 /path/to/AgentSDK/aura/cli/preprocess_data.py gsm8k
 ```
+
+> **说明**：`gsm8k` 为配置文件名（不带 `.yaml` 后缀），脚本会自动从 `configs/datasets/` 目录加载对应的配置。
 
 **生成文件**
 
@@ -299,18 +362,11 @@ python3 /path/to/AgentSDK/cli/preprocess_data.py gsm8k
 └── test.idx     # 测试集索引文件
 ```
 
-## **文件修改**
+## 环境变量配置<a name="ZH-CN_TOPIC_0000002492554174"></a>
 
-在快速拉起 qwen3-4b math 场景前，需要您修改以下配置文件，需要进行修改的参数可以参照文件头的注释。
+### 设置 DEFAULT_SOCKET_IFNAME
 
-1. [分离配置文件](../../../../../aura/configs/train/verl_train_async_A3_t16_qwen3_4b_math_fsdp.yaml)
-2. [分离推理配置](../../../../../aura/configs/infer/vllm_infer_i16_qwen3_4b.yaml)
-
-## **配置环境变量**
-
-### 配置 DEFAULT_SOCKET_IFNAME
-
-包含正确本地 IP 的虚拟网桥名称。
+通过`ifconfig`指令，查看自己的网卡 ID，以本机 IP 地址为 192.168.1.1 为例：
 
 1. 执行 ifconfig 命令，查看网络配置：
 
@@ -337,24 +393,70 @@ python3 /path/to/AgentSDK/cli/preprocess_data.py gsm8k
     export DEFAULT_SOCKET_IFNAME=enp189s0f0
     ```
 
-### 配置 ASCEND_RT_VISIBLE_DEVICES
+### 设置 ASCEND_RT_VISIBLE_DEVICES
 
-配置可用的 NPU 的卡数。
+根据自己实际需要设置可用的 NPU 的卡数，例如需要指定 0-15 号 NPU：
 
 ```shell
-export ASCEND_RT_VISIBLE_DEVICES=0,1,2,3
+# 配置可用的NPU的卡数
+export ASCEND_RT_VISIBLE_DEVICES=0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
 ```
 
-## **启动训练**
+## 卸载与清理<a name="ZH-CN_TOPIC_0000002492554175"></a>
 
-启动训练脚本
+当不再需要 Aura 运行环境时，可按以下步骤清理容器、镜像及相关数据，释放宿主机资源。
+
+### 1. 停止并删除容器
 
 ```shell
-# 进入自己的工作目录
-cd /home/work/AgentSDK/aura
-# 启动训练脚本
-bash scripts/start_rl_with_verl_vllm.sh
+# 查看当前运行的容器，确认容器名称
+docker ps -a
+
+# 停止容器（将 your_container_name 替换为实际容器名）
+docker stop your_container_name
+
+# 删除容器
+docker rm your_container_name
+```
+
+### 2. 删除镜像
+
+```shell
+# 查看本地镜像，确认镜像名和标签
+docker images
+
+# 删除镜像（将 <image_name>:<tag> 替换为实际镜像名，如 aura-a3:26.1.0）
+docker rmi <image_name>:<tag>
 ```
 
 > [!NOTE] 说明
-> 本文档专门针对 Qwen3-4B 分离模式（one-step-off）的启动示例，提供该场景下的快速拉起步骤；通用且详细的完整启动流程请参考 [快速入门指南](../../03_quick_start.md)。
+>
+> 删除镜像前需确保没有运行中或已停止的容器依赖该镜像，否则需先执行步骤 1 删除对应容器。
+
+### 3. 清理构建缓存（可选）
+
+若构建过程中产生了大量中间层镜像或缓存，可一并清理以回收磁盘空间：
+
+```shell
+# 清理悬空镜像（<none> 标签的中间层镜像）
+docker image prune -f
+
+# 清理所有未使用的镜像、容器、网络和构建缓存
+docker system prune -f
+```
+
+> [!CAUTION] 风险提示
+>
+> `docker system prune -a` 会删除所有未被任何容器引用的镜像，执行前请确认其他项目不依赖这些镜像。
+
+### 4. 清理 Aura 相关数据（可选）
+
+如需彻底清除 Aura 运行产生的数据，可删除以下目录：
+
+- 容器内工作目录 `/home/work` 下的第三方仓库克隆（如 verl、vLLM、Megatron-LM 等）
+- 训练产出的权重、日志和轨迹文件，默认位于 `${hydra:runtime.cwd}/weights` 和 `${hydra:runtime.cwd}/outputs`
+- 共享存储中的 rollout 数据和 checkpoint 目录
+
+---
+
+> 环境部署流程已完成，请参考[快速启动文档](03_quick_start.md)来使用 Aura。
