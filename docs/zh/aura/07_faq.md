@@ -184,7 +184,9 @@ TypeError("CheckpointConfig.__init__() got an unexpected keyword argument 'stric
 将根目录下的verl版本切换到指定commit版本。
 
 ```text
+cd /
 git clone https://github.com/verl-project/verl.git
+cd verl
 git checkout e9972368aa6a6078eacd7f0678bdfdd0196ce7b5
 ```
 
@@ -202,7 +204,7 @@ ModuleNotFoundError: No module named 'vllm.model_executor.layers.fused_moe.runne
 
 vllm 0.16.0rc1版本没有这个runner目录，一直到0.16.1rc0版本才有，建议直接切换到指定commit版本。
 
-vllm和vllm-ascend版本对应链接可参考：https://docs.vllm.ai/projects/ascend/en/latest/community/versioning_policy.html
+vllm和vllm-ascend版本对应链接可参考：https://docs.vllm.com.cn/projects/ascend/en/latest/community/versioning_policy.html
 
 **解决方案<a name="faq_008_solution"></a>**
 
