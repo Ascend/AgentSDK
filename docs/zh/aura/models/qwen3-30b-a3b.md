@@ -6,7 +6,7 @@
 
 ## **模型获取**
 
-本实验使用Qwen3-30B-A3B模型，相关模型可以通过[本链接](https://huggingface.co/Qwen/Qwen3-30B-A3B)获取。
+本实验使用Qwen3-30B-A3B模型，相关模型可以通过[本链接](https://www.modelscope.cn/models/Qwen/Qwen3-30B-A3B)获取。
 
 ## **数据集获取**
 
