@@ -1,4 +1,4 @@
-# 安装指南<a name="ZH-CN_TOPIC_0000002492554169"></a>
+# 安装指南
 
 当前 Aura 仅提供环境部署流程，Aura 的环境部署流程包含以下三个主要步骤：
 
@@ -6,14 +6,14 @@
 2. 准备模型权重
 3. 准备训练数据
 
-## 容器环境部署<a name="ZH-CN_TOPIC_0000002492554221"></a>
+## 容器环境部署
 
 容器环境部署有两种方式：
 
 1. 从 Dockerfile 构建镜像
 2. 基于 CANN9.0.0 的容器环境，执行一键式环境配置脚本 [`build_env.sh`](../../../docker/aura/build_env.sh)
 
-### 从 Dockerfile 构建镜像
+### 方式一：从 Dockerfile 构建镜像
 
 通过 Dockerfile 可快速构建镜像， Dockerfile 可在 [`docker`](../../../docker) 目录下获取，用户可根据实际需求修改 Dockerfile 中的路径参数。
 
@@ -70,7 +70,7 @@ docker run --name your_container_name \
 docker exec -it your_container_name bash
 ```
 
-### 使用一键式环境配置脚本 build_env.sh
+### 方式二：使用一键式环境配置脚本 build_env.sh
 
 使用一键式环境配置脚本前，需提前准备好 CANN9.0.0 的容器环境，包括安装 CANN9.0.0 的驱动、配置环境变量等，用户可根据实际需求，修改第三方库安装路径。一键式环境配置脚本将自动安装 Aura 及其所有依赖，包含 vLLM、 vllm-ascend、 MindSpeed、 Megatron-LM、 verl、 transformers 等第三方库依赖，以及 python 相关依赖。
 
@@ -83,9 +83,9 @@ bash build_env.sh
 >
 > 一键拉起脚本 `build_env.sh` 会对当前 Python 环境执行全局 `pip install -e .` 等操作，并克隆多个仓库到 `/home/work`，因此**请勿在宿主机原生 Python 环境或已有其他项目依赖的虚拟环境中执行**。建议仅在全新的 CANN 9.0.0 容器内使用；若需要隔离环境，请自行创建独立虚拟环境后再运行该脚本。
 
-## 准备模型权重<a name="ZH-CN_TOPIC_0000002459514672"></a>
+## 准备模型权重
 
-### 下载模型权重<a name="ZH-CN_TOPIC_0000002492554173"></a>
+### 下载模型权重
 
 本小节介绍 Aura 所需模型权重的下载方式。用户可根据实际需求选择合适的模型，以下以[Qwen2.5-7B-Instruct](https://www.modelscope.cn/models/Qwen/Qwen2.5-7B-Instruct)为例：
 
@@ -93,9 +93,9 @@ bash build_env.sh
 modelscope download --model Qwen/Qwen2.5-7B-Instruct --local_dir /path/to/Qwen2.5-7B-Instruct
 ```
 
-## 准备训练数据<a name="ZH-CN_TOPIC_0000002492554221"></a>
+## 准备训练数据
 
-### 下载训练数据<a name="ZH-CN_TOPIC_0000002492554173"></a>
+### 下载训练数据
 
 本小节介绍 Aura 训练数据的获取方式。以数学 Agent 场景为例，我们使用[gsm8k](https://www.modelscope.cn/datasets/AI-ModelScope/gsm8k)数据集，包含训练集和测试集数据：
 
@@ -106,7 +106,7 @@ modelscope download --dataset AI-ModelScope/gsm8k --local_dir /path/to/gsm8k
 
 > 说明： 首次训练时，应根据模型能力选择合适的数据集，参数量较低的模型应选择较为简单的数据集，便于模型学习
 
-### 处理训练数据<a name="ZH-CN_TOPIC_0000002492554173"></a>
+### 处理训练数据
 
 根据训练模式的不同，数据处理方式也有所区别：
 
@@ -117,100 +117,7 @@ modelscope download --dataset AI-ModelScope/gsm8k --local_dir /path/to/gsm8k
 
 #### 共卡模式数据处理
 
-使用 verl 官方提供的数据处理脚本处理数据集：
-
-- [gsm8k.py](https://github.com/verl-project/verl/blob/v0.7.0/examples/data_preprocess/gsm8k.py)：处理数据集
-
-```python
-import argparse
-import os
-import re
-
-import datasets
-
-from verl.utils.hdfs_io import copy, makedirs
-
-
-def extract_solution(solution_str):
-    solution = re.search("#### (\\-?[0-9\\.\\,]+)", solution_str)
-    assert solution is not None
-    final_solution = solution.group(0)
-    final_solution = final_solution.split("#### ")[1].replace(",", "")
-    return final_solution
-
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--local_dir", default=None, help="The save directory for the preprocessed dataset.")
-    parser.add_argument("--hdfs_dir", default=None)
-    parser.add_argument("--local_dataset_path", default=None, help="The local path to the raw dataset, if it exists.")
-    parser.add_argument(
-        "--local_save_dir", default="~/data/gsm8k", help="The save directory for the preprocessed dataset."
-    )
-
-    args = parser.parse_args()
-    local_dataset_path = args.local_dataset_path
-
-    data_source = "openai/gsm8k"
-
-    if local_dataset_path is not None:
-        dataset = datasets.load_dataset(local_dataset_path)
-    else:
-        dataset = datasets.load_dataset(data_source, "main")
-
-    train_dataset = dataset["train"]
-    test_dataset = dataset["test"]
-
-    instruction_following = 'Let\'s think step by step and output the final answer after "####".'
-
-    # add a row to each data item that represents a unique id
-    def make_map_fn(split):
-        def process_fn(example, idx):
-            question_raw = example.pop("question")
-
-            question = question_raw + " " + instruction_following
-
-            answer_raw = example.pop("answer")
-            solution = extract_solution(answer_raw)
-            data = {
-                "data_source": data_source,
-                "prompt": [
-                    {
-                        "role": "user",
-                        "content": question,
-                    }
-                ],
-                "ability": "math",
-                "reward_model": {"style": "rule", "ground_truth": solution},
-                "extra_info": {
-                    "split": split,
-                    "index": idx,
-                    "answer": answer_raw,
-                    "question": question_raw,
-                },
-            }
-            return data
-
-        return process_fn
-
-    train_dataset = train_dataset.map(function=make_map_fn("train"), with_indices=True)
-    test_dataset = test_dataset.map(function=make_map_fn("test"), with_indices=True)
-
-    hdfs_dir = args.hdfs_dir
-    local_save_dir = args.local_dir
-    if local_save_dir is not None:
-        print("Warning: Argument 'local_dir' is deprecated. Please use 'local_save_dir' instead.")
-    else:
-        local_save_dir = args.local_save_dir
-
-    train_dataset.to_parquet(os.path.join(local_save_dir, "train.parquet"))
-    test_dataset.to_parquet(os.path.join(local_save_dir, "test.parquet"))
-
-    if hdfs_dir is not None:
-        makedirs(hdfs_dir)
-
-        copy(src=local_save_dir, dst=hdfs_dir)
-```
+使用 verl 官方提供的数据处理脚本[gsm8k.py](https://github.com/verl-project/verl/blob/v0.7.0/examples/data_preprocess/gsm8k.py)处理数据集：
 
 ```shell
 # 处理数据集
@@ -362,7 +269,7 @@ python3 /path/to/AgentSDK/aura/cli/preprocess_data.py gsm8k
 └── test.idx     # 测试集索引文件
 ```
 
-## 环境变量配置<a name="ZH-CN_TOPIC_0000002492554174"></a>
+## 环境变量配置
 
 ### 设置 DEFAULT_SOCKET_IFNAME
 
@@ -402,7 +309,7 @@ python3 /path/to/AgentSDK/aura/cli/preprocess_data.py gsm8k
 export ASCEND_RT_VISIBLE_DEVICES=0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
 ```
 
-## 卸载与清理<a name="ZH-CN_TOPIC_0000002492554175"></a>
+## 卸载与清理
 
 当不再需要 Aura 运行环境时，可按以下步骤清理容器、镜像及相关数据，释放宿主机资源。
 
@@ -459,4 +366,4 @@ docker system prune -f
 
 ---
 
-> 环境部署流程已完成，请参考[快速启动文档](03_quick_start.md)来使用 Aura。
+> 环境部署流程已完成，请参考[快速启动文档](./03_quick_start.md)来使用 Aura。

@@ -1,4 +1,4 @@
-# Python接口说明<a name="ZH-CN_TOPIC_0000002459514668"></a>
+# Python接口说明
 
 > 注意：AgentSDK可通过Python接口进行应用开发，从代码调用角度上来说所有Python侧接口都可以被调用。本章节仅列出业务提供的对外接口，其余未进行说明的接口用户请勿直接调用。
 
@@ -6,11 +6,11 @@ AgentSDK 是一个 Agent 训推调框架，支持对接任意 Agent 引擎、训
 
 ---
 
-## 一、核心基类<a name="section_base_classes"></a>
+## 一、核心基类
 
 核心基类是用户必须继承并实现的抽象类，用于自定义 Agent、环境、工具等核心组件。
 
-### 1.1 BaseAgent - Agent 抽象基类<a name="section_base_agent"></a>
+### 1.1 BaseAgent - Agent 抽象基类
 
 **功能描述**
 
@@ -55,7 +55,7 @@ class BaseAgent(ABC):
 
 ---
 
-### 1.2 BaseEnv - 环境抽象基类<a name="section_base_env"></a>
+### 1.2 BaseEnv - 环境抽象基类
 
 **功能描述**
 
@@ -65,7 +65,7 @@ class BaseAgent(ABC):
 
 ```python
 from abc import ABC, abstractmethod
-from typing import Any, tuple
+from typing import Any
 
 
 class BaseEnv(ABC):
@@ -97,7 +97,7 @@ class BaseEnv(ABC):
 
 ---
 
-### 1.3 BaseEngineWrapper - 引擎包装器基类<a name="section_base_engine_wrapper"></a>
+### 1.3 BaseEngineWrapper - 引擎包装器基类
 
 **功能描述**
 
@@ -144,11 +144,11 @@ class BaseEngineWrapper(ABC):
 
 ---
 
-## 二、注册表接口<a name="section_registry"></a>
+## 二、注册表接口
 
 注册表接口用于注册自定义的训练引擎、推理引擎、数据管理器等组件。
 
-### 2.1 TrainRegistry - 训练引擎注册表<a name="section_train_registry"></a>
+### 2.1 TrainRegistry - 训练引擎注册表
 
 **功能描述**
 
@@ -179,7 +179,7 @@ registry = TrainRegistry()
 
 ---
 
-### 2.2 InferBackendRegistry - 推理引擎注册表<a name="section_infer_registry"></a>
+### 2.2 InferBackendRegistry - 推理引擎注册表
 
 **功能描述**
 
@@ -209,7 +209,7 @@ registry = InferBackendRegistry()
 
 ---
 
-### 2.3 DataManagerRegistry - 数据管理器注册表<a name="section_data_registry"></a>
+### 2.3 DataManagerRegistry - 数据管理器注册表
 
 **功能描述**
 
@@ -239,7 +239,7 @@ registry = DataManagerRegistry()
 
 ---
 
-### 2.4 AGENTS_MAPPING - Agent 配置映射<a name="section_agents_mapping"></a>
+### 2.4 AGENTS_MAPPING - Agent 配置映射
 
 **功能描述**
 
@@ -292,11 +292,11 @@ agent_instances:
 
 ---
 
-## 三、数据类<a name="section_data_classes"></a>
+## 三、数据类
 
 数据类定义了 Agent 运行过程中的核心数据结构。
 
-### 3.1 Step - 单步数据<a name="section_step"></a>
+### 3.1 Step - 单步数据
 
 **功能描述**
 
@@ -336,7 +336,7 @@ class Step:
 
 ---
 
-### 3.2 Trajectory - 轨迹数据<a name="section_trajectory"></a>
+### 3.2 Trajectory - 轨迹数据
 
 **功能描述**
 
@@ -376,7 +376,7 @@ class Trajectory:
 
 ---
 
-### 3.3 Action - 动作数据<a name="section_action"></a>
+### 3.3 Action - 动作数据
 
 **功能描述**
 
@@ -392,7 +392,7 @@ class Action:
 
 ---
 
-### 3.4 AgentTask - 任务数据<a name="section_agent_task"></a>
+### 3.4 AgentTask - 任务数据
 
 **功能描述**
 
@@ -432,9 +432,9 @@ class AgentTask(BaseModel):
 
 ---
 
-## 四、配置文件<a name="section_config"></a>
+## 四、配置文件
 
-### 服务启动说明<a name="section_service_start"></a>
+### 服务启动说明
 
 **命令格式**
 
@@ -444,9 +444,9 @@ bash scripts/start_rl_with_verl_vllm.sh
 
 **hosts.conf 文件设置说明**
 
-服务启动需要设置hosts.conf，该文件位于aura/configs目录下，用于设置单机或者双机部署，单机部署共卡模式，双机部署分离模式，具体示例详情可见【[hosts.conf](../../../aura/configs/hosts.conf)】。
+服务启动需要设置hosts.conf，该文件位于aura/configs目录下，用于设置单机或者双机部署，单机部署共卡模式，双机部署分离模式，具体示例详情可见【[修改hosts.conf](./03_quick_start.md#修改hostsconf)】。
 
-**参数说明<a name="section973741317611"></a>**
+**参数说明**
 
 | 参数名                | 说明                           |
 |--------------------|------------------------------|
@@ -461,9 +461,9 @@ bash scripts/start_rl_with_verl_vllm.sh
 
 **base.conf 文件设置说明**
 
-服务启动需要设置base.conf文件，该文件位于aura/configs目录下，用于设置工作模式与启动的配置文件，详情可见【[base.conf](../../../aura/configs/base.conf)】。
+服务启动需要设置base.conf文件，该文件位于aura/configs目录下，用于设置工作模式与启动的配置文件，详情可见【[修改base.conf](./03_quick_start.md#修改baseconf)】。
 
-**参数说明<a name="section973741317611"></a>**
+**参数说明**
 
 | 参数名               | 说明                                                                 |
 |-------------------|--------------------------------------------------------------------|
@@ -476,7 +476,7 @@ bash scripts/start_rl_with_verl_vllm.sh
 
 ---
 
-### 主配置文件参数<a name="section_main_config"></a>
+### 主配置文件参数
 
 训练主配置文件采用YAML格式，主要包含以下几个部分：
 
@@ -489,7 +489,7 @@ bash scripts/start_rl_with_verl_vllm.sh
 7. **infer_instances**: 推理服务实例配置
 
 > 在分离模式（`one_step_off`）下，推理服务由独立的推理配置文件（`vllm_infer_*.yaml`
-> ）驱动部署，详见 [推理服务配置参数](#section_infer_service_config)。主配置文件中的 `infer_instances` 仅用于服务发现与参数引用。
+> ）驱动部署，详见 [推理服务配置参数](#推理服务配置参数)。主配置文件中的 `infer_instances` 仅用于服务发现与参数引用。
 
 #### agentic_ai 配置
 
@@ -514,7 +514,7 @@ bash scripts/start_rl_with_verl_vllm.sh
 
 ---
 
-### 推理服务配置参数<a name="section_infer_service_config"></a>
+### 推理服务配置参数
 
 分离模式（`one_step_off`）下，推理服务由独立的推理配置文件（`vllm_infer_*.yaml`
 ）驱动部署。配置文件示例参考 [configs/infer](../../../aura/configs/infer) 目录。使用前请根据实际环境修改以下配置项：
@@ -566,7 +566,7 @@ bash scripts/start_rl_with_verl_vllm.sh
 
 ---
 
-### 训练配置参数（verl后端）<a name="section_verl_config"></a>
+### 训练配置参数（verl后端）
 
 #### verl_conf.extras 配置
 
@@ -684,7 +684,7 @@ bash scripts/start_rl_with_verl_vllm.sh
 
 ---
 
-### 训练实例配置<a name="section_train_instances"></a>
+### 训练实例配置
 
 #### train_instances 配置
 
@@ -702,7 +702,7 @@ bash scripts/start_rl_with_verl_vllm.sh
 
 ---
 
-### Agent实例配置<a name="section_agent_instances"></a>
+### Agent实例配置
 
 #### agent_instances 配置
 
@@ -724,7 +724,7 @@ bash scripts/start_rl_with_verl_vllm.sh
 
 ---
 
-### 推理实例配置<a name="section_infer_instances"></a>
+### 推理实例配置
 
 #### infer_instances 配置
 
@@ -741,7 +741,7 @@ bash scripts/start_rl_with_verl_vllm.sh
 
 ---
 
-### 配置文件示例<a name="section_config_example"></a>
+### 配置文件示例
 
 以下是一个完整的配置文件示例（verl 后端，hybrid 模式），其他配置文件参考[configs](../../../aura/configs)
 目录。使用前请根据实际环境修改以下配置项：
