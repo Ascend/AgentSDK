@@ -71,98 +71,6 @@ modelscope download --dataset AI-ModelScope/gsm8k --local_dir /path/to/gsm8k
 
 使用 verl 官方提供的数据处理脚本[gsm8k.py](https://github.com/verl-project/verl/blob/v0.7.0/examples/data_preprocess/gsm8k.py)处理数据集：
 
-```python
-# gsm8k.py
-import argparse
-import os
-import re
-
-import datasets
-
-from verl.utils.hdfs_io import copy, makedirs
-
-
-def extract_solution(solution_str):
-    solution = re.search("#### (\\-?[0-9\\.\\,]+)", solution_str)
-    assert solution is not None
-    final_solution = solution.group(0)
-    final_solution = final_solution.split("#### ")[1].replace(",", "")
-    return final_solution
-
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--local_dir", default=None, help="The save directory for the preprocessed dataset.")
-    parser.add_argument("--hdfs_dir", default=None)
-    parser.add_argument("--local_dataset_path", default=None, help="The local path to the raw dataset, if it exists.")
-    parser.add_argument(
-        "--local_save_dir", default="~/data/gsm8k", help="The save directory for the preprocessed dataset."
-    )
-
-    args = parser.parse_args()
-    local_dataset_path = args.local_dataset_path
-
-    data_source = "openai/gsm8k"
-
-    if local_dataset_path is not None:
-        dataset = datasets.load_dataset(local_dataset_path)
-    else:
-        dataset = datasets.load_dataset(data_source, "main")
-
-    train_dataset = dataset["train"]
-    test_dataset = dataset["test"]
-
-    instruction_following = 'Let\'s think step by step and output the final answer after "####".'
-
-    # add a row to each data item that represents a unique id
-    def make_map_fn(split):
-        def process_fn(example, idx):
-            question_raw = example.pop("question")
-
-            question = question_raw + " " + instruction_following
-
-            answer_raw = example.pop("answer")
-            solution = extract_solution(answer_raw)
-            data = {
-                "data_source": data_source,
-                "prompt": [
-                    {
-                        "role": "user",
-                        "content": question,
-                    }
-                ],
-                "ability": "math",
-                "reward_model": {"style": "rule", "ground_truth": solution},
-                "extra_info": {
-                    "split": split,
-                    "index": idx,
-                    "answer": answer_raw,
-                    "question": question_raw,
-                },
-            }
-            return data
-
-        return process_fn
-
-    train_dataset = train_dataset.map(function=make_map_fn("train"), with_indices=True)
-    test_dataset = test_dataset.map(function=make_map_fn("test"), with_indices=True)
-
-    hdfs_dir = args.hdfs_dir
-    local_save_dir = args.local_dir
-    if local_save_dir is not None:
-        print("Warning: Argument 'local_dir' is deprecated. Please use 'local_save_dir' instead.")
-    else:
-        local_save_dir = args.local_save_dir
-
-    train_dataset.to_parquet(os.path.join(local_save_dir, "train.parquet"))
-    test_dataset.to_parquet(os.path.join(local_save_dir, "test.parquet"))
-
-    if hdfs_dir is not None:
-        makedirs(hdfs_dir)
-
-        copy(src=local_save_dir, dst=hdfs_dir)
-```
-
 ```shell
 # 处理数据集
 python3 gsm8k.py \
@@ -178,6 +86,8 @@ python3 gsm8k.py \
 2. [共卡推理配置文件](../../../../../aura/configs/infer/vllm_infer_i16_qwen3_4b.yaml)
 
 ### 修改hosts.conf
+
+修改为单机对应的 IP 地址，以下以 `192.168.0.1` 为例：
 
 ```shell
 # [单机训练+推理]

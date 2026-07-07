@@ -5,6 +5,13 @@
 # 3. verl_conf.data.val_files
 # 4. verl_conf.actor_rollout_ref.model.path
 # 5. train_instances.rollout_config.llm_tokenizer_path
+#
+# 如果使用16卡以外的配置，需修改以下参数：
+# 6. n_gpus_per_node：修改为指定的卡数
+# 7. verl_conf.actor_rollout_conf.rollout：修改tensor_model_parallel_size和data_parallel_size，
+#    保证为2的幂（如2、4、8、16），且相乘的结果=指定卡数
+# 8. infer_instances：修改tensor_parallel_size和data_parallel_size，
+#    保证为2的幂（如2、4、8、16），且相乘的结果=指定卡数
 # =============================================================
 agentic_ai:
   mode: direct # 模式选择：serve | direct
