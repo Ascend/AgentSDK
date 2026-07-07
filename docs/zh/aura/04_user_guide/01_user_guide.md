@@ -1,8 +1,8 @@
-# 使用指南<a name="ZH-CN_TOPIC_0000002492554189"></a>
+# 使用指南
 
 本文档介绍 AgentSDK 的核心使用方法，包括运行模式、自定义 Agent 开发、配置文件使用等内容。
 
-## 运行模式<a name="section_run_mode"></a>
+## 运行模式
 
 AgentSDK 支持两种运行模式：
 
@@ -84,13 +84,13 @@ curl -X POST http://localhost:8030/v1/chat/completions \
 
 ---
 
-## 自定义 Agent 开发<a name="section_custom_agent"></a>
+## 自定义 Agent 开发
 
 详见 [自定义 Agent 接入指南](04_custom_agent.md)。
 
 ---
 
-## Engine Wrapper 对接示例<a name="section_engine_wrapper"></a>
+## Engine Wrapper 对接示例
 
 开发者可通过继承 `BaseEngineWrapper` 实现自定义引擎包装器。
 
@@ -268,11 +268,11 @@ trainer:
   project_name: 'my_project'  # 来自当前yaml
 ```
 
-完整配置文件示例可参考：【[配置文件示例](../05_api_python.md#section_config_example)】
+完整配置文件示例可参考：【[配置文件示例](../05_api_python.md#配置文件示例)】
 
 ---
 
-## 注册自定义引擎<a name="section_registry"></a>
+## 注册自定义引擎
 
 AgentSDK 提供注册表机制，支持注册自定义的训练引擎、推理引擎和数据管理器。
 
@@ -345,7 +345,7 @@ data_registry.register(
 
 ---
 
-## 更多实践指南<a name="section_more_examples"></a>
+## 更多实践指南
 
 - 训推共卡模式（On-Policy 策略）：[02_hybrid.md](02_hybrid.md)
 - 训推分离模式（One-Step-Off 策略）：[03_one_step_off.md](03_one_step_off.md)
@@ -353,7 +353,7 @@ data_registry.register(
 
 ---
 
-## 相关文档<a name="section_related_docs"></a>
+## 相关文档
 
 | 文档 | 说明 |
 |------|------|

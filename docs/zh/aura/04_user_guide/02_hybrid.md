@@ -1,4 +1,4 @@
-# 训推共卡使用指南（On-Policy 策略）<a name="ZH-CN_TOPIC_HYBRID_GUIDE"></a>
+# 训推共卡使用指南（On-Policy 策略）
 
 ## 简介
 

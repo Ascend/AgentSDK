@@ -1,18 +1,18 @@
-# Qwen3-32B快速拉起指南<a name="ZH-CN_TOPIC_0000002459355024"></a>
+# Qwen3-32B快速拉起指南
 
-## **前置<a name="section142771553125211"></a>**
+## **前置**
 
 请确保已经阅读过[快速开始指南](../03_quick_start.md)。
 
-## **模型获取<a name="section142771553125211"></a>**
+## **模型获取**
 
-本实验使用Qwen3-32B模型，相关模型可以通过[本链接](https://huggingface.co/Qwen/Qwen3-32B)获取。
+本实验使用Qwen3-32B模型，相关模型可以通过[本链接](https://www.modelscope.cn/models/Qwen/Qwen3-32B)获取。
 
-## **数据集获取<a name="section142771553125211"></a>**
+## **数据集获取**
 
 本实验使用的Math数据集可通过快速安装中的[准备训练数据](../02_installation_guide.md#准备训练数据)章节查看获取。
 
-## **文件修改<a name="section142771553125211"></a>**
+## **文件修改**
 
 在快速拉起Qwen3-32B Math场景前，需要您修改以下文件，需要修改的参数可以参照文件头的注释。
 

@@ -1,4 +1,4 @@
-# 自定义 Agent 接入指南<a name="ZH-CN_TOPIC_CUSTOM_AGENT_GUIDE"></a>
+# 自定义 Agent 接入指南
 
 ## 简介
 

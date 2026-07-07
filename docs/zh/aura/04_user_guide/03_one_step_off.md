@@ -1,4 +1,4 @@
-# 训推分离使用指南（One-Step-Off 策略）<a name="ZH-CN_TOPIC_ONE_STEP_OFF_GUIDE"></a>
+# 训推分离使用指南（One-Step-Off 策略）
 
 ## 简介
 
