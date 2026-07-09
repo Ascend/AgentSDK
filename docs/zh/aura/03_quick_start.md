@@ -150,6 +150,8 @@ bash scripts/start_rl_with_verl_vllm.sh
 
 **Aura Qwen3-30b-A3B Math 场景一键拉起样例请参考[使用指南](models/qwen3-30b-a3b.md)**
 
+**Aura Qwen3-14B Math 场景一键拉起样例请参考[使用指南](models/qwen3-14b_quick_start/qwen3-14b-hybrid.md)**
+
 **Aura Qwen3-32B Math 场景一键拉起样例请参考[使用指南](models/qwen3_32b.md)**
 
 **Aura 支持的后端与模型列表请参考[支持推理后端](10_appendix.md#支持的推理后端)，[支持训练后端](10_appendix.md#支持的训练后端)，[支持agent后端](10_appendix.md#支持的Agent后端)，[支持模型列表](10_appendix.md#支持的模型列表)**
