@@ -24,7 +24,7 @@ Through a unified abstraction interface, Aura is compatible with multiple traini
 Tags follow this pattern:
 
 ```bash
-<AgentSDK_version>-<chip_series>-<os>-<CANN_version>-<pytorch_version>-<python_version>
+<AgentSDK_version>-<CANN_version>-<pytorch_version>-<chip_series>-<os>-<python_version>
 ```
 
 | Field              | Example Values                  | Description           |
