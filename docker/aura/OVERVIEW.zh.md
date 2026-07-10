@@ -1,4 +1,4 @@
-# Aura
+# Agent SDK
 
 > [English](./OVERVIEW.md) | 中文
 
@@ -23,7 +23,7 @@ Aura 通过统一抽象接口兼容多种训练引擎、推理引擎与 Agent �
 Tag 遵循以下格式：
 
 ```bash
-<AgentSDK版本>-<芯片系列>-<操作系统>-<python版本>
+<AgentSDK版本>-<芯片系列>-<操作系统>-<CANN版本>-<pytorch版本>-<python版本>
 ```
 
 | 字段           | 示例值                             | 说明            |
