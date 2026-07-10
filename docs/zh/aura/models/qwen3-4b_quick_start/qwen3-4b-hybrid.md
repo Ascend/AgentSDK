@@ -2,13 +2,12 @@
 
 ## **容器环境部署**
 
-本文档以 Atlas A3 服务器 16 卡为例进行说明。
+本文档以 Atlas A3 服务器 16 卡、Ubuntu 系统为例进行说明。
 
-第一步：进入 docker 目录，执行构建镜像脚本：
+第一步：拉取预构建镜像：
 
 ```shell
-cd /path/to/AgentSDK/docker/aura
-docker build -f Dockerfile.a3.ubuntu -t your_image_name:your_image_tag .
+docker pull swr.cn-south-1.myhuaweicloud.com/ascendhub/agentsdk:26.1.0-a3-ubuntu22.04-py3.11
 ```
 
 第二步：创建容器：
@@ -80,7 +79,7 @@ python3 gsm8k.py \
 
 ## **文件修改**
 
-在快速拉起 qwen3-4b math 场景前，需要您修改以下配置文件，需要进行修改的参数可以参照文件头的注释。
+在快速拉起 qwen3-4b math 场景前，需要您修改以下配置文件，需要进行修改的参数可以参照文件头的注释，请将其中的示例路径修改为您自己的实际路径。
 
 1. [共卡训练配置文件](../../../../../aura/configs/train/verl_train_hybrid_A3_t16_qwen3_4b_math_fsdp.yaml)
 2. [共卡推理配置文件](../../../../../aura/configs/infer/vllm_infer_i16_qwen3_4b.yaml)

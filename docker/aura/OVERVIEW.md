@@ -7,9 +7,9 @@
 - Where to get help
 
     - [Issue Feedback](https://gitcode.com/Ascend/AgentSDK/issues)
-    - [Aura Code](https://gitcode.com/Ascend/AgentSDK/tree/master/aura)
-    - [AgentSDK Quick-start Documentation](../../docs/zh/aura/03_quick_start.md)
-    - [Community](https://www.hiascend.com/)
+    - [AgentSDK Code](https://gitcode.com/Ascend/AgentSDK/tree/master/aura)
+    - [Aura Quick-start Documentation](../../docs/zh/aura/03_quick_start.md)
+    - [Community](https://www.hiascend.com/en/)
 
 ## 2.Aura Overview
 
@@ -24,7 +24,7 @@ Through a unified abstraction interface, Aura is compatible with multiple traini
 Tags follow this pattern:
 
 ```bash
-<AgentSDK_version>-<chip_series>-<os>-<python_version>
+<AgentSDK_version>-<chip_series>-<os>-<CANN_version>-<pytorch_version>-<python_version>
 ```
 
 | Field              | Example Values                  | Description           |
