@@ -1,13 +1,13 @@
-# Qwen3-4B 共卡模式快速拉起指南
+# Qwen3-14B 共卡模式快速拉起指南
 
 ## **容器环境部署**
 
-本文档以 Atlas A3 服务器 16 卡、Ubuntu 系统为例进行说明。
+本文档以 Atlas A2 服务器 8 卡、Ubuntu 系统为例进行说明。
 
 第一步：拉取预构建镜像：
 
 ```shell
-docker pull swr.cn-south-1.myhuaweicloud.com/ascendhub/agentsdk:26.1.0-a3-ubuntu22.04-py3.11
+docker pull swr.cn-east-3.myhuaweicloud.com/ascendhub-test/agentsdk:26.1.0-910b-ubuntu22.04-py3.11
 ```
 
 第二步：创建容器：
@@ -21,10 +21,6 @@ docker run --name your_container_name \
     --device=/dev/davinci2 --device=/dev/davinci3 \
     --device=/dev/davinci4 --device=/dev/davinci5 \
     --device=/dev/davinci6 --device=/dev/davinci7 \
-    --device=/dev/davinci8 --device=/dev/davinci9 \
-    --device=/dev/davinci10 --device=/dev/davinci11 \
-    --device=/dev/davinci12 --device=/dev/davinci13 \
-    --device=/dev/davinci14 --device=/dev/davinci15 \
     --device=/dev/davinci_manager \
     --device=/dev/hisi_hdc \
     --device=/dev/devmm_svm \
@@ -34,9 +30,13 @@ docker run --name your_container_name \
     -v /etc/ascend_install.info:/etc/ascend_install.info \
     -v /usr/share/zoneinfo/Asia/Shanghai:/etc/localtime \
     -v /usr/local/sbin:/usr/local/sbin \
-    swr.cn-south-1.myhuaweicloud.com/ascendhub/agentsdk:26.1.0-a3-ubuntu22.04-py3.11  \
+    swr.cn-east-3.myhuaweicloud.com/ascendhub-test/agentsdk:26.1.0-910b-ubuntu22.04-py3.11  \
     sleep infinity
 ```
+
+> [!NOTE] 说明
+>
+>- 由于Atlas A2服务器为8卡配置，故挂载NPU设备序号为0～7，若使用Atlas A3服务器（16卡配置），应挂载序号为0～15的NPU设备
 
 第三步：进入容器环境
 
@@ -46,10 +46,10 @@ docker exec -it your_container_name bash
 
 ## **模型获取**
 
-本实验使用 Qwen3-4b 模型，相关模型可以通过[本链接](https://www.modelscope.cn/models/Qwen/Qwen3-4B)获取。
+本实验使用 Qwen3-14b 模型，相关模型可以通过[本链接](https://www.modelscope.cn/models/Qwen/Qwen3-14B)获取。
 
 ```shell
-modelscope download --model Qwen/Qwen3-4B --local_dir /path/to/Qwen3-4B
+modelscope download --model Qwen/Qwen3-14B --local_dir /path/to/Qwen3-14B
 ```
 
 ## **数据集获取**
@@ -75,14 +75,11 @@ python3 gsm8k.py \
 
 ## **文件修改**
 
-在快速拉起 qwen3-4b math 场景前，需要您修改以下配置文件，需要进行修改的参数可以参照文件头的注释，请将其中的示例路径修改为您自己的实际路径。
+在快速拉起 qwen3-14b math 场景前，需要您修改以下配置文件，需要进行修改的参数可以参照文件头的注释，请将其中的示例路径修改为您自己的实际路径。
 
-1. [共卡训练配置文件](../../../../../aura/configs/train/verl_train_hybrid_A3_t16_qwen3_4b_math_fsdp.yaml)
-2. [共卡推理配置文件](../../../../../aura/configs/infer/vllm_infer_i16_qwen3_4b.yaml)
+   [共卡训练配置文件](../../../../../aura/configs/train/verl_train_hybrid_A2_t8_qwen3_14b_math_fsdp.yaml)
 
 ### 修改hosts.conf
-
-修改为单机对应的 IP 地址，以下以 `192.168.0.1` 为例：
 
 ```shell
 # [单机训练+推理]
@@ -99,11 +96,8 @@ python3 gsm8k.py \
 # 工作模式：hybrid 共卡模式 | one_step_off 全异步分离模式
 work_mode=hybrid
 
-# 共卡和分离模式均需要配置训练yaml文件
-train_config_name=verl_train_hybrid_A3_t16_qwen3_4b_math_fsdp
-
-# 分离模式需要单独配置推理yaml文件
-infer_config_name=vllm_infer_i16_qwen3_4b
+# 共卡模式需要配置训练yaml文件
+train_config_name=verl_train_hybrid_A2_t8_qwen3_14b_math_fsdp
 
 # [resume]
 # 启动断点续训相关参数
@@ -153,8 +147,12 @@ clean_old_ckpt=0
 配置可用的 NPU 的卡数。
 
 ```shell
-export ASCEND_RT_VISIBLE_DEVICES=0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
+export ASCEND_RT_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
 ```
+
+> [!NOTE] 说明
+>
+>- 由于Atlas A2服务器为8卡配置，故配置NPU设备序号为0～7，若使用Atlas A3服务器（16卡配置），应配置序号为0～15的NPU设备
 
 ## **启动训练**
 
@@ -168,4 +166,4 @@ bash scripts/start_rl_with_verl_vllm.sh
 ```
 
 > [!NOTE] 说明
-> 本文档专门针对 Qwen3-4B 共卡模式（hybrid）的启动示例，提供该场景下的快速拉起步骤；通用且详细的完整启动流程请参考 [快速入门指南](../../03_quick_start.md)。
+> 本文档专门针对 Qwen3-14B 共卡模式（hybrid）的启动示例，提供该场景下的快速拉起步骤；通用且详细的完整启动流程请参考 [快速入门指南](../../03_quick_start.md)。
