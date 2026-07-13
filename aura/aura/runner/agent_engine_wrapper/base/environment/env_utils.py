@@ -18,6 +18,7 @@
 # -------------------------------------------------------------------------
 
 import concurrent.futures
+import logging
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from typing import Any
@@ -25,6 +26,8 @@ from typing import Any
 import numpy as np
 
 from aura.runner.agent_engine_wrapper.base.agent.base_agent import Trajectory
+
+logger = logging.getLogger(__name__)
 
 
 def compute_trajectory_reward_raw(trajectory: "Trajectory") -> "Trajectory":
@@ -45,6 +48,47 @@ def compute_trajectory_reward_raw(trajectory: "Trajectory") -> "Trajectory":
     return trajectory
 
 
+def _reached_source_url(trajectory: "Trajectory") -> bool:
+    """Return True if any step in the trajectory navigated to the source_url
+    (answer page). Detection relies purely on the per-step env metadata flag
+    ``source_url_hit`` (current page URL == source_website)."""
+    for step in trajectory.steps:
+        info = getattr(step, "info", {})
+        if not isinstance(info, dict):
+            continue
+        metadata = info.get("metadata", {})
+        if isinstance(metadata, dict) and metadata.get("source_url_hit"):
+            return True
+    return False
+
+
+def _compute_webwalker_chain_reward(trajectory: "Trajectory") -> "Trajectory":
+    """Chain-mode trajectory reward.
+
+    The whole trajectory gets a single score: chain_success_reward iff it ever
+    clicked through to ``source_url`` (answer page), else chain_failure_reward.
+    The same scalar is broadcast onto every step so that "per-step score ==
+    trajectory score".
+
+    Scalars come from the registered agent reward config (see reward_config).
+    Tree/beam stepwise uses per-step explore_reward_pos instead (reward_fn.py).
+    """
+    from agents.webwalker_agent.reward.reward_config import get_webwalker_reward_config
+
+    cfg = get_webwalker_reward_config()
+    reward = (
+        cfg.chain_success_reward
+        if _reached_source_url(trajectory)
+        else cfg.chain_failure_reward
+    )
+    for step in trajectory.steps:
+        step.reward = reward
+    trajectory.toolcall_reward = 0.0
+    trajectory.res_reward = reward
+    trajectory.reward = reward
+    return trajectory
+
+
 def compute_trajectory_reward(trajectory: "Trajectory") -> "Trajectory":
     """
     Add trajectory reward to the dict of each interaction.
@@ -57,6 +101,13 @@ def compute_trajectory_reward(trajectory: "Trajectory") -> "Trajectory":
     """
     if not trajectory:
         return trajectory
+
+    if getattr(trajectory, "trajectory_generation_method", "") == "chain":
+        try:
+            return _compute_webwalker_chain_reward(trajectory)
+        except (ImportError, AttributeError, KeyError) as error:
+            logger.warning("Fallback to default trajectory reward: %s", error)
+            pass
 
     toolcall_rewards = [step.reward for step in trajectory.steps if not step.done]
     toolcall_reward = np.mean(toolcall_rewards) if toolcall_rewards else 0
