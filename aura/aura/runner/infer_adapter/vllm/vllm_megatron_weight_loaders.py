@@ -23,6 +23,8 @@ class VllmMegatronWeightLoaders(BaseMegatronWeightLoader):
                                    BaseMegatronWeightLoader.qwen_megatron_weight_loader)
         self.register_model_loader("Qwen3ForCausalLM",
                                    BaseMegatronWeightLoader.qwen_megatron_weight_loader)
+        self.register_model_loader("CustomQwen3ForCausalLM",
+                                   BaseMegatronWeightLoader.qwen_megatron_weight_loader)
         self.register_model_loader("DeepseekV3ForCausalLM",
                                    BaseMegatronWeightLoader.deepseek_megatron_weight_loader)
         self.register_model_loader("DeepseekV2ForCausalLM",

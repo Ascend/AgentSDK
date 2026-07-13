@@ -16,6 +16,7 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 import asyncio
+import importlib
 import os
 import pytest
 import sys
@@ -46,6 +47,24 @@ def create_mock_workload_manager():
     return MockWorkLoadManger
 
 
+class MockDPWorkLoad:
+    def __init__(self):
+        self.num_routing_reqs = 0
+        self.num_running_reqs = 0
+        self.add_req = MagicMock()
+        self.del_req = MagicMock()
+        self.get_load_score = MagicMock(return_value=0)
+
+
+class MockInstanceWorkLoad:
+    def __init__(self, workload_item=None, dp_size=1):
+        self.dp_loads = {str(dp_id): MockDPWorkLoad() for dp_id in range(max(int(dp_size or 0), 1))}
+        self.max_num_seqs = 8
+
+    def get_load_score(self):
+        return sum(dp.get_load_score() for dp in self.dp_loads.values())
+
+
 @pytest.fixture(autouse=True, scope="function")
 def mock_dependencies(monkeypatch):
     """Mock all external dependencies for req_scheduler tests."""
@@ -54,14 +73,23 @@ def mock_dependencies(monkeypatch):
 
     mock_workload = MagicMock()
     mock_workload.WorkLoadManger = create_mock_workload_manager()
+    mock_workload.InstanceWorkLoad = MockInstanceWorkLoad
+    mock_workload.DPWorkLoad = MockDPWorkLoad
     mock_workload.start_workload_update = MagicMock(return_value=MagicMock())
+    mock_aiohttp = MagicMock()
+    mock_aiohttp.ClientTimeout = MagicMock()
+    fake_loggers_mod = MagicMock()
+    fake_loggers_mod.Loggers.return_value.get_logger.return_value = MagicMock()
 
     monkeypatch.setitem(sys.modules, "aura.controllers.utils.utils", mock_utils)
     monkeypatch.setitem(sys.modules, "aura.runner.scheduler.workload", mock_workload)
+    monkeypatch.setitem(sys.modules, "aiohttp", mock_aiohttp)
+    monkeypatch.setitem(sys.modules, "aura.base.log.loggers", fake_loggers_mod)
 
     monkeypatch.delitem(sys.modules, "aura.runner.scheduler.req_scheduler", raising=False)
+    req_scheduler = importlib.import_module("aura.runner.scheduler.req_scheduler")
 
-    with patch("aura.runner.scheduler.req_scheduler.logger") as mock_logger:
+    with patch.object(req_scheduler, "logger") as mock_logger:
         yield {
             "logger": mock_logger,
             "utils": mock_utils,
@@ -235,6 +263,7 @@ class TestSchedulerBase:
         await scheduler.cancel_request("app-1")
 
         mock_session_instance.post.assert_called_once()
+        assert mock_session_instance.post.call_args.kwargs["json"] == {"requests": ["req-1"]}
 
     @pytest.mark.asyncio
     @patch('aiohttp.ClientSession')
@@ -274,6 +303,31 @@ class TestSchedulerBase:
         mock_session_instance.post.assert_called_once()
         call_args = mock_session_instance.post.call_args
         assert "192.168.1.1:8080/v1/cancel" in call_args[0][0]
+        assert call_args.kwargs["json"] == {"requests": ["req-1"]}
+
+    @pytest.mark.asyncio
+    @patch('aiohttp.ClientSession')
+    async def test_cancel_request_unknown_application_skips(self, mock_session, scheduler, mock_dependencies):
+        await scheduler.cancel_request("missing-app")
+
+        mock_session.assert_not_called()
+        mock_dependencies["logger"].warning.assert_called_once()
+
+    def test_on_ins_address_updated_cleans_stale_request_maps(self, scheduler):
+        scheduler.application_id_to_ins["stale-app"] = "192.168.1.1:8080"
+        scheduler.application_id_to_request_id["stale-app"] = "stale-req"
+        scheduler.application_id_to_request_ids["stale-app"] = {"stale-req"}
+        scheduler.application_id_to_dp["active-app"] = "192.168.1.2:8080-0"
+        scheduler.application_id_to_request_id["active-app"] = "active-req"
+        scheduler.application_id_to_request_ids["active-app"] = {"active-req"}
+
+        scheduler.on_ins_address_updated(["192.168.1.2:8080"], 1)
+
+        assert "stale-app" not in scheduler.application_id_to_ins
+        assert "stale-app" not in scheduler.application_id_to_request_id
+        assert "stale-app" not in scheduler.application_id_to_request_ids
+        assert scheduler.application_id_to_request_id["active-app"] == "active-req"
+        assert scheduler.application_id_to_request_ids["active-app"] == {"active-req"}
 
 
 class TestSimpleTrajScheduler:

@@ -53,6 +53,12 @@ def fake_env():
     fake_openai.types.completion = types.ModuleType("openai.types.completion")
     fake_openai.types.completion.Completion = MagicMock()
 
+    # ---- fake httpx ----
+    fake_httpx = types.ModuleType("httpx")
+    mock_http_client = MagicMock()
+    mock_http_client.aclose = AsyncMock()
+    fake_httpx.AsyncClient = MagicMock(return_value=mock_http_client)
+
     # ---- aura packages ----
     import aura as _aura
     base = _aura.__path__[0] if _aura.__path__ else "."
@@ -84,11 +90,20 @@ def fake_env():
     fake_aura_runner_scheduler.__path__ = [os.path.join(base, "runner/scheduler")]
     fake_req_scheduler_mod = types.ModuleType("aura.runner.scheduler.req_scheduler")
     fake_req_scheduler_mod.SchedulerFactory = MagicMock()
+    mock_scheduler = MagicMock()
+    mock_scheduler.schedule = AsyncMock(return_value="addr-0")
+    mock_scheduler.release = AsyncMock()
+    mock_scheduler.cancel_requests = AsyncMock()
+    mock_scheduler.cancel_request = AsyncMock()
+    mock_scheduler.reset = MagicMock()
+    mock_scheduler.on_ins_address_updated = MagicMock()
+    fake_req_scheduler_mod.SchedulerFactory.get_scheduler.return_value = mock_scheduler
 
     fakes = {
         "numpy": fake_numpy,
         "torch": fake_torch,
         "openai": fake_openai,
+        "httpx": fake_httpx,
         "openai.types": fake_openai.types,
         "openai.types.chat": fake_openai.types.chat,
         "openai.types.completion": fake_openai.types.completion,
@@ -119,6 +134,9 @@ def fake_env():
             "fake_numpy": fake_numpy,
             "fake_torch": fake_torch,
             "fake_openai": fake_openai,
+            "fake_httpx": fake_httpx,
+            "mock_http_client": mock_http_client,
+            "mock_scheduler": mock_scheduler,
             "fake_logger": fake_logger_instance,
             "fake_app_stats": fake_misc_mod.app_stats,
             "fake_is_pd_separate": fake_globals_mod.is_pd_separate,
@@ -192,7 +210,13 @@ class TestPollCompletionsOpenaiStream:
             address, stream_queue=None, prompt=prompt, model=model, max_tokens=max_tokens
         )
         assert result == "Hello World"
-        fake_openai.AsyncOpenAI.assert_called_once_with(base_url="http://1.2.3.4/v1", api_key="EMPTY")
+        fake_openai.AsyncOpenAI.assert_called_once_with(
+            base_url="http://1.2.3.4/v1",
+            api_key="EMPTY",
+            http_client=fake_env["mock_http_client"],
+        )
+        fake_env["fake_httpx"].AsyncClient.assert_called_once_with(trust_env=False)
+        fake_env["mock_http_client"].aclose.assert_awaited_once()
         mock_client.completions.create.assert_called_once_with(
             messages=prompt, model=model, timeout=3600, stream=True, max_tokens=max_tokens
         )
@@ -338,8 +362,9 @@ class TestPollCompletionsOpenai:
         assert result["response_tokens"] == [1, 2]
         assert result["prompt_tokens"] == [3, 4]
         call_args = mock_client.completions.create.call_args[1]
-        assert call_args["extra_headers"]["X-Request-Id"] == "rid-h"
+        assert call_args["extra_headers"]["X-Request-Id"].startswith("rid-h-")
         assert call_args["extra_headers"]["X-Dp-Rank"] == "0"
+        fake_env["mock_http_client"].aclose.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_success_pd_separate_returns_full_response(self, fake_env):
@@ -425,7 +450,7 @@ class TestPollCompletionsOpenai:
         )
         call_args = mock_client.completions.create.call_args[1]
         assert call_args["extra_headers"]["X-Dp-Rank"] == 0  # integer
-        assert call_args["extra_headers"]["X-Request-Id"] == "rid-h"
+        assert call_args["extra_headers"]["X-Request-Id"].startswith("rid-h-")
 
 
 # ---------------------------------------------------------------------------
@@ -456,7 +481,7 @@ class TestPollChatCompletionsOpenai:
         )
         assert result == "chat response"
         call_args = mock_client.chat.completions.create.call_args[1]
-        assert call_args["extra_headers"]["X-Request-Id"] == "rid-h"
+        assert call_args["extra_headers"]["X-Request-Id"].startswith("rid-h-")
         assert call_args["extra_headers"]["X-Dp-Rank"] == "0"
 
     @pytest.mark.asyncio
@@ -590,6 +615,15 @@ class TestRouter:
         router = mod.Router("/p", MagicMock(), ["old"])
         router.update_address(["new"])
         assert router.addresses == ["new"]
+        router.scheduler.on_ins_address_updated.assert_called_once_with(["new"], 1)
+
+    def test_update_address_empty_warns_and_skips(self, fake_env):
+        mod = fake_env["mod"]
+        router = mod.Router("/p", MagicMock(), ["old"])
+        router.update_address([])
+        assert router.addresses == ["old"]
+        router.scheduler.on_ins_address_updated.assert_not_called()
+        fake_env["fake_logger"].warning.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_chat_token_in_token_out_no_stream_queue(self, fake_env):
@@ -656,16 +690,19 @@ class TestRouter:
     async def test_chat_address_none(self, fake_env):
         mod = fake_env["mod"]
         router = mod.Router("/p", MagicMock(), [None], token_in_token_out=True)
-        router.addresses = [None]
+        router.scheduler.schedule.return_value = None
         result = await router.chat(prompt="", application_id="", default_simpling={}, stream_queue=None, step_idx=0)
         assert result is None
 
     @pytest.mark.asyncio
     async def test_stop_reset_cancel(self, fake_env):
-        router = mod = fake_env["mod"].Router("/p", MagicMock(), [])
+        router = fake_env["mod"].Router("/p", MagicMock(), [])
         await router.stop()
         router.reset()
         await router.cancel_request("app")
+        router.scheduler.cancel_requests.assert_awaited_once()
+        router.scheduler.reset.assert_called_once()
+        router.scheduler.cancel_request.assert_awaited_once_with("app")
 
 
 # ---------------------------------------------------------------------------

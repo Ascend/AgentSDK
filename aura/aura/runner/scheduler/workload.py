@@ -97,6 +97,7 @@ class InstanceWorkLoad:
             for dp_id in dp_address:
                 self.dp_loads[dp_id] = DPWorkLoad()
         else:
+            dp_size = max(int(dp_size or 0), 1)
             for dp_id in range(dp_size):
                 self.dp_loads[str(dp_id)] = DPWorkLoad()
 
@@ -128,7 +129,8 @@ class InstanceWorkLoad:
 
 class WorkLoadManger:
     def __init__(self, addresses: list[str], dp_size: int, role=""):
-        self.ins_loads: dict[str, InstanceWorkLoad] = {addr: InstanceWorkLoad([], dp_size) for addr in addresses}
+        dp_size = max(int(dp_size or 0), 1)
+        self.ins_loads: dict[str, InstanceWorkLoad] = {addr: InstanceWorkLoad(None, dp_size) for addr in addresses}
         self.num_free_ins: int = len(addresses)
         self.role = role
 
