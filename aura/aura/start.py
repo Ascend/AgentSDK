@@ -277,9 +277,34 @@ def start_direct_mode_with_serve(conf: DictConfig):
 
 @hydra.main(version_base=None, config_path="../configs/train", config_name="")
 def main(conf: DictConfig):
+    runtime_env_vars = {
+        AgenticRLConf.CONF_ENV: OmegaConf.to_yaml(conf, resolve=True),
+    }
+    # Propagate NPU/HCCL env so Ray workers inherit the same comm settings as the driver.
+    for env_key in (
+        "ASCEND_RT_VISIBLE_DEVICES",
+        "HCCL_BUFFSIZE",
+        "HCCL_HOST_SOCKET_PORT_RANGE",
+        "HCCL_NPU_SOCKET_PORT_RANGE",
+        "HCCL_IF_BASE_PORT",
+        "PYTORCH_NPU_ALLOC_CONF",
+        "VLLM_ASCEND_ENABLE_NZ",
+    ):
+        env_val = os.environ.get(env_key)
+        if env_val:
+            runtime_env_vars[env_key] = env_val
+    # Inject hybrid PYTHONPATH so Ray workers load sitecustomize (NPU device remap; verl + msrl).
+    hybrid_pythonpath = os.environ.get("VERL_HYBRID_PYTHONPATH")
+    if hybrid_pythonpath:
+        base_pythonpath = os.environ.get("PYTHONPATH", "")
+        runtime_env_vars["PYTHONPATH"] = (
+            hybrid_pythonpath if not base_pythonpath
+            else f"{hybrid_pythonpath}{os.pathsep}{base_pythonpath}"
+        )
+
     ray.init(
         namespace=str("agentic_raygroup"),
-        runtime_env={"env_vars": {AgenticRLConf.CONF_ENV: OmegaConf.to_yaml(conf, resolve=True)}},
+        runtime_env={"env_vars": runtime_env_vars},
     )
     os.environ[AgenticRLConf.CONF_ENV] = OmegaConf.to_yaml(conf, resolve=True)
 

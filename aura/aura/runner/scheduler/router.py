@@ -19,6 +19,7 @@
 import os
 import asyncio
 import time
+import uuid
 
 import numpy as np
 import torch
@@ -31,6 +32,9 @@ from aura.base.utils.globals import is_pd_separate
 from aura.runner.scheduler.req_scheduler import SchedulerFactory
 
 logger = Loggers(__name__).get_logger()
+
+DEFAULT_OPENAI_API_RETRIES = 3
+RATE_LIMIT_RETRY_SLEEP_SECONDS = 5
 
 
 def _repeat_interleave(value: torch.Tensor | np.ndarray, repeats: int) -> torch.Tensor | np.ndarray:
@@ -51,54 +55,59 @@ async def poll_completions_openai_stream(address: str, stream_queue=None, **comp
 
     logger.info(f'# engine_args={engine_args}')
     import openai
+    import httpx
     from openai import AsyncOpenAI
 
-    client = AsyncOpenAI(**engine_args)
-    # Remove meta_info if present
-    if "meta_info" in completions_request:
-        completions_request.pop("meta_info")
-    # Remove extra_headers from the payload
-    if "extra_headers" in completions_request:
-        completions_request.pop("extra_headers")
+    http_client = httpx.AsyncClient(trust_env=False)
+    try:
+        client = AsyncOpenAI(**engine_args, http_client=http_client)
+        # Remove meta_info if present
+        if "meta_info" in completions_request:
+            completions_request.pop("meta_info")
+        # Remove extra_headers from the payload
+        if "extra_headers" in completions_request:
+            completions_request.pop("extra_headers")
 
-    retries = 3
+        retries = DEFAULT_OPENAI_API_RETRIES
 
-    while retries > 0:
-        try:
-            # Use openai.chat's stream=True interface
-            response = await client.completions.create(
-                messages=messages,
-                model=model,
-                timeout=3600,
-                stream=True,
-                max_tokens=max_tokens,
-            )
+        while retries > 0:
+            try:
+                # Use openai.chat's stream=True interface
+                response = await client.completions.create(
+                    messages=messages,
+                    model=model,
+                    timeout=3600,
+                    stream=True,
+                    max_tokens=max_tokens,
+                )
 
-            full_response = ""
-            async for chunk in response:
-                logger.info(f"chunk={chunk}")
-                chunk: ChatCompletionChunk = chunk
-                delta = chunk.choices[0].delta
-                text = delta.content or ""  # 可能是None
-                full_response += text
-                if stream_queue:
-                    stream_queue.put_nowait(
-                        {
-                            "event": "raw_response_event",
-                            "data": {"response": chunk.model_dump_json(), "type": "raw_response_event"},
-                        }
-                    )
-            return full_response
+                full_response = ""
+                async for chunk in response:
+                    logger.info(f"chunk={chunk}")
+                    chunk: ChatCompletionChunk = chunk
+                    delta = chunk.choices[0].delta
+                    text = delta.content or ""  # 可能是None
+                    full_response += text
+                    if stream_queue:
+                        stream_queue.put_nowait(
+                            {
+                                "event": "raw_response_event",
+                                "data": {"response": chunk.model_dump_json(), "type": "raw_response_event"},
+                            }
+                        )
+                return full_response
 
-        except openai.RateLimitError:
-            retries -= 1
-            if retries == 0:
-                return "Error: Rate limit reached and retries exhausted."
-            logger.info("Sleep for 5 seconds for API limit.")
-            await asyncio.sleep(5)
-        except Exception as e:
-            logger.error("Error: %s", e)
-            return f"Error processing content: {e}"
+            except openai.RateLimitError:
+                retries -= 1
+                if retries == 0:
+                    return "Error: Rate limit reached and retries exhausted."
+                logger.info("Sleep for %s seconds for API limit.", RATE_LIMIT_RETRY_SLEEP_SECONDS)
+                await asyncio.sleep(RATE_LIMIT_RETRY_SLEEP_SECONDS)
+            except Exception as e:
+                logger.error("Error: %s", e)
+                return f"Error processing content: {e}"
+    finally:
+        await http_client.aclose()
 
 
 async def poll_completions_openai(dp_address: str, stream_queue=None, role="h", **completions_request) -> Completion:
@@ -117,58 +126,68 @@ async def poll_completions_openai(dp_address: str, stream_queue=None, role="h", 
     model = completions_request['model']
     max_tokens = completions_request['max_tokens']
 
-    max_retries = 3
+    max_retries = DEFAULT_OPENAI_API_RETRIES
+    request_nonce = uuid.uuid4().hex[:8]
 
     engine_args = {"base_url": base_url, "api_key": 'EMPTY'}
     logger.info(f'# engine_args={engine_args}')
+    import httpx
     from openai import AsyncOpenAI
 
-    client = AsyncOpenAI(**engine_args)
+    http_client = httpx.AsyncClient(trust_env=False)
+    try:
+        client = AsyncOpenAI(**engine_args, http_client=http_client)
 
-    for retry in range(max_retries):
-        request_id = f"{original_request_id}-r{retry}" if retry > 0 else original_request_id
-        try:
-            headers = {
-                "X-Request-Id": request_id,
-                "X-Dp-Rank": local_dp_rank,
-            }
-            # Use openai.chat's stream=True interface
-            response = await client.completions.create(
-                prompt=prompt,
-                model=model,
-                timeout=3600,
-                stream=False,
-                max_tokens=max_tokens,
-                extra_headers=headers,
+        for retry in range(max_retries):
+            request_id = (
+                f"{original_request_id}-{request_nonce}-r{retry}"
+                if retry > 0
+                else f"{original_request_id}-{request_nonce}"
             )
+            try:
+                headers = {
+                    "X-Request-Id": request_id,
+                    "X-Dp-Rank": local_dp_rank,
+                }
+                # Use openai.chat's stream=True interface
+                response = await client.completions.create(
+                    prompt=prompt,
+                    model=model,
+                    timeout=3600,
+                    stream=False,
+                    max_tokens=max_tokens,
+                    extra_headers=headers,
+                )
 
-            choices = response.choices[0]
-            full_response = choices.text
-            logprobs = choices.logprobs.token_logprobs
-            response_tokens = choices.token_ids
-            prompt_tokens = choices.prompt_token_ids
-            http_response = {
-                "message": full_response,
-                "logprobs": logprobs,
-                "response_tokens": response_tokens,
-                "prompt_tokens": prompt_tokens,
-            }
-            # prefill instance need to return response
-            if is_pd_separate():
-                return response
-            return http_response
+                choices = response.choices[0]
+                full_response = choices.text
+                logprobs = choices.logprobs.token_logprobs
+                response_tokens = choices.token_ids
+                prompt_tokens = choices.prompt_token_ids
+                http_response = {
+                    "message": full_response,
+                    "logprobs": logprobs,
+                    "response_tokens": response_tokens,
+                    "prompt_tokens": prompt_tokens,
+                }
+                # prefill instance need to return response
+                if is_pd_separate():
+                    return response
+                return http_response
 
-        except Exception as e:
-            max_retries -= 1
-            if max_retries == 0:
-                return "Error: Rate limit reached and retries exhausted."
-            import traceback
+            except Exception as e:
+                max_retries -= 1
+                if max_retries == 0:
+                    return "Error: Rate limit reached and retries exhausted."
+                import traceback
 
-            traceback.print_exc()
-            logger.error(f"poll_completions_openai failed try next! Error for {request_id}: {e}")
+                traceback.print_exc()
+                logger.error(f"poll_completions_openai failed try next! Error for {request_id}: {e}")
 
-    # This should never be reached due to the raise in the loop, but mypy requires it
-    raise Exception("All retries failed")
+        # This should never be reached due to the raise in the loop, but mypy requires it
+        raise Exception("All retries failed")
+    finally:
+        await http_client.aclose()
 
 
 async def poll_chat_completions_openai(
@@ -189,49 +208,59 @@ async def poll_chat_completions_openai(
     model = completions_request['model']
     max_tokens = completions_request['max_tokens']
 
-    max_retries = 3
+    max_retries = DEFAULT_OPENAI_API_RETRIES
+    request_nonce = uuid.uuid4().hex[:8]
 
     engine_args = {"base_url": base_url, "api_key": 'EMPTY'}
     logger.info(f'# engine_args={engine_args}')
+    import httpx
     from openai import AsyncOpenAI
 
-    client = AsyncOpenAI(**engine_args)
+    http_client = httpx.AsyncClient(trust_env=False)
+    try:
+        client = AsyncOpenAI(**engine_args, http_client=http_client)
 
-    for retry in range(max_retries):
-        request_id = f"{original_request_id}-r{retry}" if retry > 0 else original_request_id
-        try:
-            headers = {
-                "X-Request-Id": request_id,
-                "X-Dp-Rank": local_dp_rank,
-            }
-            # 使用 openai.chat 的 stream=True 接口
-            response = await client.chat.completions.create(
-                messages=messages,
-                model=model,
-                timeout=3600,
-                stream=False,
-                max_tokens=max_tokens,
-                extra_headers=headers,
+        for retry in range(max_retries):
+            request_id = (
+                f"{original_request_id}-{request_nonce}-r{retry}"
+                if retry > 0
+                else f"{original_request_id}-{request_nonce}"
             )
+            try:
+                headers = {
+                    "X-Request-Id": request_id,
+                    "X-Dp-Rank": local_dp_rank,
+                }
+                # 使用 openai.chat 的 stream=True 接口
+                response = await client.chat.completions.create(
+                    messages=messages,
+                    model=model,
+                    timeout=3600,
+                    stream=False,
+                    max_tokens=max_tokens,
+                    extra_headers=headers,
+                )
 
-            logger.info(f"response={response}")
-            full_response = response.choices[0].message.content
-            # prefill instance need to return response
-            if is_pd_separate():
-                return response
-            return full_response
+                logger.info(f"response={response}")
+                full_response = response.choices[0].message.content
+                # prefill instance need to return response
+                if is_pd_separate():
+                    return response
+                return full_response
 
-        except Exception as e:
-            max_retries -= 1
-            if max_retries == 0:
-                return "Error: Rate limit reached and retries exhausted."
-            import traceback
+            except Exception as e:
+                max_retries -= 1
+                if max_retries == 0:
+                    return "Error: Rate limit reached and retries exhausted."
+                import traceback
 
-            traceback.print_exc()
-            logger.error(f"poll_completions_openai failed try next! Error for {request_id}: {e}")
+                traceback.print_exc()
+                logger.error(f"poll_completions_openai failed try next! Error for {request_id}: {e}")
 
-    # This should never be reached due to the raise in the loop, but mypy requires it
-    raise Exception("All retries failed")
+        # This should never be reached due to the raise in the loop, but mypy requires it
+        raise Exception("All retries failed")
+    finally:
+        await http_client.aclose()
 
 
 class Router:
@@ -257,7 +286,7 @@ class Router:
         self.model_path = tokenizer_name_or_path
         # self.model_name = "/".join(model_path.split("/")[-2:])
         self.model_name = "/".join(self.model_path.split("/")[-2:]) if model_name is None else model_name
-        # self.scheduler = SchedulerFactory.get_scheduler(addresses, self.dp_size, None)
+        self.scheduler = SchedulerFactory.get_scheduler(self.addresses, self.dp_size, None)
         self.token_in_token_out = token_in_token_out
 
     @classmethod
@@ -281,7 +310,17 @@ class Router:
         return application_id + "--" + str(step_idx)
 
     def update_address(self, addresses):
+        if not addresses:
+            logger.warning("Router update_address received empty addresses, skip update.")
+            return
+        if addresses == self.addresses:
+            return
         self.addresses = addresses
+        if getattr(self, "scheduler", None) is None:
+            self.scheduler = SchedulerFactory.get_scheduler(self.addresses, self.dp_size, None)
+            return
+        dp_size = max(int(self.dp_size or 0), 1)
+        self.scheduler.on_ins_address_updated(addresses, dp_size)
 
     async def chat(self, prompt, application_id, default_simpling, stream_queue=None, **kwargs):
         step_idx = kwargs.pop("step_idx")
@@ -296,7 +335,7 @@ class Router:
         # Same keys will be overridden by kwargs
         logger.debug(f"*************prompt******************\n{prompt}")
 
-        address = self.addresses[0]  # await self.scheduler.schedule(application_id, request_id)
+        address = await self.scheduler.schedule(application_id, request_id)
         if address is None:
             # Terminate inference
             return None
@@ -306,25 +345,28 @@ class Router:
             f"trajectory performance status, chat start time:{time.time()}, appID:{application_id}, "
             f"address:{address}, request_id:{request_id}"
         )
-        if stream_queue is None:
-            if self.token_in_token_out:
-                response = await poll_completions_openai(address, prompt=prompt, **merged_kwargs)
+        try:
+            if stream_queue is None:
+                if self.token_in_token_out:
+                    response = await poll_completions_openai(address, prompt=prompt, **merged_kwargs)
+                else:
+                    response = await poll_chat_completions_openai(address, prompt=prompt, **merged_kwargs)
             else:
-                response = await poll_chat_completions_openai(address, prompt=prompt, **merged_kwargs)
-        else:
-            response = await poll_completions_openai_stream(
-                address, prompt=prompt, stream_queue=stream_queue, **merged_kwargs
-            )
+                response = await poll_completions_openai_stream(
+                    address, prompt=prompt, stream_queue=stream_queue, **merged_kwargs
+                )
+        finally:
+            await self.scheduler.release(address, application_id, request_id)
         return response
 
     async def stop(self):
-        pass
+        await self.scheduler.cancel_requests()
 
     def reset(self):
-        pass
+        self.scheduler.reset()
 
     async def cancel_request(self, application_id):
-        pass
+        await self.scheduler.cancel_request(application_id)
 
 
 class RouterPDSep:

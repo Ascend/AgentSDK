@@ -25,7 +25,7 @@ import aiohttp
 
 from aura.base.log.loggers import Loggers
 from aura.controllers.utils.utils import DEFAULT_URL_METHOD
-from aura.runner.scheduler.workload import WorkLoadManger, start_workload_update
+from aura.runner.scheduler.workload import WorkLoadManger, InstanceWorkLoad, DPWorkLoad, start_workload_update
 
 logger = Loggers(__name__).get_logger()
 
@@ -41,6 +41,7 @@ class SchedulerBase:
         self.dp_size = dp_size
 
         self.application_id_to_request_id: dict[str, str] = {}
+        self.application_id_to_request_ids: dict[str, set[str]] = {}
         self.application_id_to_ins: dict[str, str] = {}
         self.application_id_to_dp: dict[str, str] = {}
         self.prompt_id_to_dps: dict[str, set[str]] = {}
@@ -76,6 +77,7 @@ class SchedulerBase:
                 dp_addr = self.get_schedule_result(application_id, False)
             if dp_addr is not None:
                 self.application_id_to_request_id[application_id] = request_id
+                self.application_id_to_request_ids.setdefault(application_id, set()).add(request_id)
                 return dp_addr
             await asyncio.sleep(1)
         # Terminate inference
@@ -85,7 +87,12 @@ class SchedulerBase:
         """
         Decrement the usage count for a server address when done.
         """
-        self.application_id_to_request_id.pop(application_id)
+        req_ids = self.application_id_to_request_ids.get(application_id)
+        if req_ids is not None:
+            req_ids.discard(request_id)
+            if not req_ids:
+                self.application_id_to_request_ids.pop(application_id, None)
+                self.application_id_to_request_id.pop(application_id, None)
         async with self._lock:
             self.release_address(addr, application_id)
 
@@ -104,25 +111,83 @@ class SchedulerBase:
                     self.running_reqs[dp_addr] = []
 
     async def cancel_request(self, application_id):
-        dp_addr = self.application_id_to_ins[application_id]
+        dp_addr = self.application_id_to_ins.get(application_id)
         if dp_addr is None:
-            dp_addr_rank = self.application_id_to_dp[application_id]
+            dp_addr_rank = self.application_id_to_dp.get(application_id)
+            if dp_addr_rank is None:
+                logger.warning(f"scheduler cancel request skipped, unknown application_id: {application_id}")
+                return
             dp_addr = dp_addr_rank.split('-')[0]
-        request_id = self.application_id_to_request_id[application_id]
+        request_ids = list(self.application_id_to_request_ids.get(application_id, ()))
+        if not request_ids and application_id in self.application_id_to_request_id:
+            request_ids = [self.application_id_to_request_id[application_id]]
+        if not request_ids:
+            return
 
         logger.info(
             f"scheduler cancel request for application_id: {application_id}, "
-            f"request_id: {request_id}, dp_addr: {dp_addr}"
+            f"request_ids: {request_ids}, dp_addr: {dp_addr}"
         )
 
         req_address = f"{DEFAULT_URL_METHOD}://{dp_addr}/v1"
         try:
             async with aiohttp.ClientSession() as session:
                 await session.post(
-                    f"{req_address}/cancel", json={"requests": request_id}, timeout=aiohttp.ClientTimeout(total=60)
+                    f"{req_address}/cancel",
+                    json={"requests": request_ids},
+                    timeout=aiohttp.ClientTimeout(total=60),
                 )
         except Exception as e:
             logger.error(f"scheduler cancel request failed: {e}")
+
+    def on_ins_address_updated(self, addresses: list[str], dp_size: int) -> None:
+        self.ins_address = addresses
+        address_set = set(addresses)
+        dp_size = max(int(dp_size or 0), 1)
+
+        new_ins_loads = {}
+        for addr in addresses:
+            if addr in self.workload.ins_loads:
+                new_ins_loads[addr] = self.workload.ins_loads[addr]
+            else:
+                new_ins_loads[addr] = InstanceWorkLoad(None, dp_size)
+        self.workload.ins_loads = new_ins_loads
+        self.workload.num_free_ins = len(addresses)
+
+        self.application_id_to_ins = {
+            app_id: ins for app_id, ins in self.application_id_to_ins.items() if ins in address_set
+        }
+        cleaned_dp: dict[str, str] = {}
+        for app_id, dp_val in self.application_id_to_dp.items():
+            if isinstance(dp_val, str) and "-" in dp_val:
+                ins_addr = dp_val.rsplit("-", 1)[0]
+                if ins_addr in address_set:
+                    cleaned_dp[app_id] = dp_val
+            elif isinstance(dp_val, str) and dp_val.isdigit():
+                if self.application_id_to_ins.get(app_id) in address_set:
+                    cleaned_dp[app_id] = dp_val
+            else:
+                cleaned_dp[app_id] = dp_val
+        self.application_id_to_dp = cleaned_dp
+        valid_app_ids = set(self.application_id_to_ins) | set(self.application_id_to_dp)
+        self.application_id_to_request_ids = {
+            app_id: req_ids for app_id, req_ids in self.application_id_to_request_ids.items()
+            if app_id in valid_app_ids
+        }
+        self.application_id_to_request_id = {
+            app_id: req_id for app_id, req_id in self.application_id_to_request_id.items()
+            if app_id in valid_app_ids
+        }
+
+        new_running: dict[str, list[str]] = {}
+        for ins in addresses:
+            for dp_id in range(dp_size):
+                dp_addr = f"{ins}-{dp_id}"
+                new_running[dp_addr] = self.running_reqs.get(dp_addr, [])
+        self.running_reqs = new_running
+
+        if hasattr(self, "_usage"):
+            self._usage = {f"{addr}-{dp_id}": 0 for addr in addresses for dp_id in range(dp_size)}
 
 
 class SimpleTrajScheduler(SchedulerBase):
@@ -204,12 +269,21 @@ class LBStepScheduler(SchedulerBase):
         )
         return min_ins
 
+    def _ensure_dp_loads(self, ins_addr: str) -> dict[str, DPWorkLoad]:
+        if ins_addr not in self.workload.ins_loads:
+            self.workload.ins_loads[ins_addr] = InstanceWorkLoad(None, self.dp_size)
+        ins_load = self.workload.ins_loads[ins_addr]
+        if not ins_load.dp_loads:
+            for dp_id in range(max(int(self.dp_size or 0), 1)):
+                ins_load.dp_loads[str(dp_id)] = DPWorkLoad()
+        return ins_load.dp_loads
+
     def get_best_dp(self, ins_addr: str, application_id: str) -> str:
         # Get the DP previously used by the current application_id (if exists)
         cached_dp = self.application_id_to_dp.get(application_id, "")
 
         # Select the DP with the smallest load, preferring cached DPs if loads are equal
-        dp_items = self.workload.ins_loads[ins_addr].dp_loads.items()
+        dp_items = self._ensure_dp_loads(ins_addr).items()
         min_dp, dp_workload = min(
             dp_items,
             key=lambda x: (
