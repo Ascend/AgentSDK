@@ -2,12 +2,18 @@
 # Copyright Huawei Technologies Co., Ltd. 2026. All rights reserved.
 """Unit tests for base/environment/env_utils module."""
 
+import sys
+import types
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from aura.runner.agent_engine_wrapper.base.agent.base_agent import Step, Trajectory
+from aura.runner.agent_engine_wrapper.base.environment import env_utils
 from aura.runner.agent_engine_wrapper.base.environment.env_utils import (
+    _compute_webwalker_chain_reward,
+    _reached_source_url,
     compute_mc_return,
     compute_trajectory_reward,
     compute_trajectory_reward_raw,
@@ -241,3 +247,179 @@ class TestParallelTaskManager:
         with pytest.raises(ValueError, match="test error"):
             with parallel_task_manager(fail, [(1,)]) as results:
                 pass
+
+
+# ---------------------------------------------------------------------------
+# WebWalker chain-mode reward (PR2)
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def fake_webwalker_reward_config(monkeypatch):
+    """Inject a fake ``agents.webwalker_agent.reward.reward_config`` module so
+    the lazy import inside ``_compute_webwalker_chain_reward`` resolves without
+    the real webwalker package being installed."""
+    fake_cfg = SimpleNamespace(
+        chain_success_reward=1.0,
+        chain_failure_reward=-0.5,
+    )
+
+    fake_reward_config = types.ModuleType("agents.webwalker_agent.reward.reward_config")
+    fake_reward_config.get_webwalker_reward_config = MagicMock(return_value=fake_cfg)
+
+    fake_reward = types.ModuleType("agents.webwalker_agent.reward")
+    fake_webwalker_agent = types.ModuleType("agents.webwalker_agent")
+    fake_agents = types.ModuleType("agents")
+
+    monkeypatch.setitem(sys.modules, "agents", fake_agents)
+    monkeypatch.setitem(sys.modules, "agents.webwalker_agent", fake_webwalker_agent)
+    monkeypatch.setitem(sys.modules, "agents.webwalker_agent.reward", fake_reward)
+    monkeypatch.setitem(
+        sys.modules, "agents.webwalker_agent.reward.reward_config", fake_reward_config
+    )
+    return fake_reward_config, fake_cfg
+
+
+def _make_step(source_url_hit=None):
+    """Build a Step with the given source_url_hit metadata flag."""
+    info = {}
+    if source_url_hit is not None:
+        info["metadata"] = {"source_url_hit": source_url_hit}
+    return Step(reward=0.0, done=False, info=info, step_id=0)
+
+
+class TestReachedSourceUrl:
+    def test_returns_true_when_any_step_hit(self):
+        traj = Trajectory(
+            steps=[
+                _make_step(source_url_hit=False),
+                _make_step(source_url_hit=True),
+            ]
+        )
+        assert _reached_source_url(traj) is True
+
+    def test_returns_false_when_no_hit(self):
+        traj = Trajectory(
+            steps=[_make_step(source_url_hit=False), _make_step(source_url_hit=False)]
+        )
+        assert _reached_source_url(traj) is False
+
+    def test_returns_false_when_no_metadata(self):
+        traj = Trajectory(steps=[Step(reward=0.0, done=False, info={})])
+        assert _reached_source_url(traj) is False
+
+    def test_returns_false_when_info_empty(self):
+        traj = Trajectory(steps=[Step(reward=0.0, done=False)])
+        assert _reached_source_url(traj) is False
+
+    def test_returns_false_for_empty_trajectory(self):
+        traj = Trajectory(steps=[])
+        assert _reached_source_url(traj) is False
+
+    def test_treats_falsy_source_url_hit_as_false(self):
+        traj = Trajectory(steps=[_make_step(source_url_hit=0)])
+        assert _reached_source_url(traj) is False
+
+    def test_ignores_non_dict_info(self):
+        traj = Trajectory(steps=[Step(reward=0.0, done=False, info=False)])
+        assert _reached_source_url(traj) is False
+
+
+class TestComputeWebwalkerChainReward:
+    def test_success_broadcasts_reward_to_all_steps(self, fake_webwalker_reward_config):
+        _, cfg = fake_webwalker_reward_config
+        steps = [_make_step(source_url_hit=False), _make_step(source_url_hit=True)]
+        traj = Trajectory(steps=steps)
+        result = _compute_webwalker_chain_reward(traj)
+        assert result.reward == cfg.chain_success_reward
+        assert result.res_reward == cfg.chain_success_reward
+        assert result.toolcall_reward == 0.0
+        for step in result.steps:
+            assert step.reward == cfg.chain_success_reward
+
+    def test_failure_uses_failure_reward(self, fake_webwalker_reward_config):
+        _, cfg = fake_webwalker_reward_config
+        traj = Trajectory(steps=[_make_step(source_url_hit=False)])
+        result = _compute_webwalker_chain_reward(traj)
+        assert result.reward == cfg.chain_failure_reward
+        assert result.res_reward == cfg.chain_failure_reward
+        assert result.toolcall_reward == 0.0
+        assert result.steps[0].reward == cfg.chain_failure_reward
+
+    def test_returns_same_trajectory(self, fake_webwalker_reward_config):
+        traj = Trajectory(steps=[_make_step(source_url_hit=True)])
+        result = _compute_webwalker_chain_reward(traj)
+        assert result is traj
+
+    def test_uses_registered_reward_config_fn(self, fake_webwalker_reward_config):
+        fake_module, _ = fake_webwalker_reward_config
+        traj = Trajectory(steps=[_make_step(source_url_hit=True)])
+        _compute_webwalker_chain_reward(traj)
+        fake_module.get_webwalker_reward_config.assert_called_once_with()
+
+
+class TestComputeTrajectoryRewardChainBranch:
+    def test_chain_mode_routes_to_webwalker_chain_reward(self, fake_webwalker_reward_config):
+        _, cfg = fake_webwalker_reward_config
+        steps = [_make_step(source_url_hit=True), _make_step(source_url_hit=False)]
+        traj = Trajectory(steps=steps)
+        traj.trajectory_generation_method = "chain"
+        result = compute_trajectory_reward(traj)
+        assert result.reward == cfg.chain_success_reward
+        assert result.toolcall_reward == 0.0
+
+    def test_chain_mode_failure(self, fake_webwalker_reward_config):
+        _, cfg = fake_webwalker_reward_config
+        traj = Trajectory(steps=[_make_step(source_url_hit=False)])
+        traj.trajectory_generation_method = "chain"
+        result = compute_trajectory_reward(traj)
+        assert result.reward == cfg.chain_failure_reward
+
+    def test_chain_mode_missing_webwalker_config_falls_back(self, monkeypatch):
+        monkeypatch.setitem(
+            compute_trajectory_reward.__globals__,
+            "_compute_webwalker_chain_reward",
+            MagicMock(side_effect=ImportError("missing webwalker reward config")),
+        )
+        steps = [Step(reward=1.0, done=False, step_id=0), Step(reward=3.0, done=True, step_id=1)]
+        traj = Trajectory(steps=steps)
+        traj.trajectory_generation_method = "chain"
+
+        result = compute_trajectory_reward(traj)
+
+        assert result.toolcall_reward == pytest.approx(1.0)
+        assert result.res_reward == pytest.approx(3.0)
+        assert result.reward == pytest.approx(4.0)
+
+    @pytest.mark.parametrize("error", [AttributeError("bad attr"), KeyError("missing key")])
+    def test_chain_mode_config_errors_fall_back(self, monkeypatch, error):
+        monkeypatch.setitem(
+            compute_trajectory_reward.__globals__,
+            "_compute_webwalker_chain_reward",
+            MagicMock(side_effect=error),
+        )
+        steps = [Step(reward=1.0, done=False, step_id=0), Step(reward=3.0, done=True, step_id=1)]
+        traj = Trajectory(steps=steps)
+        traj.trajectory_generation_method = "chain"
+
+        result = compute_trajectory_reward(traj)
+
+        assert result.toolcall_reward == pytest.approx(1.0)
+        assert result.res_reward == pytest.approx(3.0)
+        assert result.reward == pytest.approx(4.0)
+
+    def test_non_chain_mode_skips_chain_branch(self, fake_webwalker_reward_config):
+        steps = [Step(reward=1.0, done=False, step_id=0), Step(reward=3.0, done=True, step_id=1)]
+        traj = Trajectory(steps=steps)
+        traj.trajectory_generation_method = "tree"
+        result = compute_trajectory_reward(traj)
+        # Falls back to the default toolcall + res reward logic.
+        assert result.toolcall_reward == pytest.approx(1.0)
+        assert result.res_reward == pytest.approx(3.0)
+        assert result.reward == pytest.approx(4.0)
+
+    def test_no_method_attr_uses_default_branch(self, fake_webwalker_reward_config):
+        steps = [Step(reward=2.0, done=True, step_id=0)]
+        traj = Trajectory(steps=steps)
+        result = compute_trajectory_reward(traj)
+        assert result.toolcall_reward == 0
+        assert result.res_reward == pytest.approx(2.0)
