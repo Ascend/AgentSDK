@@ -34,7 +34,7 @@ docker run --name your_container_name \
     -v /etc/ascend_install.info:/etc/ascend_install.info \
     -v /usr/share/zoneinfo/Asia/Shanghai:/etc/localtime \
     -v /usr/local/sbin:/usr/local/sbin \
-    your_image_name:your_image_tag  \
+    swr.cn-south-1.myhuaweicloud.com/ascendhub/agentsdk:26.1.0-a3-ubuntu22.04-py3.11  \
     sleep infinity
 ```
 
@@ -43,10 +43,6 @@ docker run --name your_container_name \
 ```shell
 docker exec -it your_container_name bash
 ```
-
-> [!NOTE] 说明
->
->- 后续将提供预构建镜像下载链接，用户可直接下载预构建的镜像
 
 ## **模型获取**
 

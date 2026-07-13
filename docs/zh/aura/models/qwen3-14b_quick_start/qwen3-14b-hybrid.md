@@ -30,7 +30,7 @@ docker run --name your_container_name \
     -v /etc/ascend_install.info:/etc/ascend_install.info \
     -v /usr/share/zoneinfo/Asia/Shanghai:/etc/localtime \
     -v /usr/local/sbin:/usr/local/sbin \
-    your_image_name:your_image_tag  \
+    swr.cn-east-3.myhuaweicloud.com/ascendhub-test/agentsdk:26.1.0-910b-ubuntu22.04-py3.11  \
     sleep infinity
 ```
 
@@ -44,26 +44,12 @@ docker run --name your_container_name \
 docker exec -it your_container_name bash
 ```
 
-> [!NOTE] 说明
->
->- 后续将提供预构建镜像下载链接，用户可直接下载预构建的镜像
-
 ## **模型获取**
 
 本实验使用 Qwen3-14b 模型，相关模型可以通过[本链接](https://www.modelscope.cn/models/Qwen/Qwen3-14B)获取。
 
 ```shell
 modelscope download --model Qwen/Qwen3-14B --local_dir /path/to/Qwen3-14B
-```
-
-## **数据集获取**
-
-### **下载数据集**
-
-本实验使用的 math 领域的 gsm8k 数据集可通过[本链接](https://www.modelscope.cn/datasets/AI-ModelScope/gsm8k)获取。
-
-```shell
-modelscope download --dataset AI-ModelScope/gsm8k --local_dir /path/to/gsm8k
 ```
 
 ## **数据集获取**

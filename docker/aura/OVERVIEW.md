@@ -30,6 +30,8 @@ Tags follow this pattern:
 | Field              | Example Values                  | Description           |
 |--------------------|---------------------------------|-----------------------|
 | `AgentSDK_version` | `26.1.0`                        | AgentSDK version      |
+| `CANN_version`     | `cann9.0.0`                     | CANN version          |
+| `pytorch_version`  | `torch_npu2.7.1`                | PyTorch version       |
 | `chip_series`      | `910`, `a3`, `atlas 800`        | Target chip family    |
 | `os`               | `ubuntu22.04`, `openeuler24.03` | Base operating system |
 | `python_version`   | `py3.11`                        | Python version        |

@@ -41,11 +41,11 @@
 
 # 🚀 快速入门
 
-| 训练框架 | 训练模型 | 训练场景 | 服务器架构 | 推荐最小算力资源 | 快速入门指南 |
-| --- | --- | --- | --- | --- | --- |
-| verl+vllm+fsdp2+训推共卡 | Qwen3-4B | Math | A3 | 单机 4*64GB 显存 | [Qwen3-4B 共卡模式快速拉起指南](../docs/zh/aura/models/qwen3-4b_quick_start/qwen3-4b-hybrid.md)      |
-| verl+vllm+fsdp2+训推分离 | Qwen3-4B | Math | A3 | 双机 4*64GB 显存 | [Qwen3-4B 分离模式快速拉起指南](../docs/zh/aura/models/qwen3-4b_quick_start/qwen3-4b-one-step-off.md) |
-| verl+vllm+fsdp2+训推共卡 | Qwen3-14B | Math | A2 | 单机 8*64GB 显存 | [Qwen3-14B 分离模式快速拉起指南](../docs/zh/aura/models/qwen3-14b_quick_start/qwen3-14b-hybrid.md) |
+| 训练框架                 | 训练模型      | 训练场景 | 服务器架构 | 推荐最小算力资源     | 快速入门指南                                                                                      |
+|----------------------|-----------|------|-------|--------------|---------------------------------------------------------------------------------------------|
+| verl+vllm+fsdp2+训推共卡 | Qwen3-4B  | Math | A3    | 单机 4*64GB 显存 | [Qwen3-4B 共卡模式快速拉起指南](../docs/zh/aura/models/qwen3-4b_quick_start/qwen3-4b-hybrid.md)       |
+| verl+vllm+fsdp2+训推分离 | Qwen3-4B  | Math | A3    | 双机 4*64GB 显存 | [Qwen3-4B 分离模式快速拉起指南](../docs/zh/aura/models/qwen3-4b_quick_start/qwen3-4b-one-step-off.md) |
+| verl+vllm+fsdp2+训推共卡 | Qwen3-14B | Math | A2    | 单机 8*64GB 显存 | [Qwen3-14B 共卡模式快速拉起指南](../docs/zh/aura/models/qwen3-14b_quick_start/qwen3-14b-hybrid.md)    |
 
 - 如果想了解模型通用的完整快速入门流程，请参考：[快速入门指南](../docs/zh/aura/03_quick_start.md)。
 
