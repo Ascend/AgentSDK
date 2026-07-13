@@ -369,3 +369,32 @@ ray start --head --port=7894 --dashboard-port=7895
 1. 保证ray使用的端口没有被占用
 2. 保证有足够的文件描述符供raylet进程使用
 3. 机器上其他容器是否有ray进程正在运行
+
+## 提示Ray会话名称不匹配<a name="faq_015"></a>
+
+**问题现象<a name="faq_015_phenomenon"></a>**
+
+启动脚本后，出现如下报错信息：
+
+```text
+AssertionError: Session name session_2026-07-09_09-17-24_537353_45519 does not match persisted value b'session_2026-07-08_16-03-21_014733_24109'. Perhaps there was an error connecting to Redis.
+```
+
+**原因分析<a name="faq_015_analysis"></a>**
+
+AgentSDK 底层使用 Ray 进行分布式训练，而 Ray 依赖 Redis 来管理集群状态。之前的 Ray 会话没有正常退出，其临时文件或 Redis 中的元数据未被清理，与新启动的会话产生冲突。
+
+**解决方案<a name="faq_015_solution"></a>**
+
+进入之前没有清理 Ray 的容器，执行以下命令清理残留的 Ray 进程和临时文件：
+
+```shell
+ray stop -f
+rm -rf /tmp/ray
+```
+
+或者直接停止其他容器：
+
+```shell
+docker stop <容器名>
+```

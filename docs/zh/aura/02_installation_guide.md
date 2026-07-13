@@ -10,14 +10,31 @@
 
 容器环境部署有两种方式：
 
-1. 从 Dockerfile 构建镜像
+1. 基于镜像构建容器环境
 2. 基于 CANN9.0.0 的容器环境，执行一键式环境配置脚本 [`build_env.sh`](../../../docker/aura/build_env.sh)
 
-### 方式一：从 Dockerfile 构建镜像
+### 方式一：基于镜像构建容器环境
+
+基于镜像构建容器环境，首先需要获取镜像。获取镜像有两种方式：
+
+- 直接从昇腾镜像仓库拉取预构建镜像（推荐）
+- 从 Dockerfile 构建镜像
+
+#### 步骤 1：获取镜像
+
+##### 选项一：直接拉取预构建镜像
+
+可从昇腾镜像仓库直接拉取已构建好的镜像，AgentSDK 镜像发布页面：[https://www.hiascend.com/developer/ascendhub/detail/72825ebadb23432ba55dea3f58e68a69](https://www.hiascend.com/developer/ascendhub/detail/72825ebadb23432ba55dea3f58e68a69)
+
+以 A3 服务器、Ubuntu 系统为例，拉取镜像的命令为：
+
+```shell
+docker pull swr.cn-south-1.myhuaweicloud.com/ascendhub/agentsdk:26.1.0-a3-ubuntu22.04-py3.11
+```
+
+##### 选项二：从 Dockerfile 构建镜像
 
 通过 Dockerfile 可快速构建镜像， Dockerfile 可在 [`docker`](../../../docker) 目录下获取，用户可根据实际需求修改 Dockerfile 中的路径参数。
-
-#### 步骤 1：构建镜像
 
 拉取 Aura 项目源码，进入 docker 目录，构建镜像，以a3-ubuntu的Dockerfile为例：
 
@@ -210,17 +227,10 @@ python convert_data.py --input test.parquet --output test.jsonl
 
 **准备配置文件**
 
-在 `configs/` 目录下创建 `datasets/` 目录，用于存放不同数据集的数据处理配置文件
-
-```shell
-cd /path/to/AgentSDK/aura/configs
-mkdir -p datasets
-```
-
-在 `configs/datasets/` 目录下创建 gsm8k 数据集对应的数据处理配置文件：
+gsm8k 数据集对应的数据处理配置文件已存在于 [`aura/configs/datasets/gsm8k.yaml`](../../../aura/configs/datasets/gsm8k.yaml)，用户可直接修改该文件中的路径参数：
 
 ```yaml
-# configs/datasets/gsm8k.yaml
+# aura/configs/datasets/gsm8k.yaml
 input: /path/to/input_data_dir
 tokenizer_name_or_path: /path/to/tokenizer
 output_prefix: /path/to/output/train/rl
@@ -235,18 +245,18 @@ map_keys: {"query":"", "response":"labels", "prompt": "question"}
 
 **配置参数说明**
 
-| 参数 | 类型 | 说明                                                                                 |
-|------|------|------------------------------------------------------------------------------------|
-| `input` | str | 输入的 jsonl 文件所在目录的路径，包含 train.jsonl 和 test.jsonl                                       |
-| `tokenizer_name_or_path` | str | 分词器路径，必须与后续训练的模型保持一致                                                               |
-| `output_prefix` | str | /path/to/output/train 为输出文件路径，需提前创建， rl 为输出文件前缀，生成 `rl_train.bin` 和 `rl_train.idx` 文件 |
-| `handler_name` | str | 数据处理器名称，决定了数据的拼接模板 。`R1AlpacaStyleInstructionHandler`是 Qwen 等模型进行 SFT/RL 训练的标准格式   |
-| `tokenizer_type` | str | 分词器类型，常用 `HuggingFaceTokenizer`                                                    |
-| `workers` | int | 并行 worker 数                                                                          |
-| `log_interval` | int | 日志输出间隔（处理多少条数据后输出）                                                                 |
-| `prompt_type` | str | 指定模型对应的 chat template，例如 qwen/chatml/llama3                                        |
-| `dataset_additional_keys` | list | 需额外保留的数据字段                                                                         |
-| `map_keys` | dict | 字段映射，将原始 json 字段映射到框架内部标准字段                                                        |
+| 参数                        | 类型   | 说明                                                                               |
+|---------------------------|------|----------------------------------------------------------------------------------|
+| `input`                   | str  | 输入的 jsonl 文件所在目录的路径，包含 train.jsonl 和 test.jsonl                                  |
+| `tokenizer_name_or_path`  | str  | 分词器路径，必须与后续训练的模型保持一致                                                             |
+| `output_prefix`           | str  | /path/to/output/train 为输出文件路径，需提前创建，rl 为输出文件前缀                                   |
+| `handler_name`            | str  | 数据处理器名称，决定了数据的拼接模板 。`R1AlpacaStyleInstructionHandler`是 Qwen 等模型进行 SFT/RL 训练的标准格式 |
+| `tokenizer_type`          | str  | 分词器类型，常用 `HuggingFaceTokenizer`                                                  |
+| `workers`                 | int  | 并行 worker 数                                                                      |
+| `log_interval`            | int  | 日志输出间隔（处理多少条数据后输出）                                                               |
+| `prompt_type`             | str  | 指定模型对应的 chat template，例如 qwen/chatml/llama3                                      |
+| `dataset_additional_keys` | list | 需额外保留的数据字段                                                                       |
+| `map_keys`                | dict | 字段映射，将原始 json 字段映射到框架内部标准字段                                                      |
 
 **执行数据处理**
 
@@ -263,10 +273,12 @@ python3 /path/to/AgentSDK/aura/cli/preprocess_data.py gsm8k
 
 ```text
 /path/to/output/
-├── train.bin    # 训练集二进制数据
-├── train.idx    # 训练集索引文件
-├── test.bin     # 测试集二进制数据
-└── test.idx     # 测试集索引文件
+├── rl_packed_attention_mask_document.bin    # attention mask 二进制数据
+├── rl_packed_attention_mask_document.idx    # attention mask 索引文件
+├── rl_packed_input_ids_document.bin         # input ids 二进制数据
+├── rl_packed_input_ids_document.idx         # input ids 索引文件
+├── rl_packed_labels_document.bin            # labels 二进制数据
+└── rl_packed_labels_document.idx            # labels 索引文件
 ```
 
 ## 环境变量配置
