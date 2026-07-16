@@ -90,6 +90,7 @@ FAQ 包含环境部署或运行过程中可能需要的报错及解决方案，�
 
 🔹 《[版本说明](../docs/zh/aura/08_release_notes.md)》<br>
 🔹 《[许可证声明](../LICENSE.md)》<br>
+🔹 《[第三方开源软件声明](../Third_Party_Open_Source_Software_Notice.md)》<br>
 🔹 《[文档许可证声明](../docs/LICENSE)》<br>
 🔹 《[免责声明](../docs/zh/aura/09_disclaimer.md)》<br>
 🔹 《[安全声明](../docs/zh/aura/06_security_hardening.md)》<br>

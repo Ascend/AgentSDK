@@ -88,6 +88,7 @@ The FAQ includes error solutions that may be needed during environment deploymen
 
 🔹 《[Release Notes](../docs/zh/aura/08_release_notes.md)》<br>
 🔹 《[License Statement](../LICENSE.md)》<br>
+🔹 《[Third Party Open Source Software Notice](../Third_Party_Open_Source_Software_Notice.md)》<br>
 🔹 《[Document License Statement](../docs/LICENSE)》<br>
 🔹 《[Disclaimer](../docs/zh/aura/09_disclaimer.md)》<br>
 🔹 《[Security Statement](../docs/zh/aura/06_security_hardening.md)》<br>
