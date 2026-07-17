@@ -23,6 +23,6 @@ Agent SDK aura能用来帮助用户快速训练AI智能体，支持多种轨迹�
 | -             | 版本说明书      | 08_release_notes.md      | 对该版本的更新点做简要说明。                         | [版本说明书](08_release_notes.md)             |
 | -             | 免责声明       | 09_disclaimer.md         | 介绍Agent SDK aura的免责声明等内容。              | [免责声明](09_disclaimer.md)                 |
 | -             | 附录         | 10_appendix.md           | 介绍Agent SDK aura的环境变量及支持的后端与模型列表。 | [附录](10_appendix.md)                     |
-| 模型（models）    | -          | -                        | 提供Agent SDK aura的对不同模型的快速部署文档。         | [模型](models/)                            |
+| 模型（models）    | -          | -                        | 提供Agent SDK aura针对不同模型的快速部署文档。         | [模型](models/)                            |
 | 资源（resource）  | -          | -                        | 提供Agent SDK aura公网地址等资源。               | [资源](resource/)                          |
 | 图片（figures）   | -          | -                        | 提供docs内各文档使用到的图片文件。                    | [图片](figures/)                           |

@@ -89,7 +89,7 @@ docker exec -it your_container_name bash
 
 ### 方式二：使用一键式环境配置脚本 build_env.sh
 
-使用一键式环境配置脚本前，需提前准备好 CANN9.0.0 的容器环境，包括安装 CANN9.0.0 的驱动、配置环境变量等，用户可根据实际需求，修改第三方库安装路径。一键式环境配置脚本将自动安装 Aura 及其所有依赖，包含 vLLM、 vllm-ascend、 MindSpeed、 Megatron-LM、 verl、 transformers 等第三方库依赖，以及 python 相关依赖。
+使用一键式环境配置脚本前，需提前准备好 CANN9.0.0 的容器环境，包括安装 CANN9.0.0 的驱动、配置环境变量等，用户可根据实际需求，修改第三方库安装路径。一键式环境配置脚本将自动安装 Aura 及其所有依赖，包含 vLLM、vllm-ascend、MindSpeed、Megatron-LM、verl、transformers 等第三方库依赖，以及 Python 相关依赖。
 
 ```shell
 cd /path/to/AgentSDK/docker/aura
@@ -121,7 +121,7 @@ modelscope download --model Qwen/Qwen2.5-7B-Instruct --local_dir /path/to/Qwen2.
 modelscope download --dataset AI-ModelScope/gsm8k --local_dir /path/to/gsm8k
 ```
 
-> 说明： 首次训练时，应根据模型能力选择合适的数据集，参数量较低的模型应选择较为简单的数据集，便于模型学习
+> 说明：首次训练时，应根据模型能力选择合适的数据集，参数量较低的模型应选择较为简单的数据集，便于模型学习
 
 ### 处理训练数据
 
@@ -252,7 +252,7 @@ python3 /path/to/AgentSDK/aura/cli/preprocess_data.py gsm8k
             inet 192.168.100.100  netmask 255.255.255.0  broadcast 192.168.100.255
     ```
 
-3. 假设本地 IP 为 192.168.0.1，那么指向本地 IP 对应虚拟网桥的值即为 enp189s0f0 ，即需要执行：
+3. 假设本地 IP 为 192.168.0.1，那么指向本地 IP 对应网络接口的值即为 enp189s0f0 ，即需要执行：
 
     ```shell
     export DEFAULT_SOCKET_IFNAME=enp189s0f0
@@ -260,7 +260,7 @@ python3 /path/to/AgentSDK/aura/cli/preprocess_data.py gsm8k
 
 ### 设置 ASCEND_RT_VISIBLE_DEVICES
 
-根据自己实际需要设置可用的 NPU 的卡数，例如需要指定 0-15 号 NPU：
+根据自己实际需要设置可用的 NPU 的卡数，例如需要指定 0~15 号 NPU：
 
 ```shell
 # 配置可用的NPU的卡数
