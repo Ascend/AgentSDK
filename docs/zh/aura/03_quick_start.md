@@ -10,20 +10,11 @@ Aura 提供两种构建运行环境的方式，用户可根据实际情况任选
 
 1. **使用预构建镜像创建容器**（推荐）
 
-    直接基于预构建镜像运行容器。具体操作请参见【[容器环境部署](02_installation_guide.md#容器环境部署)】。
+    直接基于预构建镜像运行容器。具体操作请参见【[基于镜像构建容器环境](02_installation_guide.md#方式一基于镜像构建容器环境)】。
 
 2. **在 CANN 9.0.0 容器中使用一键拉起脚本**
 
-    如果您已经在 CANN 9.0.0 的基础镜像容器内，可以执行一键拉起脚本完成 Aura 及其所有依赖（vLLM、 vllm-ascend、 MindSpeed、 Megatron-LM、 verl、 transformers 等）的安装：
-
-    ```shell
-    cd /home/work/AgentSDK/docker/aura
-    bash build_env.sh
-    ```
-
-> [!NOTE] 说明
->
-> 一键拉起脚本 `build_env.sh` 会修改当前 Python 环境，并克隆多个仓库到 `/home/work`，建议在容器中的独立虚拟环境中运行该脚本。
+    如果您已经在 CANN 9.0.0 的基础镜像容器内，可以执行一键拉起脚本完成 Aura 及其所有依赖（vLLM、 vllm-ascend、 MindSpeed、 Megatron-LM、 verl、 transformers 等）的安装。具体操作请参见【[使用一键式环境配置脚本 build_env.sh](02_installation_guide.md#方式二使用一键式环境配置脚本-build_envsh)】。
 
 ## **使用流程**
 

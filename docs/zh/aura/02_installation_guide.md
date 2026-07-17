@@ -24,7 +24,7 @@
 
 ##### 选项一：直接拉取预构建镜像
 
-可从昇腾镜像仓库直接拉取已构建好的镜像，AgentSDK 镜像发布页面：[https://www.hiascend.com/developer/ascendhub/detail/72825ebadb23432ba55dea3f58e68a69](https://www.hiascend.com/developer/ascendhub/detail/72825ebadb23432ba55dea3f58e68a69)
+可从昇腾镜像仓库直接拉取已构建好的镜像，[AgentSDK 镜像发布页面](https://www.hiascend.com/developer/ascendhub/detail/72825ebadb23432ba55dea3f58e68a69)
 
 以 A3 服务器、Ubuntu 系统为例，拉取镜像的命令为：
 
@@ -36,7 +36,7 @@ docker pull swr.cn-south-1.myhuaweicloud.com/ascendhub/agentsdk:26.1.0-a3-ubuntu
 
 通过 Dockerfile 可快速构建镜像， Dockerfile 可在 [`docker`](../../../docker) 目录下获取，用户可根据实际需求修改 Dockerfile 中的路径参数。
 
-拉取 Aura 项目源码，进入 docker 目录，构建镜像，以a3-ubuntu的Dockerfile为例：
+拉取 Aura 项目源码，进入 docker 目录，构建镜像，以 a3-ubuntu 的 [Dockerfile](../../../docker/aura/Dockerfile.a3.ubuntu) 为例：
 
 ```shell
 git clone https://gitcode.com/Ascend/AgentSDK.git
@@ -151,79 +151,21 @@ python3 gsm8k.py \
 parquet → jsonl → bin/idx
 ```
 
-> **说明**：后续版本将与共卡模式进行统一，数据格式将统一为 parquet。
+##### 步骤 1： parquet 数据结构处理
 
-##### 步骤 1： parquet 转换为 jsonl
+与共卡模式相同，通过 gsm8k.py 将 gsm8k 数据集转换为训练所需的标准格式数据集，参考[共卡模式数据处理](#共卡模式数据处理)
 
-首先，与共卡模式相同，通过 gsm8k.py 将 gsm8k 数据集转换为标准格式数据集
+##### 步骤 2： parquet 转换为 jsonl
 
-其次，创建转换脚本 `convert_data.py`：
-
-```python
-import pandas as pd
-import json
-import os
-import argparse
-
-def convert_parquet_to_filtered_jsonl(input_parquet, output_jsonl):
-    """
-    将 Parquet 转换为 JSONL 格式，提取特定字段。
-    """
-    print(f"正在读取 Parquet 文件: {input_parquet} ...")
-
-    try:
-        df = pd.read_parquet(input_parquet)
-        records = df.to_dict('records')
-    except Exception as e:
-        print(f"读取 Parquet 失败: {e}")
-        return
-
-    print(f"读取到 {len(records)} 行数据，开始提取字段...")
-
-    count = 0
-    with open(output_jsonl, 'w', encoding='utf-8') as f_out:
-        for data in records:
-            try:
-                new_data = {
-                    "data_source": data.get('data_source'),
-                    "question": data['prompt'][0]['content'],
-                    "answer": data['reward_model']['ground_truth'],
-                    "labels": data['reward_model']['ground_truth']
-                }
-                f_out.write(json.dumps(new_data, ensure_ascii=False) + '\n')
-                count += 1
-            except KeyError:
-                pass
-            except Exception as e:
-                print(f"处理行出错: {e}")
-
-    print(f"处理完成！成功提取 {count} 条数据，保存至: {output_jsonl}")
-
-def main():
-    parser = argparse.ArgumentParser(description="将 Parquet 转换为 JSONL")
-    parser.add_argument('--input', type=str, required=True, help='输入的 parquet 文件路径')
-    parser.add_argument('--output', type=str, default='output.jsonl', help='输出的 jsonl 文件路径')
-
-    args = parser.parse_args()
-
-    if not os.path.exists(args.input):
-        print(f"错误: 找不到输入文件 {args.input}")
-        return
-
-    convert_parquet_to_filtered_jsonl(args.input, args.output)
-
-if __name__ == "__main__":
-    main()
-```
-
-执行转换：
+使用代码仓中提供的转换脚本 [`convert_data.py`](../../../aura/cli/convert_data.py) 将 parquet 转换为 jsonl 格式，执行时通过 `--input` 和 `--output` 参数指定输入 parquet 文件与输出 jsonl 文件的绝对路径：
 
 ```shell
-python convert_data.py --input train.parquet --output train.jsonl
-python convert_data.py --input test.parquet --output test.jsonl
+cd /path/to/AgentSDK/aura/cli
+python convert_data.py --input /path/to/gsm8k-parquet/train.parquet --output /path/to/gsm8k-jsonl/train.jsonl
+python convert_data.py --input /path/to/gsm8k-parquet/test.parquet --output /path/to/gsm8k-jsonl/test.jsonl
 ```
 
-##### 步骤 2： jsonl 转换为 bin/idx
+##### 步骤 3： jsonl 转换为 bin/idx
 
 **准备配置文件**
 
@@ -260,7 +202,11 @@ map_keys: {"query":"", "response":"labels", "prompt": "question"}
 
 **执行数据处理**
 
+执行前必须先进入 `aura` 目录，因为脚本运行时需要导入 `aura` 目录下的 `third_party` 依赖。
+
 ```shell
+# 进入 aura 目录（必须，因脚本会导入 third_party 依赖）
+cd /path/to/AgentSDK/aura
 # 处理训练集
 python3 /path/to/AgentSDK/aura/cli/preprocess_data.py gsm8k
 ```
@@ -285,7 +231,7 @@ python3 /path/to/AgentSDK/aura/cli/preprocess_data.py gsm8k
 
 ### 设置 DEFAULT_SOCKET_IFNAME
 
-通过`ifconfig`指令，查看自己的网卡 ID，以本机 IP 地址为 192.168.1.1 为例：
+通过`ifconfig`指令，查看自己的网卡 ID，以本机 IP 地址为 192.168.0.1 为例：
 
 1. 执行 ifconfig 命令，查看网络配置：
 
