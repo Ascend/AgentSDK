@@ -36,6 +36,7 @@ def fake_engine_env():
 
     fake_uuid = types.ModuleType("uuid")
     fake_uuid.uuid4 = MagicMock(return_value="12345678-1234-1234-1234-1234567890ab")
+    fake_uuid.uuid1 = MagicMock(return_value="12345678-1234-1234-1234-1234567890ab")
 
     fake_loggers_mod = types.ModuleType("aura.base.log.loggers")
     mock_logger = MagicMock()
@@ -379,6 +380,18 @@ class TestTrajectoryGenerator:
             async for _ in engine.trajectory_generator(task, prompt_id=0):
                 pass
 
+    @pytest.mark.asyncio
+    async def test_non_multithread_safe_env_raises_type_error(self, fake_engine_env):
+        engine = fake_engine_env["AgentExecutionEngine"](
+            tokenizer="t", n_parallel_agents=1, server_addresses=["addr"]
+        )
+        engine.env_dict = {"t1": MagicMock(is_multithread_safe=MagicMock(return_value=False))}
+        task = {"task_id": "t1", "prompt_id": 0}
+
+        with pytest.raises(TypeError, match="multithread safe"):
+            async for _ in engine.trajectory_generator(task, prompt_id=0):
+                pass
+
 
 class TestExecuteTasks:
     @pytest.mark.asyncio
@@ -696,6 +709,61 @@ class TestRunAgentTrajectoryAsyncTokenInTokenOut:
         assert isinstance(result, dict)
         assert "logprobs" in result
 
+    @pytest.mark.asyncio
+    async def test_error_string_is_masked_and_terminates(self, fake_engine_env):
+        engine = fake_engine_env["AgentExecutionEngine"](
+            tokenizer=MagicMock(), n_parallel_agents=1, max_steps=2, server_addresses=["addr"],
+            chat_parser=MagicMock(), max_prompt_length=1024, max_model_len=16384,
+            env_args={"trajectory_timeout": 7200}, token_in_token_out=True,
+            sampling_params={"max_tokens": 512},
+        )
+        fake_torch = fake_engine_env["fake_torch"]
+        fake_torch.tensor.side_effect = lambda data, dtype=None: {"data": list(data), "dtype": dtype}
+        engine.chat_parser.parse.return_value = "parsed prompt"
+        engine.tokenizer.encode.side_effect = (
+            lambda text, add_special_tokens=False: [9, 10] if str(text).startswith("Error:") else [1, 2, 3]
+        )
+
+        async def fake_model_response(*args, **kwargs):
+            return "Error: Rate limit reached"
+        engine.get_model_response = fake_model_response
+
+        agent = MagicMock()
+        agent.chat_completions = [{"role": "system", "content": "sys"}, {"role": "user", "content": "hi"}]
+        agent.reset = MagicMock()
+        agent.update_from_env = MagicMock()
+        agent.update_from_model = MagicMock()
+        agent.trajectory = MagicMock()
+        env = MagicMock()
+        env.reset = MagicMock(return_value=("obs", {"info": "x"}))
+        env.step = MagicMock()
+        env.close = MagicMock()
+        env.is_multithread_safe.return_value = True
+        env.sample_id = 0
+        env.idx = 0
+        env.task = {"prompt_id": 0}
+        del env.compute_final_reward
+
+        engine.envs = [env]
+        engine.agents = [agent]
+
+        loop = asyncio.get_event_loop()
+        with patch.object(loop, "run_in_executor") as mock_run:
+            def run_side_effect(executor, func, *args, **kwargs):
+                result = ("obs", {"info": "x"}) if func == env.reset else None
+                fut = asyncio.Future()
+                fut.set_result(result)
+                return fut
+            mock_run.side_effect = run_side_effect
+            result = await engine.run_agent_trajectory_async(idx=0, application_id="app_tit_err", mode="Token")
+
+        assert result["response_tokens"]["data"] == [9, 10]
+        assert result["response_masks"]["data"] == [0, 0]
+        assert result["logprobs"]["data"] == [0.0, 0.0]
+        assert agent.update_from_model.call_count == 0
+        env.step.assert_not_called()
+        assert agent.trajectory.termination_reason == "MODEL_ERROR"
+
 
 class TestRunAgentTrajectoryAsyncTimeout:
     @pytest.mark.asyncio
@@ -996,3 +1064,188 @@ class TestSimplifyThinkContent:
             mock_run.side_effect = run_side_effect
             trajectory = await engine.run_agent_trajectory_async(idx=0, application_id="app_stc", mode="Text")
         assert trajectory is not None
+
+
+# ---------------------------------------------------------------------------
+# PR2: AgentExecutionEngine tree-search helpers
+# ---------------------------------------------------------------------------
+
+class TestBeamTreeHelpers:
+    def test_beam_defaults_and_mutable_fields(self, fake_engine_env):
+        Beam = fake_engine_env["mod"].Beam
+        first = Beam()
+        second = Beam()
+        first.response_tokens.append(1)
+        first.response_masks.append("m")
+
+        assert first.steps_length == 0
+        assert first.cum_reward == 0.0
+        assert first.done is False
+        assert first.collect_reward is False
+        assert first.is_last_step is True
+        assert first.metadata == {}
+        assert second.response_tokens == []
+        assert second.response_masks == []
+        assert second.metadata == {}
+
+    def test_recover_initial_message_with_formatter(self, fake_engine_env):
+        mod = fake_engine_env["mod"]
+        memory = MagicMock()
+        formatter = MagicMock(return_value=[{"role": "user", "content": "fmt-msg"}])
+        agent = types.SimpleNamespace(_format_observation_as_messages=formatter, memory=memory)
+        env = types.SimpleNamespace(task={"question": "Q"})
+        info = {"max_steps": 5}
+
+        assert mod._recover_initial_user_message(agent, env, observation=None, info=info) is True
+        formatter.assert_called_once()
+        assert formatter.call_args.kwargs["info"] == info
+        memory.add_message.assert_called_once_with(
+            [{"role": "user", "content": "fmt-msg"}],
+            metadata=[{"reward": 0.0}],
+        )
+
+    def test_recover_initial_message_fallback_sources(self, fake_engine_env):
+        mod = fake_engine_env["mod"]
+        memory = MagicMock()
+        agent = types.SimpleNamespace(memory=memory)
+        env = types.SimpleNamespace(
+            task={
+                "problem": "solve this",
+                "root_url": "http://example.com",
+                "initial_observation": "from-task",
+                "extra_args": {"query": "from-extra"},
+            }
+        )
+
+        assert mod._recover_initial_user_message(agent, env, observation=None, info={}) is True
+        content = memory.add_message.call_args[0][0][0]["content"]
+        assert "Question: solve this" in content
+        assert "URL: http://example.com" in content
+        assert "Observation: from-task" in content
+
+    def test_recover_initial_message_false_without_memory_or_question(self, fake_engine_env):
+        mod = fake_engine_env["mod"]
+        assert mod._recover_initial_user_message(types.SimpleNamespace(), types.SimpleNamespace(task={"question": "Q"}), None, {}) is False
+
+        memory = MagicMock()
+        agent = types.SimpleNamespace(memory=memory)
+        assert mod._recover_initial_user_message(agent, types.SimpleNamespace(task={}), None, {}) is False
+        memory.add_message.assert_not_called()
+
+    def test_tree_snapshot_support_validation(self, fake_engine_env):
+        engine = fake_engine_env["AgentExecutionEngine"](tokenizer="t", server_addresses=["addr"])
+        with pytest.raises(TypeError, match="snapshot\\(\\) for tree mode"):
+            engine._validate_tree_snapshot_support(types.SimpleNamespace(), types.SimpleNamespace(snapshot=lambda: None))
+
+    @pytest.mark.asyncio
+    async def test_dynamic_beam_child_uses_metadata(self, fake_engine_env):
+        engine = fake_engine_env["AgentExecutionEngine"](
+            tokenizer=MagicMock(), server_addresses=["addr"], chat_parser=MagicMock(), max_steps=1,
+            env_args={"trajectory_timeout": 7200},
+        )
+        engine._beam_model_response = AsyncMock(return_value="model response")
+
+        def make_agent():
+            agent = MagicMock()
+            agent.chat_completions = [{"role": "system", "content": "sys"}, {"role": "user", "content": "hi"}]
+            agent.update_from_model.return_value = types.SimpleNamespace(action="click")
+            agent.get_current_state.return_value = types.SimpleNamespace(info={}, reward=0.0, done=False, step_id=None)
+            agent.snapshot.side_effect = make_agent
+            return agent
+
+        def make_env():
+            metadata = {"golden_path_configured": True, "on_golden_path": True, "clicked_button": "Search", "reached_golden_path_end": True}
+            env = MagicMock()
+            env.task = {"prompt_id": 0}
+            env.reset.return_value = "obs", {}
+            env.step.return_value = "next", 1.0, False, {"metadata": metadata}
+            env.snapshot.side_effect = make_env
+            return env
+
+        loop = asyncio.get_event_loop()
+        with patch.object(loop, "run_in_executor") as mock_run:
+            def run_side_effect(executor, func, *args, **kwargs):
+                result = func(*args)
+                fut = asyncio.Future()
+                fut.set_result(result)
+                return fut
+            mock_run.side_effect = run_side_effect
+            beams = await engine.run_episode_with_dynamic_beam_search(
+                make_agent(), make_env(), "app_tree", {}, beam_size=1, per_beam_expand=1,
+            )
+
+        assert len(beams) == 1
+        assert beams[0].metadata["on_golden_path"] is True
+        assert beams[0].metadata["clicked_button"] == "Search"
+        assert not hasattr(beams[0], "on_golden_path")
+        assert beams[0].termination_reason == "GOLDEN_PATH_COMPLETE"
+
+    @pytest.mark.asyncio
+    async def test_convert_beam_to_trajectory(self, fake_engine_env):
+        mod = fake_engine_env["mod"]
+        reward_fn = MagicMock()
+        engine = fake_engine_env["AgentExecutionEngine"](
+            tokenizer=MagicMock(), server_addresses=["addr"], chat_parser=MagicMock(), compute_trajectory_reward_fn=reward_fn,
+        )
+        trajectory = MagicMock()
+        trajectory.steps = []
+        trajectory.to_info_dict.return_value = {}
+        agent = types.SimpleNamespace(
+            trajectory=trajectory,
+            chat_completions=[{"role": "system", "content": "sys"}, {"role": "user", "content": "hi"}],
+        )
+        env = types.SimpleNamespace(task={"prompt_id": 7}, idx=3, close=MagicMock())
+        beam = mod.Beam(
+            agent=agent, env=env, beam_id="beam-1", final_reward=1.0,
+            termination_reason="ENV_DONE", collect_reward=True,
+        )
+
+        loop = asyncio.get_event_loop()
+        with patch.object(loop, "run_in_executor") as mock_run:
+            fut = asyncio.Future()
+            fut.set_result(None)
+            mock_run.return_value = fut
+            result = await engine.convert_beam_to_trajectory(
+                beam,
+                idx="0_0",
+                mode="Text",
+                trajectory_generation_method="tree",
+            )
+
+        assert result is trajectory
+        assert trajectory.prompt_id == "7"
+        assert trajectory.idx == 3
+        assert trajectory.trajectory_generation_method == "tree"
+        assert trajectory.collect_reward is True
+        reward_fn.assert_called_once_with(trajectory)
+
+
+class TestBeamInitKwargs:
+    def test_default_and_custom_kwargs(self, fake_engine_env):
+        engine_cls = fake_engine_env["AgentExecutionEngine"]
+        default_engine = engine_cls(tokenizer="t", server_addresses=["addr"], n_parallel_agents=1)
+        custom_engine = engine_cls(
+            tokenizer="t",
+            server_addresses=["addr"],
+            n_parallel_agents=1,
+            trajectory_generation_method="tree",
+            beam_size=8,
+            per_beam_expand=4,
+        )
+
+        assert default_engine.trajectory_generation_method == "default"
+        assert default_engine.beam_size == 3
+        assert default_engine.per_beam_expand == 2
+        assert custom_engine.trajectory_generation_method == "tree"
+        assert custom_engine.beam_size == 8
+        assert custom_engine.per_beam_expand == 4
+
+    def test_invalid_trajectory_generation_method_raises(self, fake_engine_env):
+        engine_cls = fake_engine_env["AgentExecutionEngine"]
+        with pytest.raises(ValueError, match="trajectory_generation_method"):
+            engine_cls(
+                tokenizer="t",
+                server_addresses=["addr"],
+                n_parallel_agents=1,
+                trajectory_generation_method="invalid",
+            )
