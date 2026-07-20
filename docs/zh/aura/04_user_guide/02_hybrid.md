@@ -46,15 +46,15 @@ AgentSDK 的训推共卡采用两层设计：
 
 ```shell
 # host,index,train_master_index,infer_master_index(可选)
-192.168.0.1,0,1,1
+<节点IP>,0,1,1
 ```
 
 | 参数 | 说明 |
 |------|------|
 | host | 节点 IP 地址 |
 | index | 节点索引，从 0 开始 |
-| train_master_index | 训练主节点索引，设为 1 表示该节点启动训练 |
-| infer_master_index | 推理主节点索引，设为 1 表示该节点启动推理。**共卡模式必须配置此参数，且与 train_master_index 相同** |
+| train_master_index | 训练主节点标识，设为 1 表示该节点启动训练 |
+| infer_master_index | 推理主节点标识，设为 1 表示该节点启动推理。**共卡模式必须配置此参数，且与 train_master_index 相同** |
 
 > [!IMPORTANT] 关键配置
 > 共卡模式的关键标志是 `train_master_index` 和 `infer_master_index` 指向同一个节点。系统据此判定该节点为"hybrid"类型，在同一节点上同时启动训练和推理。
@@ -238,11 +238,7 @@ bash scripts/start_rl_with_verl_vllm.sh
 
 ## 常见问题
 
-### Q1：共卡模式下推理配置文件（infer_config_name）是否需要配置？
-
-不需要。共卡模式下推理引擎由训练进程内部管理，`base.conf` 中的 `infer_config_name` 配置不生效。推理相关的并行度参数在训练 YAML 的 `infer_instances` 中配置即可。
-
-### Q2：如何确认系统正确识别为共卡模式？
+### Q1：如何确认系统正确识别为共卡模式？
 
 启动日志中会打印以下信息：
 

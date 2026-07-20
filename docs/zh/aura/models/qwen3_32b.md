@@ -6,7 +6,7 @@
 
 ## **模型获取**
 
-本实验使用Qwen3-32B模型，相关模型可以通过[本链接](https://www.modelscope.cn/models/Qwen/Qwen3-32B)获取。
+本实验使用Qwen3-32B模型，相关模型可以通过[ModelScope 模型页面](https://www.modelscope.cn/models/Qwen/Qwen3-32B)获取。
 
 ## **数据集获取**
 
@@ -14,7 +14,7 @@
 
 ## **文件修改**
 
-在快速拉起Qwen3-32B Math场景前，需要您修改以下文件，需要修改的参数可以参照文件头的注释。
+在快速拉起Qwen3-32B Math场景前，需修改以下文件，需要修改的参数可以参照文件头的注释。
 
 共卡模式请修改：
 
@@ -29,6 +29,6 @@
 >
 >- 共卡模式使用verl后端默认使用parquet数据集
 >- 分离模式在verl后端时暂时仅支持megatron的bin格式数据集
->- 分离多机器模式下请将代码，权重均保存在共享盘内，保证数据可以同时被所有机器获取
+>- 分离多机器模式下请将代码、权重均保存在共享盘内，保证数据可以同时被所有机器获取
 
-您也需要按照[快速开始指南](../03_quick_start.md)根据模式修改[base.conf](../../../../aura/configs/base.conf)和[hosts.conf](../../../../aura/configs/hosts.conf), 随后根据相应的命令一键拉起实验。
+另需按照[快速开始指南](../03_quick_start.md)根据模式修改[base.conf](../../../../aura/configs/base.conf)和[hosts.conf](../../../../aura/configs/hosts.conf)，随后根据相应的命令一键拉起实验。

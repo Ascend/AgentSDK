@@ -120,7 +120,7 @@ class AgentTask(BaseModel):
     ground_truth: str = ""
     prompt_id: int = 0
     content: str = ""
-    extra_args: dict = None
+    extra_args: dict[str, Any] = None
 
 
 class BaseEngineWrapper(ABC):
@@ -128,15 +128,15 @@ class BaseEngineWrapper(ABC):
     async def generate_trajectory(self, task: AgentTask, stream_queue=None, *args, **kwargs) -> "Trajectory": ...
 ```
 
-**参数说明**
+**参数说明（构造函数参数）**
 
 | 参数名                 | 类型     | 说明                  |
 |---------------------|--------|---------------------|
 | agent_name          | str    | Agent 场景名称          |
 | tokenizer           | object | 文本分词器对象             |
 | sampling_params     | dict   | 模型推理时的采样参数          |
-| max_prompt_length   | int    | 输入提示的最大长度，默认 128K   |
-| max_response_length | int    | 输出响应的最大长度，默认 8K     |
+| max_prompt_length   | int    | 输入提示的最大长度，默认 128k   |
+| max_response_length | int    | 输出响应的最大长度，默认 8k     |
 | n_parallel_agents   | int    | 并行执行的 Agent 数量，默认 8 |
 | max_steps           | int    | Agent 执行的最大步骤数，默认 5 |
 

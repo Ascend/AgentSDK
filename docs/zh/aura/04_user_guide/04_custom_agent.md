@@ -39,12 +39,15 @@ class MyAgent(BaseAgent):
 
     def update_from_env(self, observation, reward, done, info, **kwargs):
         """接收环境反馈，将观测格式化为消息追加到对话历史"""
+        pass
 
     def update_from_model(self, response, **kwargs) -> Action:
         """接收模型输出，解析为工具调用，记录到轨迹"""
+        pass
 
     def reset(self):
         """重置 Agent 状态，开始新的 episode"""
+        pass
 
     @property
     def chat_completions(self):
@@ -78,17 +81,20 @@ from aura.runner.agent_engine_wrapper.base.environment.base_env import BaseEnv
 class MyEnvironment(BaseEnv):
     def __init__(self, *args, **kwargs):
         """初始化 Environment 状态"""
+        pass
 
     def reset(self):
         """重置环境"""
-
+        pass
 
     def step(self, action):
         """执行动作"""
+        pass
 
     @staticmethod
     def from_dict(env_args):
         """从配置字典构造 Environment 实例"""
+        pass
 ```
 
 **关键方法说明：**

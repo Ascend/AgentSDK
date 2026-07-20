@@ -1,6 +1,6 @@
 # LICENSE
 
-## 木兰宽松许可证， 第2版<a name="section172581412918"></a>
+## 木兰宽松许可证，第2版<a name="section172581412918"></a>
 
 2020年1月  [http://license.coscl.org.cn/MulanPSL2](http://license.coscl.org.cn/MulanPSL2)
 
@@ -36,7 +36,7 @@
 
 **5.   免责声明与责任限制**
 
-**“软件”及其中的“贡献”在提供时不带任何明示或默示的担保。在任何情况下，“贡献者”或版权所有者不对任何人因使用“软件”或其中的“贡献”而引发的任何直接或间接损失承担责任，不论因何种原因导致或者基于何种法律理论,即使其曾被建议有此种损失的可能性。**
+**“软件”及其中的“贡献”在提供时不带任何明示或默示的担保。在任何情况下，“贡献者”或版权所有者不对任何人因使用“软件”或其中的“贡献”而引发的任何直接或间接损失承担责任，不论因何种原因导致或者基于何种法律理论，即使其曾被建议有此种损失的可能性。**
 
 **6.   语言**
 
@@ -50,9 +50,9 @@
 
 如果您希望将木兰宽松许可证，第2版，应用到您的新软件，为了方便接收者查阅，建议您完成如下三步：
 
-1,&emsp;  请您补充如下声明中的空白，包括软件名、软件的首次发表年份以及您作为版权人的名字；<br>
-2,&emsp;  请您在软件包的一级目录下创建以“LICENSE”为名的文件，将整个许可证文本放入该文件中；<br>
-3,&emsp;  请将如下声明文本放入每个源文件的头部注释中。
+1. 请您补充如下声明中的空白，包括软件名、软件的首次发表年份以及您作为版权人的名字；<br>
+2. 请您在软件包的一级目录下创建以“LICENSE”为名的文件，将整个许可证文本放入该文件中；<br>
+3. 请将如下声明文本放入每个源文件的头部注释中。
 
 ```text
 Copyright (c) Huawei Technologies Co., Ltd. [Year of First Publication]-[Year of Latest Update]. All Rights Reserved.
@@ -66,11 +66,11 @@ MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 See the Mulan PSL v2 for more details.
 ```
 
-注意： 模板中的\[Year of First Publication\]、\[Year of Latest Update\]需要更改为贡献者首次创建年份和最近更新年份
+注意：模板中的\[Year of First Publication\]、\[Year of Latest Update\]需要更改为贡献者首次创建年份和最近更新年份
 
-## Mulan Permissive Software License，Version 2<a name="section18273540143715"></a>
+## Mulan Permissive Software License, Version 2<a name="section18273540143715"></a>
 
-**Mulan Permissive Software License，Version 2 \(Mulan PSL v2\)**
+**Mulan Permissive Software License, Version 2 \(Mulan PSL v2\)**
 
 January 2020  [http://license.coscl.org.cn/MulanPSL2](http://license.coscl.org.cn/MulanPSL2)
 
@@ -116,7 +116,7 @@ THIS LICENSE IS WRITTEN IN BOTH CHINESE AND ENGLISH, AND THE CHINESE VERSION AND
 
 <br>
 
-**How to Apply the Mulan Permissive Software License，Version 2 \(Mulan PSL v2\) to Your Software**
+**How to Apply the Mulan Permissive Software License, Version 2 \(Mulan PSL v2\) to Your Software**
 
 To apply the Mulan PSL v2 to your work, for easy identification by recipients, you are suggested to complete following three steps:
 

@@ -10,20 +10,11 @@ Aura 提供两种构建运行环境的方式，用户可根据实际情况任选
 
 1. **使用预构建镜像创建容器**（推荐）
 
-    直接基于预构建镜像运行容器。具体操作请参见【[容器环境部署](02_installation_guide.md#容器环境部署)】。
+    直接基于预构建镜像运行容器。具体操作请参见【[基于镜像构建容器环境](02_installation_guide.md#方式一基于镜像构建容器环境)】。
 
 2. **在 CANN 9.0.0 容器中使用一键拉起脚本**
 
-    如果您已经在 CANN 9.0.0 的基础镜像容器内，可以执行一键拉起脚本完成 Aura 及其所有依赖（vLLM、 vllm-ascend、 MindSpeed、 Megatron-LM、 verl、 transformers 等）的安装：
-
-    ```shell
-    cd /home/work/AgentSDK/docker/aura
-    bash build_env.sh
-    ```
-
-> [!NOTE] 说明
->
-> 一键拉起脚本 `build_env.sh` 会修改当前 Python 环境，并克隆多个仓库到 `/home/work`，建议在容器中的独立虚拟环境中运行该脚本。
+    如果您已经在 CANN 9.0.0 的基础镜像容器内，可以执行一键拉起脚本完成 Aura 及其所有依赖（vLLM、 vllm-ascend、 MindSpeed、 Megatron-LM、 verl、 transformers 等）的安装。具体操作请参见【[使用一键式环境配置脚本 build_env.sh](02_installation_guide.md#方式二使用一键式环境配置脚本-build_envsh)】。
 
 ## **使用流程**
 
@@ -87,7 +78,7 @@ clean_old_ckpt=0
 
 #### 配置 DEFAULT_SOCKET_IFNAME
 
-包含正确本地 IP 的虚拟网桥名称。
+包含正确本地 IP 的网络接口名称。
 
 1. 执行 ifconfig 命令，查看网络配置：
 
@@ -108,7 +99,7 @@ clean_old_ckpt=0
             inet 192.168.100.100  netmask 255.255.255.0  broadcast 192.168.100.255
     ```
 
-3. 假设本地 IP 为 192.168.0.1，那么指向本地 IP 对应虚拟网桥的值即为 enp189s0f0 ，即需要执行：
+3. 假设本地 IP 为 192.168.0.1，那么指向本地 IP 对应网络接口的值即为 enp189s0f0 ，即需要执行：
 
     ```shell
     export DEFAULT_SOCKET_IFNAME=enp189s0f0
@@ -133,25 +124,25 @@ bash scripts/start_rl_with_verl_vllm.sh
 
 > [!NOTE] 说明
 >
->- 请确保模型权重路径， Aura 安装路径及所有文件的属主与运行用户一致。
+>- 请确保模型权重路径，Aura 安装路径及所有文件的属主与运行用户一致。
 >- 请确保路径不为软链接。
 >- 请确保路径为本地绝对路径。
 >- 请确保路径权限为 750，文件为 640。
 >- 请确保模型文件来源可信，文件未被篡改，且已完成了训练模型转换和数据集处理。如果模型来源不可靠，可能会发生 torch.load 导致的序列化问题。
->- 分离多机器模式下请将代码，权重均保存在共享盘内，保证数据可以同时被所有机器获取
+>- 分离多机器模式下请将代码、权重均保存在共享盘内，保证数据可以同时被所有机器获取
 
 ## **后续步骤**
 
 **Aura 使用样例请参考[使用指南](04_user_guide/01_user_guide.md)**
 
-**Aura Qwen3-4B Math 场景一键拉起样例请参考[使用指南](models/qwen3-4b.md)**
+**Aura Qwen3-4B Math 场景一键拉起样例请参考[Qwen3-4B Math 场景样例](models/qwen3-4b.md)**
 
-**Aura Qwen3-8B Math 场景一键拉起样例请参考[使用指南](models/qwen3_8b.md)**
+**Aura Qwen3-8B Math 场景一键拉起样例请参考[Qwen3-8B Math 场景样例](models/qwen3_8b.md)**
 
-**Aura Qwen3-30b-A3B Math 场景一键拉起样例请参考[使用指南](models/qwen3-30b-a3b.md)**
+**Aura Qwen3-30B-A3B Math 场景一键拉起样例请参考[Qwen3-30B-A3B Math 场景样例](models/qwen3-30b-a3b.md)**
 
-**Aura Qwen3-14B Math 场景一键拉起样例请参考[使用指南](models/qwen3-14b_quick_start/qwen3-14b-hybrid.md)**
+**Aura Qwen3-14B Math 场景一键拉起样例请参考[Qwen3-14B Math 场景样例](models/qwen3-14b_quick_start/qwen3-14b-hybrid.md)**
 
-**Aura Qwen3-32B Math 场景一键拉起样例请参考[使用指南](models/qwen3_32b.md)**
+**Aura Qwen3-32B Math 场景一键拉起样例请参考[Qwen3-32B Math 场景样例](models/qwen3_32b.md)**
 
 **Aura 支持的后端与模型列表请参考[支持推理后端](10_appendix.md#支持的推理后端)，[支持训练后端](10_appendix.md#支持的训练后端)，[支持agent后端](10_appendix.md#支持的Agent后端)，[支持模型列表](10_appendix.md#支持的模型列表)**
