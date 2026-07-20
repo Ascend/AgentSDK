@@ -468,3 +468,268 @@ class TestClearCache:
         wrapper.engine = MagicMock()
         wrapper.clear_cache()
         wrapper.engine.clear_cache.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# PR2: trajectory-generation kwargs (chain/tree/beam)
+# ---------------------------------------------------------------------------
+
+class TestPR2Kwargs:
+    @pytest.fixture(autouse=True)
+    def setup(self, fake_rllm_env):
+        self.env = fake_rllm_env
+        self.mod = fake_rllm_env["mod"]
+
+    def test_default_kwargs(self, fake_rllm_env):
+        wrapper = self.mod.RLLMEngineWrapper(
+            infer_service_params=make_infer_service_params(),
+            agent_name="test_agent",
+            tokenizer="bert",
+        )
+        assert wrapper.trajectory_generation_method == "default"
+        assert wrapper.beam_size == 3
+        assert wrapper.per_beam_expand == 2
+
+    def test_custom_kwargs(self, fake_rllm_env):
+        wrapper = self.mod.RLLMEngineWrapper(
+            infer_service_params=make_infer_service_params(),
+            agent_name="test_agent",
+            tokenizer="bert",
+            trajectory_generation_method="tree",
+            beam_size=5,
+            per_beam_expand=4,
+        )
+        assert wrapper.trajectory_generation_method == "tree"
+        assert wrapper.beam_size == 5
+        assert wrapper.per_beam_expand == 4
+
+    def test_invalid_trajectory_generation_method_raises(self, fake_rllm_env):
+        with pytest.raises(ValueError, match="trajectory_generation_method"):
+            self.mod.RLLMEngineWrapper(
+                infer_service_params=make_infer_service_params(),
+                agent_name="test_agent",
+                tokenizer="bert",
+                trajectory_generation_method="invalid",
+            )
+
+    def test_kwargs_propagated_to_agent_engine_kwargs(self, fake_rllm_env):
+        wrapper = self.mod.RLLMEngineWrapper(
+            infer_service_params=make_infer_service_params(),
+            agent_name="test_agent",
+            tokenizer="bert",
+            trajectory_generation_method="tree",
+            beam_size=7,
+        )
+        assert wrapper.agent_engine_kwargs["trajectory_generation_method"] == "tree"
+        assert wrapper.agent_engine_kwargs["beam_size"] == 7
+
+
+class TestCreateEnginePR2Propagation:
+    @pytest.fixture(autouse=True)
+    def setup(self, fake_rllm_env):
+        self.env = fake_rllm_env
+        self.mod = fake_rllm_env["mod"]
+
+    def test_tree_kwargs_passed_to_agent_execution_engine(self, fake_rllm_env):
+        """Default (non-proxy) path forwards PR2 tree kwargs to AgentExecutionEngine."""
+        wrapper = self.mod.RLLMEngineWrapper(
+            infer_service_params=make_infer_service_params(),
+            agent_name="test_agent",
+            tokenizer="bert",
+            trajectory_generation_method="tree",
+            beam_size=6,
+            per_beam_expand=3,
+        )
+        wrapper._create_engine()
+        fake_engine_cls = self.env["fake_agent_exec_engine"].AgentExecutionEngine
+        fake_engine_cls.assert_called_once()
+        _, kwargs = fake_engine_cls.call_args
+        assert kwargs["trajectory_generation_method"] == "tree"
+        assert kwargs["beam_size"] == 6
+        assert kwargs["per_beam_expand"] == 3
+        assert "beam_type" not in kwargs
+
+    def test_extern_path_does_not_require_beam_kwargs(self, fake_rllm_env):
+        """ExternAgentWrapper path is unaffected by PR2 beam kwargs."""
+        wrapper = self.mod.RLLMEngineWrapper(
+            infer_service_params=make_infer_service_params(),
+            agent_name="test_agent",
+            tokenizer="bert",
+            traj_proxy_url="http://1.2.3.4:8000",
+            agent_proxy_url="http://1.2.3.4:9000",
+            trajectory_generation_method="tree",
+            beam_size=4,
+        )
+        wrapper._create_engine()
+        self.env["fake_extern_agent"].ExternAgentWrapper.assert_called_once()
+        self.env["fake_agent_exec_engine"].AgentExecutionEngine.assert_not_called()
+
+
+class TestGenerateTrajectoryPR2:
+    @pytest.fixture(autouse=True)
+    def setup(self, fake_rllm_env):
+        self.env = fake_rllm_env
+        self.mod = fake_rllm_env["mod"]
+        self.wrapper = self.mod.RLLMEngineWrapper(
+            infer_service_params=make_infer_service_params(),
+            agent_name="test_agent",
+            tokenizer="bert",
+        )
+        self.wrapper.engine = MagicMock()
+        self.wrapper.engine.init_router = MagicMock()
+        self.wrapper.engine.update_env_and_agent = MagicMock()
+        self.wrapper.engine.release_env_and_agent = MagicMock()
+        self.wrapper.engine.trajectory_generator = MagicMock()
+
+    @pytest.mark.asyncio
+    async def test_tree_mode_promotes_problem_to_question(self, fake_rllm_env):
+        """Tree mode auto-fills question from problem for WebWalker env payloads."""
+        self.wrapper.trajectory_generation_method = "tree"
+        task = MagicMock()
+        task.iteration = 0
+        task.sample_id = 0
+        task.task_id = "t1"
+        task.prompt_id = 0
+        task.model_dump.return_value = {"problem": "what is X?", "prompt_id": 0}
+
+        async def async_gen():
+            yield "traj"
+
+        self.wrapper.engine.trajectory_generator.return_value = async_gen()
+        await self.wrapper.generate_trajectory(task, mode="Text")
+        _, kwargs = self.wrapper.engine.trajectory_generator.call_args
+        assert kwargs["task"]["question"] == "what is X?"
+        assert kwargs["task"]["problem"] == "what is X?"
+
+    @pytest.mark.asyncio
+    async def test_default_mode_does_not_add_task_keys(self, fake_rllm_env):
+        """Default mode preserves the task payload for existing env_class.from_dict flows."""
+        task = MagicMock()
+        task.iteration = 0
+        task.sample_id = 0
+        task.task_id = "t1"
+        task.prompt_id = 0
+        task.model_dump.return_value = {"problem": "what is X?", "prompt_id": 0}
+
+        async def async_gen():
+            yield "traj"
+
+        self.wrapper.engine.trajectory_generator.return_value = async_gen()
+        await self.wrapper.generate_trajectory(task, mode="Text")
+        _, kwargs = self.wrapper.engine.trajectory_generator.call_args
+        assert kwargs["task"] == {"problem": "what is X?", "prompt_id": 0}
+
+    @pytest.mark.asyncio
+    async def test_existing_question_not_overwritten(self, fake_rllm_env):
+        self.wrapper.trajectory_generation_method = "tree"
+        task = MagicMock()
+        task.iteration = 0
+        task.sample_id = 0
+        task.task_id = "t1"
+        task.prompt_id = 0
+        task.model_dump.return_value = {
+            "problem": "p",
+            "question": "existing",
+            "prompt_id": 0,
+        }
+
+        async def async_gen():
+            yield "traj"
+
+        self.wrapper.engine.trajectory_generator.return_value = async_gen()
+        await self.wrapper.generate_trajectory(task, mode="Text")
+        _, kwargs = self.wrapper.engine.trajectory_generator.call_args
+        assert kwargs["task"]["question"] == "existing"
+
+    @pytest.mark.asyncio
+    async def test_non_chain_mode_sets_method_on_task(self, fake_rllm_env):
+        self.wrapper.trajectory_generation_method = "tree"
+        task = MagicMock()
+        task.iteration = 0
+        task.sample_id = 0
+        task.task_id = "t1"
+        task.prompt_id = 0
+        task.model_dump.return_value = {"prompt_id": 0}
+
+        async def async_gen():
+            yield "traj"
+
+        self.wrapper.engine.trajectory_generator.return_value = async_gen()
+        await self.wrapper.generate_trajectory(task, mode="Text")
+        _, kwargs = self.wrapper.engine.trajectory_generator.call_args
+        assert kwargs["task"]["trajectory_generation_method"] == "tree"
+
+    @pytest.mark.asyncio
+    async def test_chain_mode_does_not_set_method_on_task(self, fake_rllm_env):
+        """Explicit chain mode leaves the task dict untouched re: method."""
+        self.wrapper.trajectory_generation_method = "chain"
+        task = MagicMock()
+        task.iteration = 0
+        task.sample_id = 0
+        task.task_id = "t1"
+        task.prompt_id = 0
+        task.model_dump.return_value = {"prompt_id": 0}
+
+        async def async_gen():
+            yield "traj"
+
+        self.wrapper.engine.trajectory_generator.return_value = async_gen()
+        await self.wrapper.generate_trajectory(task, mode="Text")
+        _, kwargs = self.wrapper.engine.trajectory_generator.call_args
+        assert "trajectory_generation_method" not in kwargs["task"]
+
+    @pytest.mark.asyncio
+    async def test_tree_mode_returns_list_of_trajectories(self, fake_rllm_env):
+        self.wrapper.trajectory_generation_method = "tree"
+        task = MagicMock()
+        task.iteration = 0
+        task.sample_id = 0
+        task.task_id = "t1"
+        task.prompt_id = 0
+        task.model_dump.return_value = {"prompt_id": 0}
+
+        async def async_gen():
+            yield "traj_a"
+            yield "traj_b"
+            yield "traj_c"
+
+        self.wrapper.engine.trajectory_generator.return_value = async_gen()
+        result = await self.wrapper.generate_trajectory(task, mode="Text")
+        assert isinstance(result, list)
+        assert result == ["traj_a", "traj_b", "traj_c"]
+
+    @pytest.mark.asyncio
+    async def test_chain_mode_returns_last_trajectory(self, fake_rllm_env):
+        """Chain mode returns the last yielded item, not a list."""
+        self.wrapper.trajectory_generation_method = "chain"
+        task = MagicMock()
+        task.iteration = 0
+        task.sample_id = 0
+        task.task_id = "t1"
+        task.prompt_id = 0
+        task.model_dump.return_value = {"prompt_id": 0}
+
+        async def async_gen():
+            yield "first"
+            yield "last"
+
+        self.wrapper.engine.trajectory_generator.return_value = async_gen()
+        result = await self.wrapper.generate_trajectory(task, mode="Text")
+        assert result == "last"
+        assert not isinstance(result, list)
+
+    @pytest.mark.asyncio
+    async def test_release_env_and_agent_called_after_generation(self, fake_rllm_env):
+        task = MagicMock()
+        task.iteration = 0
+        task.sample_id = 0
+        task.task_id = "t-release"
+        task.prompt_id = 0
+        task.model_dump.return_value = {"prompt_id": 0}
+
+        async def async_gen():
+            yield "traj"
+
+        self.wrapper.engine.trajectory_generator.return_value = async_gen()
+        await self.wrapper.generate_trajectory(task, mode="Text")
+        self.wrapper.engine.release_env_and_agent.assert_called_once_with("t-release")
