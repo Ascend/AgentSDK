@@ -46,7 +46,7 @@ docker exec -it your_container_name bash
 
 ## **模型获取**
 
-本实验使用 Qwen3-4b 模型，相关模型可以通过[本链接](https://www.modelscope.cn/models/Qwen/Qwen3-4B)获取。
+本实验使用 Qwen3-4B 模型，相关模型可以通过[ModelScope Qwen3-4B 模型仓库](https://www.modelscope.cn/models/Qwen/Qwen3-4B)获取。
 
 ```shell
 modelscope download --model Qwen/Qwen3-4B --local_dir /path/to/Qwen3-4B
@@ -56,7 +56,7 @@ modelscope download --model Qwen/Qwen3-4B --local_dir /path/to/Qwen3-4B
 
 ### **下载数据集**
 
-本实验使用的 Math 领域的 gsm8k 数据集可通过[本链接](https://www.modelscope.cn/datasets/AI-ModelScope/gsm8k)获取。
+本实验使用的 Math 领域的 gsm8k 数据集可通过[ModelScope gsm8k 数据集](https://www.modelscope.cn/datasets/AI-ModelScope/gsm8k)获取。
 
 ```shell
 modelscope download --dataset AI-ModelScope/gsm8k --local_dir /path/to/gsm8k
@@ -207,21 +207,21 @@ python3 /path/to/AgentSDK/aura/cli/preprocess_data.py gsm8k
 
 ## **文件修改**
 
-在快速拉起 qwen3-4b math 场景前，需要您修改以下配置文件，需要进行修改的参数可以参照文件头的注释，请将其中的示例路径修改为您自己的实际路径。
+在快速拉起 qwen3-4b math 场景前，需要修改以下配置文件，需要进行修改的参数可以参照文件头的注释，请将其中的示例路径修改为实际路径。
 
 1. [分离训练配置文件](../../../../../aura/configs/train/verl_train_async_A3_t16_qwen3_4b_math_fsdp.yaml)
 2. [分离推理配置文件](../../../../../aura/configs/infer/vllm_infer_i16_qwen3_4b.yaml)
 
 ### 修改hosts.conf
 
-修改为双机对应的 IP 地址，以下以 `192.168.0.1` 和 `192.168.0.2` 为例：
+修改为双机对应的 IP 地址：
 
 ```shell
 # [多机训练+推理]
 # 双机, 训推分离, 分节点部署
 # host,index,train_master_index,infer_master_index(可选)
-192.168.0.1,0,0
-192.168.0.2,1,1
+<节点IP1>,0,0
+<节点IP2>,1,1
 ```
 
 ### 修改base.conf
@@ -254,7 +254,7 @@ clean_old_ckpt=0
 
 ### 配置 DEFAULT_SOCKET_IFNAME
 
-包含正确本地 IP 的虚拟网桥名称。
+包含正确本地 IP 的网络接口名称。
 
 1. 执行 ifconfig 命令，查看网络配置：
 
@@ -275,7 +275,7 @@ clean_old_ckpt=0
             inet 192.168.100.100  netmask 255.255.255.0  broadcast 192.168.100.255
     ```
 
-3. 假设本地 IP 为 192.168.0.1，那么指向本地 IP 对应虚拟网桥的值即为 enp189s0f0 ，即需要执行：
+3. 假设本地 IP 为 192.168.0.1，那么指向本地 IP 对应网络接口的值即为 enp189s0f0，即需要执行：
 
     ```shell
     export DEFAULT_SOCKET_IFNAME=enp189s0f0

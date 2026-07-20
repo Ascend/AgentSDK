@@ -13,7 +13,7 @@ Aura 在启动时会使用白名单校验环境变量，只有以下环境变量
 
 |环境变量名称|描述|
 |--|--|
-|ASCEND_WORK_PATH|归一CANN运行中过程中生成文件的位置。|
+|ASCEND_WORK_PATH|统一CANN运行过程中生成文件的位置。|
 |ASCEND_AICPU_PATH|ascend-toolkit的AI CPU的安装路径。|
 |ASCEND_HOME_PATH|同ASCEND_TOOLKIT_HOME，代表CANN-toolkit软件安装后文件存储路径。|
 |ASCEND_OPP_PATH|算子库根目录。|
@@ -29,7 +29,7 @@ Aura 在启动时会使用白名单校验环境变量，只有以下环境变量
 |ATB_HOME_PATH|nnal软件包安装后文件存储路径。|
 |ATB_HOST_TILING_BUFFER_BLOCK_NUM|Context内部HostTilingBuffer块数，数量与OP并行的最大并行数有关，通常使用默认值，不建议修改。|
 |ATB_MATMUL_SHUFFLE_K_ENABLE|Shuffle-K使能，矩阵乘的结果矩阵不同位置计算时的累加序一致/不一致。会影响matmul算子内部累加序。|
-|ATB_OPSRUNNER_KERNEL_CACHE_GLOABL_COUNT|全局kernelCache的槽位数。槽位数增加：<li>增加cache命中率，但降低检索效率。</li><li>槽位数减少：提高检索效率，但降低cache命中率。</li>|
+|ATB_OPSRUNNER_KERNEL_CACHE_GLOBAL_COUNT|全局kernelCache的槽位数。槽位数增加：<li>增加cache命中率，但降低检索效率。</li><li>槽位数减少：提高检索效率，但降低cache命中率。</li>|
 |ATB_OPSRUNNER_KERNEL_CACHE_LOCAL_COUNT|本地kernelCache的槽位数。<li>槽位数增加时：增加cache命中率，但降低检索效率。</li><li>槽位数减少时：提高检索效率，但降低cache命中率。</li>|
 |ATB_OPSRUNNER_SETUP_CACHE_ENABLE|是否开启ATB的SetupCache功能。该功能在检测到operation的输入和输出tensor未发生变化时会跳过setup的大部分流程，进而提升调度侧性能。默认开启，以进行性能加速。|
 |ATB_STREAM_SYNC_EVERY_KERNEL_ENABLE|用于问题定位，确定报错所在的kernel。当变量配置为1时，每个Kernel的Execute结束时就做流同步。|
@@ -48,7 +48,7 @@ Aura 在启动时会使用白名单校验环境变量，只有以下环境变量
 > [!NOTE] 说明
 >
 >- Aura 的运行会使用到开源软件，相关开源软件会使用的环境变量请参考对应软件说明。
->- Aura 依赖CANN，运行CANN的过程中，会生成kernel\_meta等文件夹，Aura 不具有转储和删除这些文件的功能，用户可参考《CANN 环境变量参考》中的"安装配置相关" \> "落盘文件配置" \> "ASCEND\_WORK\_PATH"章节，使用环境变量进行文件统一管理。
+>- Aura 依赖CANN，运行CANN的过程中，会生成kernel\_meta等文件夹，Aura 不具有转储和删除这些文件的功能，用户可参考[《CANN 环境变量参考》](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/900beta2/maintenref/envvar/envref_07_0007.html)中的"安装配置相关" \> "ASCEND\_WORK\_PATH"章节，使用环境变量进行文件统一管理。
 
 ## 支持的推理后端
 

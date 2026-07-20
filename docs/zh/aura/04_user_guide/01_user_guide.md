@@ -168,7 +168,7 @@ agent_instances:
   - name: MY-AGENT
     executor_num: 1
     executor_kwargs:
-      agent_engine: mock
+      agent_engine: MockEngineWrapper
       agent_engine_kwargs:
         agent_name: my_agent
         tokenizer: /path/to/tokenizer

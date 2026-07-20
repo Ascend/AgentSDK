@@ -211,9 +211,9 @@ bash run_presmoke_openclaw.sh
 
 | 状态 | 时间 | 说明 |
 |------|------|------|
-| 计划 | 1-3个月 | 特性规划 |
+| 计划 | 1~3个月 | 特性规划 |
 | 开发 | 3个月 | 新特性开发和问题修复，定期发布 |
-| 维护 | 3-12个月 | 常规分支维护3个月，长期支持分支维护12个月。仅修复重大BUG，不加入新特性 |
+| 维护 | 3~12个月 | 常规分支维护3个月，长期支持分支维护12个月。仅修复重大BUG，不加入新特性 |
 | 生命周期终止（EOL） | N/A | 分支不再接受任何修改 |
 
 ## 版本维护策略
@@ -221,8 +221,8 @@ bash run_presmoke_openclaw.sh
 | 版本    | 维护策略 | 当前状态 | 发布日期 | 后续状态 | EOL日期 |
 |-------|----------|----------|----------|----------|---------|
 | master | 长期支持 | 开发 | 在研分支，不发布 | 持续开发 | - |
-| 26.0.0.beta.1 | 常规分支 | 维护 | 2026-04-25 | 预计2026/7/25起进入无维护状态 | 2026-07-25 |
-| 26.1.0 | 常规分支 | 维护 | 2026-07-10 | 预计2026/10/10起进入无维护状态 | 2026-10-10 |
+| 26.0.0.beta.1 | 常规分支 | 维护 | 2026-04-25 | 预计2026-7-25起进入无维护状态 | 2026-07-25 |
+| 26.1.0 | 常规分支 | 维护 | 2026-07-10 | 预计2026-10-10起进入无维护状态 | 2026-10-10 |
 
 # PullRequest
 
@@ -242,9 +242,9 @@ bash run_presmoke_openclaw.sh
 1. **创建特性分支**
 
    ```bash
-   git checkout -b feature/your-feature-name
+   git checkout -b feature/<your-feature-name>
    # 或
-   git checkout -b fix/issue-number
+   git checkout -b fix/<issue-number>
    ```
 
 2. **进行开发**
@@ -362,8 +362,6 @@ CI 检查项目包括：
 - `code_check`：编码风格、规范与安全检查
 - `anti_poison`：病毒扫描
 - `sca`：开源合规检查
-- `UT_go`：Go 单元测试
-- `UT_cpp`：C++ 单元测试
 - `UT_python`：Python 单元测试
 
 任意一项失败，都可以通过详情链接查看具体问题。如果属于 CI 自身故障，请[联系 committer](https://gitcode.com/Ascend/community/blob/master/MindSDK/sigs/AgentSDK/sig-info.yaml)，或通过评论 `rebuild` 尝试重新构建。
