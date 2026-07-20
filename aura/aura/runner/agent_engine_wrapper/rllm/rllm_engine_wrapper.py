@@ -30,6 +30,15 @@ from aura.runner.agent_engine_wrapper.base_engine_wrapper import BaseEngineWrapp
 
 logger = Loggers(__name__).get_logger()
 
+TRAJECTORY_GENERATION_METHOD_DEFAULT = "default"
+TRAJECTORY_GENERATION_METHOD_CHAIN = "chain"
+TRAJECTORY_GENERATION_METHOD_TREE = "tree"
+VALID_TRAJECTORY_GENERATION_METHODS = {
+    TRAJECTORY_GENERATION_METHOD_DEFAULT,
+    TRAJECTORY_GENERATION_METHOD_CHAIN,
+    TRAJECTORY_GENERATION_METHOD_TREE,
+}
+
 
 class RLLMEngineWrapper(BaseEngineWrapper):
     def __init__(
@@ -68,6 +77,16 @@ class RLLMEngineWrapper(BaseEngineWrapper):
         self.max_model_len = max_model_len
         self.n_parallel_agents = n_parallel_agents
         self.token_in_token_out = kwargs.get("token_in_token_out", False)
+        self.trajectory_generation_method = kwargs.get(
+            "trajectory_generation_method", TRAJECTORY_GENERATION_METHOD_DEFAULT
+        )
+        if self.trajectory_generation_method not in VALID_TRAJECTORY_GENERATION_METHODS:
+            raise ValueError(
+                f"trajectory_generation_method must be one of {sorted(VALID_TRAJECTORY_GENERATION_METHODS)}, "
+                f"got {self.trajectory_generation_method}"
+            )
+        self.beam_size = kwargs.get("beam_size", 3)
+        self.per_beam_expand = kwargs.get("per_beam_expand", 2)
         # for vaee
         self.agent_engine_kwargs = {
             "agent_name": agent_name,
@@ -240,6 +259,9 @@ class RLLMEngineWrapper(BaseEngineWrapper):
                 max_steps=self.max_steps,
                 token_in_token_out=self.token_in_token_out,
                 overlong_filter=self.overlong_filter,
+                trajectory_generation_method=self.trajectory_generation_method,
+                beam_size=self.beam_size,
+                per_beam_expand=self.per_beam_expand,
             )
 
     async def generate_trajectory(
@@ -251,14 +273,29 @@ class RLLMEngineWrapper(BaseEngineWrapper):
         server_handles=None,
         *args,
         **kwargs,
-    ) -> Trajectory:
+    ) -> Trajectory | list[Trajectory]:
         """
         Trajectory generation: supports both streaming and non-streaming modes.
+
+        trajectory_generation_method semantics:
+        - default: preserve legacy single-trajectory behavior and task payload.
+        - chain: explicit chain trajectory mode without wrapper-side task rewriting.
+        - tree: enable tree/beam rollout and add WebWalker-compatible task fields.
         """
         iteration = task.iteration
         sample_id = task.sample_id
         task_id = task.task_id
         task = task.model_dump()
+        task_generation_method = task.get("trajectory_generation_method", self.trajectory_generation_method)
+        if task_generation_method not in VALID_TRAJECTORY_GENERATION_METHODS:
+            raise ValueError(
+                f"trajectory_generation_method must be one of {sorted(VALID_TRAJECTORY_GENERATION_METHODS)}, "
+                f"got {task_generation_method}"
+            )
+        if task_generation_method == TRAJECTORY_GENERATION_METHOD_TREE:
+            if task.get("problem") and not task.get("question"):
+                task["question"] = task["problem"]
+            task.setdefault("trajectory_generation_method", task_generation_method)
         logger.debug(f"generate_trajectory task: {task}, stream_queue={stream_queue}")
         extra_args = task.get("extra_args", {})
         extra_args = {} if extra_args is None else extra_args
@@ -272,11 +309,15 @@ class RLLMEngineWrapper(BaseEngineWrapper):
 
         self.engine.update_env_and_agent(task_id, env, agent, iteration, sample_id)
         trajectory = None
+        trajectories = []
         async for item in self.engine.trajectory_generator(
             task=task, stream_queue=stream_queue, mode=mode, prompt_id=prompt_id, server_handles=server_handles
         ):
             trajectory = item
+            trajectories.append(item)
         self.engine.release_env_and_agent(task_id)
+        if task.get("trajectory_generation_method") == TRAJECTORY_GENERATION_METHOD_TREE:
+            return trajectories
         return trajectory
 
     async def cancel_request(self, task: AgentTask):
