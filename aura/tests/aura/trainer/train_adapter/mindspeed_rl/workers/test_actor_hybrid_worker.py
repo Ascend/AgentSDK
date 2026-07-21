@@ -27,9 +27,9 @@ from unittest.mock import MagicMock, patch
 
 @pytest.fixture(autouse=True)
 def mock_ray_runtime():
-    with patch('ray.get', return_value=None), \
-         patch('ray.get_actor', return_value=MagicMock(weight_saved=MagicMock(remote=MagicMock()))), \
-         patch('ray.get_runtime_context', return_value=MagicMock(get_node_id=lambda: "node123")):
+    with patch('ray.get', return_value=None, create=True), \
+         patch('ray.get_actor', return_value=MagicMock(weight_saved=MagicMock(remote=MagicMock())), create=True), \
+         patch('ray.get_runtime_context', return_value=MagicMock(get_node_id=lambda: "node123"), create=True):
         yield
 
 
@@ -116,6 +116,34 @@ class TestActorHybridWorker:
 
             import time
             time.sleep(0.1)
+
+    def test_safe_mstx_timer_decorator_logs_when_decorator_fails(self):
+        """Test mstx decorator fallback logs warning when wrapping fails."""
+        from aura.trainer.train_adapter.mindspeed_rl.workers import actor_hybrid_worker
+
+        def func():
+            return "ok"
+
+        with patch.object(actor_hybrid_worker, "mstx_timer_decorator", side_effect=RuntimeError("boom")):
+            with patch.object(actor_hybrid_worker.logger, "warning") as mock_warning:
+                wrapped = actor_hybrid_worker._safe_mstx_timer_decorator(func)
+
+        assert wrapped is func
+        mock_warning.assert_called_once()
+
+    def test_safe_mstx_timer_decorator_logs_when_mock_returned(self):
+        """Test mstx decorator fallback logs warning when MagicMock would swallow methods."""
+        from aura.trainer.train_adapter.mindspeed_rl.workers import actor_hybrid_worker
+
+        def func():
+            return "ok"
+
+        with patch.object(actor_hybrid_worker, "mstx_timer_decorator", return_value=MagicMock()):
+            with patch.object(actor_hybrid_worker.logger, "warning") as mock_warning:
+                wrapped = actor_hybrid_worker._safe_mstx_timer_decorator(func)
+
+        assert wrapped is func
+        mock_warning.assert_called_once()
 
     def test_update_actor_logprob_dispatch_size(self):
         """Test update_actor_logprob_dispatch_size function."""

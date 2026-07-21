@@ -24,40 +24,43 @@ from mindspeed_rl import GenerateConfig
 class ExtendedGenerateConfig(GenerateConfig):
     def __init__(self, config_dict):
         # Extended parameters with default values
-        self.base_url = ""
-        self.api_key = "empty"
-        self.train_backend = "mindspeed_rl"
-        self.enable_sleep_mode = False
-        self.load_format = "megatron"
-        self.agent_engine = "rllm"
-        self.infer_backend = "vllm"
-        self.cudagraph_capture_sizes = None
+        defaults = {
+            "base_url": "",
+            "api_key": "empty",
+            "train_backend": "mindspeed_rl",
+            "enable_sleep_mode": False,
+            "load_format": "megatron",
+            "agent_engine": "rllm",
+            "infer_backend": "vllm",
+            "cudagraph_capture_sizes": None,
+            "disable_log_stats": False,
+            "enable_chunked_prefill": True,
+            "validate_sampling": {
+                "max_tokens": 8192,
+                "top_p": 0.5,
+                "top_k": 50,
+                "min_p": 0.01,
+                "temperature": 0.2,
+            },
+            "init_num_group_batches": 1,
+            "max_queue_size": 1,
+            "weight_save_dir": None,
+            "update_weights_interval": 1,
+            "ckpt_delta": 1,
+            "data_optimized": False,
+            "hybrid_batch_num": 1,
+            "enable_version_control": False,
+            "use_on_policy": False,
+            "wait_available_weight_timeout": -1,
+            "prefill_enforce_eager": None,
+            "prefill_max_num_seqs": None,
+            "prefill_max_num_batched_tokens": None,
+            "prefill_gpu_memory_utilization": None,
+            "prefill_max_model_len": None,
+        }
+        for key, value in defaults.items():
+            setattr(self, key, value)
         # Enable inference statistics by default for load balancing scheduling, False means enable statistics
-        self.disable_log_stats = False
-        self.enable_chunked_prefill = True
-
-        self.validate_sampling = {"max_tokens": 8192, "top_p": 0.5, "top_k": 50, "min_p": 0.01, "temperature": 0.2}
-
-        # one-step-off params
-        self.init_num_group_batches = 1
-        self.max_queue_size = 1
-        self.weight_save_dir = None
-        self.update_weights_interval = 1
-        self.ckpt_delta = 1
-        self.data_optimized = False
-        # hybrid params
-        self.hybrid_batch_num = 1
-        self.enable_version_control = False
-        self.use_on_policy = False
-        self.wait_available_weight_timeout = (
-            -1
-        )  # -1 indicates indefinite waiting; any other value specifies the timeout duration in seconds
-
-        # add prefill params
-        self.prefill_enforce_eager = None
-        self.prefill_max_num_seqs = None
-        self.prefill_max_num_batched_tokens = None
-        self.prefill_gpu_memory_utilization = None
-        self.prefill_max_model_len = None
-
         super().__init__(config_dict)
+        for key, value in defaults.items():
+            setattr(self, key, config_dict.get(key, value))
