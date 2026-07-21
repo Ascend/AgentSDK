@@ -27,7 +27,15 @@ pip uninstall -y triton || true
 pip uninstall -y triton-ascend || true
 
 echo "[build_env] 安装 AgentSDK + third_party"
-bash /home/work/AgentSDK/docker/aura/env/build_common.sh
+cd /home/work/AgentSDK/aura
+bash download_third_party.sh
+pip cache purge || true
+pip install -r third_party/requirements_aura.txt
+pip uninstall -y torch torchvision torchaudio || true
+pip install torch==2.7.1 torchvision==0.22.1 torchaudio==2.7.1 -f https://mirrors.aliyun.com/pytorch-wheels/cpu
+pip uninstall -y triton || true
+pip uninstall -y triton-ascend || true
+pip install triton-ascend==3.2.0
 
 echo "[build_env] patch triton-ascend for CANN 9.0.0"
 bash /home/work/AgentSDK/docker/aura/patch/patch_triton_ascend.sh
