@@ -44,7 +44,16 @@ class AgentGRPOTrainer(CommonGRPOTrainer):
 
     def transfer_dock_init(self):
         dataset_additional_keys = self.dataset_additional_keys
-        self.dataset_additional_keys = dataset_additional_keys + ["response_mask"]
+        # stepwise: group GRPO samples by prompt index.
+        self.dataset_additional_keys = dataset_additional_keys + ["response_mask", "index_in_batch_list"]
+        if self.kwargs.get("use_stepwise_advantage") is True:
+            # Beam stepwise rollout columns registered in TransferDock schema.
+            self.dataset_additional_keys += [
+                "mc_returns",
+                "idxs",
+                "index_in_steps_list",
+                "is_last_step",
+            ]
         super().transfer_dock_init()
         self.dataset_additional_keys = dataset_additional_keys
         ray.get(self.rollout_worker.init_data_manager.remote(self.transfer_dock))
@@ -90,6 +99,7 @@ class AgentGRPOTrainer(CommonGRPOTrainer):
                 except Exception as e:
                     traceback.print_exc()
                     print(f"error: {e}")
+                    raise
 
                 if self.kwargs.get("use_stepwise_advantage") == True:
                     # total num changed

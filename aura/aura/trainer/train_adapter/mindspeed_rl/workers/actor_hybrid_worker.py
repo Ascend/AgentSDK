@@ -53,6 +53,19 @@ logger = Loggers(__name__).get_logger()
 HAS_HACO = enable_haco(logger)
 
 
+def _safe_mstx_timer_decorator(func):
+    """Keep real mstx timing, but avoid MagicMock decorators swallowing methods in UT."""
+    try:
+        wrapped = mstx_timer_decorator(func)
+    except Exception as exc:
+        logger.warning(f"mstx_timer_decorator failed; fallback to original function: {exc}")
+        return func
+    if type(wrapped).__module__ == "unittest.mock":
+        logger.warning("mstx_timer_decorator returned a mock object; fallback to original function.")
+        return func
+    return wrapped
+
+
 def _do_tensors_save(
     save_dir: str, file_path: str, params: Dict[str, Any], meta_header: Optional[Dict[str, str]]
 ) -> None:
@@ -101,6 +114,17 @@ class AgentActorHybridWorkerBase(ActorHybridWorkerBase):
     def __init__(self, *args, **kwargs):
         # Engine is deferred to be initialized in init_worker
         super().__init__(*args, **kwargs)
+        # BaseRayWorker sets LOCAL_RANK from Ray physical NPU id; after sitecustomize
+        # set_device remap, sync env with the logical device HCCL/Megatron expect.
+        if hasattr(torch, "npu"):
+            logical_device = torch.npu.current_device()
+            os.environ["LOCAL_RANK"] = str(logical_device)
+            self._local_rank = logical_device
+            logger.info(
+                "sync LOCAL_RANK to logical NPU device=%s, ASCEND_RT_VISIBLE_DEVICES=%s",
+                logical_device,
+                os.getenv("ASCEND_RT_VISIBLE_DEVICES", ""),
+            )
         self.rl_config.zmq_communication = False
         self.continue_infer_running = False
         self.sentinel = None
@@ -269,7 +293,7 @@ class AgentActorHybridWorkerBase(ActorHybridWorkerBase):
 
         return rollout
 
-    @mstx_timer_decorator
+    @_safe_mstx_timer_decorator
     def update(self, kl_ctrl: Any = None, skip_actor_log_prob: bool = False) -> None:
         """Run one actor-update step: enter train mode, consume experience, and update metrics.
 
@@ -419,7 +443,7 @@ class AgentActorHybridWorkerBase(ActorHybridWorkerBase):
         tensor_params, meta_header = split_tensors_and_meta(params)
         return tensor_params, meta_header
 
-    @mstx_timer_decorator
+    @_safe_mstx_timer_decorator
     def onload_infer_params_with_device(self, device: str = "cpu") -> None:
         """Rebuild weight buffers on the specified device.
 
@@ -440,7 +464,6 @@ class AgentActorHybridWorkerBase(ActorHybridWorkerBase):
             A tuple of (file_path, device) or ``None`` when the current data-parallel
             rank should not save.
         """
-        dp_rank = ps.get_data_parallel_rank()
         pp_rank = ps.get_pipeline_model_parallel_rank()
         tp_rank = ps.get_tensor_model_parallel_rank()
         ep_rank = None
@@ -455,7 +478,7 @@ class AgentActorHybridWorkerBase(ActorHybridWorkerBase):
         file_path = os.path.join(save_dir, file_name)
         return file_path, dev
 
-    @mstx_timer_decorator
+    @_safe_mstx_timer_decorator
     def prepare_infer_params_to_cpu(self, save_dir: str):
         """Synchronously materialize weights on CPU and free actor buffers."""
         file_path, dev = self.get_file_name_and_dev(save_dir)
@@ -467,17 +490,30 @@ class AgentActorHybridWorkerBase(ActorHybridWorkerBase):
         logger.info(f"saving {len(tensor_params)} tensors to {file_path} success.")
         return file_path
 
+    def update_actor_logprob_dispatch_size(self, new_actor_logprob_dispatch_size):
+        self.rl_config.actor_logprob_dispatch_size = (
+            new_actor_logprob_dispatch_size // self.parallel_state.get_data_parallel_world_size()
+        )
 
-def update_actor_logprob_dispatch_size(self, new_actor_logprob_dispatch_size):
-    # Update the actor log-prob dispatch size by dividing it by the data parallel world size
-    self.rl_config.actor_logprob_dispatch_size = (
-        new_actor_logprob_dispatch_size // self.parallel_state.get_data_parallel_world_size()
+    def update_actor_update_dispatch_size(self, new_actor_update_dispatch_size):
+        self.rl_config.actor_update_dispatch_size = (
+            new_actor_update_dispatch_size // self.parallel_state.get_data_parallel_world_size()
+        )
+
+    def update_mini_batch_size(self, original_n_samples_per_prompt, new_samples_per_prompt, use_stepwise_advantage):
+        self.actor_hybrid.update_mini_batch_size(
+            original_n_samples_per_prompt, new_samples_per_prompt, use_stepwise_advantage
+        )
+
+
+def update_actor_logprob_dispatch_size(worker, new_actor_logprob_dispatch_size):
+    worker.rl_config.actor_logprob_dispatch_size = (
+        new_actor_logprob_dispatch_size // worker.parallel_state.get_data_parallel_world_size()
     )
 
 
-def update_mini_batch_size(self, original_n_samples_per_prompt, new_samples_per_prompt, use_stepwise_advantage):
-    # Update the mini-batch size by delegating to the actor_hybrid module
-    self.actor_hybrid.update_mini_batch_size(
+def update_mini_batch_size(worker, original_n_samples_per_prompt, new_samples_per_prompt, use_stepwise_advantage):
+    worker.actor_hybrid.update_mini_batch_size(
         original_n_samples_per_prompt, new_samples_per_prompt, use_stepwise_advantage
     )
 

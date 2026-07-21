@@ -2,6 +2,8 @@
 # SPDX-License-Identifier: Apache-2.0 OR MulanPSL-2.0
 #
 # This file is part of the AgentSDK project.
+# Adapted from rucaibox/swe-master/DeepSWE_RL/rllm/rllm/trainer/verl/agent_ppo_trainer.py
+# Copyright (c) 2026 Huatong Song
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
 #
 # AgentSDK is licensed under Mulan PSL v2.
@@ -14,6 +16,26 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
+#
+# MIT License
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
 #
 import asyncio
 import time
@@ -67,7 +89,6 @@ async def create_tasks(agent_service: str, prompts: DataProto, n_samples_per_pro
     agent_tasks = []
     for idx in range(len(prompts)):
         known_fields = ["index", "global_steps", "raw_prompt", "reward_model", "extra_info"]
-        index = prompts.non_tensor_batch["index"][idx] if "index" in prompts.non_tensor_batch else idx
         global_steps = prompts.meta_info["global_steps"]
         problem = prompts.non_tensor_batch["raw_prompt"][idx][0]["content"]
 
@@ -103,22 +124,133 @@ async def create_tasks(agent_service: str, prompts: DataProto, n_samples_per_pro
     return agent_tasks
 
 
-async def generate_trajectory(agent_task: AgentTask, addresses, server_handles) -> dict:
+async def generate_trajectory(
+    agent_task: AgentTask, addresses, server_handles, mode: str = "Token"
+) -> dict | list | Episode:
     """Generate a single trajectory via the AgentRouter.
 
     Args:
         agent_task: The task specification for trajectory generation.
+        mode: ``Token`` for standard rollout, ``Step`` for dynamic-beam stepwise rollout.
 
     Returns:
-        Dictionary containing trajectory data (tokens, rewards, etc.).
+        Trajectory dict, list of beam step dicts (stepwise), or Episode.
     """
     from aura.runner.agent_router import AgentRouter
 
     router = await AgentRouter.create()
     trajectory = await router.generate_trajectory(
-        agent_task, mode='Token', addresses=addresses, server_handles=server_handles
+        agent_task, mode=mode, addresses=addresses, server_handles=server_handles
     )
     return trajectory
+
+
+async def transform_beam_steps_to_batch(config: Any, tokenizer: Any, beam_trajectories: List) -> DataProto:
+    """Convert dynamic-beam step candidates into a padded DataProto batch."""
+    def _sort_key(t):
+        return (
+            int(t.get("prompt_index", t.get("idx", 0)) if isinstance(t, dict) else 0),
+            int(t.get("step_depth", 0) if isinstance(t, dict) else 0),
+        )
+
+    beam_trajectories = [t for t in beam_trajectories if isinstance(t, dict) and t.get("steps")]
+    beam_trajectories.sort(key=_sort_key)
+
+    all_initial_tokens_list = []
+    all_response_tokens_list = []
+    all_masks_list = []
+    traj_scores = []
+    group_keys = []
+    index_in_batch = []
+    index_in_steps = []
+    is_last_step = []
+
+    for traj in beam_trajectories:
+        steps = traj["steps"]
+        step = steps[-1]
+        prompt_index = int(traj.get("prompt_index", traj.get("idx", 0)))
+        step_idx = int(traj.get("step_depth", len(steps) - 1))
+        step_scores = traj.get("mc_returns", []) or []
+        trajectory_reward = traj.get("trajectory_reward", traj.get("reward", 0.0))
+        score = step_scores[-1] if len(step_scores) > 0 else trajectory_reward
+
+        prompt = torch.tensor(tokenizer.encode(step["prompt"], add_special_tokens=False), dtype=torch.long)
+        response = torch.tensor(tokenizer.encode(step["response"], add_special_tokens=False), dtype=torch.long)
+        if prompt.numel() == 0 or response.numel() == 0:
+            continue
+        all_initial_tokens_list.append(prompt)
+        all_response_tokens_list.append(response)
+        all_masks_list.append(torch.ones_like(response, dtype=torch.long))
+        traj_scores.append(float(score))
+        group_keys.append(f"{prompt_index}_{step_idx}")
+        index_in_batch.append(prompt_index)
+        index_in_steps.append(step_idx)
+        is_last_step.append(bool(traj.get("is_last_step", True)))
+
+    if not all_initial_tokens_list:
+        raise ValueError("transform_beam_steps_to_batch: no valid beam candidate")
+
+    prompts_batch = torch.nn.utils.rnn.pad_sequence(
+        [torch.flip(i, dims=[0]) for i in all_initial_tokens_list],
+        batch_first=True,
+        padding_value=tokenizer.pad_token_id,
+    ).flip(dims=[1])
+    response_batch = torch.nn.utils.rnn.pad_sequence(
+        all_response_tokens_list,
+        batch_first=True,
+        padding_value=tokenizer.pad_token_id,
+    )
+    input_ids_list = torch.concat([prompts_batch, response_batch], dim=1)
+
+    traj_mask = torch.nn.utils.rnn.pad_sequence(all_masks_list, batch_first=True, padding_value=0)
+    attention_mask = torch.where(input_ids_list != tokenizer.pad_token_id, 1, 0)
+    position_ids = (torch.cumsum(attention_mask, dim=1) - 1) * attention_mask
+
+    score_batch = torch.zeros_like(response_batch, dtype=torch.float32)
+    prompt_length = prompts_batch.shape[1]
+    valid_response_length_sequences = attention_mask[:, prompt_length:].sum(dim=-1)
+    for i, traj_score in enumerate(traj_scores):
+        last_valid_idx = valid_response_length_sequences[i] - 1
+        if 0 <= last_valid_idx < score_batch.shape[1]:
+            score_batch[i, last_valid_idx] = traj_score
+
+    batch_tensors = {
+        "input_ids": input_ids_list,
+        "attention_mask": attention_mask,
+        "position_ids": position_ids,
+        "responses": response_batch,
+        "prompts": prompts_batch,
+        "token_level_rewards": score_batch,
+        "response_mask": traj_mask,
+        "rm_scores": score_batch,
+    }
+    batch = DataProto.from_dict(tensors=batch_tensors)
+    batch.non_tensor_batch["uid"] = np.array(group_keys, dtype=object)
+    batch.non_tensor_batch["index_in_batch"] = np.array(index_in_batch, dtype=object)
+    batch.non_tensor_batch["index_in_steps"] = np.array(index_in_steps, dtype=object)
+    batch.non_tensor_batch["is_last_step"] = np.array(is_last_step, dtype=object)
+    batch.meta_info["timing"] = {}
+    return batch
+
+
+def _is_mock_value(value: Any) -> bool:
+    return type(value).__module__ == "unittest.mock"
+
+
+def _get_stepwise_advantage_enabled(config: Any) -> bool:
+    try:
+        algorithm_cfg = config.get("algorithm", {})
+    except Exception:
+        algorithm_cfg = {}
+    if _is_mock_value(algorithm_cfg):
+        return False
+    if isinstance(algorithm_cfg, dict):
+        value = algorithm_cfg.get("use_stepwise_advantage", False)
+    else:
+        value = getattr(algorithm_cfg, "use_stepwise_advantage", False)
+    if _is_mock_value(value):
+        return False
+    return bool(value)
 
 
 async def transform_trajectories_to_batch(config: Any, tokenizer: Any, trajectories: list[dict]) -> DataProto:
@@ -183,8 +315,6 @@ async def transform_trajectories_to_batch(config: Any, tokenizer: Any, trajector
     )
 
     input_ids_list = torch.concat([prompts_batch, response_batch], dim=1)
-
-    prompt_length_list = [torch.tensor([len(prompt)]) for prompt in all_initial_tokens_list]
 
     traj_mask = torch.nn.utils.rnn.pad_sequence(all_masks_list, batch_first=True, padding_value=0)
     trajectory_batch = torch.concat([prompts_batch, response_batch], dim=1)
@@ -417,20 +547,41 @@ class HybridAgentLoopManager(AgentLoopManager):
             DataProto batch assembled from generated trajectories.
         """
         agent_tasks = await create_tasks(config.extras.agent_service, prompts, config.actor_rollout_ref.rollout.n)
+        use_stepwise = _get_stepwise_advantage_enabled(config)
         if hasattr(config.extras, "chat_interface") and config.extras.chat_interface == "generate":
             futures = [
-                asyncio.create_task(generate_trajectory(task, self.chat_server_list, self.server_handles))
+                asyncio.create_task(
+                    generate_trajectory(task, self.chat_server_list, self.server_handles, "Step")
+                    if use_stepwise
+                    else generate_trajectory(task, self.chat_server_list, self.server_handles)
+                )
                 for task in agent_tasks
             ]
         else:
             futures = [
-                asyncio.create_task(generate_trajectory(task, self.chat_server_list, None)) for task in agent_tasks
+                asyncio.create_task(
+                    generate_trajectory(task, self.chat_server_list, None, "Step")
+                    if use_stepwise
+                    else generate_trajectory(task, self.chat_server_list, None)
+                )
+                for task in agent_tasks
             ]
         episode_list = []
         task_id_list = []
         trajectory_list = []
         for f in futures:
             episode_list.append(await f)
+
+        if use_stepwise:
+            beam_trajectories = []
+            for item in episode_list:
+                if isinstance(item, list):
+                    beam_trajectories.extend(item)
+                elif item is not None:
+                    beam_trajectories.append(item)
+            if self.traj_output_path is not None:
+                self.write_file(beam_trajectories, prefix="trajectories")
+            return await transform_beam_steps_to_batch(config, tokenizer, beam_trajectories)
 
         if isinstance(episode_list[0], Episode):
             for episode in episode_list:
@@ -493,6 +644,7 @@ class HybridAgentLoopManager(AgentLoopManager):
         data_str = convert_to_string(add_iter)
 
         output_file = f'rollout_{prefix}_{int(self.perf_timestamp)}.json'
+        os.makedirs(self.traj_output_path, exist_ok=True)
         with open(os.path.join(self.traj_output_path, output_file), 'a') as f:
             json.dump(data_str, f, indent=4, ensure_ascii=False)
             f.write('\n')

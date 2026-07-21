@@ -13,7 +13,7 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
-# 
+#
 import os
 import time
 from contextlib import contextmanager
@@ -226,6 +226,11 @@ class IntegratedWorker(AgentActorHybridWorkerBase, ReferenceWorkerBase, RewardWo
         for key, value in arg_dict.items():
             if hasattr(self.get_args(), key):
                 setattr(self.get_args(), key, value)
+
+    def update_ref_dispatch_size(self, new_ref_dispatch_size: int) -> None:
+        self.rl_config.ref_dispatch_size = (
+            new_ref_dispatch_size // self.parallel_state.get_data_parallel_world_size()
+        )
 
 
 @contextmanager

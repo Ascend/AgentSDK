@@ -23,21 +23,31 @@ from mindspeed_rl import RLConfig
 
 class ExtendedRLConfig(RLConfig):
     def __init__(self, config_dict):
-        self.validate_freq = 10
-        self.validate_num_samples = 100
-        self.test_before_train = False
-        self.test_only = False
-        self.validate_n_samples = 1
-        self.simplify_think_content = False
-        self.use_stepwise_advantage = False
-        self.mock_rollout = False
-        self.mock_prompt_mean = 500
-        self.mock_prompt_gap = 200
-        self.mock_response_mean = 1000
-        self.mock_response_gap = 400
-        self.mock_eos_token_id = 151643
-        self.ref_max_packing_token_size = None
+        defaults = {
+            "validate_freq": 10,
+            "validate_num_samples": 100,
+            "test_before_train": False,
+            "test_only": False,
+            "validate_n_samples": 1,
+            "simplify_think_content": False,
+            "use_stepwise_advantage": False,
+            "stepwise_advantage_mode": "immediate_reward_centered_scaled",
+            "stepwise_advantage_beta": 1.6,
+            "mock_rollout": False,
+            "mock_prompt_mean": 500,
+            "mock_prompt_gap": 200,
+            "mock_response_mean": 1000,
+            "mock_response_gap": 400,
+            "mock_eos_token_id": 151643,
+            "ref_max_packing_token_size": None,
+            "use_tensorboard": False,
+            "tensorboard_dir": "",
+        }
+        for key, value in defaults.items():
+            setattr(self, key, value)
 
         super().__init__(config_dict)
+        for key, value in defaults.items():
+            setattr(self, key, config_dict.get(key, value))
         if self.ref_max_packing_token_size is None:
             self.ref_max_packing_token_size = self.max_packing_token_size
