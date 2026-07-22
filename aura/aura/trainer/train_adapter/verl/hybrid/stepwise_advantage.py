@@ -101,6 +101,11 @@ def compute_group_norm_advantage(
 def _group_keys_from_batch(batch):
     """Prefer index columns; fall back to uid set by HybridAgentLoopManager."""
     ntb = batch.non_tensor_batch
+    if "index_in_group" in ntb and "index_in_batch" in ntb and "index_in_steps" in ntb:
+        g = [str(x) for x in np.asarray(ntb["index_in_group"]).reshape(-1)]
+        b = [int(x) for x in np.asarray(ntb["index_in_batch"]).reshape(-1)]
+        s = [int(x) for x in np.asarray(ntb["index_in_steps"]).reshape(-1)]
+        return [f"{gg}_{bb}_{ss}" for gg, bb, ss in zip(g, b, s)]
     if "index_in_batch" in ntb and "index_in_steps" in ntb:
         b = [int(x) for x in np.asarray(ntb["index_in_batch"]).reshape(-1)]
         s = [int(x) for x in np.asarray(ntb["index_in_steps"]).reshape(-1)]

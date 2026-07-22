@@ -163,6 +163,7 @@ async def transform_beam_steps_to_batch(config: Any, tokenizer: Any, beam_trajec
     group_keys = []
     index_in_batch = []
     index_in_steps = []
+    index_in_group = []
     is_last_step = []
 
     for traj in beam_trajectories:
@@ -170,6 +171,7 @@ async def transform_beam_steps_to_batch(config: Any, tokenizer: Any, beam_trajec
         step = steps[-1]
         prompt_index = int(traj.get("prompt_index", traj.get("idx", 0)))
         step_idx = int(traj.get("step_depth", len(steps) - 1))
+        group_source = traj.get("idx", traj.get("prompt_id", traj.get("task_id", traj.get("application_id", prompt_index))))
         step_scores = traj.get("mc_returns", []) or []
         trajectory_reward = traj.get("trajectory_reward", traj.get("reward", 0.0))
         score = step_scores[-1] if len(step_scores) > 0 else trajectory_reward
@@ -182,9 +184,10 @@ async def transform_beam_steps_to_batch(config: Any, tokenizer: Any, beam_trajec
         all_response_tokens_list.append(response)
         all_masks_list.append(torch.ones_like(response, dtype=torch.long))
         traj_scores.append(float(score))
-        group_keys.append(f"{prompt_index}_{step_idx}")
+        group_keys.append(f"{group_source}_{prompt_index}_{step_idx}")
         index_in_batch.append(prompt_index)
         index_in_steps.append(step_idx)
+        index_in_group.append(str(group_source))
         is_last_step.append(bool(traj.get("is_last_step", True)))
 
     if not all_initial_tokens_list:
@@ -228,6 +231,7 @@ async def transform_beam_steps_to_batch(config: Any, tokenizer: Any, beam_trajec
     batch.non_tensor_batch["uid"] = np.array(group_keys, dtype=object)
     batch.non_tensor_batch["index_in_batch"] = np.array(index_in_batch, dtype=object)
     batch.non_tensor_batch["index_in_steps"] = np.array(index_in_steps, dtype=object)
+    batch.non_tensor_batch["index_in_group"] = np.array(index_in_group, dtype=object)
     batch.non_tensor_batch["is_last_step"] = np.array(is_last_step, dtype=object)
     batch.meta_info["timing"] = {}
     return batch

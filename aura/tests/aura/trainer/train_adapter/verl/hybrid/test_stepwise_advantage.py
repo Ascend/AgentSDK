@@ -64,6 +64,20 @@ def test_group_keys_prefer_step_indexes(stepwise_advantage_module):
     assert stepwise_advantage_module._group_keys_from_batch(batch) == ["0_0", "0_1", "1_0"]
 
 
+def test_group_keys_prefer_group_index_when_present(stepwise_advantage_module):
+    batch = SimpleNamespace(
+        non_tensor_batch={
+            "index_in_group": np.array(["task-a", "task-b"]),
+            "index_in_batch": np.array([0, 0]),
+            "index_in_steps": np.array([1, 1]),
+            "uid": np.array(["unused-0", "unused-1"]),
+        },
+        batch={"token_level_rewards": np.zeros((2, 2))},
+    )
+
+    assert stepwise_advantage_module._group_keys_from_batch(batch) == ["task-a_0_1", "task-b_0_1"]
+
+
 def test_group_keys_fall_back_to_uid_or_row_index(stepwise_advantage_module):
     uid_batch = SimpleNamespace(
         non_tensor_batch={"uid": np.array(["sample-a", "sample-b"])},
