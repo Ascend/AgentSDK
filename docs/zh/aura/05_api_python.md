@@ -444,7 +444,7 @@ bash scripts/start_rl_with_verl_vllm.sh
 
 **hosts.conf 文件设置说明**
 
-服务启动需要设置hosts.conf，该文件位于aura/configs目录下，用于设置单机或者双机部署，单机部署共卡模式，双机部署分离模式，具体示例详情可见【[修改hosts.conf](./03_quick_start.md#修改hostsconf)】。
+服务启动需要设置hosts.conf，该文件位于aura/configs目录下，用于设置单机或者双机部署，单机部署共卡模式，双机部署分离模式，具体示例详情可见“[修改hosts.conf](./03_quick_start.md#修改hostsconf)”。
 
 **参数说明**
 
@@ -461,7 +461,7 @@ bash scripts/start_rl_with_verl_vllm.sh
 
 **base.conf 文件设置说明**
 
-服务启动需要设置base.conf文件，该文件位于aura/configs目录下，用于设置工作模式与启动的配置文件，详情可见【[修改base.conf](./03_quick_start.md#修改baseconf)】。
+服务启动需要设置base.conf文件，该文件位于aura/configs目录下，用于设置工作模式与启动的配置文件，详情可见“[修改base.conf](./03_quick_start.md#修改baseconf)”。
 
 **参数说明**
 

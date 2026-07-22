@@ -24,7 +24,7 @@ AgentSDK 的 Agent 体系由以下核心组件构成：
 
 ### 步骤一：实现自定义 Agent
 
-自定义 Agent 需要继承 [`BaseAgent`](../../../../aura/aura/runner/agent_engine_wrapper/base/agent/base_agent.py)，实现以下抽象方法：
+自定义 Agent 需要继承 [BaseAgent](../../../../aura/aura/runner/agent_engine_wrapper/base/agent/base_agent.py)，实现以下抽象方法：
 
 ```python
 from aura.runner.agent_engine_wrapper.base.agent.base_agent import BaseAgent, Action, Step, Trajectory
@@ -68,12 +68,12 @@ class MyAgent(BaseAgent):
 | `chat_completions` | 返回当前对话历史 | 模型推理时获取输入 |
 | `trajectory` | 返回轨迹记录 | 训练时获取 rollout 数据 |
 
-> [!TIP] 参考
-> 完整实现可参考内置 Agent：[`ToolAgent`](../../../../aura/agents/math_agent/tool_agent.py)
+> [!NOTE]
+> 完整实现可参考内置 Agent：[ToolAgent](../../../../aura/agents/math_agent/tool_agent.py)
 
 ### 步骤二：实现自定义 Environment
 
-自定义 Environment 需要继承 [`BaseEnv`](../../../../aura/aura/runner/agent_engine_wrapper/base/environment/base_env.py)，实现以下抽象方法：
+自定义 Environment 需要继承 [BaseEnv](../../../../aura/aura/runner/agent_engine_wrapper/base/environment/base_env.py)，实现以下抽象方法：
 
 ```python
 from aura.runner.agent_engine_wrapper.base.environment.base_env import BaseEnv
@@ -105,12 +105,12 @@ class MyEnvironment(BaseEnv):
 | `step` | 执行一步交互 | `(observation, reward, done, info)` |
 | `from_dict` | 从配置字典构造实例 | `BaseEnv` 实例 |
 
-> [!TIP] 参考
-> 完整实现可参考内置 Environment：[`ToolEnvironment`](../../../../aura/agents/math_agent/environment/tool_env.py)
+> [!NOTE]
+> 完整实现可参考内置 Environment：[ToolEnvironment](../../../../aura/agents/math_agent/environment/tool_env.py)
 
 ### 步骤三：注册到 agents_mapping
 
-在 [`agents/agents_mapping.py`](../../../../aura/agents/agents_mapping.py) 的 `AGENTS_MAPPING` 列表中添加自定义 Agent 配置：
+在 [agents/agents_mapping.py](../../../../aura/agents/agents_mapping.py) 的 `AGENTS_MAPPING` 列表中添加自定义 Agent 配置：
 
 ```python
 from agents.my_agent.my_agent import MyAgent
@@ -198,7 +198,7 @@ YAML 中 `agent_engine_kwargs` 的参数会与 `agents_mapping` 中注册的参�
 - `agent_args`：YAML 配置与 `agents_mapping` 合并，YAML 中的值优先
 - `tokenizer`：由 YAML 中 `tokenizer: ${verl_conf.actor_rollout_ref.model.path}` 自动注入
 
-合并逻辑源码参见 [`rllm_engine_wrapper.py`](../../../../aura/aura/runner/agent_engine_wrapper/rllm/rllm_engine_wrapper.py)：
+合并逻辑源码参见 [rllm_engine_wrapper.py](../../../../aura/aura/runner/agent_engine_wrapper/rllm/rllm_engine_wrapper.py)：
 
 ```python
 env_args = self.env_args | kwargs.get("env_args", {})
@@ -211,19 +211,19 @@ AgentSDK 提供了以下内置 Agent，可作为自定义 Agent 的参考：
 
 | Agent 名称 | 类 | 说明 |
 |------------|-----|------|
-| `math` | [`ToolAgent`](../../../../aura/agents/math_agent/tool_agent.py) | 数学推理 Agent，支持 Python 代码执行工具 |
+| `math` | [ToolAgent](../../../../aura/agents/math_agent/tool_agent.py) | 数学推理 Agent，支持 Python 代码执行工具 |
 
 ## 源码实现原理
 
 | 组件 | 源码位置 | 说明 |
 |------|---------|------|
-| Agent 注册表 | [`agents/agents_mapping.py`](../../../../aura/agents/agents_mapping.py) | 定义所有内置 Agent 配置，提供 `get_agent_by_name()` 查找 |
-| Agent 基类 | [`base/agent/base_agent.py`](../../../../aura/aura/runner/agent_engine_wrapper/base/agent/base_agent.py) | `BaseAgent` 抽象类，定义 Agent 接口 |
-| Environment 基类 | [`base/environment/base_env.py`](../../../../aura/aura/runner/agent_engine_wrapper/base/environment/base_env.py) | `BaseEnv` 抽象类，定义环境接口 |
-| Agent 执行器 | [`agent_executor.py`](../../../../aura/aura/runner/agent_service/agent_executor.py) | `AgentExecutor`，创建 RLLMEngineWrapper |
-| Agent 管理器 | [`agent_manager.py`](../../../../aura/aura/runner/agent_manager.py) | `AgentManager`，读取配置创建执行器实例 |
-| Agent 路由 | [`agent_router.py`](../../../../aura/aura/runner/agent_router.py) | `AgentRouter`，路由请求到具体执行器 |
-| RLLM 引擎 | [`rllm_engine_wrapper.py`](../../../../aura/aura/runner/agent_engine_wrapper/rllm/rllm_engine_wrapper.py) | `RLLMEngineWrapper`，本地 Agent 执行引擎 |
+| Agent 注册表 | [agents/agents_mapping.py](../../../../aura/agents/agents_mapping.py) | 定义所有内置 Agent 配置，提供 `get_agent_by_name()` 查找 |
+| Agent 基类 | [base/agent/base_agent.py](../../../../aura/aura/runner/agent_engine_wrapper/base/agent/base_agent.py) | `BaseAgent` 抽象类，定义 Agent 接口 |
+| Environment 基类 | [base/environment/base_env.py](../../../../aura/aura/runner/agent_engine_wrapper/base/environment/base_env.py) | `BaseEnv` 抽象类，定义环境接口 |
+| Agent 执行器 | [agent_executor.py](../../../../aura/aura/runner/agent_service/agent_executor.py) | `AgentExecutor`，创建 RLLMEngineWrapper |
+| Agent 管理器 | [agent_manager.py](../../../../aura/aura/runner/agent_manager.py) | `AgentManager`，读取配置创建执行器实例 |
+| Agent 路由 | [agent_router.py](../../../../aura/aura/runner/agent_router.py) | `AgentRouter`，路由请求到具体执行器 |
+| RLLM 引擎 | [rllm_engine_wrapper.py](../../../../aura/aura/runner/agent_engine_wrapper/rllm/rllm_engine_wrapper.py) | `RLLMEngineWrapper`，本地 Agent 执行引擎 |
 
 ## FAQ
 

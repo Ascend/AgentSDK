@@ -25,7 +25,7 @@
 1. [分离配置文件](../../../../aura/configs/train/verl_train_async_A3_t16_qwen3_4b_math_fsdp.yaml)
 2. [分离推理配置](../../../../aura/configs/infer/vllm_infer_i16_qwen3_4b.yaml)
 
-> [!NOTE] 说明
+> [!NOTE]
 >
 >- 共卡模式使用verl后端默认使用parquet数据集
 >- 分离模式在verl后端时暂时仅支持megatron的bin格式数据集

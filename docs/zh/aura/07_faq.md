@@ -234,7 +234,7 @@ OSError: libtorch_cuda.so: cannot open shared object file: No such file or direc
 
 **原因分析<a name="faq_009_analysis"></a>**
 
-调用了cuda版的torch，在昇腾平台上，要么调用torch_npu，要么调用cpu版torch，所以需要卸载torch，安装cpu版torch。
+调用了cuda版的torch，在昇腾平台上，要么调用TorchNPU，要么调用cpu版torch，所以需要卸载torch，安装cpu版torch。
 
 **解决方案<a name="faq_009_solution"></a>**
 
