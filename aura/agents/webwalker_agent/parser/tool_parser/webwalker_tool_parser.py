@@ -23,6 +23,10 @@ from typing import Any
 
 from rllm.parser.tool_parser.tool_parser_base import ToolParser
 
+from agents.webwalker_agent.constants import (
+    WEBWALKER_ERROR_TOOL_NAME,
+    WEBWALKER_PARSE_TOOL_ERROR,
+)
 from agents.webwalker_agent.webwalker_tools import webwalker_tools_v1
 
 logger = logging.getLogger(__name__)
@@ -30,10 +34,9 @@ logger = logging.getLogger(__name__)
 
 class WebWalkerKeyword(Enum):
     PARSE_DONE = "done"
-    PARSE_TOOL_ERROR = "tool parsing error"
+    PARSE_TOOL_ERROR = WEBWALKER_PARSE_TOOL_ERROR
 
 
-WEBWALKER_ERROR_TOOL_NAME = "error_tool"
 VALID_WEBWALKER_TOOLS = frozenset(webwalker_tools_v1.keys())
 
 
