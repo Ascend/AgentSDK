@@ -181,3 +181,21 @@ class TestComputeUtils:
                                             use_stepwise_advantage=False,
                                             use_kl_in_reward=True,
                                         )
+
+    def test_stepwise_advantage_broadcast_missing_index_falls_back_to_zero(self):
+        from aura.trainer.train_adapter.mindspeed_rl.patch.compute_utils import _stepwise_advantage_broadcast
+
+        tgt_mask = torch.tensor([[1, 1, 0], [1, 0, 0]], dtype=torch.float32)
+        src_mask = torch.tensor([[1, 1, 0]], dtype=torch.float32)
+        src_advantages = torch.tensor([[2.0, 4.0, 0.0]], dtype=torch.float32)
+
+        result = _stepwise_advantage_broadcast(
+            tgt_mask=tgt_mask,
+            src_mask=src_mask,
+            src_advantages=src_advantages,
+            src_indices=[10],
+            tgt_indices=[10, 11],
+        )
+
+        assert torch.equal(result[0], torch.tensor([3.0, 3.0, 0.0]))
+        assert torch.equal(result[1], torch.zeros(3))
