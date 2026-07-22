@@ -153,7 +153,7 @@ python convert_data.py --input test.parquet --output test.jsonl
 
 **准备配置文件**
 
-gsm8k 数据集对应的数据处理配置文件已存在于 [`aura/configs/datasets/gsm8k.yaml`](../../../../../aura/configs/datasets/gsm8k.yaml)，用户可直接修改该文件中的路径参数：
+gsm8k 数据集对应的数据处理配置文件已存在于 [aura/configs/datasets/gsm8k.yaml](../../../../../aura/configs/datasets/gsm8k.yaml)，用户可直接修改该文件中的路径参数：
 
 ```yaml
 # configs/datasets/gsm8k.yaml
@@ -300,5 +300,5 @@ cd /home/work/AgentSDK/aura
 bash scripts/start_rl_with_verl_vllm.sh
 ```
 
-> [!NOTE] 说明
+> [!NOTE]
 > 本文档专门针对 Qwen3-4B 分离模式（one-step-off）的启动示例，提供该场景下的快速拉起步骤；通用且详细的完整启动流程请参考 [快速入门指南](../../03_quick_start.md)。

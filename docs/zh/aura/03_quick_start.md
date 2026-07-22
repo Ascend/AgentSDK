@@ -10,20 +10,20 @@ Aura 提供两种构建运行环境的方式，用户可根据实际情况任选
 
 1. **使用预构建镜像创建容器**（推荐）
 
-    直接基于预构建镜像运行容器。具体操作请参见【[基于镜像构建容器环境](02_installation_guide.md#方式一基于镜像构建容器环境)】。
+    直接基于预构建镜像运行容器。具体操作请参见“[基于镜像构建容器环境](02_installation_guide.md#方式一基于镜像构建容器环境)”。
 
 2. **在 CANN 9.0.0 容器中使用一键拉起脚本**
 
-    如果您已经在 CANN 9.0.0 的基础镜像容器内，可以执行一键拉起脚本完成 Aura 及其所有依赖（vLLM、 vllm-ascend、 MindSpeed、 Megatron-LM、 verl、 transformers 等）的安装。具体操作请参见【[使用一键式环境配置脚本 build_env.sh](02_installation_guide.md#方式二使用一键式环境配置脚本-build_envsh)】。
+    如果您已经在 CANN 9.0.0 的基础镜像容器内，可以执行一键拉起脚本完成 Aura 及其所有依赖（vLLM、 vllm-ascend、 MindSpeed、 Megatron-LM、 verl、 transformers 等）的安装。具体操作请参见“[使用一键式环境配置脚本 build_env.sh](02_installation_guide.md#方式二使用一键式环境配置脚本-build_envsh)”。
 
 ## **使用流程**
 
 Aura 提供了训练模型示例。
 
-- 准备训练模型和数据集，具体操作请参见【[准备模型权重](02_installation_guide.md#准备模型权重)】与【[准备训练数据](02_installation_guide.md#准备训练数据)】。
-- 配置环境变量，具体操作请参见【[环境变量配置](02_installation_guide.md#环境变量配置)】。
-- 根据实际环境修改 YAML 配置文件中的路径参数，完整示例请参见【[配置文件示例](05_api_python.md#配置文件示例)】。
-- 根据实际环境修改 hosts.conf 和 base.conf 配置文件，相关参数解释请参见【[服务启动说明](05_api_python.md#服务启动说明)】。
+- 准备训练模型和数据集，具体操作请参见“[准备模型权重](02_installation_guide.md#准备模型权重)”与“[准备训练数据](02_installation_guide.md#准备训练数据)”。
+- 配置环境变量，具体操作请参见“[环境变量配置](02_installation_guide.md#环境变量配置)”。
+- 根据实际环境修改 YAML 配置文件中的路径参数，完整示例请参见“[配置文件示例](05_api_python.md#配置文件示例)”。
+- 根据实际环境修改 hosts.conf 和 base.conf 配置文件，相关参数解释请参见“[服务启动说明](05_api_python.md#服务启动说明)”。
 
 ### 修改base.conf
 
@@ -122,7 +122,7 @@ cd /home/work/AgentSDK/aura
 bash scripts/start_rl_with_verl_vllm.sh
 ```
 
-> [!NOTE] 说明
+> [!NOTE]
 >
 >- 请确保模型权重路径，Aura 安装路径及所有文件的属主与运行用户一致。
 >- 请确保路径不为软链接。
