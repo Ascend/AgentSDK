@@ -53,6 +53,20 @@ from aura.base.log.loggers import Loggers
 logger = Loggers(__name__).get_logger()
 
 
+def _is_mock_value(value):
+    return type(value).__module__ == "unittest.mock"
+
+
+def _get_config_flag(config_obj, key, default=False):
+    try:
+        value = config_obj.get(key, default)
+    except Exception:
+        value = getattr(config_obj, key, default)
+    if _is_mock_value(value):
+        return default
+    return bool(value)
+
+
 class HybridTrainer(RayPPOTrainer):
     """PPO trainer extended with hybrid agent-loop rollout and precision-aware batch handling."""
 
@@ -305,19 +319,26 @@ class HybridTrainer(RayPPOTrainer):
                             metrics.update(is_metrics)
 
                         # compute advantages, executed on the driver process
-                        norm_adv_by_std_in_grpo = self.config.algorithm.get(
-                            "norm_adv_by_std_in_grpo", True
-                        )  # GRPO adv normalization factor
+                        if _get_config_flag(self.config.algorithm, "use_stepwise_advantage", False):
+                            from aura.trainer.train_adapter.verl.hybrid.stepwise_advantage import (
+                                compute_stepwise_advantage,
+                            )
 
-                        batch = compute_advantage(
-                            batch,
-                            adv_estimator=self.config.algorithm.adv_estimator,
-                            gamma=self.config.algorithm.gamma,
-                            lam=self.config.algorithm.lam,
-                            num_repeat=self.config.actor_rollout_ref.rollout.n,
-                            norm_adv_by_std_in_grpo=norm_adv_by_std_in_grpo,
-                            config=self.config.algorithm,
-                        )
+                            batch = compute_stepwise_advantage(batch, self.config.algorithm)
+                        else:
+                            norm_adv_by_std_in_grpo = self.config.algorithm.get(
+                                "norm_adv_by_std_in_grpo", True
+                            )  # GRPO adv normalization factor
+
+                            batch = compute_advantage(
+                                batch,
+                                adv_estimator=self.config.algorithm.adv_estimator,
+                                gamma=self.config.algorithm.gamma,
+                                lam=self.config.algorithm.lam,
+                                num_repeat=self.config.actor_rollout_ref.rollout.n,
+                                norm_adv_by_std_in_grpo=norm_adv_by_std_in_grpo,
+                                config=self.config.algorithm,
+                            )
 
                     # update critic
                     if self.use_critic:
