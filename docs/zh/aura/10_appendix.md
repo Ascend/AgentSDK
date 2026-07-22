@@ -45,7 +45,7 @@ Aura 在启动时会使用白名单校验环境变量，只有以下环境变量
 |PYTHONPATH|Python 模块搜索路径。|
 |TOOLCHAIN_HOME|toolkit工具链安装路径。|
 
-> [!NOTE] 说明
+> [!NOTE]
 >
 >- Aura 的运行会使用到开源软件，相关开源软件会使用的环境变量请参考对应软件说明。
 >- Aura 依赖CANN，运行CANN的过程中，会生成kernel\_meta等文件夹，Aura 不具有转储和删除这些文件的功能，用户可参考[《CANN 环境变量参考》](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/900beta2/maintenref/envvar/envref_07_0007.html)中的"安装配置相关" \> "ASCEND\_WORK\_PATH"章节，使用环境变量进行文件统一管理。

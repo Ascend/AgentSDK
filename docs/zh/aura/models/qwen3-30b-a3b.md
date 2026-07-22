@@ -34,7 +34,7 @@ cd /home/work/model_env/qwen3_moe
 source bin/activate
 ```
 
-> [!NOTE] 说明
+> [!NOTE]
 >
 >- 共卡模式使用verl后端默认使用parquet数据集
 >- 分离模式在verl后端时暂时仅支持megatron的bin格式数据集

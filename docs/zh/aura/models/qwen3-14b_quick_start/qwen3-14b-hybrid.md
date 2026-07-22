@@ -34,7 +34,7 @@ docker run --name your_container_name \
     sleep infinity
 ```
 
-> [!NOTE] 说明
+> [!NOTE]
 >
 >- 由于Atlas A2服务器为8卡配置，故挂载NPU设备序号为0～7，若使用Atlas A3服务器（16卡配置），应挂载序号为0～15的NPU设备
 
@@ -150,7 +150,7 @@ clean_old_ckpt=0
 export ASCEND_RT_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
 ```
 
-> [!NOTE] 说明
+> [!NOTE]
 >
 >- 由于Atlas A2服务器为8卡配置，故配置NPU设备序号为0～7，若使用Atlas A3服务器（16卡配置），应配置序号为0～15的NPU设备
 
@@ -165,5 +165,5 @@ cd /home/work/AgentSDK/aura
 bash scripts/start_rl_with_verl_vllm.sh
 ```
 
-> [!NOTE] 说明
+> [!NOTE]
 > 本文档专门针对 Qwen3-14B 共卡模式（hybrid）的启动示例，提供该场景下的快速拉起步骤；通用且详细的完整启动流程请参考 [快速入门指南](../../03_quick_start.md)。
