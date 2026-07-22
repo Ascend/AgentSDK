@@ -167,5 +167,5 @@ cd /home/work/AgentSDK/aura
 bash scripts/start_rl_with_verl_vllm.sh
 ```
 
-> [!NOTE] 说明
+> [!NOTE]
 > 本文档专门针对 Qwen3-4B 共卡模式（hybrid）的启动示例，提供该场景下的快速拉起步骤；通用且详细的完整启动流程请参考 [快速入门指南](../../03_quick_start.md)。

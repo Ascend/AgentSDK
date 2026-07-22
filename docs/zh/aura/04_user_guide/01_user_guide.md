@@ -268,7 +268,7 @@ trainer:
   project_name: 'my_project'  # 来自当前yaml
 ```
 
-完整配置文件示例可参考：【[配置文件示例](../05_api_python.md#配置文件示例)】
+完整配置文件示例请参见“[配置文件示例](../05_api_python.md#配置文件示例)”。
 
 ---
 
