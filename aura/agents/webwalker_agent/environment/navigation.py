@@ -186,6 +186,11 @@ class WebWalkerNavigationMixin:
         return self._is_navigation_eval_mode()
 
     def _resolve_visit_target_url(self, actions: list) -> str:
+        """Resolve the target URL from a visit_page action.
+
+        Explicit URL fields take precedence over button labels when both are
+        present. The button path is used as a fallback for label-only actions.
+        """
         for tool_call in actions or []:
             if "function" in tool_call:
                 tool_name = tool_call["function"].get("name", "")
@@ -283,13 +288,13 @@ class WebWalkerNavigationMixin:
     @staticmethod
     def _is_successful_tool_output(result: Any) -> bool:
         result_text = result if isinstance(result, str) else str(result)
-        if "can not be clicked" in result_text:
-            return False
-        if "information of the current page is not accessible" in result_text:
-            return False
-        if "Error accessing page" in result_text or "Error: " in result_text:
-            return False
-        return True
+        error_patterns = (
+            "can not be clicked",
+            "information of the current page is not accessible",
+            "Error accessing page",
+            "Error: ",
+        )
+        return not any(pattern in result_text for pattern in error_patterns)
 
     def _is_golden_path_end_reached(self, clicked_button: str) -> bool:
         progress_match = match_golden_progress(
