@@ -162,7 +162,7 @@ class WebWalkerPageFetchMixin:
         except Exception as e:
             raise Exception(f"Failed to fetch page: {str(e)}")
 
-    def extract_links_with_text(self, html, current_url):
+    def extract_links_with_text(self, html):
         from bs4 import BeautifulSoup
 
         soup = BeautifulSoup(html, 'html.parser')
