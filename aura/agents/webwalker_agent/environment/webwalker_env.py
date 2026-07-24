@@ -36,6 +36,9 @@ logger = logging.getLogger(__name__)
 __all__ = ["WebWalkerEnvironment", "safe_asyncio_run"]
 
 class WebWalkerEnvironment(WebWalkerNavigationMixin, WebWalkerCriticMixin, WebWalkerPageFetchMixin, BaseEnv):
+    BUTTON_LIST_HEADER = "clickable button"
+    BUTTON_TAG_HINT = "Each button is wrapped in a <button> tag"
+
     def __init__(self, task: dict | None = None, reward_fn = None, **kwargs):
         self.task = self._coerce_task(task)
         if kwargs.get("reward_mode") and "reward_mode" not in self.task:
@@ -173,7 +176,7 @@ class WebWalkerEnvironment(WebWalkerNavigationMixin, WebWalkerCriticMixin, WebWa
                 else:
                     initial_obs_text = (
                         f"website information:\n\n{markdown}\n\n"
-                        f"clickable button:\n\n{buttons}\n\nEach button is wrapped in a <button> tag"
+                        f"{self.BUTTON_LIST_HEADER}:\n\n{buttons}\n\n{self.BUTTON_TAG_HINT}"
                     )
             except Exception as e:
                 self.is_website_unreachable = True
