@@ -1,0 +1,42 @@
+{
+    "name": "AgentSDK Dev",
+    "image": "swr.cn-north-4.myhuaweicloud.com/ascend-mindx/mindx_arm:SDK_20260112_1",
+    "workspaceFolder": "/workspace/AgentSDK",
+    "workspaceMount": "source=${localWorkspaceFolder},target=/workspace/AgentSDK,type=bind,consistency=consistent",
+    "remoteUser": "root",
+    "runArgs": [
+        "--device=/dev/davinci_manager",
+        "--device=/dev/devmm_svm",
+        "--device=/dev/hisi_hdc"
+    ],
+    "mounts": [
+        "source=/usr/local/Ascend/driver,target=/usr/local/Ascend/driver,type=bind,readonly",
+        "source=/usr/local/dcmi,target=/usr/local/dcmi,type=bind,readonly",
+        "source=/usr/local/bin/npu-smi,target=/usr/local/bin/npu-smi,type=bind,readonly",
+        "source=/etc/ascend_install.info,target=/etc/ascend_install.info,type=bind,readonly",
+        "source=/usr/local/sbin,target=/usr/local/sbin,type=bind,readonly",
+        "source=/usr/share/zoneinfo/Asia/Shanghai,target=/etc/localtime,type=bind,readonly",
+        "source=/etc/vnpu.cfg,target=/etc/vnpu.cfg,type=bind,readonly"
+    ],
+    "remoteEnv": {
+        "LD_LIBRARY_PATH": "${containerEnv:LD_LIBRARY_PATH}:/usr/local/Ascend/driver/lib64:/usr/local/Ascend/driver/lib64/common:/usr/local/Ascend/driver/lib64/driver"
+    },
+    "postCreateCommand": "find /workspace/AgentSDK -name '*.sh' -exec sed -i 's/\\r$//' {} + && git config --global core.autocrlf input",
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "ms-python.python",
+                "ms-python.debugpy",
+                "ms-vscode.cpptools",
+                "ms-vscode.cmake-tools"
+            ],
+            "settings": {
+                "python.defaultInterpreterPath": "/usr/local/bin/python3",
+                "terminal.integrated.defaultProfile.linux": "bash",
+                "files.eol": "\n",
+                "files.insertFinalNewline": true,
+                "files.trimTrailingWhitespace": true
+            }
+        }
+    }
+}
