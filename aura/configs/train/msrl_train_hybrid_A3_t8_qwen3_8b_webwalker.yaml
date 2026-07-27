@@ -1,0 +1,186 @@
+# =============================================================
+# 一键启动需要修改路径的参数如下：
+# 1. msrl_conf.megatron_training.tokenizer_name_or_path
+# 2. msrl_conf.megatron_training.data_path
+# 3. msrl_conf.actor_config.load
+# 4. msrl_conf.actor_config.save
+# 5. msrl_conf.agentic_env_config.rollout_output_path
+# 6. agent_instances.*.env_args.page_cache_path
+# =============================================================
+agentic_ai:
+  mode: direct # 模式选择：serve | direct
+  log_level: DEBUG
+  log_dir: /var/log/
+
+serve_conf:
+  host: 0.0.0.0
+  port: 8030
+
+direct_conf:
+  entrypoints:
+    - job_type: msrl_train # 配置: msrl_train | verl_train
+      job_name: ${train_instances.0.name} # 即将训练的任务名称（默认为 `train_instances` 的第一个）
+      job_kwargs: {}
+
+# =============================================================
+# Train 预定义任务：
+# 1. 预定义任务包括采用RL框架类型、参数等等，初始化时占用资源，触发后开始训练（支持开始、暂停、取消）
+# 2. SERVE 模式下，预定义任务列表默认为空; DIRECT 模式下，初始化任务等待触发训练（触发：direct_conf.entrypoints）
+# =============================================================
+
+# 根据rl框架和模型选择不同的模板，模板文件在msrl_conf/verl_conf路径下
+defaults:
+  - msrl_conf: base_integrated_grpo_trainer_template_qwen3_8b
+  - verl_conf: null
+  - _self_
+
+# 覆盖MSRL模板中的参数
+msrl_conf:
+  megatron_training:
+    global_batch_size: 16
+    train_iters: 200
+    save_interval: 3
+    seq_length: 24576
+    use_distributed_optimizer: false
+    tokenizer_name_or_path: /path/to/models/Qwen3-8B # 需要修改为模型路径
+    data_path: /path/to/data/webwalker/train # 需要修改为训练数据集路径
+    dataset_additional_keys: ['root_url', 'question', 'golden_path', 'source_website', 'labels']
+
+  actor_config:
+    optimizer: adam
+    load: /path/to/models/qwen3_8b_mcore_tp8_pp1 # 需要修改为 mcore 权重路径
+    save: ${hydra:runtime.cwd}/weights/ # 需要修改为 ckpt 保存路径
+    tensor_model_parallel_size: 8
+    expert_model_parallel_size: 1
+    pipeline_model_parallel_size: 1
+    lr: 2e-6
+    no_shuffle: true
+
+  rl_config:
+    mini_batch_size: 16
+    max_prompt_length: 22528
+    n_samples_per_prompt: 1
+    actor_rollout_dispatch_size: 4
+    epochs: 1
+    init_kl_coef: 0.0
+    use_stepwise_advantage: true
+    stepwise_advantage_mode: immediate_reward_centered_scaled
+    stepwise_advantage_beta: 1.6
+    use_tensorboard: true
+    tensorboard_dir: ${hydra:runtime.cwd}/outputs/tensorboard
+    actor_resource:
+      num_npus: 8
+
+  generate_config:
+    infer_tensor_parallel_size: ${infer_instances.0.executor_kwargs.engine_kwargs.tensor_parallel_size}
+    infer_expert_parallel_size: ${infer_instances.0.executor_kwargs.engine_kwargs.data_parallel_size}
+    enable_expert_parallel: false
+    enable_chunked_prefill: false
+    weight_save_dir: ${hydra:runtime.cwd}/weights
+    hybrid_batch_num: 1
+    use_on_policy: true
+    max_model_len: 24576
+    max_num_batched_tokens: 16384
+    max_num_seqs: 8
+    gpu_memory_utilization: 0.45
+    offload_train_optimizer: true
+    offload_train_grad: true
+    offload_train_param: true
+
+  agentic_env_config:
+    namespace: agentic_raygroup_webwalker
+    agent_name: webwalker
+    max_steps: 8
+    max_tool_length: 24576
+    rollout_output_path: ${hydra:runtime.cwd}/outputs/rollout_data_dir
+    trajectory_generation_method: tree
+    beam_size: 2
+    per_beam_expand: 8
+    beam_type: dynamic_beam_search
+    beam_train_n_samples: 16
+
+train_instances:
+  - name: RL-QWEN3-8B-WITH-WEBWALKER
+    executor_num: 1
+    executor_kwargs:
+      # 以下参数为 TrainExecutor 初始化参数
+      # hybrid(共卡) | one_step_off(分离)
+      work_mode: hybrid
+      train_engine: mindspeed_rl
+      train_config: ${msrl_conf}
+      rollout_config: {}
+      agent_service: ${agent_instances.0.name}  # 依赖的 AGENT 服务名称（默认为 `agent_instances` 的第一个）
+      infer_service: ${infer_instances.0.name}  # 依赖的 INFER 服务名称（默认为 `infer_instances` 的第一个）
+    resource_info: []  # MSRL 训练采用 RAY 实现资源分配，在 Executor 层不做资源限制
+
+
+# =============================================================
+# Agent 预置服务：
+# 1. 提供如：Math / WebWalker 等智能体对话服务
+# =============================================================
+agent_instances:
+  - name: WEBWALKER
+    executor_num: 1
+    executor_kwargs:
+      # 以下参数为 AgentExecutor 初始化参数
+      agent_engine: rllm
+      agent_engine_kwargs:
+        # 以下参数为 rLLMEngineWrapper 初始化参数
+        agent_name: webwalker # RLLMEngineWrapper内置Agent，修改参见：agents/agents_mapping.py
+        simplify_think_content: false
+        max_prompt_length: 22528
+        max_model_len: 24576
+        n_parallel_agents: 1
+        trajectory_generation_method: tree
+        beam_type: dynamic_beam_search
+        beam_size: 2
+        per_beam_expand: 8
+        beam_train_n_samples: 16
+        token_in_token_out: true
+        env_args:
+          max_steps: 8
+          reward_mode: step
+          stop_mode: golden_path_horizon_or_finish
+          tool_timeout: 2000  # 工具调用超时设置，默认200
+          trajectory_timeout: 7200  # 单轮轨迹请求超时，默认7200
+          tokenizer_path: /path/to/models/Qwen3-8B # 需要修改为模型路径
+          chat_model_url: http://127.0.0.1:8743/v1
+          chat_model_key: EMPTY
+          chat_model_name: qwen3_5-35b-a3b
+          chat_model_timeout: 60
+          chat_model_max_retries: 1
+          chat_model_temperature: 0.0
+          chat_model_top_p: 1.0
+          chat_model_max_tokens: 2048
+          page_cache_path: /path/to/cache/webwalker_pages.sqlite
+          cache_mode: read_write
+        agent_args:
+          tokenizer_path: /path/to/models/Qwen3-8B # 需要修改为模型路径
+          max_prompt_length: 22528
+          chat_model_name: "qwen3_5-35b-a3b"
+          use_summary: false
+        tokenizer: ${msrl_conf.megatron_training.tokenizer_name_or_path}
+      infer_service_params: # 每轮对话时的 sampling params
+        temperature: 0.9
+        top_p: 0.9
+        max_tokens: 2048
+        model: ${infer_instances.0.name} # 依赖的 INFER 服务名称（默认为 `infer_instances` 的第一个）
+      trajectory_save_dir: ${hydra:runtime.cwd}/outputs/rollout_data_dir/webwalker_trajectory.jsonl
+    resource_info: []
+
+
+# =============================================================
+# Infer 预置服务：
+# 1. 提供如：Qwen / Deepseek 等大模型推理服务
+# 2. 提供 OpenAI Chat 推理接口
+# =============================================================
+infer_instances:
+  - name: Qwen3-8B
+    executor_num: 1
+    executor_kwargs:
+      # 以下参数为 InferExecutor 初始化参数
+      engine: vllm_ray
+      engine_kwargs:
+        tensor_parallel_size: 2
+        data_parallel_size: 1
+    resource_info: []

@@ -244,8 +244,6 @@ class Crawler:
         task: dict[str, Any],
         *,
         max_depth: int,
-        visited_global: set[str],
-        visited_lock: threading.Lock | None,
         force_source: bool,
         max_children: int | None = None,
     ) -> None:
@@ -258,6 +256,7 @@ class Crawler:
         queue: deque[tuple[str, int]] = deque()
         queue.append((root_url, 0))
         seen_in_task: set[str] = set()
+        child_limit = self.max_children if max_children is None else max(1, int(max_children))
 
         while queue:
             url, depth = queue.popleft()
@@ -269,17 +268,10 @@ class Crawler:
             buttons, page_status = self.crawl_url(env, url)
             if page_status != "cache_ok":
                 self._bump_stat("urls")
-            if page_status in ("cache_ok", "ok"):
-                if visited_lock is not None:
-                    with visited_lock:
-                        visited_global.add(norm)
-                else:
-                    visited_global.add(norm)
 
             if depth >= max_depth:
                 continue
-            child_limit = self.max_children if max_children is None else max(1, int(max_children))
-            for button in buttons[: child_limit]:
+            for button in buttons[:child_limit]:
                 child = button.get("url")
                 if not child:
                     continue
@@ -293,12 +285,6 @@ class Crawler:
                 if not norm:
                     continue
                 _, page_status = self.crawl_url(env, source_url)
-                if page_status in ("cache_ok", "ok"):
-                    if visited_lock is not None:
-                        with visited_lock:
-                            visited_global.add(norm)
-                    else:
-                        visited_global.add(norm)
                 if page_status != "cache_ok":
                     self._bump_stat("urls")
 
@@ -318,8 +304,6 @@ class Crawler:
         self,
         task: dict[str, Any],
         *,
-        visited_global: set[str],
-        visited_lock: threading.Lock | None,
         force_source: bool,
     ) -> None:
         root_url = task_root_url(task)
@@ -330,14 +314,6 @@ class Crawler:
         env = CrawlerEnv(root_url)
         paths = extract_golden_click_paths_from_task(task)
         task_id = task.get("id") or task.get("task_id") or ""
-
-        def _mark_ok(norm: str) -> None:
-            if (self.store.get_record(norm) or {}).get("status") == "ok":
-                if visited_lock is not None:
-                    with visited_lock:
-                        visited_global.add(norm)
-                else:
-                    visited_global.add(norm)
 
         def _ensure_page(url: str) -> list[dict[str, str]]:
             norm = normalize_cache_url(url)
@@ -374,14 +350,10 @@ class Crawler:
                 current = str(matches[0].get("url") or "")
                 if not current:
                     break
-                _mark_ok(normalize_cache_url(current) or current)
 
         if force_source:
             for source_url in task_source_urls(task):
                 _ensure_page(source_url)
-                norm = normalize_cache_url(source_url)
-                if norm:
-                    _mark_ok(norm)
                 self._bump_stat("urls")
 
     def _retry_one_url(self, norm_url: str) -> None:

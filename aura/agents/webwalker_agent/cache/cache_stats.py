@@ -19,7 +19,7 @@
 
 Run while crawl_pages_to_cache.py is running (read-only) or after it finishes.
 
-Example::
+Example:
 
     python agents/webwalker_agent/cache/cache_stats.py
     python agents/webwalker_agent/cache/cache_stats.py --db agents/webwalker_agent/cache/webwalker_pages.sqlite
@@ -38,8 +38,10 @@ ensure_repo_on_path()
 
 
 def main() -> None:
+    from aura.base.log.loggers import Loggers
     from agents.webwalker_agent.cache import get_page_cache_store
 
+    logger = Loggers(__name__).get_logger()
     parser = argparse.ArgumentParser(description="Show WebWalker SQLite page cache stats.")
     parser.add_argument(
         "--db",
@@ -56,7 +58,7 @@ def main() -> None:
 
     store = get_page_cache_store(args.db, read_only=True)
     if store is None:
-        print(f"[ERROR] cannot open cache: {args.db}")
+        logger.error("[ERROR] cannot open cache: %s", args.db)
         sys.exit(1)
 
     stats = store.stats()
@@ -66,25 +68,25 @@ def main() -> None:
     empty = int(stats.get("empty", 0))
     other = total - ok - failed - empty
 
-    print("=" * 60)
-    print(f"cache db: {os.path.abspath(args.db)}")
-    print("-" * 60)
-    print(f"  total URLs in DB : {total}")
-    print(f"  ok   (usable)    : {ok}")
-    print(f"  failed           : {failed}")
-    print(f"  empty            : {empty}")
+    logger.info("=" * 60)
+    logger.info("cache db: %s", os.path.abspath(args.db))
+    logger.info("-" * 60)
+    logger.info("  total URLs in DB : %s", total)
+    logger.info("  ok   (usable)    : %s", ok)
+    logger.info("  failed           : %s", failed)
+    logger.info("  empty            : %s", empty)
     if other:
-        print(f"  other statuses   : {other}")
+        logger.info("  other statuses   : %s", other)
     if total:
-        print(f"  success rate     : {ok / total * 100:.1f}%")
-    print("=" * 60)
+        logger.info("  success rate     : %.1f%%", ok / total * 100)
+    logger.info("=" * 60)
 
     if args.list_failed and (failed or empty):
         pending = store.list_urls_by_status(("failed", "empty"))
-        print(f"\nfailed/empty URLs (showing up to {args.limit} of {len(pending)}):")
+        logger.info("failed/empty URLs (showing up to %s of %s):", args.limit, len(pending))
         for url in pending[: max(1, args.limit)]:
             rec = store.get_record(url) or {}
-            print(f"  [{rec.get('status', '?')}] {url}")
+            logger.info("  [%s] %s", rec.get("status", "?"), url)
 
 
 if __name__ == "__main__":

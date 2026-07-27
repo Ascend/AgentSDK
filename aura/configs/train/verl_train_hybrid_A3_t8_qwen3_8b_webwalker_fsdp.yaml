@@ -1,0 +1,230 @@
+# =============================================================
+# 一键启动需要修改路径的参数如下：
+# 1. hydra.searchpath
+# 2. verl_conf.data.train_files
+# 3. verl_conf.data.val_files
+# 4. verl_conf.actor_rollout_ref.model.path
+# 5. agent_instances.*.env_args.page_cache_path
+# =============================================================
+agentic_ai:
+  mode: direct # 模式选择：serve | direct
+  log_level: DEBUG
+  log_dir: /var/log/
+
+serve_conf:
+  host: 0.0.0.0
+  port: 8030
+
+direct_conf:
+  entrypoints:
+    - job_type: verl_train # 配置: msrl_train | verl_train
+      job_name: ${train_instances.0.name} # 即将训练的任务名称（默认为 `train_instances` 的第一个）
+      job_kwargs: { }
+
+# =============================================================
+# Train 预定义任务：
+# 1. 预定义任务包括采用RL框架类型、参数等等，初始化时占用资源，触发后开始训练（支持开始、暂停、取消）
+# 2. SERVE 模式下，预定义任务列表默认为空; DIRECT 模式下，初始化任务等待触发训练（触发：direct_conf.entrypoints）
+# =============================================================
+
+# 根据rl框架和模型选择不同的模板，模板文件在msrl_conf/verl_conf路径下
+hydra:
+  searchpath:
+    - file:///verl/verl/trainer/config
+    - file:///path/to/AgentSDK/aura/configs/train/verl_conf # 改为当前代码仓中aura/configs/train/verl/config目录所在的绝对路径
+
+defaults:
+  - ppo_trainer
+  - ppo_trainer@verl_conf
+  - _self_
+
+# 覆盖VERL模板中的参数
+verl_conf:
+  extras:
+    traj_output_path: ${oc.env:WEBWALKER_ROLLOUT_DIR,${hydra:runtime.cwd}/outputs/rollout_data_dir}
+    agent_service: ${agent_instances.0.name}  # 依赖的 AGENT 服务名称（默认为 `agent_instances` 的第一个）
+    infer_service: ${infer_instances.0.name}  # 依赖的 INFER 服务名称（默认为 `infer_instances` 的第一个）
+
+  total_train_steps: 200
+  data:
+    train_files: /path/to/data/train.parquet # 共卡模式所需训练数据集路径
+    val_files: /path/to/data/test.parquet # 共卡模式所需测试数据集路径
+    train_batch_size: 16
+    max_prompt_length: 22528
+    max_response_length: 24576
+    filter_overlong_prompts: True
+    truncation: 'error'
+    return_raw_chat: True
+    shuffle: False
+  actor_rollout_ref:
+    model:
+      path: /path/to/models/Qwen3-8B # 需要修改为模型路径
+      use_remove_padding: True
+      enable_gradient_checkpointing: True
+      enable_activation_offload: False
+    hybrid_engine: True
+    rollout:
+      n: 1
+      name: vllm
+      mode: async
+      calculate_log_probs: True
+      log_prob_use_dynamic_bsz: False
+      log_prob_micro_batch_size_per_gpu: 1
+      tensor_model_parallel_size: 2
+      data_parallel_size: ${infer_instances.0.executor_kwargs.engine_kwargs.data_parallel_size}
+      gpu_memory_utilization: 0.7
+      max_num_seqs: 8
+      max_num_batched_tokens: 16384
+      free_cache_engine: true
+      max_model_len: 24576
+      prompt_length: 22528
+      response_length: 8192
+      agent:
+        agent_loop_manager_class: aura.trainer.train_adapter.verl.hybrid.agent_loop_manager.HybridAgentLoopManager
+      checkpoint_engine:
+        backend: naive
+        update_weights_bucket_megabytes: 8192
+    actor:
+      ppo_micro_batch_size_per_gpu: 1
+      ppo_mini_batch_size: 16
+      strategy: fsdp2
+      use_dynamic_bsz: False
+      optim:
+        lr: 2e-6
+      entropy_coeff: 0.0
+      use_kl_loss: False
+      calculate_entropy: False
+      kl_loss_coef: 0.0
+      kl_loss_type: low_var_kl
+      loss_agg_mode: seq-mean-token-sum
+      ulysses_sequence_parallel_size: 1
+      fsdp_config:
+        strategy: fsdp2
+        param_offload: true
+        optimizer_offload: false
+        model_dtype: bfloat16
+        use_torch_compile: false
+    ref:
+      strategy: fsdp2
+      log_prob_micro_batch_size_per_gpu: 1
+      log_prob_max_token_len_per_gpu: 24576
+      ulysses_sequence_parallel_size: ${verl_conf.actor_rollout_ref.actor.ulysses_sequence_parallel_size}
+      fsdp_config:
+        param_offload: false
+        model_dtype: bfloat16
+        use_torch_compile: false
+  trainer:
+    val_before_train: False
+    device: npu
+    critic_warmup: 0
+    project_name: 'qwen3_8b_webwalker_hybrid'
+    experiment_name: 'qwen3_8b_webwalker_hybrid'
+    n_gpus_per_node: 8
+    nnodes: 1
+    save_freq: 3 # 保存ckpt的per iter
+    default_local_dir: ${hydra:runtime.cwd}/weights/ # ckpt
+    resume_mode: disable # disable / auto (load from default_local_dir) / resume path (load from resume_from_path)
+    resume_from_path: ./ckpt
+    test_freq: 1000
+    total_epochs: 1000 # RL epoch
+    logger: [ 'console','tensorboard' ]
+    rollout_data_dir: ${oc.env:WEBWALKER_ROLLOUT_DIR,${hydra:runtime.cwd}/outputs/rollout_data_dir}
+  algorithm:
+    adv_estimator: grpo
+    use_kl_in_reward: False
+    use_stepwise_advantage: True
+    stepwise_advantage_mode: immediate_reward_centered_scaled
+    stepwise_advantage_beta: 1.6
+
+train_instances:
+  - name: RL-QWEN3-8B-WITH-WEBWALKER
+    executor_num: 1
+    executor_kwargs:
+      # 以下参数为 TrainExecutor 初始化参数
+      # hybrid(共卡) | one_step_off(分离)
+      work_mode: hybrid
+      train_engine: verl
+      train_config: ${verl_conf}
+      rollout_config: { }
+      agent_service: ${agent_instances.0.name}  # 依赖的 AGENT 服务名称（默认为 `agent_instances` 的第一个）
+      infer_service: ${infer_instances.0.name}  # 依赖的 INFER 服务名称（默认为 `infer_instances` 的第一个）
+    resource_info: [ ]  # MSRL 训练采用 RAY 实现资源分配，在 Executor 层不做资源限制
+
+
+# =============================================================
+# Agent 预置服务：
+# 1. 提供如：Math / WebWalker 等智能体对话服务
+# =============================================================
+agent_instances:
+  - name: WEBWALKER
+    executor_num: 1
+    executor_kwargs:
+      # 以下参数为 AgentExecutor 初始化参数
+      agent_engine: rllm
+      agent_engine_kwargs:
+        # 以下参数为 rLLMEngineWrapper 初始化参数
+        agent_name: webwalker # RLLMEngineWrapper内置Agent，修改参见：agents/agents_mapping.py
+        simplify_think_content: false
+        max_prompt_length: 22528
+        max_model_len: 24576
+        n_parallel_agents: 8
+        trajectory_generation_method: tree
+        beam_type: dynamic_beam_search
+        beam_size: 2
+        per_beam_expand: 8
+        beam_train_n_samples: 16
+        token_in_token_out: true
+        env_args:
+          max_steps: 8
+          reward_mode: step
+          stop_mode: golden_path_horizon_or_finish
+          tool_timeout: 2000  # 工具调用超时设置，默认200
+          trajectory_timeout: 7200  # 单轮轨迹请求超时，默认7200
+          tokenizer_path: /path/to/models/Qwen3-8B # 需要修改为模型路径
+          chat_model_url: http://127.0.0.1:8743/v1
+          chat_model_key: EMPTY
+          chat_model_name: qwen3_5-35b-a3b
+          chat_model_timeout: 60
+          chat_model_max_retries: 1
+          chat_model_temperature: 0.0
+          chat_model_top_p: 1.0
+          chat_model_max_tokens: 2048
+          page_cache_path: /path/to/cache/webwalker_pages.sqlite
+          cache_mode: strict
+        agent_args:
+          tokenizer_path: /path/to/models/Qwen3-8B # 需要修改为模型路径
+          max_prompt_length: 22528
+          chat_model_name: "qwen3_5-35b-a3b"
+          use_summary: false
+        tokenizer: ${verl_conf.actor_rollout_ref.model.path}
+      infer_service_params: # 每轮对话时的 sampling params
+        temperature: 0.9
+        top_p: 0.9
+        max_tokens: 22528
+        model: ${infer_instances.0.name} # 依赖的 INFER 服务名称（默认为 `infer_instances` 的第一个）
+      trajectory_save_dir: ${oc.env:WEBWALKER_TRAJECTORY_SAVE_DIR,${hydra:runtime.cwd}/outputs/rollout_data_dir/webwalker_trajectory.jsonl}
+    resource_info: [ ]
+
+
+# =============================================================
+# Infer 预置服务：
+# 1. 提供如：Qwen / Deepseek 等大模型推理服务
+# 2. 提供 OpenAI Chat 推理接口
+# =============================================================
+infer_instances:
+  - name: Qwen3-8B
+    executor_num: 1
+    executor_kwargs:
+      # 以下参数为 InferExecutor 初始化参数
+      engine: vllm_proxy
+      engine_kwargs:
+        # 以下参数为 vLLMInferServer 初始化参数
+        # vllm_proxy模式不需要手动配置, 给下列默认配置即可, 启动脚本会自动修改
+        chat_server: "http://0.0.0.0:8080"
+        prefill_server_list: []
+        decode_server_list: []
+        model_name: Qwen3-8B
+        tensor_parallel_size: 2
+        data_parallel_size: 4
+        enable_expert_parallel: false
+    resource_info: []

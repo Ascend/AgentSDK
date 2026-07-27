@@ -24,6 +24,37 @@ from agents.math_agent.environment.tool_env import ToolEnvironment
 from agents.math_agent.reward.reward_fn import math_reward_fn
 from agents.math_agent.tool_agent import ToolAgent
 
+
+class _LazyImport:
+    """Delay optional agent imports until the agent is selected."""
+
+    def __init__(self, module_path: str, object_name: str):
+        self.module_path = module_path
+        self.object_name = object_name
+        self._cached = None
+
+    def load(self):
+        if self._cached is None:
+            module = __import__(self.module_path, fromlist=[self.object_name])
+            self._cached = getattr(module, self.object_name)
+        return self._cached
+
+
+def _resolve_lazy_config(agent_config: dict) -> dict:
+    resolved = dict(agent_config)
+    for key in ("env_class", "agent_class"):
+        value = resolved.get(key)
+        if isinstance(value, _LazyImport):
+            resolved[key] = value.load()
+
+    env_args = dict(resolved.get("env_args", {}))
+    reward_fn = env_args.get("reward_fn")
+    if isinstance(reward_fn, _LazyImport):
+        env_args["reward_fn"] = reward_fn.load()
+    resolved["env_args"] = env_args
+    resolved["agent_args"] = dict(resolved.get("agent_args", {}))
+    return resolved
+
 AGENTS_MAPPING = [
     {
         "name": "math",
@@ -43,6 +74,27 @@ AGENTS_MAPPING = [
         },
         "compute_trajectory_reward_fn": compute_trajectory_reward,
     },
+    {
+        "name": "webwalker",
+        "env_class": _LazyImport(
+            "agents.webwalker_agent.environment.webwalker_env",
+            "WebWalkerEnvironment",
+        ),
+        "env_args": {
+            "reward_fn": _LazyImport(
+                "agents.webwalker_agent.reward.reward_fn",
+                "webwalker_reward_fn",
+            ),
+        },
+        "agent_class": _LazyImport(
+            "agents.webwalker_agent.webwalker_agent",
+            "WebWalkerAgent",
+        ),
+        "agent_args": {
+            "parser_name": "webwalker",
+        },
+        "compute_trajectory_reward_fn": compute_trajectory_reward,
+    },
 ]
 
 
@@ -58,6 +110,6 @@ def get_agent_by_name(name: str) -> Optional[dict]:
     """
     for agent_config in AGENTS_MAPPING:
         if name == agent_config.get("name", ""):
-            return agent_config
+            return _resolve_lazy_config(agent_config)
 
     return None
