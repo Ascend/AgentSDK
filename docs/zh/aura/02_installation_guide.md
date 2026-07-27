@@ -29,7 +29,7 @@
 以 A3 服务器、Ubuntu 系统为例，拉取镜像的命令为：
 
 ```shell
-docker pull swr.cn-south-1.myhuaweicloud.com/ascendhub/agentsdk:26.1.0-a3-ubuntu22.04-py3.11
+docker pull swr.cn-south-1.myhuaweicloud.com/ascendhub/agentsdk:26.1.0-cann9.0.0-torch_npu2.9.0-a3-ubuntu22.04-py3.11
 ```
 
 ##### 选项二：从 Dockerfile 构建镜像
