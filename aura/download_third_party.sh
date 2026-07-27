@@ -19,7 +19,17 @@ for item in "${requirements_files[@]}"; do
   ((number++))
   echo "    ${number}. ${item}"
 done
-read -p "chose one requirements file (1-${number}): " requirements_no
+
+requirements_no=2
+
+if [[ $# -gt 0 ]]; then
+    requirements_no=$1
+fi
+
+if [[ ${requirements_no} -lt 1 || ${requirements_no} -gt ${number} ]]; then
+    echo "invalid choice: ${requirements_no}"
+    exit 1
+fi
 
 index=$((requirements_no-1))
 requirements_file=${requirements_files[${index}]}

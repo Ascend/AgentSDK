@@ -76,6 +76,9 @@ echo "[build_env] 在虚拟环境中执行 build_qwen3_moe_env.sh"
 cd /home/work/model_env/qwen3_moe
 source bin/activate
 hash -r
+python -m ensurepip --upgrade || true
+python -m pip install -U pip setuptools wheel
+hash -r
 bash /home/work/AgentSDK/docker/aura/env/build_qwen3_moe_env.sh
 deactivate
 
