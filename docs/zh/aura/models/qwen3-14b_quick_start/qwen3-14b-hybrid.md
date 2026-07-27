@@ -7,7 +7,7 @@
 第一步：拉取预构建镜像：
 
 ```shell
-docker pull swr.cn-east-3.myhuaweicloud.com/ascendhub-test/agentsdk:26.1.0-910b-ubuntu22.04-py3.11
+docker pull swr.cn-east-3.myhuaweicloud.com/ascendhub-test/agentsdk:26.1.0-cann9.0.0-torch_npu2.9.0-910b-ubuntu22.04-py3.11
 ```
 
 第二步：创建容器：
@@ -30,7 +30,7 @@ docker run --name your_container_name \
     -v /etc/ascend_install.info:/etc/ascend_install.info \
     -v /usr/share/zoneinfo/Asia/Shanghai:/etc/localtime \
     -v /usr/local/sbin:/usr/local/sbin \
-    swr.cn-east-3.myhuaweicloud.com/ascendhub-test/agentsdk:26.1.0-910b-ubuntu22.04-py3.11  \
+    swr.cn-east-3.myhuaweicloud.com/ascendhub-test/agentsdk:26.1.0-cann9.0.0-torch_npu2.9.0-910b-ubuntu22.04-py3.11  \
     sleep infinity
 ```
 
@@ -77,7 +77,7 @@ python3 gsm8k.py \
 
 在快速拉起 qwen3-14b math 场景前，需要修改以下配置文件，需要进行修改的参数可以参照文件头的注释，请将其中的示例路径修改为实际路径。
 
-   [共卡训练配置文件](../../../../../aura/configs/train/verl_train_hybrid_A2_t8_qwen3_14b_math_fsdp.yaml)
+[共卡训练配置文件](../../../../../aura/configs/train/verl_train_hybrid_A2_t8_qwen3_14b_math_fsdp.yaml)
 
 ### 修改hosts.conf
 
