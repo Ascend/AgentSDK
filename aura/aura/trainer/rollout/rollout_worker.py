@@ -1302,15 +1302,10 @@ class RolloutWorker:
         rollout_log_probs_batch = None
         if not cancel_logprobs and all_logprobs_list:
             rollout_log_probs_batch = torch.nn.utils.rnn.pad_sequence(
-               all_logprobs_list,
-               batch_first=True,
-               padding_value=0.0,
-           )
-
-        for i, traj_score in enumerate(traj_scores):
-            last_valid_idx = valid_response_length_sequences[i] - 1
-            if 0 <= last_valid_idx < score_batch.shape[1]:
-                score_batch[i, last_valid_idx] = traj_score
+                all_logprobs_list,
+                batch_first=True,
+                padding_value=0.0,
+            )
 
         tensor_batch = {
             "input_ids": input_ids_list,

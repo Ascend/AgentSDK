@@ -27,11 +27,19 @@ from agents.webwalker_agent.golden_path_utils import normalize_button_label
 
 
 def iter_tasks(path: str):
-    with open(path, encoding="utf-8") as handle:
-        for line in handle:
+    try:
+        handle = open(path, encoding="utf-8")
+    except OSError as exc:
+        raise ValueError(f"Failed to open task jsonl {path}: {exc}") from exc
+
+    with handle:
+        for line_no, line in enumerate(handle, start=1):
             line = line.strip()
             if line:
-                yield json.loads(line)
+                try:
+                    yield json.loads(line)
+                except json.JSONDecodeError as exc:
+                    raise ValueError(f"Invalid JSON in {path}:{line_no}: {exc}") from exc
 
 
 def source_urls(task: dict[str, Any]) -> list[str]:
@@ -82,6 +90,17 @@ def find_button_url(buttons: list[dict[str, str]], target: str) -> str:
     return ""
 
 
+def _walk_failure(
+    page_url: str, page_status_value: str, target_button: str, fail_reason: str
+) -> tuple[bool, dict[str, str]]:
+    return False, {
+        "page_url": page_url,
+        "page_status": page_status_value,
+        "target_button": target_button,
+        "fail_reason": fail_reason,
+    }
+
+
 def simulate_golden_walk(
     store, root_url: str, click_path: list[str]
 ) -> tuple[bool, dict[str, str] | None]:
@@ -90,29 +109,17 @@ def simulate_golden_walk(
     for target in click_path:
         status = page_status(store, current)
         if not strict_usable(store, current):
-            return False, {
-                "page_url": current,
-                "page_status": status,
-                "target_button": target,
-                "fail_reason": "page_not_strict_ok",
-            }
+            return _walk_failure(current, status, target, "page_not_strict_ok")
         buttons = buttons_for_url(store, current)
         if not buttons:
-            return False, {
-                "page_url": current,
-                "page_status": status,
-                "target_button": target,
-                "fail_reason": "no_buttons_on_cached_page",
-            }
+            return _walk_failure(current, status, target, "no_buttons_on_cached_page")
         next_raw = find_button_url(buttons, target)
         if not next_raw:
-            return False, {
-                "page_url": current,
-                "page_status": status,
-                "target_button": target,
-                "fail_reason": "golden_button_not_on_page",
-            }
+            return _walk_failure(current, status, target, "golden_button_not_on_page")
         current = normalize_cache_url(next_raw) or next_raw
+    status = page_status(store, current)
+    if not strict_usable(store, current):
+        return _walk_failure(current, status, "", "final_page_not_strict_ok")
     return True, None
 
 

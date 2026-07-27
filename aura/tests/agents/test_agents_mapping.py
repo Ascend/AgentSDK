@@ -16,7 +16,16 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 import sys
+from pathlib import Path
 from unittest.mock import MagicMock
+
+_PROJECT_ROOT = next(
+    parent for parent in Path(__file__).resolve().parents
+    if (parent / "aura" / "agents").exists()
+)
+_AURA_SRC = str(_PROJECT_ROOT / "aura")
+if _AURA_SRC not in sys.path:
+    sys.path.insert(0, _AURA_SRC)
 
 _MODULES_TO_MOCK = [
     "rllm",
@@ -40,10 +49,12 @@ _MODULES_TO_MOCK = [
 
 _original_modules = {}
 
+
 def setup_module():
     for mod_name in _MODULES_TO_MOCK:
         _original_modules[mod_name] = sys.modules.get(mod_name)
         sys.modules[mod_name] = MagicMock()
+
 
 def teardown_module():
     for mod_name in _MODULES_TO_MOCK:
@@ -54,8 +65,6 @@ def teardown_module():
             else:
                 sys.modules[mod_name] = orig
 
-import pytest
-from unittest.mock import Mock, MagicMock, patch
 
 class TestAgentsMapping:
     """Tests for agents_mapping module."""
@@ -97,6 +106,22 @@ class TestAgentsMapping:
         env_args = math_agent.get("env_args", {})
         assert "tools" in env_args
         assert "reward_fn" in env_args
+
+    def test_agents_mapping_webwalker_agent_config_is_lazy(self):
+        """Test WebWalker agent registration without importing optional deps."""
+        from agents.agents_mapping import AGENTS_MAPPING
+
+        webwalker_agent = None
+        for agent in AGENTS_MAPPING:
+            if agent.get("name") == "webwalker":
+                webwalker_agent = agent
+                break
+
+        assert webwalker_agent is not None
+        assert webwalker_agent["env_class"].module_path == "agents.webwalker_agent.environment.webwalker_env"
+        assert webwalker_agent["agent_class"].module_path == "agents.webwalker_agent.webwalker_agent"
+        assert webwalker_agent["env_args"]["reward_fn"].object_name == "webwalker_reward_fn"
+        assert webwalker_agent["agent_args"]["parser_name"] == "webwalker"
 
     def test_get_agent_by_name_found(self):
         """Test get_agent_by_name returns agent when found."""

@@ -31,7 +31,6 @@ import argparse
 import logging
 import os
 import sys
-import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from agents.webwalker_agent.cache._bootstrap import default_db_path, ensure_repo_on_path
@@ -95,8 +94,6 @@ def main() -> None:
         concurrency=concurrency,
     )
 
-    visited_global: set[str] = set()
-    visited_lock = threading.Lock() if concurrency > 1 else None
     tasks = list(iter_tasks(args.jsonl))
     if args.limit and args.limit > 0:
         tasks = tasks[: args.limit]
@@ -116,8 +113,6 @@ def main() -> None:
         if args.strategy == "golden_path":
             crawler.crawl_task_golden_path(
                 task,
-                visited_global=visited_global,
-                visited_lock=visited_lock,
                 force_source=True,
             )
         elif args.strategy == "golden_only":
@@ -125,8 +120,6 @@ def main() -> None:
             crawler.crawl_task(
                 task,
                 max_depth=depth,
-                visited_global=visited_global,
-                visited_lock=visited_lock,
                 force_source=True,
                 max_children=min(args.max_children, 12),
             )
@@ -135,8 +128,6 @@ def main() -> None:
             crawler.crawl_task(
                 task,
                 max_depth=depth,
-                visited_global=visited_global,
-                visited_lock=visited_lock,
                 force_source=True,
             )
         else:
@@ -144,8 +135,6 @@ def main() -> None:
             crawler.crawl_task(
                 task,
                 max_depth=depth,
-                visited_global=visited_global,
-                visited_lock=visited_lock,
                 force_source=True,
             )
 

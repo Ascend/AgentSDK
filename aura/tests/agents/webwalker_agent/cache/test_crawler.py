@@ -128,8 +128,6 @@ def test_crawl_task_local_max_children_does_not_mutate_shared_limit():
     crawler.crawl_task(
         {"root_url": "https://example.com"},
         max_depth=1,
-        visited_global=set(),
-        visited_lock=None,
         force_source=False,
         max_children=12,
     )
