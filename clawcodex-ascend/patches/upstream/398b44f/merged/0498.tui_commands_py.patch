@@ -1,0 +1,27 @@
+diff --git a/tui/commands.py b/tui/commands.py
+new file mode 100644
+--- /dev/null
++++ b/tui/commands.py	2026-07-04 09:47:03.000000 +0800
+@@ -0,0 +1,22 @@
++"""Facade — tui/commands.py has been moved to clawcodex_ext (lazy proxy)."""
++
++from __future__ import annotations
++
++__all__ = [
++    'CommandDispatchResult',
++    'CommandSuggestion',
++    'build_command_suggestions',
++    'build_command_words',
++    'dispatch_local_command',
++    'dispatch_registry_command',
++]
++
++
++def __getattr__(name: str):
++    import clawcodex_ext.tui.commands as _mod
++
++    if name in _mod.__dict__:
++        val = _mod.__dict__[name]
++        globals()[name] = val
++        return val
++    raise AttributeError(f'module {__name__!r} has no attribute {name!r}')

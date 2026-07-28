@@ -1,0 +1,28 @@
+diff --git a/services/langfuse/client.py b/services/langfuse/client.py
+new file mode 100644
+--- /dev/null
++++ b/services/langfuse/client.py	2026-06-25 15:09:03.000000 +0800
+@@ -0,0 +1,23 @@
++"""Facade — src/services/langfuse/client.py has been moved to clawcodex_ext.
++
++The full implementation now lives in
++:mod:`clawcodex_ext.services.langfuse.client`. This module re-exports the public surface so
++existing ``from src.services.langfuse.client import ...``
++call sites keep working without modification.
++"""
++
++from clawcodex_ext.services.langfuse.client import (  # noqa: F401
++    LangfuseConfig,
++    init_langfuse,
++    get_langfuse_client,
++    is_langfuse_available,
++    reset_langfuse_client,
++)
++
++__all__ = [
++    'LangfuseConfig',
++    'init_langfuse',
++    'get_langfuse_client',
++    'is_langfuse_available',
++    'reset_langfuse_client',
++]

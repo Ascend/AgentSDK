@@ -1,0 +1,35 @@
+diff --git a/tui/vim_state.py b/tui/vim_state.py
+new file mode 100644
+--- /dev/null
++++ b/tui/vim_state.py	2026-07-04 09:47:03.000000 +0800
+@@ -0,0 +1,30 @@
++"""Facade — tui/vim_state.py has been moved to clawcodex_ext (lazy proxy)."""
++
++from __future__ import annotations
++
++__all__ = [
++    'IdleState',
++    'CountState',
++    'OperatorState',
++    'OperatorCountState',
++    'OperatorFindState',
++    'OperatorTextObjState',
++    'FindState',
++    'GState',
++    'OperatorGState',
++    'ReplaceState',
++    'IndentState',
++    'TransitionResult',
++    'TransitionContext',
++    'transition',
++]
++
++
++def __getattr__(name: str):
++    import clawcodex_ext.tui.vim_state as _mod
++
++    if name in _mod.__dict__:
++        val = _mod.__dict__[name]
++        globals()[name] = val
++        return val
++    raise AttributeError(f'module {__name__!r} has no attribute {name!r}')

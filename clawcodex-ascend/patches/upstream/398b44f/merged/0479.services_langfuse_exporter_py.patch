@@ -1,0 +1,30 @@
+diff --git a/services/langfuse/exporter.py b/services/langfuse/exporter.py
+new file mode 100644
+--- /dev/null
++++ b/services/langfuse/exporter.py	2026-06-23 11:12:13.000000 +0800
+@@ -0,0 +1,25 @@
++"""Facade — src/services/langfuse/exporter.py has been moved to clawcodex_ext.
++
++The full implementation now lives in
++:mod:`clawcodex_ext.services.langfuse.exporter`. This module re-exports the public surface so
++existing ``from src.services.langfuse.exporter import ...``
++call sites keep working without modification.
++"""
++
++from clawcodex_ext.services.langfuse.exporter import (  # noqa: F401
++    ExportResult,
++    FORMAT_CHATML,
++    FORMAT_JSONL,
++    FORMAT_SFT,
++    TrainingDataExporter,
++    export_training_data,
++)
++
++__all__ = [
++    'ExportResult',
++    'FORMAT_CHATML',
++    'FORMAT_JSONL',
++    'FORMAT_SFT',
++    'TrainingDataExporter',
++    'export_training_data',
++]

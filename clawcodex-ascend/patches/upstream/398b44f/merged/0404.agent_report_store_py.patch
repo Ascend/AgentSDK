@@ -1,0 +1,24 @@
+diff --git a/agent/report_store.py b/agent/report_store.py
+new file mode 100644
+--- /dev/null
++++ b/agent/report_store.py	2026-06-22 10:15:06.000000 +0800
+@@ -0,0 +1,19 @@
++"""Facade — agent/report_store.py has been moved to clawcodex_ext/agent/report_store.
++
++The F-88 P88-D disk-backed Explore/Plan report store
++(``ReportStore``, ``ReportRecord``, ``save_report``, ``load_report``,
++``list_reports``, etc.) now lives in
++:mod:`clawcodex_ext.agent.report_store`. This module re-exports the
++public surface so existing
++``from src.agent.report_store import ...`` callers keep working without
++modification.
++
++Uses ``globals().update()`` to preserve access to all public names
++regardless of ``__all__`` — the source module's ``__all__`` only covers
++5 of 18 public names.
++"""
++
++import clawcodex_ext.agent.report_store as _mod
++
++_globals = {k: v for k, v in vars(_mod).items() if not k.startswith('_')}
++globals().update(_globals)

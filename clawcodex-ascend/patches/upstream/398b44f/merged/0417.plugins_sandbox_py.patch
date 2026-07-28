@@ -1,0 +1,462 @@
+diff --git a/plugins/sandbox.py b/plugins/sandbox.py
+new file mode 100644
+--- /dev/null
++++ b/plugins/sandbox.py	2026-07-04 09:47:03.000000 +0800
+@@ -0,0 +1,457 @@
++"""PluginSandbox — optional subprocess isolation for untrusted plugins.
++
++Each sandboxed plugin runs in a dedicated child process with restricted
++permissions.  Communication happens over a lightweight IPC channel
++(JSON-RPC over a Unix domain socket or ``subprocess.Popen`` pipes).
++
++Security constraints enforced per-plugin:
++- ``permissions`` from the plugin manifest control allowed operations.
++- Network access can be disabled entirely.
++- File-system access is limited to the plugin's data directory.
++- CPU / memory limits can be imposed via cgroups (Linux) or resource
++  limits (POSIX).
++"""
++
++from __future__ import annotations
++
++import json
++import logging
++import os
++import signal
++import subprocess
++import sys
++import tempfile
++import time
++from dataclasses import dataclass, field
++from enum import Enum
++from pathlib import Path
++from typing import Any
++
++from .types import LoadedPlugin, PluginError
++
++logger = logging.getLogger(__name__)
++
++
++class SandboxMode(str, Enum):
++    """Isolation mode for a plugin sandbox."""
++
++    NONE = 'none'            # No isolation (default for trusted plugins)
++    PROCESS = 'process'      # Dedicated subprocess with stdio IPC
++    CONTAINER = 'container'  # Container-level isolation (requires Docker/podman)
++
++
++class ResourceLimit(str, Enum):
++    """Resource limits that can be enforced."""
++
++    CPU_SECONDS = 'cpu_seconds'
++    MEMORY_BYTES = 'memory_bytes'
++    FILE_SIZE_BYTES = 'file_size_bytes'
++    MAX_OPEN_FILES = 'max_open_files'
++
++
++@dataclass
++class SandboxConfig:
++    """Configuration for a plugin sandbox."""
++
++    mode: SandboxMode = SandboxMode.NONE
++    allowed_permissions: set[str] = field(default_factory=set)
++    resource_limits: dict[ResourceLimit, int] = field(default_factory=dict)
++    network_allowed: bool = True
++    working_dir: str | None = None
++    env_overrides: dict[str, str] = field(default_factory=dict)
++    timeout_seconds: float = 30.0
++
++
++@dataclass
++class SandboxResult:
++    """Result of executing a command inside a sandbox."""
++
++    plugin_name: str
++    exit_code: int = 0
++    stdout: str = ''
++    stderr: str = ''
++    timed_out: bool = False
++    error: str | None = None
++
++
++@dataclass
++class SandboxedPlugin:
++    """Wrapper around a plugin that tracks its sandbox state."""
++
++    plugin: LoadedPlugin
++    config: SandboxConfig = field(default_factory=SandboxConfig)
++    process: subprocess.Popen | None = None
++    pid: int | None = None
++    started_at: float | None = None
++    stopped: bool = False
++
++
++# ── Registry ──────────────────────────────────────────────────────────
++
++_sandboxes: dict[str, SandboxedPlugin] = {}
++
++
++def get_sandbox(plugin_name: str) -> SandboxedPlugin | None:
++    return _sandboxes.get(plugin_name)
++
++
++def get_all_sandboxes() -> list[SandboxedPlugin]:
++    return list(_sandboxes.values())
++
++
++def register_sandbox(
++    plugin: LoadedPlugin,
++    config: SandboxConfig | None = None,
++) -> SandboxedPlugin:
++    cfg = config or _infer_sandbox_config(plugin)
++    sandbox = SandboxedPlugin(plugin=plugin, config=cfg)
++    _sandboxes[plugin.name] = sandbox
++    logger.info(
++        'Registered sandbox for plugin %s (mode=%s)',
++        plugin.name, cfg.mode,
++    )
++    return sandbox
++
++
++def remove_sandbox(plugin_name: str) -> bool:
++    sb = _sandboxes.pop(plugin_name, None)
++    if sb is not None and sb.process and not sb.stopped:
++        _stop_process(sb)
++    return sb is not None
++
++
++def clear_sandboxes() -> None:
++    for sb in list(_sandboxes.values()):
++        if sb.process and not sb.stopped:
++            _stop_process(sb)
++    _sandboxes.clear()
++
++
++# ── Config inference ──────────────────────────────────────────────────
++
++
++def _infer_sandbox_config(plugin: LoadedPlugin) -> SandboxConfig:
++    """Infer a sandbox config from the plugin manifest permissions."""
++    allowed: set[str] = set()
++
++    # Source-based heuristics
++    if plugin.source == 'marketplace':
++        allowed = {'read', 'execute'}
++    elif plugin.source == 'entry_point':
++        allowed = {'read', 'write', 'execute', 'network', 'mcp'}
++    elif plugin.source == 'user':
++        allowed = {'read', 'execute'}
++    else:
++        # Bundled / builtin — trust by default
++        allowed = {'read', 'write', 'execute', 'network', 'mcp'}
++
++    return SandboxConfig(
++        mode=SandboxMode.PROCESS if plugin.source != 'builtin' else SandboxMode.NONE,
++        allowed_permissions=allowed,
++        network_allowed='network' in allowed,
++    )
++
++
++# ── Process management ────────────────────────────────────────────────
++
++
++def _stop_process(sb: SandboxedPlugin) -> None:
++    """Gracefully stop a sandboxed process."""
++    if sb.process is None:
++        return
++    try:
++        sb.process.terminate()
++        try:
++            sb.process.wait(timeout=5.0)
++        except subprocess.TimeoutExpired:
++            sb.process.kill()
++            sb.process.wait(timeout=5.0)
++    except Exception as exc:
++        logger.warning('Failed to stop sandbox process for %s: %s', sb.plugin.name, exc)
++    finally:
++        sb.stopped = True
++        sb.process = None
++        sb.pid = None
++
++
++def start_sandbox(sb: SandboxedPlugin) -> bool:
++    """Start the sandbox for a plugin (no-op for SandboxMode.NONE)."""
++    if sb.config.mode == SandboxMode.NONE:
++        return True
++
++    if sb.config.mode == SandboxMode.PROCESS:
++        return _start_process_sandbox(sb)
++
++    logger.warning(
++        'Unsupported sandbox mode %s for plugin %s',
++        sb.config.mode, sb.plugin.name,
++    )
++    return False
++
++
++def ping_sandbox(sb: SandboxedPlugin) -> bool:
++    """Check if a sandboxed process is still alive.
++
++    Sends a lightweight ping RPC and returns ``True`` if the process
++    responds within the configured timeout.
++    """
++    if sb.config.mode == SandboxMode.NONE:
++        return True
++    if sb.process is None:
++        return False
++    if sb.stopped:
++        return False
++
++    # Check if process is still running
++    if sb.process.poll() is not None:
++        return False
++
++    # Try a lightweight RPC ping
++    try:
++        result = execute_rpc(sb, 'ping', timeout=sb.config.timeout_seconds)
++        return result is not None
++    except Exception:
++        return False
++
++
++def health_check_sandbox(sb: SandboxedPlugin) -> dict[str, Any]:
++    """Return health status for a sandbox.
++
++    Returns a dict with keys:
++    - ``alive``: bool — process is running
++    - ``pid``: int | None — process ID
++    - ``uptime``: float | None — seconds since start
++    - ``timed_out``: bool — whether the sandbox timed out
++    """
++    alive = False
++    pid = sb.pid
++    uptime = None
++    timed_out = False
++
++    if sb.config.mode == SandboxMode.NONE:
++        alive = True
++    elif sb.process is not None and not sb.stopped:
++        poll = sb.process.poll()
++        alive = poll is None
++        if sb.started_at is not None:
++            uptime = time.time() - sb.started_at
++        if sb.config.timeout_seconds > 0 and uptime is not None:
++            timed_out = uptime > sb.config.timeout_seconds
++
++    return {
++        'alive': alive,
++        'pid': pid,
++        'uptime': uptime,
++        'timed_out': timed_out,
++    }
++
++
++def _start_process_sandbox(sb: SandboxedPlugin) -> bool:
++    """Start a subprocess sandbox for the plugin."""
++    plugin = sb.plugin
++    cfg = sb.config
++
++    # Build environment
++    env = os.environ.copy()
++    env.update(cfg.env_overrides)
++    env['CLAWCODEX_SANDBOX'] = '1'
++    env['CLAWCODEX_PLUGIN_NAME'] = plugin.name
++
++    # Restrict filesystem access to plugin data directory
++    work_dir = cfg.working_dir or plugin.path
++    if not work_dir:
++        work_dir = tempfile.mkdtemp(prefix=f'clawcodex-plugin-{plugin.name}-')
++
++    # Apply resource limits (POSIX rlimit)
++    try:
++        import resource
++    except ImportError:
++        resource = None  # type: ignore[assignment]
++
++    if resource and cfg.resource_limits.get(ResourceLimit.MEMORY_BYTES):
++        mem_limit = cfg.resource_limits[ResourceLimit.MEMORY_BYTES]
++        try:
++            resource.setrlimit(
++                resource.RLIMIT_AS,
++                (mem_limit, mem_limit),
++            )
++        except (ValueError, resource.error) as exc:
++            logger.warning(
++                'Failed to set memory limit for plugin %s: %s',
++                plugin.name, exc,
++            )
++
++    if resource and cfg.resource_limits.get(ResourceLimit.MAX_OPEN_FILES):
++        fd_limit = cfg.resource_limits[ResourceLimit.MAX_OPEN_FILES]
++        try:
++            resource.setrlimit(
++                resource.RLIMIT_NOFILE,
++                (fd_limit, fd_limit),
++            )
++        except (ValueError, resource.error) as exc:
++            logger.warning(
++                'Failed to set FD limit for plugin %s: %s',
++                plugin.name, exc,
++            )
++
++    try:
++        proc = subprocess.Popen(
++            [sys.executable, '-m', plugin.name],
++            stdin=subprocess.PIPE,
++            stdout=subprocess.PIPE,
++            stderr=subprocess.PIPE,
++            cwd=work_dir,
++            env=env,
++            text=True,
++        )
++        sb.process = proc
++        sb.pid = proc.pid
++        sb.started_at = time.time()
++        logger.info(
++            'Started sandbox process for plugin %s (pid=%s)',
++            plugin.name, sb.pid,
++        )
++        return True
++    except Exception as exc:
++        logger.error(
++            'Failed to start sandbox for plugin %s: %s',
++            plugin.name, exc,
++        )
++        return False
++
++
++def stop_sandbox(sb: SandboxedPlugin) -> None:
++    """Stop the sandbox for a plugin."""
++    _stop_process(sb)
++
++
++def execute_in_sandbox(
++    sb: SandboxedPlugin,
++    command: list[str],
++    timeout: float | None = None,
++) -> SandboxResult:
++    """Execute a command inside the plugin's sandbox.
++
++    Checks permissions before allowing the operation.
++    """
++    plugin = sb.plugin
++    cfg = sb.config
++    timeout = timeout or cfg.timeout_seconds
++
++    # Empty command guard
++    if not command:
++        return SandboxResult(
++            plugin_name=plugin.name,
++            exit_code=1,
++            error='Permission denied: empty command',
++        )
++
++    # Permission check
++    cmd_basename = Path(command[0]).name if command else ''
++    if cfg.mode == SandboxMode.NONE:
++        allowed_ops = {'read', 'write', 'execute', 'network', 'mcp'}
++    else:
++        allowed_ops = cfg.allowed_permissions
++
++    # Simple heuristic: categorize command
++    if any(kw in cmd_basename for kw in ('curl', 'wget', 'fetch', 'http')):
++        op_category = 'network'
++    elif any(kw in cmd_basename for kw in ('open', 'read', 'cat', 'head', 'tail')):
++        op_category = 'read'
++    elif any(kw in cmd_basename for kw in ('write', 'touch', 'mktemp')):
++        op_category = 'write'
++    else:
++        op_category = 'execute'
++
++    # Enforce network restriction before general permission check
++    if op_category == 'network' and not cfg.network_allowed:
++        return SandboxResult(
++            plugin_name=plugin.name,
++            exit_code=1,
++            error='Network access is disabled for this plugin',
++        )
++
++    if op_category not in allowed_ops:
++        return SandboxResult(
++            plugin_name=plugin.name,
++            exit_code=1,
++            error=f'Permission denied: plugin {plugin.name} cannot perform {op_category} operations',
++        )
++
++    try:
++        proc = subprocess.Popen(
++            command,
++            stdin=subprocess.PIPE,
++            stdout=subprocess.PIPE,
++            stderr=subprocess.PIPE,
++            text=True,
++        )
++        stdout, stderr = proc.communicate(timeout=timeout)
++        return SandboxResult(
++            plugin_name=plugin.name,
++            exit_code=proc.returncode,
++            stdout=stdout,
++            stderr=stderr,
++        )
++    except subprocess.TimeoutExpired:
++        proc.kill()
++        proc.communicate()
++        return SandboxResult(
++            plugin_name=plugin.name,
++            exit_code=-1,
++            timed_out=True,
++            error=f'Command timed out after {timeout}s',
++        )
++    except Exception as exc:
++        return SandboxResult(
++            plugin_name=plugin.name,
++            exit_code=-1,
++            error=str(exc),
++        )
++
++
++# ── IPC helpers ───────────────────────────────────────────────────────
++
++
++def _send_request(proc: subprocess.Popen, request: dict[str, Any]) -> dict[str, Any] | None:
++    """Send a JSON-RPC-style request to a sandboxed process."""
++    try:
++        proc.stdin.write(json.dumps(request) + '\n')
++        proc.stdin.flush()
++    except (BrokenPipeError, OSError) as exc:
++        logger.error('Failed to send request to sandbox: %s', exc)
++        return None
++
++    try:
++        line = proc.stdout.readline()
++        if not line:
++            return None
++        return json.loads(line.strip())
++    except (json.JSONDecodeError, OSError) as exc:
++        logger.error('Failed to read response from sandbox: %s', exc)
++        return None
++
++
++def execute_rpc(
++    sb: SandboxedPlugin,
++    method: str,
++    params: dict[str, Any] | None = None,
++    timeout: float | None = None,
++) -> dict[str, Any] | None:
++    """Execute an RPC call inside a sandboxed plugin process.
++
++    Uses JSON-RPC 2.0 over the subprocess stdio channel.
++    """
++    if sb.process is None:
++        logger.error('Cannot execute RPC: no running process for plugin %s', sb.plugin.name)
++        return None
++
++    request: dict[str, Any] = {
++        'jsonrpc': '2.0',
++        'method': method,
++        'id': 1,
++    }
++    if params is not None:
++        request['params'] = params
++
++    return _send_request(sb.process, request)

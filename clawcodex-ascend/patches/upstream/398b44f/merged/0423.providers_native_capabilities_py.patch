@@ -1,0 +1,8 @@
+diff --git a/providers/native/capabilities.py b/providers/native/capabilities.py
+new file mode 100644
+--- /dev/null
++++ b/providers/native/capabilities.py	2026-06-25 15:09:03.000000 +0800
+@@ -0,0 +1,3 @@
++"""Facade — providers/native/capabilities.py has been moved to clawcodex_ext/providers/native/capabilities.py."""
++
++from clawcodex_ext.providers.native.capabilities import *  # noqa: F401,F403

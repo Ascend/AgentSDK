@@ -1,0 +1,14 @@
+diff --git a/services/templates/__init__.py b/services/templates/__init__.py
+new file mode 100644
+--- /dev/null
++++ b/services/templates/__init__.py	2026-07-04 09:47:03.000000 +0800
+@@ -0,0 +1,9 @@
++"""Facade — services/templates/ moved to clawcodex_ext/services/templates/.
++
++The full F-85 implementation now lives in
++:mod:`clawcodex_ext.services.templates`. This module re-exports it
++verbatim so existing ``from src.services.templates import ...`` callers
++keep working without modification.
++"""
++
++from clawcodex_ext.services.templates import *  # noqa: F401,F403

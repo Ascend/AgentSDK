@@ -1,0 +1,14 @@
+diff --git a/services/computer_use/platform/linux.py b/services/computer_use/platform/linux.py
+new file mode 100644
+--- /dev/null
++++ b/services/computer_use/platform/linux.py	2026-07-04 09:47:03.000000 +0800
+@@ -0,0 +1,9 @@
++"""Facade — computer_use/platform/linux.py has been moved to clawcodex_ext.
++
++The real implementation now lives in
++:mod:`clawcodex_ext.services.computer_use.platform.linux`. This module
++re-exports the public surface so existing ``from src.services.computer_use
++.platform.linux import ...`` callers keep working.
++"""
++
++from clawcodex_ext.services.computer_use.platform.linux import *  # noqa: F401,F403

@@ -1,0 +1,24 @@
+diff --git a/utils/startup_profiler.py b/utils/startup_profiler.py
+--- a/utils/startup_profiler.py	2026-07-23 08:42:36.000000 +0000
++++ b/utils/startup_profiler.py	2026-07-21 04:56:27.000000 -0700
+@@ -55,10 +55,18 @@
+ # Honors ``CLAWCODEX_CONFIG_DIR`` (matches the codebase's existing config-dir
+ # resolution at ``src/memdir/paths.py:108`` ``get_claude_config_home_dir``).
+ def _resolve_output_dir() -> Path:
+-    override = os.environ.get("CLAWCODEX_CONFIG_DIR")
++    override = os.environ.get("CLAWCODEX_CONFIG_DIR") or os.environ.get(
++        "CLAUDE_CONFIG_DIR"
++    )
+     if override:
+         return Path(override).expanduser() / "startup-perf"
+-    return Path.home() / ".clawcodex" / "startup-perf"
++    try:
++        home = Path.home()
++    except RuntimeError:
++        # Some embedded/test environments intentionally clear HOME and
++        # USERPROFILE. Profiling is advisory, so keep import side-effect free.
++        home = Path.cwd()
++    return home / ".clawcodex" / "startup-perf"
+
+
+ _OUTPUT_DIR = _resolve_output_dir()

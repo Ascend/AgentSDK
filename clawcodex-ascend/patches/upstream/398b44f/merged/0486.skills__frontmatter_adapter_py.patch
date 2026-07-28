@@ -1,0 +1,8 @@
+diff --git a/skills/_frontmatter_adapter.py b/skills/_frontmatter_adapter.py
+new file mode 100644
+--- /dev/null
++++ b/skills/_frontmatter_adapter.py	2026-06-24 13:07:42.000000 +0800
+@@ -0,0 +1,3 @@
++"""Compatibility facade — see :mod:`clawcodex_ext.skills._frontmatter_adapter`."""
++
++from clawcodex_ext.skills._frontmatter_adapter import *  # noqa: F401,F403

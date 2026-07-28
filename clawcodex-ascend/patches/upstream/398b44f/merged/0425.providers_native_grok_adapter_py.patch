@@ -1,0 +1,21 @@
+diff --git a/providers/native/grok_adapter.py b/providers/native/grok_adapter.py
+new file mode 100644
+--- /dev/null
++++ b/providers/native/grok_adapter.py	2026-06-25 15:09:03.000000 +0800
+@@ -0,0 +1,16 @@
++"""Facade — providers/native/grok_adapter.py has been moved to clawcodex_ext/providers/native/grok_adapter.py.
++
++Uses ``sys.modules`` swap so that
++``monkeypatch.setattr("src.providers.native.grok_adapter.OpenAI", ...)``
++keeps targeting the real implementation module — the test suite relies
++on that string-path monkeypatch to inject a fake SDK without
++``openai`` being installed.
++"""
++
++from __future__ import annotations
++
++import importlib
++import sys
++
++_ext_mod = importlib.import_module('clawcodex_ext.providers.native.grok_adapter')
++sys.modules[__name__] = _ext_mod

@@ -1,0 +1,15 @@
+diff --git a/services/feature_gate/decorators.py b/services/feature_gate/decorators.py
+new file mode 100644
+--- /dev/null
++++ b/services/feature_gate/decorators.py	2026-07-04 09:47:03.000000 +0800
+@@ -0,0 +1,10 @@
++"""src/services/feature_gate/decorators.py — re-export from canonical Layer 1."""
++
++from __future__ import annotations
++
++from clawcodex_ext.feature_gate.decorators import (  # noqa: F401
++    feature_gated,
++    feature_gated_class,
++    guarded_call,
++    guarded_is_enabled,
++)

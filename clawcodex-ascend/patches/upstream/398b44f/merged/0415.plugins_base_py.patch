@@ -1,0 +1,140 @@
+diff --git a/plugins/base.py b/plugins/base.py
+new file mode 100644
+--- /dev/null
++++ b/plugins/base.py	2026-07-04 09:47:03.000000 +0800
+@@ -0,0 +1,135 @@
++"""Base plugin protocol and context types.
++
++Defines the ``BasePlugin`` abstract interface that all ClawCodex plugins
++must implement, along with the ``PluginContext`` dataclass that is passed
++to ``on_load``.
++
++This module mirrors the design in ``docs/feature_plan/06-ccb-benchmark/f-70-plugin.md``.
++"""
++
++from __future__ import annotations
++
++import logging
++from abc import ABC, abstractmethod
++from dataclasses import dataclass, field
++from pathlib import Path
++from typing import TYPE_CHECKING, Any
++
++logger = logging.getLogger(__name__)
++
++if TYPE_CHECKING:
++    from clawcodex_ext.tool_system.registry import ToolRegistry
++else:
++    ToolRegistry = Any  # type: ignore[misc,assignment]
++
++
++@dataclass
++class PluginContext:
++    """Runtime context injected into ``BasePlugin.on_load``.
++
++    Attributes:
++        registry:       Tool registry for registering plugin tools.
++        command_system: Command dispatcher (forward-compatible stub until F-102 lands).
++        config:         Plugin-specific configuration dictionary.
++        data_dir:       Persistent data directory owned by this plugin.
++    """
++
++    registry: ToolRegistry  # type: ignore[misc,name-defined]
++    config: dict[str, Any] = field(default_factory=dict)
++    data_dir: Path | None = None
++    # Forward-compat stub — populated when F-102 is implemented.
++    command_system: Any = None  # type: ignore[assignment]
++
++    def get_data_file(self, name: str) -> Path:
++        """Return a path inside *data_dir* for persistent storage.
++
++        Raises ``RuntimeError`` if ``data_dir`` was not set during load.
++        """
++        if self.data_dir is None:
++            raise RuntimeError(
++                f"data_dir not configured for plugin '{getattr(self, '_plugin_name', '?')}'"
++            )
++        return self.data_dir / name
++
++
++class BasePlugin(ABC):
++    """Abstract base class for ClawCodex plugins.
++
++    Subclasses must implement ``on_load`` and ``on_unload``.  Optional
++    lifecycle hooks (``on_enable`` / ``on_disable``) and factory methods
++    (``get_tools`` / ``get_commands``) can be overridden.
++
++    Example::
++
++        class TodoPlugin(BasePlugin):
++            name = "todo-manager"
++            version = "1.0.0"
++            description = "Manage todo lists"
++
++            async def on_load(self, ctx: PluginContext) -> None:
++                self.data_file = ctx.get_data_file("todos.json")
++
++            def get_tools(self) -> list[Any]:
++                return [build_tool(name="todo_add", ...)]
++
++            def get_commands(self) -> list[dict]:
++                return [{"name": "todo", "handler": self._cmd_todo}]
++    """
++
++    #: Unique plugin identifier (kebab-case recommended).
++    name: str = ""
++    #: Semantic version string.
++    version: str = "0.1.0"
++    #: Human-readable description.
++    description: str = ""
++
++    # ── Required abstract methods ──────────────────────────────────────
++
++    @abstractmethod
++    async def on_load(self, context: PluginContext) -> None:
++        """Called when the plugin is loaded.
++
++        Plugins should register tools, commands, or perform initialisation
++        here.  *context* provides access to the tool registry, config, and
++        a persistent data directory.
++        """
++
++    @abstractmethod
++    async def on_unload(self) -> None:
++        """Called when the plugin is being unloaded / removed.
++
++        Override to clean up resources (close connections, save state, etc.).
++        """
++
++    # ── Optional lifecycle hooks ───────────────────────────────────────
++
++    async def on_enable(self) -> None:
++        """Called when the plugin is enabled (transition from disabled → enabled)."""
++        pass
++
++    async def on_disable(self) -> None:
++        """Called when the plugin is disabled (transition from enabled → disabled)."""
++        pass
++
++    # ── Factory methods for extensibility ──────────────────────────────
++
++    def get_tools(self) -> list[Any]:
++        """Return a list of tools to register with the tool registry.
++
++        Return an empty list by default.  Each tool should be compatible
++        with ``ToolRegistry.register``.
++        """
++        return []
++
++    def get_commands(self) -> list[dict[str, Any]]:
++        """Return a list of command definitions.
++
++        Each dict should contain at minimum ``name`` and ``handler`` keys.
++        Return an empty list by default.
++        """
++        return []
++
++    # ── Internal bookkeeping ───────────────────────────────────────────
++
++    def __repr__(self) -> str:
++        return f"<{self.__class__.__name__} name={self.name!r} version={self.version!r}>"

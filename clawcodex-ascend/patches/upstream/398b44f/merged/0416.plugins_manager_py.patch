@@ -1,0 +1,455 @@
+diff --git a/plugins/manager.py b/plugins/manager.py
+new file mode 100644
+--- /dev/null
++++ b/plugins/manager.py	2026-07-04 09:47:03.000000 +0800
+@@ -0,0 +1,450 @@
++"""PluginManager — unified CLI command binding and lifecycle coordinator.
++
++Provides a ``PluginManager`` class that ties together discovery, loading,
++enabling/disabling, and unloading of plugins.  It also exposes convenience
++methods for integrating with the ClawCodex CLI and hook systems.
++
++Architecture alignment:
++- ``docs/feature_plan/06-ccb-benchmark/f-70-plugin.md`` §1.6
++"""
++
++from __future__ import annotations
++
++import asyncio
++import logging
++import shutil
++from dataclasses import dataclass, field
++from pathlib import Path
++from typing import Any
++
++from .base import BasePlugin, PluginContext
++from .loader import (
++    PluginDiscoveryResult,
++    clear_loaded_plugins,
++    discover_all_plugins,
++    discover_entry_point_plugins,
++    discover_plugins,
++    ensure_plugin_dirs,
++    get_enabled_plugins,
++    get_loaded_plugin,
++    get_loaded_plugins,
++    load_plugin_from_directory,
++    load_plugins_from_directories,
++    register_plugin,
++    scan_plugin_directory,
++    toggle_plugin_enabled,
++    unregister_plugin,
++)
++from .marketplace import install_plugin as _marketplace_install
++from .marketplace import uninstall_plugin as _marketplace_uninstall
++from .sandbox import (
++    SandboxedPlugin,
++    SandboxConfig,
++    SandboxMode,
++    clear_sandboxes,
++    get_sandbox,
++    register_sandbox,
++    remove_sandbox,
++    start_sandbox,
++    stop_sandbox,
++)
++from .types import LoadedPlugin, PluginError, PluginManifest
++
++logger = logging.getLogger(__name__)
++
++
++@dataclass
++class PluginManager:
++    """Central coordinator for the plugin system.
++
++    Handles discovery, loading, lifecycle transitions, sandbox setup,
++    and provides a unified API for interacting with the plugin ecosystem.
++
++    Usage::
++
++        mgr = PluginManager()
++        mgr.discover()
++        mgr.load_all()
++        # … use plugins …
++        mgr.unload_all()
++    """
++
++    #: Whether to auto-discover plugins on instantiation.
++    auto_discover: bool = True
++    #: Extra directories to scan beyond the defaults.
++    extra_dirs: list[str | Path] = field(default_factory=list)
++    #: Whether sandbox isolation is enforced for non-builtin plugins.
++    sandbox_enabled: bool = False
++    #: Per-plugin sandbox overrides (plugin name → SandboxConfig).
++    sandbox_configs: dict[str, SandboxConfig] = field(default_factory=dict)
++    #: Active BasePlugin instances (name → instance).
++    _instances: dict[str, BasePlugin] = field(default_factory=dict, repr=False)
++
++    def __post_init__(self) -> None:
++        if self.auto_discover:
++            self.discover()
++
++    # ── Discovery ──────────────────────────────────────────────────────
++
++    def discover(self, *, recursive: bool = False) -> PluginDiscoveryResult:
++        """Run all discovery strategies and register found plugins.
++
++        Args:
++            recursive: Whether to scan directories recursively.
++
++        Returns a ``PluginDiscoveryResult`` with all discovered plugins
++        and any errors encountered.
++        """
++        result = discover_all_plugins(extra_dirs=self.extra_dirs, recursive=recursive)
++        logger.info(
++            'Discovered %d plugins (%d errors)',
++            len(result.plugins), len(result.errors),
++        )
++        return result
++
++    def discover_directory(self, directory: str | Path, *, recursive: bool = False) -> PluginDiscoveryResult:
++        """Scan a single directory for plugins.
++
++        Args:
++            directory: Path to scan.
++            recursive: Whether to scan subdirectories recursively.
++        """
++        if recursive:
++            result = scan_plugin_directory(directory, recursive=True)
++        else:
++            result = discover_plugins(directory)
++        for plugin in result.plugins:
++            register_plugin(plugin)
++        return result
++
++    def discover_entry_points(self) -> list[LoadedPlugin]:
++        """Discover plugins registered via Python entry_points."""
++        plugins = discover_entry_point_plugins()
++        for plugin in plugins:
++            register_plugin(plugin)
++        return plugins
++
++    # ── Loading ────────────────────────────────────────────────────────
++
++    def load_plugin(
++        self,
++        plugin: LoadedPlugin,
++        tool_registry: Any = None,  # ToolRegistry — avoid circular import
++        command_system: Any = None,  # forward compat for F-102
++        config: dict[str, Any] | None = None,
++        data_dir: Path | None = None,
++    ) -> BasePlugin | None:
++        """Instantiate and load a plugin's runtime logic.
++
++        If *tool_registry* is provided the plugin's ``get_tools()`` will
++        be registered automatically.
++
++        Returns the instantiated ``BasePlugin`` or ``None`` on failure.
++        """
++        try:
++            # Import the plugin module and look for a BasePlugin subclass.
++            plugin_path = Path(plugin.path)
++            init_file = plugin_path / "__init__.py"
++            if not init_file.exists():
++                logger.warning("No __init__.py in %s — skipping runtime load", plugin.path)
++                return None
++
++            # Resolve the module name from the plugin path.
++            import importlib.util  # noqa: local import
++
++            spec = importlib.util.spec_from_file_location(
++                f"clawcodex.plugin.{plugin.name}", init_file
++            )
++            if spec is None or spec.loader is None:
++                logger.warning("Could not load spec for %s", plugin.name)
++                return None
++
++            module = importlib.util.module_from_spec(spec)
++            spec.loader.exec_module(module)  # type: ignore[union-attr]
++
++            # Find BasePlugin subclasses in the module.
++            instances: list[BasePlugin] = []
++            for attr_name in dir(module):
++                attr = getattr(module, attr_name)
++                if (
++                    isinstance(attr, type)
++                    and issubclass(attr, BasePlugin)
++                    and attr is not BasePlugin
++                ):
++                    try:
++                        instance = attr()
++                    except TypeError:
++                        continue
++                    instances.append(instance)
++
++            if not instances:
++                logger.warning(
++                    "No BasePlugin subclass found in %s", plugin.path
++                )
++                return None
++
++            # Use the first found instance.
++            base_plugin = instances[0]
++            ctx = PluginContext(
++                registry=tool_registry,  # type: ignore[arg-type]
++                command_system=command_system,
++                config=config or {},
++                data_dir=data_dir,
++            )
++            # Store context on the instance for later access.
++            base_plugin._plugin_context = ctx  # type: ignore[attr-defined]
++
++            # Register tools if registry is available.
++            if tool_registry is not None:
++                for tool in base_plugin.get_tools():
++                    try:
++                        tool_registry.register(tool)
++                    except Exception as exc:
++                        logger.warning(
++                            "Failed to register tool %s: %s",
++                            getattr(tool, 'name', '?'), exc,
++                        )
++
++            # Run async on_load.
++            try:
++                loop = asyncio.get_running_loop()
++            except RuntimeError:
++                loop = None
++            if loop is not None and loop.is_running():
++                # Already in an async context — schedule the coroutine
++                import asyncio as _asyncio
++                task = _asyncio.create_task(base_plugin.on_load(ctx))
++                # We can't await here in sync context; just store the task
++                # on the instance so tests can inspect it if needed.
++                base_plugin._on_load_task = task  # type: ignore[attr-defined]
++            else:
++                asyncio.run(base_plugin.on_load(ctx))
++
++            self._instances[base_plugin.name] = base_plugin
++            logger.info("Loaded plugin: %s", base_plugin.name)
++            return base_plugin
++
++        except Exception as exc:
++            logger.error("Failed to load plugin %s: %s", plugin.name, exc)
++            return None
++
++    def load_all(
++        self,
++        tool_registry: Any = None,
++        command_system: Any = None,
++    ) -> dict[str, BasePlugin]:
++        """Load all registered enabled plugins.
++
++        Returns a dict mapping plugin name → BasePlugin instance.
++        """
++        loaded: dict[str, BasePlugin] = {}
++        for plugin in get_enabled_plugins():
++            instance = self.load_plugin(
++                plugin,
++                tool_registry=tool_registry,
++                command_system=command_system,
++            )
++            if instance is not None:
++                loaded[instance.name] = instance
++        return loaded
++
++    def unload_plugin(self, name: str) -> bool:
++        """Unload a single plugin by name.
++
++        Calls ``on_unload`` on the active instance, removes it from the
++        instance cache, and cleans up its sandbox if one exists.
++
++        Returns ``True`` if the plugin was loaded and is now unloaded.
++        """
++        instance = self._instances.pop(name, None)
++        if instance is None:
++            return False
++
++        # Call on_unload if available
++        try:
++            if asyncio.iscoroutinefunction(instance.on_unload):
++                try:
++                    loop = asyncio.get_running_loop()
++                except RuntimeError:
++                    loop = None
++                if loop is not None and loop.is_running():
++                    import asyncio as _asyncio
++                    _asyncio.create_task(instance.on_unload())
++                else:
++                    asyncio.run(instance.on_unload())
++            else:
++                # sync on_unload not expected per BasePlugin, but handle gracefully
++                pass
++        except Exception as exc:
++            logger.error("Error unloading plugin %s: %s", name, exc)
++
++        # Clean up sandbox
++        sandbox = get_sandbox(name)
++        if sandbox is not None:
++            stop_sandbox(sandbox)
++            remove_sandbox(name)
++
++        logger.info("Unloaded plugin: %s", name)
++        return True
++
++    # ── Lifecycle ──────────────────────────────────────────────────────
++
++    def enable_plugin(self, name: str) -> bool:
++        """Enable a registered plugin."""
++        result = toggle_plugin_enabled(name, True)
++        if result:
++            plugin = get_loaded_plugin(name)
++            if plugin:
++                self._setup_sandbox(plugin)
++        return result
++
++    def disable_plugin(self, name: str) -> bool:
++        """Disable a registered plugin.
++
++        If the plugin is currently loaded, it will be unloaded first.
++        """
++        self.unload_plugin(name)
++        return toggle_plugin_enabled(name, False)
++
++    def install_plugin(
++        self,
++        source_dir: str | Path,
++        plugin_name: str,
++        *,
++        target_dir: str | Path | None = None,
++        tool_registry: Any = None,
++        command_system: Any = None,
++    ) -> LoadedPlugin:
++        """Install a plugin from a source directory into the plugin directory.
++
++        Args:
++            source_dir: Directory containing the plugin source.
++            plugin_name: Name of the plugin to install.
++            target_dir: Target directory (defaults to first default plugin dir).
++            tool_registry: Optional tool registry for loading the plugin.
++            command_system: Optional command system for loading the plugin.
++
++        Returns:
++            The installed ``LoadedPlugin``.
++
++        Raises:
++            PluginError: If the plugin cannot be installed.
++        """
++        if target_dir is None:
++            dirs = ensure_plugin_dirs()
++            target_dir = dirs[0]  # user dir
++
++        plugin = _marketplace_install(source_dir, target_dir, plugin_name)
++        register_plugin(plugin)
++
++        # Auto-load if enabled
++        if plugin.enabled:
++            self.load_plugin(
++                plugin,
++                tool_registry=tool_registry,
++                command_system=command_system,
++            )
++
++        logger.info("Installed plugin: %s → %s", plugin_name, target_dir)
++        return plugin
++
++    def uninstall_plugin(self, name: str, *, plugin_dir: str | Path | None = None) -> bool:
++        """Uninstall and remove a plugin.
++
++        Args:
++            name: Plugin name to uninstall.
++            plugin_dir: Directory containing installed plugins (defaults
++                to first default plugin dir).
++
++        Returns ``True`` if the plugin was found and removed.
++        """
++        # Unload first
++        self.unload_plugin(name)
++
++        # Remove from filesystem
++        if plugin_dir is None:
++            dirs = ensure_plugin_dirs()
++            plugin_dir = dirs[0]
++
++        removed = _marketplace_uninstall(plugin_dir, name)
++        if removed:
++            logger.info("Uninstalled plugin: %s from %s", name, plugin_dir)
++
++        # Unregister from internal registry
++        return unregister_plugin(name) or removed
++
++    def unload_all(self) -> None:
++        """Unload all registered plugins and clean up sandboxes."""
++        for name in list(self._instances.keys()):
++            self.unload_plugin(name)
++        self._instances.clear()
++        clear_loaded_plugins()
++        clear_sandboxes()
++        logger.info("All plugins unloaded")
++
++    # ── Sandbox ────────────────────────────────────────────────────────
++
++    def _setup_sandbox(self, plugin: LoadedPlugin) -> None:
++        """Configure sandbox for a plugin if sandboxing is enabled."""
++        if not self.sandbox_enabled:
++            return
++        cfg = self.sandbox_configs.get(plugin.name)
++        if cfg is None:
++            cfg = SandboxConfig(mode=SandboxMode.PROCESS)
++        sb = register_sandbox(plugin, cfg)
++        start_sandbox(sb)
++
++    def get_sandbox(self, plugin_name: str) -> Any | None:
++        """Get the sandbox for a plugin."""
++        return get_sandbox(plugin_name)
++
++    # ── Status queries ─────────────────────────────────────────────────
++
++    def list_plugins(self, enabled_only: bool = False) -> list[LoadedPlugin]:
++        """List registered plugins."""
++        if enabled_only:
++            return get_enabled_plugins()
++        return get_loaded_plugins()
++
++    def get_plugin_status(self, name: str) -> dict[str, Any] | None:
++        """Get detailed status for a plugin."""
++        plugin = get_loaded_plugin(name)
++        if plugin is None:
++            return None
++        instance = self._instances.get(name)
++        return {
++            "name": plugin.name,
++            "version": plugin.manifest.version,
++            "enabled": plugin.enabled,
++            "source": plugin.source,
++            "path": plugin.path,
++            "loaded": instance is not None,
++            "has_sandbox": get_sandbox(name) is not None,
++        }
++
++    # ── Cleanup ────────────────────────────────────────────────────────
++
++    def shutdown(self) -> None:
++        """Full shutdown: unload plugins, clean sandboxes, clear registry."""
++        self.unload_all()
++
++
++# ── Module-level helpers ──────────────────────────────────────────────
++
++
++def create_manager(
++    auto_discover: bool = True,
++    extra_dirs: list[str | Path] | None = None,
++    sandbox_enabled: bool = False,
++) -> PluginManager:
++    """Convenience factory for creating a PluginManager.
++
++    Usage::
++
++        mgr = create_manager(sandbox_enabled=True)
++    """
++    return PluginManager(
++        auto_discover=auto_discover,
++        extra_dirs=extra_dirs or [],
++        sandbox_enabled=sandbox_enabled,
++    )

@@ -1,0 +1,22 @@
+diff --git a/services/context_collapse/__init__.py b/services/context_collapse/__init__.py
+new file mode 100644
+--- /dev/null
++++ b/services/context_collapse/__init__.py	2026-06-22 09:21:01.000000 +0800
+@@ -0,0 +1,17 @@
++"""Facade — services/context_collapse/ has been moved to clawcodex_ext/services/context_collapse/.
++
++The full F-84 context collapse service layer (trigger + summary + tokens +
++persistence + boundary + engine + exceptions) now lives in
++:mod:`clawcodex_ext.services.context_collapse`. This module re-exports
++the public surface so existing
++``from src.services.context_collapse import ...`` callers keep working
++without modification.
++
++Uses ``globals().update()`` to preserve access to all public names
++regardless of ``__all__`` — only 3 of 7 submodules define ``__all__``.
++"""
++
++import clawcodex_ext.services.context_collapse as _mod
++
++_globals = {k: v for k, v in vars(_mod).items() if not k.startswith('_')}
++globals().update(_globals)

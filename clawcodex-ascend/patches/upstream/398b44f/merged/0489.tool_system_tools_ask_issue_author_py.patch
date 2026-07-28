@@ -1,0 +1,8 @@
+diff --git a/tool_system/tools/ask_issue_author.py b/tool_system/tools/ask_issue_author.py
+new file mode 100644
+--- /dev/null
++++ b/tool_system/tools/ask_issue_author.py	2026-07-04 09:47:03.000000 +0800
+@@ -0,0 +1,3 @@
++"""Facade — tool_system/tools/ask_issue_author.py moved to clawcodex_ext/tool_system/tools/."""
++
++from clawcodex_ext.tool_system.tools.ask_issue_author import *  # noqa: F401,F403

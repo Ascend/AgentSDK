@@ -1,0 +1,8 @@
+diff --git a/services/context_collapse/persistence.py b/services/context_collapse/persistence.py
+new file mode 100644
+--- /dev/null
++++ b/services/context_collapse/persistence.py	2026-06-22 09:21:01.000000 +0800
+@@ -0,0 +1,3 @@
++"""Facade — services/context_collapse/persistence.py has been moved to clawcodex_ext/services/context_collapse/persistence.py."""
++
++from clawcodex_ext.services.context_collapse.persistence import *  # noqa: F401,F403

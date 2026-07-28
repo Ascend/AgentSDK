@@ -1,0 +1,10 @@
+diff --git a/services/feature_gate/config.py b/services/feature_gate/config.py
+new file mode 100644
+--- /dev/null
++++ b/services/feature_gate/config.py	2026-07-04 09:47:03.000000 +0800
+@@ -0,0 +1,5 @@
++"""src/services/feature_gate/config.py — re-export from canonical Layer 1."""
++
++from __future__ import annotations
++
++from clawcodex_ext.feature_gate.config import ConfigStore  # noqa: F401
