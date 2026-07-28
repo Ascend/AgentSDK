@@ -1,0 +1,12 @@
+diff --git a/models/context.py b/models/context.py
+--- a/models/context.py	2026-07-23 08:42:36.000000 +0000
++++ b/models/context.py	2026-07-21 04:15:00.000000 -0700
+@@ -19,7 +19,7 @@
+ # opt-in (e.g., ``claude-opus-4-7[1m]``) on models that support 1M tokens.
+ # At resolution time the suffix is stripped before the id reaches the API.
+ ONE_MILLION_CONTEXT_TOKENS = 1_000_000
+-ONE_MILLION_SUFFIX = "[1m]"
++ONE_MILLION_SUFFIX = '[1m]'
+
+
+ def has_1m_context_suffix(model_id: str) -> bool:

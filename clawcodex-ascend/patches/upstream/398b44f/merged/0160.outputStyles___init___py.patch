@@ -1,0 +1,14 @@
+diff --git a/outputStyles/__init__.py b/outputStyles/__init__.py
+--- a/outputStyles/__init__.py	2026-07-23 08:42:36.000000 +0000
++++ b/outputStyles/__init__.py	2026-07-21 04:15:00.000000 -0700
+@@ -13,7 +13,9 @@
+ )
+ from .styles import BUILTIN_OUTPUT_STYLES, OutputStyle
+
+-SNAPSHOT_PATH = Path(__file__).resolve().parent.parent / 'reference_data' / 'subsystems' / 'outputStyles.json'
++SNAPSHOT_PATH = (
++    Path(__file__).resolve().parent.parent / 'reference_data' / 'subsystems' / 'outputStyles.json'
++)
+ _SNAPSHOT = json.loads(SNAPSHOT_PATH.read_text())
+
+ ARCHIVE_NAME = _SNAPSHOT['archive_name']

@@ -1,0 +1,22 @@
+diff --git a/outputStyles/styles.py b/outputStyles/styles.py
+--- a/outputStyles/styles.py	2026-07-23 08:42:36.000000 +0000
++++ b/outputStyles/styles.py	2026-07-04 09:47:03.000000 +0800
+@@ -14,13 +14,12 @@
+
+
+ BUILTIN_OUTPUT_STYLES: dict[str, OutputStyle] = {
+-    "default": OutputStyle(
+-        name="default",
++    'default': OutputStyle(
++        name='default',
+         prompt="Respond clearly, concisely, and focus on the user's requested engineering task.",
+     ),
+-    "explanatory": OutputStyle(
+-        name="explanatory",
+-        prompt="Respond with concise implementation details plus short educational notes when they improve understanding.",
++    'explanatory': OutputStyle(
++        name='explanatory',
++        prompt='Respond with concise implementation details plus short educational notes when they improve understanding.',
+     ),
+ }
+-

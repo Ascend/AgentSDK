@@ -1,0 +1,64 @@
+diff --git a/plugins/dependency.py b/plugins/dependency.py
+--- a/plugins/dependency.py	2026-07-23 08:42:36.000000 +0000
++++ b/plugins/dependency.py	2026-07-04 09:47:03.000000 +0800
+@@ -41,12 +41,14 @@
+                 continue
+             available = plugins[dep_name]
+             if not version_satisfies(available.version, dep_version):
+-                result.conflicts.append(DependencyConflict(
+-                    plugin_name=name,
+-                    dependency_name=dep_name,
+-                    required_version=dep_version,
+-                    available_version=available.version,
+-                ))
++                result.conflicts.append(
++                    DependencyConflict(
++                        plugin_name=name,
++                        dependency_name=dep_name,
++                        required_version=dep_version,
++                        available_version=available.version,
++                    )
++                )
+
+     order = topological_sort(plugins)
+     if order is None:
+@@ -119,21 +121,21 @@
+
+
+ def version_satisfies(available: str, required: str) -> bool:
+-    if required == "*" or required == "":
++    if required == '*' or required == '':
+         return True
+
+-    if required.startswith(">="):
++    if required.startswith('>='):
+         return _compare_versions(available, required[2:].strip()) >= 0
+-    if required.startswith("<="):
++    if required.startswith('<='):
+         return _compare_versions(available, required[2:].strip()) <= 0
+-    if required.startswith(">"):
++    if required.startswith('>'):
+         return _compare_versions(available, required[1:].strip()) > 0
+-    if required.startswith("<"):
++    if required.startswith('<'):
+         return _compare_versions(available, required[1:].strip()) < 0
+-    if required.startswith("^"):
++    if required.startswith('^'):
+         target = required[1:].strip()
+         return _caret_match(available, target)
+-    if required.startswith("~"):
++    if required.startswith('~'):
+         target = required[1:].strip()
+         return _tilde_match(available, target)
+
+@@ -141,8 +143,8 @@
+
+
+ def _parse_version(v: str) -> tuple[int, ...]:
+-    clean = re.sub(r"-.*$", "", v.strip())
+-    parts = clean.split(".")
++    clean = re.sub(r'-.*$', '', v.strip())
++    parts = clean.split('.')
+     result: list[int] = []
+     for p in parts:
+         try:
