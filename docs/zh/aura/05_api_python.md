@@ -19,11 +19,6 @@ Agent 抽象基类，负责与模型交互、维护对话状态、解析模型�
 **类定义**
 
 ```python
-from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
-from typing import Any
-
-
 class BaseAgent(ABC):
     @property
     def chat_completions(self) -> list[dict[str, str]]: ...
@@ -64,10 +59,6 @@ class BaseAgent(ABC):
 **类定义**
 
 ```python
-from abc import ABC, abstractmethod
-from typing import Any
-
-
 class BaseEnv(ABC):
     @abstractmethod
     def reset(self) -> tuple[dict, dict]: ...
@@ -106,23 +97,6 @@ class BaseEnv(ABC):
 **类定义**
 
 ```python
-from abc import ABC, abstractmethod
-from typing import List
-from pydantic import BaseModel
-
-
-class AgentTask(BaseModel):
-    task_id: str
-    sample_id: int
-    iteration: int
-    agent_name: str
-    problem: str
-    ground_truth: str = ""
-    prompt_id: int = 0
-    content: str = ""
-    extra_args: dict[str, Any] = None
-
-
 class BaseEngineWrapper(ABC):
     @abstractmethod
     async def generate_trajectory(self, task: AgentTask, stream_queue=None, *args, **kwargs) -> "Trajectory": ...
@@ -146,98 +120,7 @@ class BaseEngineWrapper(ABC):
 
 ## 二、注册表接口
 
-注册表接口用于注册自定义的训练引擎、推理引擎、数据管理器等组件。
-
-### 2.1 TrainRegistry - 训练引擎注册表
-
-**功能描述**
-
-训练引擎注册表，用于注册自定义的训练方法和 Rollout 方法。
-
-**类定义**
-
-```python
-class TrainRegistry:
-    def register(self, train_engine: str, cluster_mode: str,
-                 rollout_method: Callable | None, train_method: Callable) -> None: ...
-
-    def get_method(self, train_engine: str, cluster_mode: str) -> tuple | None: ...
-
-
-# 全局实例
-registry = TrainRegistry()
-```
-
-**已注册引擎**
-
-| train_engine | cluster_mode   | 说明         |
-|--------------|----------------|------------|
-| `verl`       | `hybrid`       | verl 共卡模式  |
-| `verl`       | `one_step_off` | verl 全异步模式 |
-
-**文件位置**: `aura/trainer/train_register.py`
-
----
-
-### 2.2 InferBackendRegistry - 推理引擎注册表
-
-**功能描述**
-
-推理引擎注册表，用于注册自定义的推理服务后端。
-
-**类定义**
-
-```python
-class InferBackendRegistry:
-    def register(self, name: str, cls: type) -> None: ...
-
-    def get_class(self, name: str) -> type | None: ...
-
-
-# 全局实例
-registry = InferBackendRegistry()
-```
-
-**已注册后端**
-
-| 名称        | 说明             |
-|-----------|----------------|
-| `vllm`    | vLLM 推理服务      |
-| `vllm_pd` | vLLM PD 分离推理服务 |
-
-**文件位置**: `aura/runner/infer_adapter/infer_registry.py`
-
----
-
-### 2.3 DataManagerRegistry - 数据管理器注册表
-
-**功能描述**
-
-数据管理器注册表，用于注册自定义的数据管理器。
-
-**类定义**
-
-```python
-class DataManagerRegistry:
-    def register(self, train_backend: str, service_mode: str, cls: type) -> None: ...
-
-    def get_class(self, train_backend: str, service_mode: str) -> type | None: ...
-
-
-# 全局实例
-registry = DataManagerRegistry()
-```
-
-**已注册管理器**
-
-| train_backend | service_mode | 数据管理器类             | 说明           |
-|---------------|--------------|--------------------|--------------|
-| `verl`        | `train`      | `VerlDataManager`  | verl 训练数据管理器 |
-| `verl`        | `infer`      | `InferDataManager` | 统一推理数据管理器    |
-
-**文件位置**: `aura/data_manager/data_registry.py`
-
----
+注册表接口用于注册自定义的Agent。
 
 ### 2.4 AGENTS_MAPPING - Agent 配置映射
 
@@ -334,6 +217,8 @@ class Step:
 | mc_return        | float                | 从本步骤开始的 Monte Carlo 回报，默认为 `0.0`，用于策略梯度训练         |
 | step_id          | int                  | 步骤编号                                              |
 
+**文件位置**: `aura/runner/agent_engine_wrapper/base/agent/base_agent.py`
+
 ---
 
 ### 3.2 Trajectory - 轨迹数据
@@ -374,6 +259,8 @@ class Trajectory:
 | res_reward         | float      | 最终结果奖励 |
 | termination_reason | str        | 终止原因   |
 
+**文件位置**: `aura/runner/agent_engine_wrapper/base/agent/base_agent.py`
+
 ---
 
 ### 3.3 Action - 动作数据
@@ -390,6 +277,8 @@ class Action:
     action: Any = None
 ```
 
+**文件位置**: `aura/runner/agent_engine_wrapper/base/agent/base_agent.py`
+
 ---
 
 ### 3.4 AgentTask - 任务数据
@@ -401,10 +290,6 @@ class Action:
 **类定义**
 
 ```python
-from pydantic import BaseModel, Field
-import uuid
-
-
 class AgentTask(BaseModel):
     task_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     sample_id: int
@@ -430,6 +315,8 @@ class AgentTask(BaseModel):
 | content      | str  | 额外内容     |
 | extra_args   | dict | 额外参数     |
 
+**文件位置**: `aura/runner/agent_engine_wrapper/base_engine_wrapper.py`
+
 ---
 
 ## 四、配置文件
@@ -441,6 +328,14 @@ class AgentTask(BaseModel):
 ```bash
 bash scripts/start_rl_with_verl_vllm.sh
 ```
+
+程序通过脚本 `start_rl_with_verl_vllm.sh` 启动，真实的 Python 入口为 `aura/start.py`，脚本内部通过以下指令执行：
+
+```bash
+python aura/start.py --config-name=${CONFIG_NAME} 2>&1 | tee ${LOG_PATH}/train_unit_${timestamp}.log
+```
+
+> 注意：运行 `start.py` 前，需先执行相关脚本以准备前置组件（如环境初始化、依赖服务启动等），确保运行环境就绪后再启动训练任务。
 
 **hosts.conf 文件设置说明**
 
@@ -746,12 +641,13 @@ bash scripts/start_rl_with_verl_vllm.sh
 以下是一个完整的配置文件示例（verl 后端，hybrid 模式），其他配置文件参考[configs](../../../aura/configs)
 目录。使用前请根据实际环境修改以下配置项：
 
-| 配置项                         | 说明        |
-|-----------------------------|-----------|
-| `train_files` / `val_files` | 训练集和验证集路径 |
-| `model.path`                | 模型权重路径    |
-| `tokenizer`                 | 分词器路径     |
-| `trajectory_save_dir`       | 轨迹数据保存路径  |
+| 配置项                         | 说明           |
+|-----------------------------|--------------|
+| `hydra.searchpath`          | Hydra 配置搜索路径 |
+| `train_files` / `val_files` | 训练集和验证集路径    |
+| `model.path`                | 模型权重路径       |
+| `tokenizer`                 | 分词器路径        |
+| `trajectory_save_dir`       | 轨迹数据保存路径     |
 
 ```yaml
 # 全局配置
@@ -771,7 +667,7 @@ direct_conf:
 hydra:
   searchpath:
     - file:///verl/verl/trainer/config
-    - file:///AgenticRL/configs/verl_conf
+    - file:///path/to/AgentSDK/aura/configs/train/verl_conf
 
 defaults:
   - ppo_megatron_trainer

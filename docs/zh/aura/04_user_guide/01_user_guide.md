@@ -197,14 +197,14 @@ Hydra配置系统采用分层组合的方式，通过`hydra.searchpath`和`defau
 hydra:
   searchpath:
     - file:///verl/verl/trainer/config    # verl原始默认配置路径
-    - file://AgenticRL/configs/verl_conf  # 项目自定义配置路径
+    - file://path/to/AgentSDK/aura/configs/train/verl_conf  # 项目自定义配置路径
 ```
 
 **说明**：
 
 > - `file:///verl/verl/trainer/config`：指向verl框架的默认配置文件目录
 >
-> - `file://AgenticRL/configs/verl_conf`：指向项目自定义的配置文件目录
+> - `file://path/to/AgentSDK/aura/configs/train/verl_conf`：指向项目自定义的配置文件目录
 >
 > - Hydra会按照列表顺序依次搜索配置文件
 
@@ -274,30 +274,7 @@ trainer:
 
 ## 注册自定义引擎
 
-AgentSDK 提供注册表机制，支持注册自定义的训练引擎、推理引擎和数据管理器。
-
-### 注册训练引擎
-
-```python
-from aura.trainer.train_register import registry as train_registry
-
-# 注册自定义训练引擎
-train_registry.register(
-    train_engine="my_train_engine",
-    cluster_mode="hybrid",
-    rollout_method=my_rollout_fn,
-    train_method=my_train_fn
-)
-```
-
-### 注册推理引擎
-
-```python
-from aura.runner.infer_adapter.infer_registry import registry as infer_registry
-
-# 注册自定义推理后端
-infer_registry.register("my_infer_backend", MyInferServer)
-```
+AgentSDK 提供注册表机制，支持注册自定义的Agent。
 
 ### 注册 Agent 引擎
 
@@ -328,19 +305,6 @@ AGENTS_MAPPING.append({
     },
     "compute_trajectory_reward_fn": compute_trajectory_reward,
 })
-```
-
-### 注册数据管理器
-
-```python
-from aura.data_manager.data_registry import registry as data_registry
-
-# 注册自定义数据管理器
-data_registry.register(
-    train_backend="my_backend",
-    service_mode="train",
-    cls=MyDataManager
-)
 ```
 
 ---
