@@ -1,0 +1,141 @@
+diff --git a/tasks/stop_task.py b/tasks/stop_task.py
+--- a/tasks/stop_task.py	2026-07-23 08:42:36.000000 +0000
++++ b/tasks/stop_task.py	2026-07-04 09:47:03.000000 +0800
+@@ -14,14 +14,15 @@
+ plumbing and where Phase 6's in-process-teammate ``kill`` slots in
+ without re-touching the tool body.
+ """
++
+ from __future__ import annotations
+
+ import asyncio
+ from dataclasses import dataclass
+ from typing import Literal, TYPE_CHECKING
+
+-from src.task_registry import RuntimeTaskRegistry, get_task_by_type
+-from src.tasks_core import is_terminal_task_status
++from clawcodex_ext.task_registry import RuntimeTaskRegistry, get_task_by_type
++from clawcodex_ext.tasks_core import is_terminal_task_status
+
+ if TYPE_CHECKING:
+     from src.tool_system.context import ToolContext
+@@ -35,10 +36,10 @@
+ # guard remain meaningful: a hung kill is structurally different from
+ # "task already finished" or "no impl registered."
+ StopTaskErrorCode = Literal[
+-    "not_found",
+-    "not_running",
+-    "unsupported_type",
+-    "kill_timeout",
++    'not_found',
++    'not_running',
++    'unsupported_type',
++    'kill_timeout',
+ ]
+
+
+@@ -81,9 +82,9 @@
+
+ async def stop_task(
+     task_id: str,
+-    context: "ToolContext",
++    context: 'ToolContext',
+     *,
+-    reason: str = "",
++    reason: str = '',
+ ) -> StopTaskResult:
+     """Atomically stop a task by id with typed dispatch.
+
+@@ -119,11 +120,8 @@
+                 task_id=task_id,
+                 task_type=runtime.type,
+                 error=StopTaskError(
+-                    code="not_running",
+-                    message=(
+-                        f"Task {task_id} is not running "
+-                        f"(status: {runtime.status})"
+-                    ),
++                    code='not_running',
++                    message=(f'Task {task_id} is not running (status: {runtime.status})'),
+                 ),
+             )
+
+@@ -134,8 +132,8 @@
+                 task_id=task_id,
+                 task_type=runtime.type,
+                 error=StopTaskError(
+-                    code="unsupported_type",
+-                    message=f"Unsupported task type: {runtime.type}",
++                    code='unsupported_type',
++                    message=f'Unsupported task type: {runtime.type}',
+                 ),
+             )
+
+@@ -153,10 +151,8 @@
+                 task_id=task_id,
+                 task_type=runtime.type,
+                 error=StopTaskError(
+-                    code="kill_timeout",
+-                    message=(
+-                        f"kill timed out after {_KILL_TIMEOUT_SECONDS:.0f}s"
+-                    ),
++                    code='kill_timeout',
++                    message=(f'kill timed out after {_KILL_TIMEOUT_SECONDS:.0f}s'),
+                 ),
+             )
+
+@@ -167,7 +163,7 @@
+         # cooperative-cancellation pattern means the actual exit may
+         # land asynchronously).
+         stopped = True
+-        if runtime.type == "local_bash":
++        if runtime.type == 'local_bash':
+             from src.tasks.local_shell import LocalShellTaskState
+
+             refreshed = context.runtime_tasks.get(task_id)
+@@ -178,6 +174,7 @@
+                     from src.tool_system.tools.bash.background import (
+                         stop_background_bash,
+                     )
++
+                     stopped = stop_background_bash(context, task_id)
+
+         return StopTaskResult(
+@@ -187,13 +184,13 @@
+         )
+
+     # Branch 2 — legacy ``task_manager`` fallback.
+-    task_manager = getattr(context, "task_manager", None)
++    task_manager = getattr(context, 'task_manager', None)
+     if task_manager is not None and task_manager.get(task_id) is not None:
+         stopped = task_manager.stop(task_id)
+         return StopTaskResult(
+             stopped=stopped,
+             task_id=task_id,
+-            task_type="managed_thread",
++            task_type='managed_thread',
+         )
+
+     # Branch 3 — not found.
+@@ -201,15 +198,15 @@
+         stopped=False,
+         task_id=task_id,
+         error=StopTaskError(
+-            code="not_found",
+-            message=f"No task found with ID: {task_id}",
++            code='not_found',
++            message=f'No task found with ID: {task_id}',
+         ),
+     )
+
+
+ __all__ = [
+-    "StopTaskErrorCode",
+-    "StopTaskError",
+-    "StopTaskResult",
+-    "stop_task",
++    'StopTaskErrorCode',
++    'StopTaskError',
++    'StopTaskResult',
++    'stop_task',
+ ]

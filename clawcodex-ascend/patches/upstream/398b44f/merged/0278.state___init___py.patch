@@ -1,0 +1,34 @@
+diff --git a/state/__init__.py b/state/__init__.py
+--- a/state/__init__.py	2026-07-23 08:42:36.000000 +0000
++++ b/state/__init__.py	2026-07-21 05:26:10.000000 -0700
+@@ -1,16 +1,20 @@
+-"""Python package placeholder for the archived `state` subsystem."""
++"""Compatibility facade — see :mod:`clawcodex_ext.state`.
++
++Module-identity swap. ``src.state.__init__`` is consumed by tooling that
++inspects the package's archive metadata (e.g. ``from src.state import
++ARCHIVE_NAME``); the canonical implementation is registered under the
++legacy import path so those reads resolve to the same module object.
++"""
+
+ from __future__ import annotations
+
+-import json
+-from pathlib import Path
++import sys
+
+-SNAPSHOT_PATH = Path(__file__).resolve().parent.parent / 'reference_data' / 'subsystems' / 'state.json'
+-_SNAPSHOT = json.loads(SNAPSHOT_PATH.read_text())
++import clawcodex_ext.state as _ext_pkg
++import clawcodex_ext.state.cache_state as _cache_state
+
+-ARCHIVE_NAME = _SNAPSHOT['archive_name']
+-MODULE_COUNT = _SNAPSHOT['module_count']
+-SAMPLE_FILES = tuple(_SNAPSHOT['sample_files'])
+-PORTING_NOTE = f"Python placeholder package for '{ARCHIVE_NAME}' with {MODULE_COUNT} archived module references."
++_ext_pkg.cache_state = _cache_state
++sys.modules[f"{__name__}.cache_state"] = _cache_state
++sys.modules[__name__] = _ext_pkg
+
+-__all__ = ['ARCHIVE_NAME', 'MODULE_COUNT', 'PORTING_NOTE', 'SAMPLE_FILES']
++__all__ = getattr(_ext_pkg, '__all__', [])

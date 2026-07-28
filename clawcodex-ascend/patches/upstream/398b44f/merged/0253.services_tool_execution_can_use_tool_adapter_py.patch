@@ -1,0 +1,12 @@
+diff --git a/services/tool_execution/can_use_tool_adapter.py b/services/tool_execution/can_use_tool_adapter.py
+--- a/services/tool_execution/can_use_tool_adapter.py	2026-07-23 08:42:36.000000 +0000
++++ b/services/tool_execution/can_use_tool_adapter.py	2026-07-21 04:15:00.000000 -0700
+@@ -53,7 +53,7 @@
+         # "ask" (or None) falls through to the normal prompt resolution.
+         from src.permissions.check import has_permissions_to_use_tool
+         from src.permissions.handler import handle_permission_ask
+-        from src.tool_system.registry import _apply_and_persist_updates
++        from clawcodex_ext.tool_system.registry import _apply_and_persist_updates
+
+         if isinstance(force_decision, dict):
+             forced = force_decision.get("behavior")
