@@ -1,0 +1,14 @@
+diff --git a/keybindings/__init__.py b/keybindings/__init__.py
+--- a/keybindings/__init__.py	2026-07-23 08:42:36.000000 +0000
++++ b/keybindings/__init__.py	2026-07-21 04:15:00.000000 -0700
+@@ -18,7 +18,9 @@
+ import json
+ from pathlib import Path
+
+-SNAPSHOT_PATH = Path(__file__).resolve().parent.parent / 'reference_data' / 'subsystems' / 'keybindings.json'
++SNAPSHOT_PATH = (
++    Path(__file__).resolve().parent.parent / 'reference_data' / 'subsystems' / 'keybindings.json'
++)
+ _SNAPSHOT = json.loads(SNAPSHOT_PATH.read_text())
+
+ ARCHIVE_NAME = _SNAPSHOT['archive_name']
