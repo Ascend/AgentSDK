@@ -1,0 +1,57 @@
+diff --git a/plugins/mcp_integration.py b/plugins/mcp_integration.py
+--- a/plugins/mcp_integration.py	2026-07-23 08:42:36.000000 +0000
++++ b/plugins/mcp_integration.py	2026-07-04 09:47:03.000000 +0800
+@@ -14,7 +14,7 @@
+     name: str
+     description: str
+     input_schema: dict[str, Any] = field(default_factory=dict)
+-    server_name: str = ""
++    server_name: str = ''
+
+
+ @dataclass
+@@ -32,30 +32,32 @@
+     server_name: str,
+     tools: list[dict[str, Any]],
+     *,
+-    description: str = "",
++    description: str = '',
+ ) -> McpPluginWrapper:
+     manifest = PluginManifest(
+-        name=f"mcp-{server_name}",
+-        description=description or f"MCP server: {server_name}",
+-        version="1.0.0",
++        name=f'mcp-{server_name}',
++        description=description or f'MCP server: {server_name}',
++        version='1.0.0',
+     )
+
+     plugin = LoadedPlugin(
+         name=manifest.name,
+         manifest=manifest,
+-        source=f"mcp:{server_name}",
++        source=f'mcp:{server_name}',
+         enabled=True,
+-        mcp_servers={server_name: {"type": "stdio"}},
++        mcp_servers={server_name: {'type': 'stdio'}},
+     )
+
+     mcp_tools: list[McpPluginTool] = []
+     for tool in tools:
+-        mcp_tools.append(McpPluginTool(
+-            name=tool.get("name", ""),
+-            description=tool.get("description", ""),
+-            input_schema=tool.get("inputSchema", {}),
+-            server_name=server_name,
+-        ))
++        mcp_tools.append(
++            McpPluginTool(
++                name=tool.get('name', ''),
++                description=tool.get('description', ''),
++                input_schema=tool.get('inputSchema', {}),
++                server_name=server_name,
++            )
++        )
+
+     wrapper = McpPluginWrapper(
+         plugin=plugin,

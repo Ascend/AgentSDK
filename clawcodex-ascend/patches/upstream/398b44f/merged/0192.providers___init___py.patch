@@ -1,0 +1,104 @@
+diff --git a/providers/__init__.py b/providers/__init__.py
+--- a/providers/__init__.py	2026-07-23 08:42:36.000000 +0000
++++ b/providers/__init__.py	2026-07-24 14:13:17.000000 +0800
+@@ -206,6 +206,15 @@
+ for _alias, _canonical in _spec_aliases().items():
+     PROVIDER_ALIASES.setdefault(_alias, _canonical)
+
++# ``glm`` intentionally remains an alias of the canonical upstream ``zai``
++# provider.  The downstream extension keeps its historical native class
++# addressable through ``get_provider_class("glm")`` without turning ``glm``
++# back into a second provider identity.
++#
++# Kimi is still a distinct downstream provider implementation rather than the
++# generic ``moonshot`` registry alias, so keep that historical id literal.
++PROVIDER_ALIASES["kimi"] = "kimi"
++
+
+ def _canonical_provider_name(provider_name: str) -> str:
+     """Resolve a legacy/alternate provider spelling to its canonical id."""
+@@ -225,15 +234,48 @@
+
+ def get_provider_info(provider_name: str) -> ProviderInfo:
+     """Get provider info by name (legacy aliases accepted)."""
++    _ensure_downstream_providers()
++    if provider_name in PROVIDER_INFO:
++        return PROVIDER_INFO[provider_name]
+     canonical = _canonical_provider_name(provider_name)
+     if canonical not in PROVIDER_INFO:
+         raise ValueError(f"Unknown provider: {provider_name}")
+     return PROVIDER_INFO[canonical]
+
+
++_EXTRA_PROVIDER_CLASSES: dict[str, type] = {}
++
++
++def _ensure_downstream_providers() -> None:
++    """Install optional secondary registrations after core import completes."""
++    try:
++        from clawcodex_ext.providers import _init_provider_extensions
++
++        _init_provider_extensions()
++    except Exception:
++        pass
++
++
++def _extra_provider_class(provider_name: str):
++    entry = _EXTRA_PROVIDER_CLASSES.get(provider_name)
++    if entry is None:
++        return None
++    if callable(entry) and not isinstance(entry, type):
++        entry = entry()
++        _EXTRA_PROVIDER_CLASSES[provider_name] = entry
++    return entry
++
++
+ def get_provider_class(provider_name: str):
+     """Get provider class by name (legacy aliases accepted)."""
++    _ensure_downstream_providers()
++    extra = _extra_provider_class(provider_name)
++    if extra is not None:
++        return extra
+     provider_name = _canonical_provider_name(provider_name)
++    extra = _extra_provider_class(provider_name)
++    if extra is not None:
++        return extra
+     if provider_name == "anthropic":
+         from .anthropic_provider import AnthropicProvider
+
+@@ -371,10 +413,27 @@
+ AVAILABLE_PROVIDERS: dict[str, str] = {k: v["label"] for k, v in PROVIDER_INFO.items()}
+
+
++def __getattr__(name: str):
++    """Lazy re-export of the downstream construction/registration API."""
++    if name not in {
++        "create_provider",
++        "should_use_litellm",
++        "register_provider",
++        "register_provider_info",
++    }:
++        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
++    from clawcodex_ext.providers import factory
++
++    value = getattr(factory, name)
++    globals()[name] = value
++    return value
++
++
+ __all__ = [
+     "BaseProvider",
+     "ChatMessage",
+     "ChatResponse",
++    "create_provider",
+     "get_provider_class",
+     "get_provider_info",
+     "canonical_provider_name",
+@@ -385,4 +444,7 @@
+     "PROVIDER_INFO",
+     "PROVIDER_ALIASES",
+     "AVAILABLE_PROVIDERS",
++    "should_use_litellm",
++    "register_provider",
++    "register_provider_info",
+ ]

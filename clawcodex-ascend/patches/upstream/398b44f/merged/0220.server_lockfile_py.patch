@@ -1,0 +1,14 @@
+diff --git a/server/lockfile.py b/server/lockfile.py
+--- a/server/lockfile.py	2026-07-23 08:42:36.000000 +0000
++++ b/server/lockfile.py	2026-07-21 04:15:00.000000 -0700
+@@ -70,9 +70,7 @@
+             fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+         except BlockingIOError as exc:
+             os.close(fd)
+-            raise LockfileBusyError(
+-                f'Another claude server instance holds {self._path}'
+-            ) from exc
++            raise LockfileBusyError(f'Another claude server instance holds {self._path}') from exc
+         self._fd = fd
+
+     def release(self) -> None:

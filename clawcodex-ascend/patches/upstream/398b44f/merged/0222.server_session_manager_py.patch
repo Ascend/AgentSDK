@@ -1,0 +1,14 @@
+diff --git a/server/session_manager.py b/server/session_manager.py
+--- a/server/session_manager.py	2026-07-23 08:42:36.000000 +0000
++++ b/server/session_manager.py	2026-07-04 09:47:03.000000 +0800
+@@ -68,9 +68,7 @@
+         subprocess and then calling ``attach_process`` + ``mark_running``.
+         """
+         if self.max_sessions is not None and self._active_count() >= self.max_sessions:
+-            raise RuntimeError(
+-                f'Direct Connect server: max_sessions ({self.max_sessions}) reached'
+-            )
++            raise RuntimeError(f'Direct Connect server: max_sessions ({self.max_sessions}) reached')
+         sid = f'ds_{_uuid.uuid4().hex}'
+         now = time.time()
+         info = SessionInfo(

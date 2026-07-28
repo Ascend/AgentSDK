@@ -1,0 +1,14 @@
+diff --git a/server/direct_connect_session.py b/server/direct_connect_session.py
+--- a/server/direct_connect_session.py	2026-07-23 08:42:36.000000 +0000
++++ b/server/direct_connect_session.py	2026-07-04 09:47:03.000000 +0800
+@@ -78,9 +78,7 @@
+         else:
+             resp = await _do_post(client)
+     except (httpx.HTTPError, httpx.TimeoutException) as exc:
+-        raise DirectConnectError(
+-            f'Failed to connect to server at {server_url}: {exc}'
+-        ) from exc
++        raise DirectConnectError(f'Failed to connect to server at {server_url}: {exc}') from exc
+
+     if resp.status_code < 200 or resp.status_code >= 300:
+         raise DirectConnectError(

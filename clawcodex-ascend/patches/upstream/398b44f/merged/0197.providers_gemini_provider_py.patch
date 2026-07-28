@@ -1,0 +1,386 @@
+diff --git a/providers/gemini_provider.py b/providers/gemini_provider.py
+--- a/providers/gemini_provider.py	2026-07-23 08:42:36.000000 +0000
++++ b/providers/gemini_provider.py	2026-07-21 04:15:00.000000 -0700
+@@ -27,8 +27,8 @@
+ def _ensure_sdk() -> None:
+     if genai is None:
+         raise ModuleNotFoundError(
+-            "google-genai package is not installed. Run "
+-            "`pip install google-genai` to use GeminiProvider."
++            'google-genai package is not installed. Run '
++            '`pip install google-genai` to use GeminiProvider.'
+         )
+
+
+@@ -36,54 +36,54 @@
+     """Flatten an Anthropic-style text or text-list block to a plain string."""
+     if not isinstance(block, dict):
+         return str(block)
+-    if block.get("type") == "text":
+-        return str(block.get("text", ""))
++    if block.get('type') == 'text':
++        return str(block.get('text', ''))
+     return str(block)
+
+
+ _GEMINI_SCHEMA_DISALLOWED = frozenset(
+     {
+         # Polymorphic constraints — Gemini's Schema is single-type
+-        "oneOf",
+-        "anyOf",
+-        "allOf",
+-        "not",
++        'oneOf',
++        'anyOf',
++        'allOf',
++        'not',
+         # Object-shape extensions Gemini rejects
+-        "additionalProperties",
+-        "additional_properties",
+-        "patternProperties",
+-        "pattern_properties",
+-        "propertyNames",
+-        "property_names",
+-        "minProperties",
+-        "min_properties",
+-        "maxProperties",
+-        "max_properties",
++        'additionalProperties',
++        'additional_properties',
++        'patternProperties',
++        'pattern_properties',
++        'propertyNames',
++        'property_names',
++        'minProperties',
++        'min_properties',
++        'maxProperties',
++        'max_properties',
+         # JSON-Schema bookkeeping fields
+-        "$schema",
+-        "$ref",
+-        "$defs",
+-        "definitions",
+-        "$id",
++        '$schema',
++        '$ref',
++        '$defs',
++        'definitions',
++        '$id',
+         # Conditional / dependency keywords
+-        "if",
+-        "then",
+-        "else",
+-        "dependentSchemas",
+-        "dependentRequired",
+-        "dependencies",
++        'if',
++        'then',
++        'else',
++        'dependentSchemas',
++        'dependentRequired',
++        'dependencies',
+         # Array-only extensions Gemini doesn't support
+-        "uniqueItems",
+-        "unique_items",
+-        "contains",
+-        "minContains",
+-        "maxContains",
+-        "prefixItems",
++        'uniqueItems',
++        'unique_items',
++        'contains',
++        'minContains',
++        'maxContains',
++        'prefixItems',
+         # Documentation hints Gemini rejects
+-        "examples",
+-        "default",
+-        "const",
+-        "title",
++        'examples',
++        'default',
++        'const',
++        'title',
+     }
+ )
+
+@@ -106,29 +106,28 @@
+     for k, v in schema.items():
+         if k in _GEMINI_SCHEMA_DISALLOWED:
+             continue
+-        if k == "properties" and isinstance(v, dict):
++        if k == 'properties' and isinstance(v, dict):
+             out[k] = {pk: _sanitize_schema_for_gemini(pv) for pk, pv in v.items()}
+-        elif k == "items":
++        elif k == 'items':
+             out[k] = _sanitize_schema_for_gemini(v)
+         elif isinstance(v, dict):
+             out[k] = _sanitize_schema_for_gemini(v)
+         elif isinstance(v, list):
+             out[k] = [
+-                _sanitize_schema_for_gemini(item) if isinstance(item, dict) else item
+-                for item in v
++                _sanitize_schema_for_gemini(item) if isinstance(item, dict) else item for item in v
+             ]
+         else:
+             out[k] = v
+
+-    if any(k in schema for k in ("oneOf", "anyOf", "allOf")) and "type" not in out:
+-        out["type"] = "string"
+-        existing = out.get("description", "")
+-        hint = "(polymorphic — accepts any value, coerced to string)"
+-        out["description"] = f"{existing} {hint}".strip()
++    if any(k in schema for k in ('oneOf', 'anyOf', 'allOf')) and 'type' not in out:
++        out['type'] = 'string'
++        existing = out.get('description', '')
++        hint = '(polymorphic — accepts any value, coerced to string)'
++        out['description'] = f'{existing} {hint}'.strip()
+
+     # Gemini requires every object to declare ``properties`` (can be empty).
+-    if out.get("type") == "object" and "properties" not in out:
+-        out["properties"] = {}
++    if out.get('type') == 'object' and 'properties' not in out:
++        out['properties'] = {}
+
+     return out
+
+@@ -136,7 +135,7 @@
+ class GeminiProvider(BaseProvider):
+     """Native Gemini provider via the google-genai SDK."""
+
+-    DEFAULT_MODEL = "gemini-2.5-pro"
++    DEFAULT_MODEL = 'gemini-2.5-pro'
+
+     def __init__(
+         self,
+@@ -156,9 +155,7 @@
+
+     # ---------- message conversion ----------
+
+-    def _convert_messages(
+-        self, messages: list[MessageInput]
+-    ) -> tuple[list[Any], Optional[str]]:
++    def _convert_messages(self, messages: list[MessageInput]) -> tuple[list[Any], Optional[str]]:
+         """Convert Anthropic-style messages → (gemini contents, system_instruction)."""
+         _ensure_sdk()
+         contents: list[Any] = []
+@@ -166,10 +163,10 @@
+
+         for msg in messages:
+             md = msg if isinstance(msg, dict) else msg.to_dict()
+-            role = md.get("role", "user")
+-            content = md.get("content", "")
++            role = md.get('role', 'user')
++            content = md.get('content', '')
+
+-            if role == "system":
++            if role == 'system':
+                 if isinstance(content, str):
+                     system_parts.append(content)
+                 elif isinstance(content, list):
+@@ -177,7 +174,7 @@
+                         system_parts.append(_text_from_anthropic_block(b))
+                 continue
+
+-            gemini_role = "model" if role == "assistant" else "user"
++            gemini_role = 'model' if role == 'assistant' else 'user'
+             parts: list[Any] = []
+
+             if isinstance(content, str):
+@@ -189,26 +186,24 @@
+                         if block:
+                             parts.append(genai_types.Part.from_text(text=str(block)))
+                         continue
+-                    btype = block.get("type", "text")
+-                    if btype == "text":
+-                        text = block.get("text", "")
++                    btype = block.get('type', 'text')
++                    if btype == 'text':
++                        text = block.get('text', '')
+                         if text:
+                             parts.append(genai_types.Part.from_text(text=str(text)))
+-                    elif btype == "tool_use":
++                    elif btype == 'tool_use':
+                         # Assistant message asking to call a tool — Gemini calls
+                         # this a FunctionCall part. ``input`` becomes ``args``.
+                         parts.append(
+                             genai_types.Part.from_function_call(
+-                                name=str(block.get("name", "")),
+-                                args=dict(block.get("input", {}) or {}),
++                                name=str(block.get('name', '')),
++                                args=dict(block.get('input', {}) or {}),
+                             )
+                         )
+-                    elif btype == "tool_result":
+-                        raw = block.get("content", "")
++                    elif btype == 'tool_result':
++                        raw = block.get('content', '')
+                         if isinstance(raw, list):
+-                            raw_text = "\n".join(
+-                                _text_from_anthropic_block(b) for b in raw
+-                            )
++                            raw_text = '\n'.join(_text_from_anthropic_block(b) for b in raw)
+                         else:
+                             raw_text = str(raw)
+                         # FunctionResponse has no error field — prefix the
+@@ -222,37 +217,33 @@
+                         # if no better signal is available.
+                         parts.append(
+                             genai_types.Part.from_function_response(
+-                                name=str(block.get("tool_use_id", "tool")),
+-                                response={"output": raw_text},
++                                name=str(block.get('tool_use_id', 'tool')),
++                                response={'output': raw_text},
+                             )
+                         )
+
+             if parts:
+-                contents.append(
+-                    genai_types.Content(role=gemini_role, parts=parts)
+-                )
++                contents.append(genai_types.Content(role=gemini_role, parts=parts))
+
+-        system_instruction = "\n".join(p for p in system_parts if p) or None
++        system_instruction = '\n'.join(p for p in system_parts if p) or None
+         return contents, system_instruction
+
+     # ---------- tool conversion ----------
+
+-    def _convert_tools(
+-        self, tools: Optional[list[dict[str, Any]]]
+-    ) -> Optional[list[Any]]:
++    def _convert_tools(self, tools: Optional[list[dict[str, Any]]]) -> Optional[list[Any]]:
+         if not tools:
+             return None
+         _ensure_sdk()
+         declarations: list[Any] = []
+         for tool in tools:
+-            name = tool.get("name")
++            name = tool.get('name')
+             if not name:
+                 continue
+-            description = tool.get("description", "") or ""
++            description = tool.get('description', '') or ''
+             raw_params = (
+-                tool.get("input_schema")
+-                or tool.get("parameters")
+-                or {"type": "object", "properties": {}}
++                tool.get('input_schema')
++                or tool.get('parameters')
++                or {'type': 'object', 'properties': {}}
+             )
+             params = _sanitize_schema_for_gemini(raw_params)
+             try:
+@@ -274,50 +265,46 @@
+     # ---------- response building ----------
+
+     def _build_chat_response(self, response: Any, model: str) -> ChatResponse:
+-        content_text = ""
++        content_text = ''
+         tool_uses: list[dict[str, Any]] = []
+-        finish_reason = "stop"
++        finish_reason = 'stop'
+
+-        candidates = getattr(response, "candidates", None) or []
++        candidates = getattr(response, 'candidates', None) or []
+         if candidates:
+             cand = candidates[0]
+-            fr = getattr(cand, "finish_reason", None)
++            fr = getattr(cand, 'finish_reason', None)
+             if fr is not None:
+-                finish_reason = str(fr).split(".")[-1].lower()
+-            content_obj = getattr(cand, "content", None)
+-            parts = getattr(content_obj, "parts", None) or []
++                finish_reason = str(fr).split('.')[-1].lower()
++            content_obj = getattr(cand, 'content', None)
++            parts = getattr(content_obj, 'parts', None) or []
+             for part in parts:
+-                text_val = getattr(part, "text", None)
++                text_val = getattr(part, 'text', None)
+                 if isinstance(text_val, str) and text_val:
+                     content_text += text_val
+-                fc = getattr(part, "function_call", None)
++                fc = getattr(part, 'function_call', None)
+                 if fc is not None:
+-                    args = getattr(fc, "args", None)
++                    args = getattr(fc, 'args', None)
+                     if isinstance(args, str):
+                         try:
+                             args = json.loads(args)
+                         except json.JSONDecodeError:
+-                            args = {"_raw": args}
++                            args = {'_raw': args}
+                     elif args is None:
+                         args = {}
+                     else:
+                         args = dict(args)
+                     tool_uses.append(
+                         {
+-                            "id": str(getattr(fc, "name", "")),
+-                            "name": str(getattr(fc, "name", "")),
+-                            "input": args,
++                            'id': str(getattr(fc, 'name', '')),
++                            'name': str(getattr(fc, 'name', '')),
++                            'input': args,
+                         }
+                     )
+
+-        usage = getattr(response, "usage_metadata", None)
++        usage = getattr(response, 'usage_metadata', None)
+         usage_dict = {
+-            "input_tokens": int(getattr(usage, "prompt_token_count", 0) or 0)
+-            if usage
+-            else 0,
+-            "output_tokens": int(getattr(usage, "candidates_token_count", 0) or 0)
+-            if usage
+-            else 0,
++            'input_tokens': int(getattr(usage, 'prompt_token_count', 0) or 0) if usage else 0,
++            'output_tokens': int(getattr(usage, 'candidates_token_count', 0) or 0) if usage else 0,
+         }
+         return ChatResponse(
+             content=content_text,
+@@ -342,24 +329,20 @@
+
+         config_kwargs: dict[str, Any] = {}
+         if system_instruction:
+-            config_kwargs["system_instruction"] = system_instruction
++            config_kwargs['system_instruction'] = system_instruction
+         if gemini_tools:
+-            config_kwargs["tools"] = gemini_tools
+-        max_tokens = kwargs.get("max_tokens")
++            config_kwargs['tools'] = gemini_tools
++        max_tokens = kwargs.get('max_tokens')
+         if max_tokens:
+-            config_kwargs["max_output_tokens"] = int(max_tokens)
+-        if "temperature" in kwargs:
+-            config_kwargs["temperature"] = float(kwargs["temperature"])
+-
+-        config = (
+-            genai_types.GenerateContentConfig(**config_kwargs)
+-            if config_kwargs
+-            else None
+-        )
++            config_kwargs['max_output_tokens'] = int(max_tokens)
++        if 'temperature' in kwargs:
++            config_kwargs['temperature'] = float(kwargs['temperature'])
++
++        config = genai_types.GenerateContentConfig(**config_kwargs) if config_kwargs else None
+         response = client.models.generate_content(
+             model=model,
+             contents=contents,
+-            **({"config": config} if config else {}),
++            **({'config': config} if config else {}),
+         )
+         return self._build_chat_response(response, model)
+
+@@ -389,7 +372,7 @@
+
+     def get_available_models(self) -> list[str]:
+         return [
+-            "gemini-2.5-pro",
+-            "gemini-2.5-flash",
+-            "gemini-2.0-flash",
++            'gemini-2.5-pro',
++            'gemini-2.5-flash',
++            'gemini-2.0-flash',
+         ]
