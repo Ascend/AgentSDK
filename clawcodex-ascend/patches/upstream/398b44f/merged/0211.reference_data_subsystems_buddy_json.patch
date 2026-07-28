@@ -1,0 +1,22 @@
+diff --git a/reference_data/subsystems/buddy.json b/reference_data/subsystems/buddy.json
+--- a/reference_data/subsystems/buddy.json	2026-07-23 08:42:36.000000 +0000
++++ b/reference_data/subsystems/buddy.json	2026-07-04 09:47:03.000000 +0800
+@@ -1,15 +1,13 @@
+ {
+   "archive_name": "buddy",
+   "package_name": "buddy",
+-  "module_count": 8,
++  "module_count": 6,
+   "sample_files": [
+     "buddy/CompanionSprite.tsx",
+     "buddy/companion.ts",
+-    "buddy/feature.ts",
+-    "buddy/observer.ts",
+     "buddy/prompt.ts",
+     "buddy/sprites.ts",
+     "buddy/types.ts",
+     "buddy/useBuddyNotification.tsx"
+   ]
+-}
++}
+\ No newline at end of file

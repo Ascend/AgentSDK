@@ -1,0 +1,36 @@
+diff --git a/server/session_index.py b/server/session_index.py
+--- a/server/session_index.py	2026-07-23 08:42:36.000000 +0000
++++ b/server/session_index.py	2026-07-21 04:15:00.000000 -0700
+@@ -85,9 +85,7 @@
+         created_at=float(payload['created_at']),
+         last_active_at=float(payload['last_active_at']),
+         permission_mode=(
+-            str(payload['permission_mode'])
+-            if payload.get('permission_mode') is not None
+-            else None
++            str(payload['permission_mode']) if payload.get('permission_mode') is not None else None
+         ),
+     )
+
+@@ -123,9 +121,7 @@
+         try:
+             out[str(key)] = _dict_to_entry(value)
+         except (ValueError, TypeError) as exc:
+-            logger.warning(
+-                '[session_index] skipping malformed entry %r: %s', key, exc
+-            )
++            logger.warning('[session_index] skipping malformed entry %r: %s', key, exc)
+             continue
+     return out
+
+@@ -142,9 +138,7 @@
+     }
+     serialized = json.dumps(payload, sort_keys=True, indent=2).encode('utf-8')
+     path.parent.mkdir(parents=True, exist_ok=True)
+-    fd, tmp_path = tempfile.mkstemp(
+-        dir=str(path.parent), prefix='.server-sessions.', suffix='.tmp'
+-    )
++    fd, tmp_path = tempfile.mkstemp(dir=str(path.parent), prefix='.server-sessions.', suffix='.tmp')
+     try:
+         with os.fdopen(fd, 'wb') as fh:
+             fh.write(serialized)

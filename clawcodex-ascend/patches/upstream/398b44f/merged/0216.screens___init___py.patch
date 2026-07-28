@@ -1,0 +1,14 @@
+diff --git a/screens/__init__.py b/screens/__init__.py
+--- a/screens/__init__.py	2026-07-23 08:42:36.000000 +0000
++++ b/screens/__init__.py	2026-07-04 09:47:03.000000 +0800
+@@ -11,7 +11,9 @@
+ import json
+ from pathlib import Path
+
+-SNAPSHOT_PATH = Path(__file__).resolve().parent.parent / 'reference_data' / 'subsystems' / 'screens.json'
++SNAPSHOT_PATH = (
++    Path(__file__).resolve().parent.parent / 'reference_data' / 'subsystems' / 'screens.json'
++)
+ _SNAPSHOT = json.loads(SNAPSHOT_PATH.read_text())
+
+ ARCHIVE_NAME = _SNAPSHOT['archive_name']

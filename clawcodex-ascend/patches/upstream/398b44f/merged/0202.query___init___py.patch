@@ -1,0 +1,59 @@
+diff --git a/query/__init__.py b/query/__init__.py
+--- a/query/__init__.py	2026-07-23 08:42:36.000000 +0000
++++ b/query/__init__.py	2026-07-04 09:47:03.000000 +0800
+@@ -1,17 +1,41 @@
+-from .config import FrozenQueryConfig, QueryConfig, build_query_config
+-from .engine import QueryEngine, QueryEngineConfig
+-from .query import QueryParams, StreamEvent, query
+-from .transitions import QueryState, Terminal, Transition
++"""Query package — lazy proxy to avoid init cycles across the
++src/ ↔ clawcodex_ext/ facade split.
++
++The package re-exports symbols from sibling submodules. When those
++siblings themselves transitively import from this package (which
++they do, e.g. ``from src.query.query import ...`` inside
++``clawcodex_ext.query.engine``), an eager ``from .X import Y`` here
++triggers a circular import during module load. The lazy proxy
++defers the real submodule imports until the first attribute access,
++which is after the importing module has finished its top-level
++definitions.
++"""
++
++from __future__ import annotations
++
++import importlib
+
+ __all__ = [
+-    "QueryConfig",
+-    "QueryEngine",
+-    "QueryEngineConfig",
+-    "QueryParams",
+-    "QueryState",
+-    "StreamEvent",
+-    "Terminal",
+-    "Transition",
+-    "build_query_config",
+-    "query",
++    'QueryConfig',
++    'QueryEngine',
++    'QueryEngineConfig',
++    'QueryParams',
++    'QueryState',
++    'StreamEvent',
++    'Terminal',
++    'Transition',
++    'build_query_config',
++    'query',
+ ]
++
++
++def __getattr__(name: str):
++    if name in {'QueryConfig', 'build_query_config'}:
++        return getattr(importlib.import_module('src.query.config'), name)
++    if name in {'QueryEngine', 'QueryEngineConfig'}:
++        return getattr(importlib.import_module('src.query.engine'), name)
++    if name in {'QueryParams', 'StreamEvent', 'query'}:
++        return getattr(importlib.import_module('src.query.query'), name)
++    if name in {'QueryState', 'Terminal', 'Transition'}:
++        return getattr(importlib.import_module('src.query.transitions'), name)
++    raise AttributeError(f'module {__name__!r} has no attribute {name!r}')

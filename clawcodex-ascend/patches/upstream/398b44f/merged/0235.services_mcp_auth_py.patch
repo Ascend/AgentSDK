@@ -1,0 +1,14 @@
+diff --git a/services/mcp/auth.py b/services/mcp/auth.py
+--- a/services/mcp/auth.py	2026-07-23 08:42:36.000000 +0000
++++ b/services/mcp/auth.py	2026-07-21 04:56:27.000000 -0700
+@@ -56,7 +56,9 @@
+
+
+ def _get_token_store_path() -> Path:
+-    env_override = os.environ.get("CLAWCODEX_CONFIG_DIR")
++    env_override = os.environ.get("CLAWCODEX_CONFIG_DIR") or os.environ.get(
++        "CLAUDE_CONFIG_DIR"
++    )
+     if env_override:
+         base = Path(env_override).expanduser().resolve()
+     else:

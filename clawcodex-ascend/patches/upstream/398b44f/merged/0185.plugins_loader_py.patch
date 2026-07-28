@@ -1,0 +1,575 @@
+diff --git a/plugins/loader.py b/plugins/loader.py
+--- a/plugins/loader.py	2026-07-23 08:42:36.000000 +0000
++++ b/plugins/loader.py	2026-07-04 09:47:03.000000 +0800
+@@ -2,18 +2,234 @@
+
+ import json
+ import logging
++import os
+ from dataclasses import dataclass, field
+ from pathlib import Path
+-from typing import Any
++from typing import Any, Callable
+
+ from .types import LoadedPlugin, PluginError, PluginManifest
+ from .validator import validate_manifest
+
+ logger = logging.getLogger(__name__)
+
+-MANIFEST_FILENAME = "plugin.json"
++# Supported manifest filenames (order matters: first match wins).
++# pyproject.toml is supported as an extension format: the plugin manifest
++# is read from the ``[tool.clawcodex.plugin]`` table (P70-E).
++MANIFEST_FILES = ('plugin.yaml', 'plugin.yml', 'plugin.json', 'pyproject.toml')
++
++# TOML table path inside pyproject.toml that holds the plugin manifest.
++PYPROJECT_PLUGIN_TABLE = ('tool', 'clawcodex', 'plugin')
++
++TRUST_LEVELS = ('bundled', 'managed', 'user', 'project', 'mcp')
++
++# ── Default plugin directories ────────────────────────────────────────
++# Resolved lazily on first call to ``get_default_plugin_dirs``.
++
++
++def _get_user_plugin_dir() -> Path:
++    """Return ``~/.clawcodex/plugins`` (XDG-compatible)."""
++    xdg = os.environ.get('CLAWCODEX_PLUGINS_DIR')
++    if xdg:
++        return Path(xdg)
++    return Path.home() / '.clawcodex' / 'plugins'
++
++
++def _get_project_plugin_dir() -> Path:
++    """Return ``.clawcodex/plugins`` relative to cwd."""
++    return Path.cwd() / '.clawcodex' / 'plugins'
++
++
++def get_default_plugin_dirs() -> list[Path]:
++    """Return the ordered list of default plugin discovery directories.
++
++    Order: user directory, project directory.  The user directory takes
++    precedence — a plugin with the same name installed in both places
++    will be discovered from the user directory first.
++    """
++    dirs: list[Path] = []
++    user_dir = _get_user_plugin_dir()
++    if user_dir.is_dir():
++        dirs.append(user_dir)
++    proj_dir = _get_project_plugin_dir()
++    if proj_dir.is_dir():
++        dirs.append(proj_dir)
++    return dirs
++
++
++def ensure_plugin_dirs() -> list[Path]:
++    """Ensure default plugin directories exist, creating them if necessary.
++
++    Returns the list of directories that were created or already existed.
++    This is useful for CLI commands that need to write to plugin directories
++    (e.g. ``plugin install``).
++    """
++    dirs: list[Path] = []
++    user_dir = _get_user_plugin_dir()
++    user_dir.mkdir(parents=True, exist_ok=True)
++    dirs.append(user_dir)
++    proj_dir = _get_project_plugin_dir()
++    proj_dir.mkdir(parents=True, exist_ok=True)
++    dirs.append(proj_dir)
++    return dirs
+
+-TRUST_LEVELS = ("bundled", "managed", "user", "project", "mcp")
++
++def scan_plugin_directory(
++    directory: str | Path,
++    *,
++    recursive: bool = False,
++    max_depth: int = 3,
++) -> PluginDiscoveryResult:
++    """Scan a directory for plugins, optionally recursively.
++
++    When *recursive* is ``True``, subdirectories up to *max_depth* are
++    also scanned.  This is useful for monorepo-style plugin layouts where
++    multiple plugins live under a single root.
++
++    Args:
++        directory: Base directory to scan.
++        recursive: Whether to scan subdirectories recursively.
++        max_depth: Maximum recursion depth (default 3).
++
++    Returns:
++        A ``PluginDiscoveryResult`` with discovered plugins and errors.
++    """
++    result = PluginDiscoveryResult()
++    base = Path(directory)
++    if not base.is_dir():
++        return result
++
++    # Non-recursive: just scan immediate children (same as discover_plugins)
++    if not recursive:
++        return discover_plugins(base)
++
++    # Recursive BFS with depth tracking
++    from collections import deque
++
++    queue: deque[tuple[Path, int]] = deque([(base, 0)])
++    seen: set[Path] = {base.resolve()}
++
++    while queue:
++        current, depth = queue.popleft()
++        for entry in sorted(current.iterdir()):
++            if not entry.is_dir():
++                continue
++            resolved = entry.resolve()
++            if resolved in seen:
++                continue
++            seen.add(resolved)
++
++            manifest_path = _find_manifest_path(entry)
++            if manifest_path is not None:
++                try:
++                    plugin = load_plugin_from_directory(entry)
++                    result.plugins.append(plugin)
++                except PluginError as e:
++                    result.errors.append(e)
++                except Exception as e:
++                    result.errors.append(PluginError(entry.name, str(e)))
++            elif depth < max_depth:
++                queue.append((entry, depth + 1))
++
++    return result
++
++
++# ── Internal registry ─────────────────────────────────────────────────
++
++_loaded_plugins: dict[str, LoadedPlugin] = {}
++
++# ── Lifecycle callback storage ────────────────────────────────────────
++# Maps plugin name → list of (event, callable) tuples.
++_lifecycle_callbacks: dict[str, dict[str, list[Callable[..., Any]]]] = {}
++
++
++def _register_lifecycle_callbacks(name: str) -> None:
++    """Ensure a lifecycle callback dict exists for *name*."""
++    if name not in _lifecycle_callbacks:
++        _lifecycle_callbacks[name] = {
++            'on_load': [],
++            'on_unload': [],
++            'on_enable': [],
++            'on_disable': [],
++        }
++
++
++# ── Manifest loading helpers ──────────────────────────────────────────
++
++
++def _read_pyproject_manifest(path: Path) -> dict[str, Any]:
++    """Read a plugin manifest from a ``pyproject.toml`` file.
++
++    The manifest is extracted from the ``[tool.clawcodex.plugin]`` table.
++    Only that table is returned — other pyproject.toml contents (build
++    system, project metadata, dependency declarations) are ignored so the
++    plugin validator sees the same shape it gets from plugin.yaml/json.
++
++    Raises :class:`PluginError` if the file is unreadable, the table is
++    missing, or the table is not a mapping.
++    """
++    import tomllib  # Python 3.11+ stdlib
++
++    text = path.read_text(encoding='utf-8')
++    try:
++        data = tomllib.loads(text)
++    except tomllib.TOMLDecodeError as exc:
++        raise PluginError(path.parent.name, f'Invalid TOML: {exc}') from exc
++
++    table: Any = data
++    for key in PYPROJECT_PLUGIN_TABLE:
++        if not isinstance(table, dict) or key not in table:
++            raise PluginError(
++                path.parent.name,
++                f'pyproject.toml missing [{ ".".join(PYPROJECT_PLUGIN_TABLE) }] table',
++            )
++        table = table[key]
++
++    if not isinstance(table, dict):
++        raise PluginError(
++            path.parent.name,
++            f'[{ ".".join(PYPROJECT_PLUGIN_TABLE) }] must be a table/mapping',
++        )
++    return table
++
++
++def _read_manifest(path: Path) -> dict[str, Any]:
++    """Read and parse a manifest file (JSON, YAML, or pyproject.toml)."""
++    if path.name == 'pyproject.toml':
++        return _read_pyproject_manifest(path)
++
++    text = path.read_text(encoding='utf-8')
++    if path.suffix in ('.yaml', '.yml'):
++        try:
++            import yaml  # noqa: local import
++        except ImportError:
++            raise PluginError(
++                path.parent.name,
++                'PyYAML is required to read YAML manifests',
++            )
++        try:
++            data = yaml.safe_load(text)
++        except yaml.YAMLError as exc:
++            raise PluginError(path.parent.name, f'Invalid YAML: {exc}') from exc
++        if not isinstance(data, dict):
++            raise PluginError(path.parent.name, 'YAML manifest must be a mapping')
++        return data
++    # JSON
++    try:
++        return json.loads(text)
++    except json.JSONDecodeError as exc:
++        raise PluginError(path.parent.name, f'Invalid JSON: {exc}') from exc
++
++
++def _find_manifest_path(plugin_dir: Path) -> Path | None:
++    """Return the first existing manifest file in *plugin_dir*, or ``None``."""
++    for name in MANIFEST_FILES:
++        candidate = plugin_dir / name
++        if candidate.exists():
++            return candidate
++    return None
++
++
++# ── Core loader functions ─────────────────────────────────────────────
+
+
+ @dataclass
+@@ -22,9 +238,6 @@
+     errors: list[PluginError] = field(default_factory=list)
+
+
+-_loaded_plugins: dict[str, LoadedPlugin] = {}
+-
+-
+ def discover_plugins(directory: str | Path) -> PluginDiscoveryResult:
+     result = PluginDiscoveryResult()
+     base = Path(directory)
+@@ -34,8 +247,8 @@
+     for entry in sorted(base.iterdir()):
+         if not entry.is_dir():
+             continue
+-        manifest_path = entry / MANIFEST_FILENAME
+-        if not manifest_path.exists():
++        manifest_path = _find_manifest_path(entry)
++        if manifest_path is None:
+             continue
+
+         try:
+@@ -52,36 +265,41 @@
+ def load_plugin_from_directory(
+     plugin_dir: str | Path,
+     *,
+-    source: str = "user",
++    source: str = 'user',
+ ) -> LoadedPlugin:
+     plugin_dir = Path(plugin_dir)
+-    manifest_path = plugin_dir / MANIFEST_FILENAME
+-    if not manifest_path.exists():
+-        raise PluginError(plugin_dir.name, f"No {MANIFEST_FILENAME} found")
++    manifest_path = _find_manifest_path(plugin_dir)
++    if manifest_path is None:
++        raise PluginError(
++            plugin_dir.name,
++            f'No manifest found (looked for {", ".join(MANIFEST_FILES)})',
++        )
+
+     try:
+-        raw = json.loads(manifest_path.read_text(encoding="utf-8"))
+-    except (json.JSONDecodeError, OSError) as e:
+-        raise PluginError(plugin_dir.name, f"Failed to read manifest: {e}") from e
++        raw = _read_manifest(manifest_path)
++    except PluginError as e:
++        raise e
+
+     errors = validate_manifest(raw)
+     if errors:
+         raise PluginError(
+             plugin_dir.name,
+-            f"Invalid manifest: {'; '.join(e.message for e in errors)}",
++            f'Invalid manifest: {"; ".join(e.message for e in errors)}',
+         )
+
+     manifest = PluginManifest(
+-        name=raw["name"],
+-        description=raw.get("description", ""),
+-        version=raw.get("version", "1.0.0"),
++        name=raw['name'],
++        description=raw.get('description', ''),
++        version=raw.get('version', '1.0.0'),
+     )
+
+     agents_paths: list[str] = []
+-    single = raw.get("agentsPath")
++    # Accept both camelCase (plugin.yaml/json convention) and snake_case
++    # (pyproject.toml/TOML convention) keys for parity across formats.
++    single = raw.get('agentsPath') or raw.get('agents_path')
+     if isinstance(single, str) and single.strip():
+         agents_paths.append(single.strip())
+-    multi = raw.get("agentsPaths")
++    multi = raw.get('agentsPaths') or raw.get('agents_paths')
+     if isinstance(multi, list):
+         for item in multi:
+             if isinstance(item, str) and item.strip():
+@@ -99,10 +317,10 @@
+         manifest=manifest,
+         path=str(plugin_dir),
+         source=source,
+-        repository=raw.get("repository", ""),
+-        enabled=raw.get("enabled", True),
+-        hooks_config=raw.get("hooks"),
+-        mcp_servers=raw.get("mcp_servers"),
++        repository=raw.get('repository', ''),
++        enabled=raw.get('enabled', True),
++        hooks_config=raw.get('hooks'),
++        mcp_servers=raw.get('mcp_servers'),
+         agents_paths=resolved_agents_paths,
+     )
+
+@@ -111,12 +329,14 @@
+
+ def register_plugin(plugin: LoadedPlugin) -> None:
+     _loaded_plugins[plugin.name] = plugin
+-    logger.debug("Registered plugin: %s", plugin.name)
++    _register_lifecycle_callbacks(plugin.name)
++    logger.debug('Registered plugin: %s', plugin.name)
+
+
+ def unregister_plugin(name: str) -> bool:
+     if name in _loaded_plugins:
+         del _loaded_plugins[name]
++        _lifecycle_callbacks.pop(name, None)
+         return True
+     return False
+
+@@ -136,11 +356,15 @@
+ def load_plugins_from_directories(
+     directories: list[str | Path],
+     *,
+-    source: str = "user",
++    source: str = 'user',
++    recursive: bool = False,
+ ) -> PluginDiscoveryResult:
+     combined = PluginDiscoveryResult()
+     for directory in directories:
+-        result = discover_plugins(directory)
++        if recursive:
++            result = scan_plugin_directory(directory, recursive=True)
++        else:
++            result = discover_plugins(directory)
+         for plugin in result.plugins:
+             plugin.source = source
+             register_plugin(plugin)
+@@ -151,3 +375,208 @@
+
+ def clear_loaded_plugins() -> None:
+     _loaded_plugins.clear()
++    _lifecycle_callbacks.clear()
++
++
++# ── Entry-points discovery ────────────────────────────────────────────
++
++
++def _get_entry_points(group: str = 'clawcodex.plugins'):
++    """Import and return entry_points for the given group.
++
++    Handles both Python 3.9 (dict-based) and 3.10+ (select-based) APIs.
++    """
++    try:
++        from importlib.metadata import entry_points as _ep
++    except ImportError:
++        eps = _ep()
++        if hasattr(eps, 'select'):
++            return eps.select(group=group)
++        return eps.get(group, [])
++    else:
++        return _ep(group=group)
++
++
++def discover_entry_point_plugins() -> list[LoadedPlugin]:
++    """Discover plugins registered via Python ``entry_points``.
++
++    Looks for entry points in the ``clawcodex.plugins`` group.  Each entry
++    point is expected to export a factory callable that returns a
++    ``LoadedPlugin`` instance (or a dict that can be coerced into one).
++    """
++    plugins: list[LoadedPlugin] = []
++    group_eps = _get_entry_points('clawcodex.plugins')
++
++    for ep in group_eps:
++        try:
++            factory = ep.load()
++            result = factory()
++            if isinstance(result, dict):
++                # Coerce dict → LoadedPlugin
++                result.setdefault('enabled', True)
++                result.setdefault('is_builtin', False)
++                result.setdefault('hooks_config', None)
++                result.setdefault('mcp_servers', None)
++                result.setdefault('agents_paths', [])
++                manifest = PluginManifest(
++                    name=result['name'],
++                    description=result.get('description', ''),
++                    version=result.get('version', '1.0.0'),
++                )
++                plugin = LoadedPlugin(
++                    name=result['name'],
++                    manifest=manifest,
++                    path=result.get('path', ep.name),
++                    source='entry_point',
++                    repository=result.get('repository', ''),
++                    enabled=result.get('enabled', True),
++                    is_builtin=result.get('is_builtin', False),
++                    hooks_config=result.get('hooks_config'),
++                    mcp_servers=result.get('mcp_servers'),
++                    agents_paths=result.get('agents_paths', []),
++                )
++            elif isinstance(result, LoadedPlugin):
++                plugin = result
++            else:
++                logger.warning(
++                    'Entry point %s returned unexpected type %s',
++                    ep.name, type(result).__name__,
++                )
++                continue
++            plugins.append(plugin)
++        except Exception as exc:
++            logger.error(
++                'Failed to load entry-point plugin %s: %s', ep.name, exc,
++            )
++
++    return plugins
++
++
++# ── Full discovery (combines all strategies) ──────────────────────────
++
++
++def discover_all_plugins(
++    extra_dirs: list[str | Path] | None = None,
++    *,
++    recursive: bool = False,
++) -> PluginDiscoveryResult:
++    """Run all discovery strategies and return combined results.
++
++    Strategies (in order):
++    1. User directory  (~/.clawcodex/plugins)
++    2. Project directory  (.clawcodex/plugins)
++    3. Explicit extra directories
++    4. Python entry_points
++
++    Args:
++        extra_dirs: Additional directories to scan beyond defaults.
++        recursive: Whether to scan directories recursively.
++    """
++    combined = PluginDiscoveryResult()
++
++    # 1–3: Directory scanning
++    dirs = list(get_default_plugin_dirs())
++    if extra_dirs:
++        dirs.extend(extra_dirs)
++
++    for d in dirs:
++        if recursive:
++            dir_result = scan_plugin_directory(d, recursive=True)
++        else:
++            dir_result = discover_plugins(d)
++        for plugin in dir_result.plugins:
++            plugin.source = 'user'
++            register_plugin(plugin)
++            combined.plugins.append(plugin)
++        combined.errors.extend(dir_result.errors)
++
++    # 4: Entry points
++    ep_plugins = discover_entry_point_plugins()
++    for plugin in ep_plugins:
++        plugin.source = 'entry_point'
++        register_plugin(plugin)
++        combined.plugins.append(plugin)
++
++    return combined
++
++
++# ── Lifecycle management ──────────────────────────────────────────────
++
++
++def toggle_plugin_enabled(name: str, enabled: bool) -> bool:
++    """Enable or disable a registered plugin.
++
++    Returns ``True`` if the plugin was found and its state changed.
++    """
++    plugin = _loaded_plugins.get(name)
++    if plugin is None:
++        return False
++
++    was_enabled = plugin.enabled
++    plugin.enabled = enabled
++
++    # Fire lifecycle callbacks when the state actually changes
++    if was_enabled != enabled:
++        event = 'on_enable' if enabled else 'on_disable'
++        for cb in _lifecycle_callbacks.get(name, {}).get(event, []):
++            try:
++                result = cb(plugin)
++                if result is not None:
++                    logger.debug(
++                        'Lifecycle callback %s for plugin %s returned: %s',
++                        event, name, result,
++                    )
++            except Exception as exc:
++                logger.error(
++                    'Lifecycle callback %s for plugin %s raised: %s',
++                    event, name, exc,
++                )
++
++    logger.info('Plugin %s %s', name, 'enabled' if enabled else 'disabled')
++    return True
++
++
++def on_lifecycle(
++    name: str,
++    event: str,
++) -> Callable:
++    """Decorator to register a lifecycle callback for a plugin.
++
++    Usage::
++
++        @on_lifecycle("my-plugin", "on_enable")
++        def _on_enable(plugin: LoadedPlugin) -> None:
++            print(f"Plugin {plugin.name} is now enabled!")
++    """
++
++    def decorator(func: Callable) -> Callable:
++        _register_lifecycle_callbacks(name)
++        if event not in _lifecycle_callbacks[name]:
++            _lifecycle_callbacks[name][event] = []
++        _lifecycle_callbacks[name][event].append(func)
++        return func
++
++    return decorator
++
++
++def fire_lifecycle_event(
++    name: str,
++    event: str,
++    *args: Any,
++    **kwargs: Any,
++) -> list[Any]:
++    """Manually fire a lifecycle event for a plugin.
++
++    Useful for integration with the hook system or external lifecycle
++    managers.
++    """
++    results: list[Any] = []
++    for cb in _lifecycle_callbacks.get(name, {}).get(event, []):
++        try:
++            results.append(cb(*args, **kwargs))
++        except Exception as exc:
++            logger.error(
++                'Lifecycle event %s for plugin %s raised: %s',
++                event, name, exc,
++            )
++    return results

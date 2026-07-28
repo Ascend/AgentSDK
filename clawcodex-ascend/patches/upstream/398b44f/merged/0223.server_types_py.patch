@@ -1,0 +1,14 @@
+diff --git a/server/types.py b/server/types.py
+--- a/server/types.py	2026-07-23 08:42:36.000000 +0000
++++ b/server/types.py	2026-07-21 04:15:00.000000 -0700
+@@ -109,9 +109,7 @@
+     treats it as a dict; the TypedDict is documentation).
+     """
+     if not isinstance(payload, dict):
+-        raise ValueError(
+-            f'connect response must be an object, got {type(payload).__name__}'
+-        )
++        raise ValueError(f'connect response must be an object, got {type(payload).__name__}')
+     sid = payload.get('session_id')
+     if not isinstance(sid, str) or not sid:
+         raise ValueError('connect response missing session_id (non-empty string)')
