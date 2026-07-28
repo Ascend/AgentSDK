@@ -1,0 +1,43 @@
+diff --git a/hooks/exec_prompt_hook.py b/hooks/exec_prompt_hook.py
+--- a/hooks/exec_prompt_hook.py	2026-07-23 08:42:36.000000 +0000
++++ b/hooks/exec_prompt_hook.py	2026-07-04 09:47:03.000000 +0800
+@@ -1,37 +1,3 @@
+-from __future__ import annotations
++"""Facade — hooks/exec_prompt_hook.py has been moved to clawcodex_ext/hooks/exec_prompt_hook.py."""
+
+-import logging
+-import time
+-from typing import Any
+-
+-from .hook_types import HookConfig, HookResult
+-
+-logger = logging.getLogger(__name__)
+-
+-
+-async def execute_prompt_hook(
+-    hook: HookConfig,
+-    stdin_data: dict[str, Any],
+-) -> HookResult:
+-    prompt_text = hook.prompt_text
+-    if not prompt_text:
+-        return HookResult(exit_code=0)
+-
+-    start_time = time.monotonic()
+-
+-    try:
+-        result = HookResult(
+-            exit_code=0,
+-            stdout=prompt_text,
+-            duration_ms=int((time.monotonic() - start_time) * 1000),
+-            additional_contexts=[prompt_text],
+-        )
+-        return result
+-
+-    except Exception as e:
+-        duration_ms = int((time.monotonic() - start_time) * 1000)
+-        return HookResult(
+-            blocking_error=f"Prompt hook error: {e}",
+-            exit_code=-1,
+-            duration_ms=duration_ms,
+-        )
++from clawcodex_ext.hooks.exec_prompt_hook import *  # noqa: F401,F403

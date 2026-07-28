@@ -1,0 +1,14 @@
+diff --git a/entrypoints/daemon.py b/entrypoints/daemon.py
+--- a/entrypoints/daemon.py	2026-07-23 08:42:36.000000 +0000
++++ b/entrypoints/daemon.py	2026-07-04 09:47:03.000000 +0800
+@@ -21,8 +21,8 @@
+     and the full tool registry — wasteful for a non-interactive command).
+     """
+     print(
+-        "clawcodex daemon: not yet implemented in this Python port. "
+-        "See the TypeScript reference at typescript/src/coordinator/.",
++        'clawcodex daemon: not yet implemented in this Python port. '
++        'See the TypeScript reference at typescript/src/coordinator/.',
+         file=sys.stderr,
+     )
+     return 1

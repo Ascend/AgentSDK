@@ -1,0 +1,12 @@
+diff --git a/cost_tracker.py b/cost_tracker.py
+--- a/cost_tracker.py	2026-07-23 08:42:36.000000 +0000
++++ b/cost_tracker.py	2026-07-21 04:15:00.000000 -0700
+@@ -106,7 +106,7 @@
+     def record(self, label: str, units: int) -> None:
+         """Legacy event recorder. Used by ``costHook.apply_cost_hook``."""
+         self.total_units += units
+-        self.events.append(f"{label}:{units}")
++        self.events.append(f'{label}:{units}')
+
+     def record_usage(self, model: str, usage: dict[str, Any]) -> float:
+         """Record a real API usage event into the bootstrap singleton.

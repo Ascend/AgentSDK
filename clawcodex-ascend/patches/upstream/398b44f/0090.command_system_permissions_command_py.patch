@@ -1,0 +1,25 @@
+diff --git a/command_system/permissions_command.py b/command_system/permissions_command.py
+--- a/command_system/permissions_command.py	2026-07-23 08:42:36.000000 +0000
++++ b/command_system/permissions_command.py	2026-07-21 10:20:06.000000 +0800
+@@ -29,8 +29,10 @@
+ )
+
+ # User-facing permission modes, in the Shift+Tab cycle order
+-# (``src/permissions/cycle.py``). The internal modes (dontAsk / auto / bubble)
++# (``src/permissions/cycle.py``). The internal modes (dontAsk / bubble)
+ # are deliberately excluded from the picker — they're not user-addressable.
++# ``auto`` is included because it is now part of the Shift+Tab cycle
++# (bypassPermissions → auto → default, guarded by can_cycle_to_auto).
+ _PERMISSION_MODE_OPTIONS: list[UIOption] = [
+     UIOption(
+         value="default",
+@@ -52,6 +54,11 @@
+         label="bypassPermissions",
+         description="Skip all permission prompts",
+     ),
++    UIOption(
++        value="auto",
++        label="auto",
++        description="Automatically classify and allow safe commands",
++    ),
+ ]
