@@ -1,0 +1,63 @@
+diff --git a/tasks/local_shell.py b/tasks/local_shell.py
+--- a/tasks/local_shell.py	2026-07-23 08:42:36.000000 +0000
++++ b/tasks/local_shell.py	2026-07-21 04:56:27.000000 -0700
+@@ -18,7 +18,7 @@
+ import logging
+ import subprocess
+ from dataclasses import dataclass, field
+-from typing import IO, Any, Literal, TYPE_CHECKING
++from typing import IO, Any, Literal, TYPE_CHECKING, TypeAlias
+
+ from src.tasks_core import TaskStateBase
+
+@@ -27,6 +27,10 @@
+
+ logger = logging.getLogger(__name__)
+
++# F-88 downstream monitor tasks share the background-shell lifecycle while
++# retaining their own discriminator and refresh metadata.
++TaskKind: TypeAlias = Literal["shell", "monitor"]
++
+
+ @dataclass(kw_only=True)
+ class LocalShellTaskState(TaskStateBase):
+@@ -70,6 +74,10 @@
+     # lets a UI pin the entry; ``evict_after`` is the grace deadline.
+     retain: bool = False
+     evict_after: float | None = None
++    kind: TaskKind = "shell"
++    interval_sec: int | None = None
++    tail_buffer_size: int = 200_000
++    auto_refresh: bool = False
+     proc: subprocess.Popen | None = field(default=None, repr=False, compare=False)
+     handle: IO[bytes] | None = field(default=None, repr=False, compare=False)
+
+@@ -100,6 +108,8 @@
+             "_handle": self.handle,
+             "exit_code": self.exit_code,
+             "finished_at": self.finished_at,
++            "kind": self.kind,
++            "interval_sec": self.interval_sec,
+         }
+
+
+@@ -160,8 +170,11 @@
+
+         registry.update(task_id, _mark_killed)
+         try:
+-            os.killpg(os.getpgid(proc.pid), 15)
+-        except (ProcessLookupError, PermissionError):
++            if hasattr(os, "killpg") and hasattr(os, "getpgid"):
++                os.killpg(os.getpgid(proc.pid), 15)
++            else:
++                proc.terminate()
++        except (ProcessLookupError, PermissionError, OSError):
+             return
+
+
+@@ -197,4 +210,5 @@
+     "LocalShellTask",
+     "is_local_shell_task",
+     "kill_shell_tasks_for_agent",
++    "TaskKind",
+ ]

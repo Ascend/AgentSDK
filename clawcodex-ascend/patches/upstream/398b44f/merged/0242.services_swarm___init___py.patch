@@ -1,0 +1,29 @@
+diff --git a/services/swarm/__init__.py b/services/swarm/__init__.py
+--- a/services/swarm/__init__.py	2026-07-23 08:42:36.000000 +0000
++++ b/services/swarm/__init__.py	2026-07-04 09:47:03.000000 +0800
+@@ -1,20 +1,8 @@
+-"""Swarm/Teammates subsystem.
++"""Facade — services/swarm/ re-exports from clawcodex_ext.services.swarm.
+
+-Provides teammate spawning, permission synchronization, and team coordination.
+-Mirrors TypeScript swarm/ directory.
++Canonical implementation lives at ``clawcodex_ext/services/swarm/``.
++This module is kept so existing imports of
++``from src.services.swarm import ...`` continue to work.
+ """
+-from __future__ import annotations
+
+-from .teammate import Teammate, TeammateConfig, TeammateManager, TeammateStatus
+-from .permissions import SwarmPermissionSync
+-from .helpers import format_team_summary, get_active_teammates
+-
+-__all__ = [
+-    "Teammate",
+-    "TeammateConfig",
+-    "TeammateManager",
+-    "TeammateStatus",
+-    "SwarmPermissionSync",
+-    "format_team_summary",
+-    "get_active_teammates",
+-]
++from clawcodex_ext.services.swarm import *  # noqa: F401,F403

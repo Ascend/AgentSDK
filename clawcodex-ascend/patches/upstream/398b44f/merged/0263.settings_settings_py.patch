@@ -1,0 +1,21 @@
+diff --git a/settings/settings.py b/settings/settings.py
+--- a/settings/settings.py	2026-07-23 08:42:36.000000 +0000
++++ b/settings/settings.py	2026-07-21 04:15:00.000000 -0700
+@@ -38,9 +38,9 @@
+     base = dataclasses.asdict(DEFAULT_SETTINGS)
+
+     # Pull "settings" sub-key from each config level
+-    global_settings = config_manager.load_global().get("settings", {})
+-    project_settings = config_manager.load_project().get("settings", {})
+-    local_settings = config_manager.load_local().get("settings", {})
++    global_settings = config_manager.load_global().get('settings', {})
++    project_settings = config_manager.load_project().get('settings', {})
++    local_settings = config_manager.load_local().get('settings', {})
+
+     merged = base
+     if global_settings:
+@@ -149,4 +149,3 @@
+     except Exception:  # noqa: BLE001
+         logger.debug("update_local_settings failed", exc_info=True)
+         return False
+-

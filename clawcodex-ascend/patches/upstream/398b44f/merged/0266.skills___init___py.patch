@@ -1,0 +1,169 @@
+diff --git a/skills/__init__.py b/skills/__init__.py
+--- a/skills/__init__.py	2026-07-23 08:42:36.000000 +0000
++++ b/skills/__init__.py	2026-07-04 09:47:03.000000 +0800
+@@ -1,90 +1,75 @@
+-from .argument_substitution import parse_arguments, substitute_arguments
+-from .bundled import init_bundled_skills
+-from .bundled_skills import (
+-    BundledSkillDefinition,
+-    SkillValidationError,
+-    clear_bundled_skills,
+-    get_bundled_skill_by_name,
+-    get_bundled_skills,
+-    register_bundled_skill,
+-    skill_from_mcp_tool,
+-    validate_skill,
+-    validate_skill_definition,
+-)
+-from .create import create_skill
+-from .frontmatter import parse_frontmatter
+-from .loader import (
+-    activate_conditional_skills_for_paths,
+-    add_skill_directories,
+-    clear_dynamic_skills,
+-    clear_skill_caches,
+-    clear_skill_registry,
+-    create_skill_command,
+-    discover_skill_dirs_for_paths,
+-    get_all_skills,
+-    get_conditional_skill_count,
+-    get_dynamic_skills,
+-    get_registered_skill,
+-    get_skill_dir_commands,
+-    get_skills_path,
+-    load_skills_from_dir,
+-    load_skills_from_skills_dir,
+-    parse_skill_frontmatter_fields,
+-)
+-from .mcp_skill_builders import get_mcp_skill_builders, register_mcp_skill_builders
+-from .model import PromptSkill, Skill
+-from .runtime_substitution import (
+-    find_shell_blocks,
+-    format_shell_error,
+-    format_shell_output,
+-    has_shell_blocks,
+-    prepend_base_dir_header,
+-    render_skill_prompt,
+-    substitute_session_id,
+-    substitute_skill_dir,
+-)
+-
+-__all__ = [
+-    "Skill",
+-    "PromptSkill",
+-    "BundledSkillDefinition",
+-    "SkillValidationError",
+-    "register_bundled_skill",
+-    "get_bundled_skills",
+-    "get_bundled_skill_by_name",
+-    "clear_bundled_skills",
+-    "validate_skill",
+-    "validate_skill_definition",
+-    "skill_from_mcp_tool",
+-    "create_skill",
+-    "create_skill_command",
+-    "parse_frontmatter",
+-    "parse_arguments",
+-    "substitute_arguments",
+-    "parse_skill_frontmatter_fields",
+-    "get_skill_dir_commands",
+-    "get_skills_path",
+-    "load_skills_from_skills_dir",
+-    "load_skills_from_dir",
+-    "discover_skill_dirs_for_paths",
+-    "add_skill_directories",
+-    "activate_conditional_skills_for_paths",
+-    "get_dynamic_skills",
+-    "get_conditional_skill_count",
+-    "clear_skill_caches",
+-    "clear_dynamic_skills",
+-    "clear_skill_registry",
+-    "get_all_skills",
+-    "get_registered_skill",
+-    "register_mcp_skill_builders",
+-    "get_mcp_skill_builders",
+-    "render_skill_prompt",
+-    "prepend_base_dir_header",
+-    "substitute_skill_dir",
+-    "substitute_session_id",
+-    "find_shell_blocks",
+-    "has_shell_blocks",
+-    "format_shell_output",
+-    "format_shell_error",
+-    "init_bundled_skills",
+-]
++"""Compatibility facade — see :mod:`clawcodex_ext.skills`."""
++
++from __future__ import annotations
++
++import importlib
++from typing import Any
++
++_SYMBOLS_BY_MODULE: dict[str, tuple[str, ...]] = {
++    'clawcodex_ext.skills.model': ('Skill', 'PromptSkill'),
++    'clawcodex_ext.skills.bundled_skills': (
++        'BundledSkillDefinition',
++        'SkillValidationError',
++        'register_bundled_skill',
++        'get_bundled_skills',
++        'get_bundled_skill_by_name',
++        'clear_bundled_skills',
++        'validate_skill',
++        'validate_skill_definition',
++        'skill_from_mcp_tool',
++    ),
++    'clawcodex_ext.skills.create': ('create_skill',),
++    'clawcodex_ext.skills.loader': (
++        'create_skill_command',
++        'parse_skill_frontmatter_fields',
++        'get_skill_dir_commands',
++        'get_skills_path',
++        'load_skills_from_skills_dir',
++        'load_skills_from_dir',
++        'discover_skill_dirs_for_paths',
++        'add_skill_directories',
++        'activate_conditional_skills_for_paths',
++        'get_dynamic_skills',
++        'get_conditional_skill_count',
++        'clear_skill_caches',
++        'clear_dynamic_skills',
++        'clear_skill_registry',
++        'get_all_skills',
++        'get_registered_skill',
++    ),
++    'clawcodex_ext.skills.frontmatter': ('parse_frontmatter',),
++    'clawcodex_ext.skills.argument_substitution': (
++        'parse_arguments',
++        'substitute_arguments',
++    ),
++    'clawcodex_ext.skills.mcp_skill_builders': (
++        'register_mcp_skill_builders',
++        'get_mcp_skill_builders',
++    ),
++    'clawcodex_ext.skills.runtime_substitution': (
++        'render_skill_prompt',
++        'prepend_base_dir_header',
++        'substitute_skill_dir',
++        'substitute_session_id',
++        'find_shell_blocks',
++        'has_shell_blocks',
++        'format_shell_output',
++        'format_shell_error',
++    ),
++    'clawcodex_ext.skills.bundled': ('init_bundled_skills',),
++}
++_SYMBOL_MODULES = {
++    symbol: module_name for module_name, symbols in _SYMBOLS_BY_MODULE.items() for symbol in symbols
++}
++
++__all__ = list(_SYMBOL_MODULES)
++
++
++def __getattr__(name: str) -> Any:
++    try:
++        module_name = _SYMBOL_MODULES[name]
++    except KeyError as exc:
++        raise AttributeError(name) from exc
++    value = getattr(importlib.import_module(module_name), name)
++    globals()[name] = value
++    return value

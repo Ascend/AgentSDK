@@ -1,0 +1,29 @@
+diff --git a/settings/change_detector.py b/settings/change_detector.py
+--- a/settings/change_detector.py	2026-07-23 08:42:36.000000 +0000
++++ b/settings/change_detector.py	2026-07-04 09:47:03.000000 +0800
+@@ -12,6 +12,7 @@
+ @dataclass
+ class SettingsDiff:
+     """Represents differences between two SettingsSchema instances."""
++
+     changed_keys: list[str] = field(default_factory=list)
+     old_values: dict[str, Any] = field(default_factory=dict)
+     new_values: dict[str, Any] = field(default_factory=dict)
+@@ -49,7 +50,7 @@
+ def _diff_dicts(
+     old: dict[str, Any],
+     new: dict[str, Any],
+-    prefix: str = "",
++    prefix: str = '',
+ ) -> SettingsDiff:
+     """Recursively diff two flat/nested dicts."""
+     changed: list[str] = []
+@@ -58,7 +59,7 @@
+
+     all_keys = set(old.keys()) | set(new.keys())
+     for key in sorted(all_keys):
+-        full_key = f"{prefix}.{key}" if prefix else key
++        full_key = f'{prefix}.{key}' if prefix else key
+         ov = old.get(key)
+         nv = new.get(key)
+         if isinstance(ov, dict) and isinstance(nv, dict):

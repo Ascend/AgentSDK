@@ -1,0 +1,55 @@
+diff --git a/tasks/__init__.py b/tasks/__init__.py
+--- a/tasks/__init__.py	2026-07-23 08:42:36.000000 +0000
++++ b/tasks/__init__.py	2026-07-04 09:47:03.000000 +0800
+@@ -13,6 +13,7 @@
+ * ``local_shell`` — Chunk B / WI-1.4 + WI-2.1.
+ * ``local_agent`` — Chunk B / WI-1.5 + Chunk C / WI-2.3 (full lifecycle).
+ * ``in_process_teammate`` — Chunk F / WI-6.2.
++* ``dream`` — F-100.
+ * ``progress`` — Chunk C / WI-2.4.
+ * ``stop_task`` — Chunk E / WI-5.1.
+
+@@ -23,13 +24,15 @@
+ effect. This sidesteps the prior "must remember to import the
+ submodule before lookup" trap.
+ """
++
+ from __future__ import annotations
+
+ # Re-export the per-type ``Task`` adapters so ``from src.tasks import
+ # LocalShellTask`` works. Submodule imports are listed individually
+ # (rather than ``import *``) so removing a future task type is a
+ # localized edit.
+-from src.task_registry import register_task
++from clawcodex_ext.task_registry import register_task
++from src.tasks.dream import DreamTask, DreamTaskState
+ from src.tasks.in_process_teammate import (
+     InProcessTeammateTask,
+     InProcessTeammateTaskState,
+@@ -43,15 +46,18 @@
+ register_task(LocalShellTask())
+ register_task(LocalAgentTask())
+ register_task(InProcessTeammateTask())
++register_task(DreamTask())
+ register_task(LocalWorkflowTask())
+
+ __all__ = [
+-    "InProcessTeammateTask",
+-    "InProcessTeammateTaskState",
+-    "LocalAgentTask",
+-    "LocalAgentTaskState",
+-    "LocalShellTask",
+-    "LocalShellTaskState",
+-    "LocalWorkflowTask",
+-    "LocalWorkflowTaskState",
++    'DreamTask',
++    'DreamTaskState',
++    'InProcessTeammateTask',
++    'InProcessTeammateTaskState',
++    'LocalAgentTask',
++    'LocalAgentTaskState',
++    'LocalShellTask',
++    'LocalShellTaskState',
++    'LocalWorkflowTask',
++    'LocalWorkflowTaskState',
+ ]
