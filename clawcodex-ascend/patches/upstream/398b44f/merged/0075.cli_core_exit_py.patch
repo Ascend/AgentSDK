@@ -1,0 +1,43 @@
+diff --git a/cli_core/exit.py b/cli_core/exit.py
+--- a/cli_core/exit.py	2026-07-23 08:42:36.000000 +0000
++++ b/cli_core/exit.py	2026-07-04 09:47:03.000000 +0800
+@@ -1,28 +1,15 @@
+-"""CLI exit helpers.
+-
+-Port of ``typescript/src/cli/exit.ts``. Centralizes the ``print + exit`` block
+-copy-pasted across subcommand handlers and gives callers a ``NoReturn`` type
+-so control-flow analysis narrows correctly after the call.
+-"""
+-
+-from __future__ import annotations
+-
+-import sys
+-from typing import NoReturn
++"""Facade — cli_core/exit.py has been moved to clawcodex_ext/cli_core/exit.
+
++The F-88 CLI exit helpers (``cli_error``, ``cli_ok``) now live in
++:mod:`clawcodex_ext.cli_core.exit`. This module re-exports the public
++surface so existing ``from src.cli_core.exit import ...`` callers keep
++working without modification.
+
+-def cli_error(msg: str | None = None, code: int = 1) -> NoReturn:
+-    """Write ``msg`` to stderr (if provided) and exit with ``code`` (default 1)."""
+-
+-    if msg:
+-        print(msg, file=sys.stderr)
+-    sys.exit(code)
+-
++Uses ``globals().update()`` to preserve access to all public names
++regardless of ``__all__`` — the source module has no ``__all__``.
++"""
+
+-def cli_ok(msg: str | None = None) -> NoReturn:
+-    """Write ``msg`` to stdout (if provided) and exit with code 0."""
++import clawcodex_ext.cli_core.exit as _mod
+
+-    if msg:
+-        sys.stdout.write(msg + "\n")
+-        sys.stdout.flush()
+-    sys.exit(0)
++_globals = {k: v for k, v in vars(_mod).items() if not k.startswith('_')}
++globals().update(_globals)
