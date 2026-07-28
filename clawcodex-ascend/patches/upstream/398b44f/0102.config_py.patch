@@ -1,0 +1,582 @@
+diff --git a/config.py b/config.py
+--- a/config.py	2026-07-23 08:42:36.000000 +0000
++++ b/config.py	2026-07-21 04:56:27.000000 -0700
+@@ -6,6 +6,11 @@
+   Local:   <git-root>/.clawcodex/config.local.json
+
+ Inheritance: local > project > global (deep merge).
++
++The pydantic-settings backend lives in
++``clawcodex_ext/settings/pydantic_adapter.py`` (gate controlled by
++``CLAW_USE_PYDANTIC_SETTINGS``). This module only implements the
++legacy JSON backend.
+ """
+
+ from __future__ import annotations
+@@ -26,13 +31,14 @@
+ # Paths
+ # ---------------------------------------------------------------------------
+
+-GLOBAL_CONFIG_DIR = Path.home() / ".clawcodex"
+-GLOBAL_CONFIG_FILE = GLOBAL_CONFIG_DIR / "config.json"
+-HISTORY_FILE = GLOBAL_CONFIG_DIR / "history.jsonl"
+-
+-PROJECT_CONFIG_DIR_NAME = ".clawcodex"
+-PROJECT_CONFIG_FILE_NAME = "config.json"
+-LOCAL_CONFIG_FILE_NAME = "config.local.json"
++GLOBAL_CONFIG_DIR = Path.home() / '.clawcodex'
++GLOBAL_CONFIG_FILE = GLOBAL_CONFIG_DIR / 'config.json'
++HISTORY_FILE = GLOBAL_CONFIG_DIR / 'history.jsonl'
++
++PROJECT_CONFIG_DIR_NAME = '.clawcodex'
++LEGACY_PROJECT_CONFIG_DIR_NAME = '.claude'
++PROJECT_CONFIG_FILE_NAME = 'config.json'
++LOCAL_CONFIG_FILE_NAME = 'config.local.json'
+
+
+ def _find_git_root(cwd: str | Path | None = None) -> Path | None:
+@@ -40,8 +46,13 @@
+     start = Path(cwd) if cwd else Path.cwd()
+     try:
+         result = subprocess.run(
+-            ["git", "rev-parse", "--show-toplevel"],
+-            capture_output=True, text=True, cwd=str(start), timeout=5,
++            ['git', 'rev-parse', '--show-toplevel'],
++            capture_output=True,
++            text=True,
++            encoding='utf-8',
++            errors='replace',
++            cwd=str(start),
++            timeout=5,
+         )
+         if result.returncode == 0:
+             return Path(result.stdout.strip())
+@@ -72,6 +83,7 @@
+ # Deep merge
+ # ---------------------------------------------------------------------------
+
++
+ def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
+     """Recursively merge *override* into *base*, returning a new dict."""
+     merged = dict(base)
+@@ -87,6 +99,7 @@
+ # Atomic JSON I/O
+ # ---------------------------------------------------------------------------
+
++
+ def _read_json(path: Path) -> dict[str, Any]:
+     """Read a JSON file, returning empty dict on any error."""
+     if not path.exists():
+@@ -95,7 +108,7 @@
+         with open(path, "r", encoding="utf-8") as f:
+             data = json.load(f)
+     except Exception as exc:
+-        logger.debug("Failed to read config %s: %s", path, exc)
++        logger.debug('Failed to read config %s: %s', path, exc)
+         return {}
+     if not isinstance(data, dict):
+         # A non-object top level previously flowed into _deep_merge and
+@@ -109,13 +122,13 @@
+ def _atomic_write_json(path: Path, data: dict[str, Any]) -> None:
+     """Write JSON atomically via temp-file + rename, chmod 0600."""
+     path.parent.mkdir(parents=True, exist_ok=True)
+-    fd, tmp = tempfile.mkstemp(dir=str(path.parent), suffix=".tmp")
++    fd, tmp = tempfile.mkstemp(dir=str(path.parent), suffix='.tmp')
+     try:
+-        with os.fdopen(fd, "w", encoding="utf-8") as f:
++        with os.fdopen(fd, 'w', encoding='utf-8') as f:
+             json.dump(data, f, indent=2, ensure_ascii=False)
+-            f.write("\n")
++            f.write('\n')
+         os.replace(tmp, str(path))
+-        if os.name != "nt":
++        if os.name != 'nt':
+             os.chmod(str(path), 0o600)
+     except Exception:
+         try:
+@@ -129,15 +142,21 @@
+ # Default config
+ # ---------------------------------------------------------------------------
+
++
+ def get_default_config() -> dict[str, Any]:
+     """Generate default global configuration."""
+     try:
+         from src.providers import PROVIDER_INFO
++
++        from clawcodex_ext.providers import _init_provider_extensions
++
++        _init_provider_extensions()
++
+         providers = {
+             name: {
+-                "api_key": "",
+-                "base_url": info["default_base_url"],
+-                "default_model": info["default_model"],
++                'api_key': '',
++                'base_url': info['default_base_url'],
++                'default_model': info['default_model'],
+             }
+             for name, info in PROVIDER_INFO.items()
+         }
+@@ -145,9 +164,9 @@
+         providers = {}
+
+     return {
+-        "default_provider": "anthropic",
+-        "providers": providers,
+-        "session": {"auto_save": True, "max_history": 100},
++        'default_provider': 'anthropic',
++        'providers': providers,
++        'session': {'auto_save': True, 'max_history': 100},
+     }
+
+
+@@ -162,26 +181,10 @@
+
+
+ def _session_trusted(cwd: str | Path | None = None) -> bool:
+-    """Is the workspace the given manager reads trusted?
++    """Return the trust verdict for the workspace being loaded.
+
+-    ch02 round-4 WI-1 — cwd-scoped. The old body read only the
+-    process-global session flag, which the agent-server CHILD never sets
+-    (the parent's ``establish_session_trust`` runs in the parent process),
+-    so the interactive path stripped trusted-project provider config that
+-    headless honored. Flipping the global flag in the child instead would
+-    leak trust across sessions (one server process can host sessions with
+-    different cwds — ``session_manager.py:59-80``).
+-
+-    ``check_trust_accepted`` gives both semantics in one read: the
+-    session-flag short-circuit first (parent piped-stdin implicit trust),
+-    else the PERSISTED per-project verdict for exactly the cwd whose
+-    project/local tiers are being merged. Memoized per-cwd in
+-    ``startup_gates``.
+-
+-    Fail-closed on exception (unknown trust strips the committable
+-    tiers) — deliberately stricter than the round-3 body's fail-open,
+-    whose rationale (bootstrap-state import unavailable) doesn't apply to
+-    the persisted walk.
++    The persisted cwd-scoped verdict is required by agent-server children,
++    which do not inherit the parent's in-process bootstrap flag.
+     """
+     try:
+         from src.services.startup_gates import check_trust_accepted
+@@ -203,6 +206,7 @@
+ # ConfigManager — three-level loading + merge
+ # ---------------------------------------------------------------------------
+
++
+ @dataclass
+ class ConfigManager:
+     """Manages the three-level config hierarchy."""
+@@ -229,13 +233,27 @@
+     def load_project(self) -> dict[str, Any]:
+         if self._project_cache is None:
+             path = get_project_config_path(self.cwd)
+-            self._project_cache = _read_json(path) if path else {}
++            current = _read_json(path) if path else {}
++            root = _find_git_root(self.cwd)
++            legacy = (
++                _read_json(root / LEGACY_PROJECT_CONFIG_DIR_NAME / PROJECT_CONFIG_FILE_NAME)
++                if root
++                else {}
++            )
++            self._project_cache = _deep_merge(legacy, current)
+         return dict(self._project_cache)
+
+     def load_local(self) -> dict[str, Any]:
+         if self._local_cache is None:
+             path = get_local_config_path(self.cwd)
+-            self._local_cache = _read_json(path) if path else {}
++            current = _read_json(path) if path else {}
++            root = _find_git_root(self.cwd)
++            legacy = (
++                _read_json(root / LEGACY_PROJECT_CONFIG_DIR_NAME / LOCAL_CONFIG_FILE_NAME)
++                if root
++                else {}
++            )
++            self._local_cache = _deep_merge(legacy, current)
+         return dict(self._local_cache)
+
+     def get_merged(self) -> dict[str, Any]:
+@@ -254,8 +272,6 @@
+         merged = self.load_global()
+         project = self.load_project()
+         local = self.load_local()
+-        # Gate on the SAME cwd the project/local tiers were resolved from
+-        # (self.cwd None ⇒ process cwd on both sides).
+         if not _session_trusted(self.cwd):
+             project = _strip_untrusted_keys(project)
+             local = _strip_untrusted_keys(local)
+@@ -272,14 +288,14 @@
+     def save_project(self, data: dict[str, Any]) -> None:
+         path = get_project_config_path(self.cwd)
+         if path is None:
+-            raise RuntimeError("No git root found — cannot save project config")
++            raise RuntimeError('No git root found — cannot save project config')
+         _atomic_write_json(path, data)
+         self._project_cache = None
+
+     def save_local(self, data: dict[str, Any]) -> None:
+         path = get_local_config_path(self.cwd)
+         if path is None:
+-            raise RuntimeError("No git root found — cannot save local config")
++            raise RuntimeError('No git root found — cannot save local config')
+         _atomic_write_json(path, data)
+         self._local_cache = None
+
+@@ -366,9 +382,6 @@
+     except OSError:
+         return False
+     _get_default_manager().invalidate()
+-    # Project entries carry the folder-trust verdict; drop the per-cwd
+-    # trust memo so a just-recorded acceptance is visible to the next
+-    # get_merged strip decision (ch02 round-4 WI-1).
+     try:
+         from src.services.startup_gates import _invalidate_trust_memo
+
+@@ -382,12 +395,13 @@
+ # History (JSONL paste history)
+ # ---------------------------------------------------------------------------
+
+-def append_history_entry(content: str, *, source: str = "paste") -> None:
++
++def append_history_entry(content: str, *, source: str = 'paste') -> None:
+     """Append a history entry to the JSONL history file."""
+     HISTORY_FILE.parent.mkdir(parents=True, exist_ok=True)
+-    entry = {"timestamp": time.time(), "source": source, "content": content}
+-    with open(HISTORY_FILE, "a", encoding="utf-8") as f:
+-        f.write(json.dumps(entry, ensure_ascii=False) + "\n")
++    entry = {'timestamp': time.time(), 'source': source, 'content': content}
++    with open(HISTORY_FILE, 'a', encoding='utf-8') as f:
++        f.write(json.dumps(entry, ensure_ascii=False) + '\n')
+
+
+ def read_history_entries(limit: int = 100) -> list[dict[str, Any]]:
+@@ -396,7 +410,7 @@
+         return []
+     entries: list[dict[str, Any]] = []
+     try:
+-        with open(HISTORY_FILE, "r", encoding="utf-8") as f:
++        with open(HISTORY_FILE, 'r', encoding='utf-8') as f:
+             for line in f:
+                 line = line.strip()
+                 if line:
+@@ -448,18 +462,32 @@
+     resolves to the provider's default config block.
+     """
+     config = load_config()
+-    providers = config.get("providers", {})
++    providers = config.get('providers', {})
+     if provider in providers:
+-        return providers[provider]
+-    try:
+-        from src.providers import canonical_provider_name
++        resolved = provider
++    else:
++        try:
++            from src.providers import canonical_provider_name
+
+-        canonical = canonical_provider_name(provider)
+-    except Exception:
+-        canonical = provider
+-    if canonical != provider and canonical in providers:
+-        return providers[canonical]
+-    raise ValueError(f"Unknown provider: {provider}")
++            canonical = canonical_provider_name(provider)
++        except Exception:
++            canonical = provider
++        if canonical != provider and canonical in providers:
++            resolved = canonical
++        else:
++            raise ValueError(f'Unknown provider: {provider}')
++    cfg = dict(providers[resolved])
++    # Fall back to environment variables when config file has empty values.
++    env_key = os.environ.get(f'{provider.upper()}_API_KEY')
++    if not cfg.get('api_key') and env_key:
++        cfg['api_key'] = env_key
++    env_base = os.environ.get(f'{provider.upper()}_BASE_URL')
++    if not cfg.get('base_url') and env_base:
++        cfg['base_url'] = env_base
++    env_model = os.environ.get(f'{provider.upper()}_MODEL')
++    if not cfg.get('default_model') and env_model:
++        cfg['default_model'] = env_model
++    return cfg
+
+
+ def set_api_key(
+@@ -471,15 +499,22 @@
+     """Set API key for a provider."""
+     mgr = _get_default_manager()
+     config = mgr.load_global()
+-    if "providers" not in config:
+-        config["providers"] = {}
+-    if provider not in config["providers"]:
+-        config["providers"][provider] = {}
+-    config["providers"][provider]["api_key"] = api_key
++    if 'providers' not in config:
++        config['providers'] = {}
++    if provider not in config['providers']:
++        config['providers'][provider] = {}
++    config['providers'][provider]['api_key'] = api_key
+     if base_url is not None:
+-        config["providers"][provider]["base_url"] = base_url
++        config['providers'][provider]['base_url'] = base_url
+     if default_model is not None:
+-        config["providers"][provider]["default_model"] = default_model
++        config['providers'][provider]['default_model'] = default_model
++        # Maintain a deduplicated models list so config-aware UIs
++        # (e.g. REPL /model) can offer the user's known models
++        # even when they are not in the built-in ModelRegistry.
++        models: list[str] = config['providers'][provider].get('models', [])
++        if default_model not in models:
++            models.append(default_model)
++        config['providers'][provider]['models'] = models
+     mgr.save_global(config)
+
+
+@@ -487,13 +522,13 @@
+     """Set the default provider."""
+     mgr = _get_default_manager()
+     config = mgr.load_global()
+-    config["default_provider"] = provider
++    config['default_provider'] = provider
+     mgr.save_global(config)
+
+
+ def get_default_provider() -> str:
+     """Get the default provider."""
+-    return load_config().get("default_provider", "anthropic")
++    return load_config().get('default_provider', 'anthropic')
+
+
+ def set_theme(name: str) -> None:
+@@ -505,17 +540,16 @@
+     serialize the *merged* (global+project+local) config back into the global file.
+     Matches the ``set_api_key`` / ``set_default_provider`` convention above.
+     """
+-    _get_default_manager().set_global("theme", name)
++    _get_default_manager().set_global('theme', name)
+
+
+ def set_logo_color(name: str) -> None:
+     """Persist the startup logo color palette to the global config.
+
+     Mirrors TS ``/logo`` (``saveGlobalConfig(c => ({...c, logoColor: chosen}))``). A
+-    top-level config key (like :func:`set_theme`) — NOT a nested settings field.
+-    Read by the Ink TUI banner (synchronously at startup via
+-    ``ui-tui/src/lib/logoPalettes.ts::readLogoColorSync``) and echoed in the
+-    agent-server's ``get_settings`` reply.
++    top-level config key (like :func:`set_theme`), read via
++    ``load_config().get("logoColor")`` by the startup banners — NOT a nested settings
++    field.
+     """
+     _get_default_manager().set_global("logoColor", name)
+
+@@ -537,12 +571,202 @@
+
+     mgr = _get_default_manager()
+     cfg = mgr.load_global()
+-    section = cfg.get("settings")
++    section = cfg.get('settings')
+     if not isinstance(section, dict):
+         section = {}
+     # None / "" both map to "auto" — write empty string for round-trip fidelity
+     # with the SettingsSchema default (settings/types.py: effort: str = "").
+-    section["effort"] = value or ""
+-    cfg["settings"] = section
++    section['effort'] = value or ''
++    cfg['settings'] = section
++    mgr.save_global(cfg)
++    invalidate_settings_cache()
++
++
++def set_selection_mode(mode: str) -> None:
++    """Persist the selection mode (``"number"`` or ``"arrow"``) to global config.
++
++    Controls whether ``AskUserQuestion`` prompts accept number-key input
++    or arrow-key navigation in the TUI. Follows the ``set_theme`` convention:
++    writes to the global config file only (not merged).
++    """
++    _get_default_manager().set_global('selection_mode', mode)
++
++
++def get_selection_mode() -> str:
++    """Read the persisted selection mode. Defaults to ``"arrow"`` (supports both ↑↓ arrow keys and 1-9 digit keys)."""
++    return load_config().get('selection_mode') or 'arrow'
++
++
++# ── F-64 Voice Mode persistence ──────────────────────────────────────────────
++# These follow the ``set_effort`` pattern (nested ``"settings"`` section,
++# not a top-level key, since the values are read via ``get_settings()``).
++# Both clear the settings read-cache so the next ``get_settings()`` reflects
++# the change mid-session.
++
++def set_voice_provider(value: Optional[str]) -> None:
++    """Persist the STT backend choice (``"anthropic"`` | ``"doubao"`` | None).
++
++    Mirrors TS ``updateSettingsForSource('userSettings', {voiceProvider})``
++    (``commands/voice/voice.ts``). ``None``/``""`` clears the field (= unset,
++    read-side falls back to ``"anthropic"``). Invalid values are coerced to
++    ``""`` rather than raising — the read-side default is the safety net.
++
++    F-64 P64-A: gates which STT provider ``connect_voice_stream`` selects
++    at recording time. See ``clawcodex_ext.services.voice.voice_mode_enabled``.
++    """
++    from src.settings.settings import invalidate_settings_cache
++
++    normalized = (value or '').strip().lower()
++    if normalized not in ('anthropic', 'doubao'):
++        normalized = ''  # invalid / empty → unset, read-side defaults to anthropic
++    mgr = _get_default_manager()
++    cfg = mgr.load_global()
++    section = cfg.get('settings')
++    if not isinstance(section, dict):
++        section = {}
++    section['voice_provider'] = normalized
++    cfg['settings'] = section
++    mgr.save_global(cfg)
++    invalidate_settings_cache()
++
++
++def set_voice_enabled(enabled: bool) -> None:
++    """Persist the voice-mode master switch (``settings.voice_enabled``).
++
++    Mirrors TS ``settings.voiceEnabled``. ``/voice`` toggles this; when false
++    the push-to-talk hotkey is inert regardless of provider configuration.
++    Decoupled from :func:`set_voice_provider` so ``/voice doubao`` can flip
++    both atomically while ``/voice anthropic`` only touches the provider.
++    """
++    from src.settings.settings import invalidate_settings_cache
++
++    mgr = _get_default_manager()
++    cfg = mgr.load_global()
++    section = cfg.get('settings')
++    if not isinstance(section, dict):
++        section = {}
++    section['voice_enabled'] = bool(enabled)
++    cfg['settings'] = section
++    mgr.save_global(cfg)
++    invalidate_settings_cache()
++
++
++# ── F-64 P64-E: TTS setters ────────────────────────────────────────────────
++
++def set_tts_provider(value: Optional[str]) -> None:
++    """Persist the TTS backend choice (``"openai"`` | ``"minimax"`` | ``"gemini"`` | None)."""
++    from src.settings.settings import invalidate_settings_cache
++
++    normalized = (value or '').strip().lower()
++    if normalized not in ('openai', 'minimax', 'gemini'):
++        normalized = ''
++    mgr = _get_default_manager()
++    cfg = mgr.load_global()
++    section = cfg.get('settings')
++    if not isinstance(section, dict):
++        section = {}
++    section['tts_provider'] = normalized
++    cfg['settings'] = section
++    mgr.save_global(cfg)
++    invalidate_settings_cache()
++
++
++def set_tts_enabled(enabled: bool) -> None:
++    """Persist the TTS master switch (``settings.tts_enabled``)."""
++    from src.settings.settings import invalidate_settings_cache
++
++    mgr = _get_default_manager()
++    cfg = mgr.load_global()
++    section = cfg.get('settings')
++    if not isinstance(section, dict):
++        section = {}
++    section['tts_enabled'] = bool(enabled)
++    cfg['settings'] = section
++    mgr.save_global(cfg)
++    invalidate_settings_cache()
++
++
++def set_tts_voice(value: Optional[str]) -> None:
++    """Persist the TTS voice id (``settings.tts_voice``)."""
++    from src.settings.settings import invalidate_settings_cache
++
++    normalized = (value or '').strip()
++    mgr = _get_default_manager()
++    cfg = mgr.load_global()
++    section = cfg.get('settings')
++    if not isinstance(section, dict):
++        section = {}
++    section['tts_voice'] = normalized
++    cfg['settings'] = section
++    mgr.save_global(cfg)
++    invalidate_settings_cache()
++
++
++# ── F-65 P65-D: dialogue setters ───────────────────────────────────────────
++
++
++def set_dialogue_provider(value: Optional[str]) -> None:
++    """Persist the F-65 dialogue backend choice (``"minimax"`` | None)."""
++    from src.settings.settings import invalidate_settings_cache
++
++    normalized = (value or '').strip().lower()
++    if normalized not in ('minimax', 'openai-realtime'):
++        normalized = ''
++    mgr = _get_default_manager()
++    cfg = mgr.load_global()
++    section = cfg.get('settings')
++    if not isinstance(section, dict):
++        section = {}
++    section['dialogue_provider'] = normalized
++    cfg['settings'] = section
++    mgr.save_global(cfg)
++    invalidate_settings_cache()
++
++
++def set_dialogue_enabled(enabled: bool) -> None:
++    """Persist the F-65 full-duplex dialogue master switch."""
++    from src.settings.settings import invalidate_settings_cache
++
++    mgr = _get_default_manager()
++    cfg = mgr.load_global()
++    section = cfg.get('settings')
++    if not isinstance(section, dict):
++        section = {}
++    section['dialogue_enabled'] = bool(enabled)
++    cfg['settings'] = section
++    mgr.save_global(cfg)
++    invalidate_settings_cache()
++
++
++def set_dialogue_voice(value: Optional[str]) -> None:
++    """Persist the F-65 dialogue TTS voice id (``settings.dialogue_voice``)."""
++    from src.settings.settings import invalidate_settings_cache
++
++    normalized = (value or '').strip()
++    mgr = _get_default_manager()
++    cfg = mgr.load_global()
++    section = cfg.get('settings')
++    if not isinstance(section, dict):
++        section = {}
++    section['dialogue_voice'] = normalized
++    cfg['settings'] = section
++    mgr.save_global(cfg)
++    invalidate_settings_cache()
++
++
++def set_dialogue_modality(value: Optional[str]) -> None:
++    """Persist the F-65 output modality (``"text"`` | ``"audio"``)."""
++    from src.settings.settings import invalidate_settings_cache
++
++    normalized = (value or '').strip().lower()
++    if normalized not in ('text', 'audio'):
++        normalized = 'text'
++    mgr = _get_default_manager()
++    cfg = mgr.load_global()
++    section = cfg.get('settings')
++    if not isinstance(section, dict):
++        section = {}
++    section['dialogue_modality'] = normalized
++    cfg['settings'] = section
+     mgr.save_global(cfg)
+     invalidate_settings_cache()
