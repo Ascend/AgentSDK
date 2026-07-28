@@ -1,0 +1,72 @@
+diff --git a/__init__.py b/__init__.py
+--- a/__init__.py	2026-07-23 08:42:36.000000 +0000
++++ b/__init__.py	2026-07-04 09:47:03.000000 +0800
+@@ -1,24 +1,52 @@
+-"""Claw Codex - Claude Code Python Implementation."""
++"""Claw Codex - Claude Code Python Implementation.
+
+-from importlib.metadata import PackageNotFoundError, version
++Module-level names ``__version__`` and ``BaseProvider`` are resolved lazily
++via :func:`__getattr__` to defer the import of ``clawcodex_ext`` (which
++pulls in ~100 submodules and adds ~3.5 s to cold-start).  Accessing
++``from src import __version__`` or ``BaseProvider`` triggers the underlying
++import on first use — callers that never touch these symbols (e.g. CLI
++``--help``) pay zero overhead.
++"""
+
+-try:
+-    __version__ = version("clawcodex-cli")
+-except PackageNotFoundError:  # Running directly from an unpackaged checkout.
+-    __version__ = "1.2.1"
+-__author__ = "Claw Codex Team"
++from __future__ import annotations
++
++import sys as _sys
++
++__author__ = 'Claw Codex Team'
+
+ from .config import load_config, get_provider_config
+
+-try:  # pragma: no cover
+-    from .providers.base import BaseProvider
+-except Exception:  # pragma: no cover
+-    BaseProvider = None  # type: ignore[assignment]
++
++def __getattr__(name: str):
++    """Lazy-resolve ``__version__`` and ``BaseProvider``."""
++    if name == '__version__':
++        try:
++            from clawcodex_ext._version import __version__ as _ver
++            return _ver
++        except ImportError:
++            try:
++                from importlib.metadata import version as _pkg_ver
++                return _pkg_ver("clawcodex-dev-mind")
++            except Exception:
++                return '0.0.0-dev'
++    if name == 'BaseProvider':
++        try:  # pragma: no cover
++            from .providers.base import BaseProvider as _bp
++            return _bp
++        except Exception:  # pragma: no cover
++            return None
++    msg = f"module {__name__!r} has no attribute {name!r}"
++    raise AttributeError(msg)
++
++
++def __dir__() -> list[str]:
++    return list(__all__)
++
+
+ __all__ = [
+-    "__version__",
+-    "__author__",
+-    "load_config",
+-    "get_provider_config",
+-    "BaseProvider",
++    '__version__',
++    '__author__',
++    'load_config',
++    'get_provider_config',
++    'BaseProvider',
+ ]
