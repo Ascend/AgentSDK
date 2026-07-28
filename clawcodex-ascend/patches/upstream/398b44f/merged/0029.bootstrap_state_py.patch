@@ -1,0 +1,46 @@
+diff --git a/bootstrap/state.py b/bootstrap/state.py
+--- a/bootstrap/state.py	2026-07-23 08:42:36.000000 +0000
++++ b/bootstrap/state.py	2026-07-21 04:45:53.000000 -0700
+@@ -1165,6 +1165,24 @@
+     _budget_continuation_count = 0
+
+
++# Legacy downstream spelling aliases. The canonical storage and new APIs use
++# CLAWCODEX.md, but existing TUI/REPL integrations still import the old names.
++def get_cached_claude_md_content() -> str | None:
++    return get_cached_clawcodex_md_content()
++
++
++def set_cached_claude_md_content(content: str | None) -> None:
++    set_cached_clawcodex_md_content(content)
++
++
++def get_additional_directories_for_claude_md() -> list[str]:
++    return get_additional_directories_for_clawcodex_md()
++
++
++def set_additional_directories_for_claude_md(directories: list[str]) -> None:
++    set_additional_directories_for_clawcodex_md(directories)
++
++
+ __all__ = [
+     # Types
+     "SessionId",
+@@ -1268,6 +1286,8 @@
+     # Cache optimization
+     "get_cached_clawcodex_md_content",
+     "set_cached_clawcodex_md_content",
++    "get_cached_claude_md_content",
++    "set_cached_claude_md_content",
+     "get_system_prompt_section_cache",
+     "set_system_prompt_section_cache_entry",
+     "clear_system_prompt_section_state",
+@@ -1275,6 +1295,8 @@
+     "consume_post_compaction",
+     "get_additional_directories_for_clawcodex_md",
+     "set_additional_directories_for_clawcodex_md",
++    "get_additional_directories_for_claude_md",
++    "set_additional_directories_for_claude_md",
+     # Model
+     "get_main_loop_model_override",
+     "set_main_loop_model_override",

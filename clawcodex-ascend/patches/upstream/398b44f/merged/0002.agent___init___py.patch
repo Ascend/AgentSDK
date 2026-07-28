@@ -1,0 +1,257 @@
+diff --git a/agent/__init__.py b/agent/__init__.py
+--- a/agent/__init__.py	2026-07-23 08:42:36.000000 +0000
++++ b/agent/__init__.py	2026-07-24 11:24:35.000000 +0800
+@@ -1,119 +1,142 @@
+ """Agent module for Claw Codex."""
+
++# Eager imports — only the lightweight primitives that downstream
++# ``from src.agent.X import Y`` consumers hit at module load. Anything
++# pulling in plugins/prompt/providers (the 2s+ cold-start cost documented
++# in tests/stability_gate/test_stage6_perf.py) lives behind
++# ``__getattr__`` so the import cost is paid lazily on first access.
+ from .conversation import Conversation, Message
+ from .session import Session
+
+-from .agent_definitions import (
+-    AgentDefinition,
+-    AgentSource,
+-    BuiltInAgentDefinition,
+-    EXPLORE_AGENT,
+-    FORK_AGENT,
+-    GENERAL_PURPOSE_AGENT,
+-    PLAN_AGENT,
+-    find_agent_by_type,
+-    get_built_in_agents,
+-    is_built_in_agent,
+-)
+-from .agent_tool_utils import (
+-    AgentToolResult,
+-    ResolvedAgentTools,
+-    count_tool_uses,
+-    extract_partial_result,
+-    filter_tools_for_agent,
+-    finalize_agent_tool,
+-    resolve_agent_tools,
+-)
+-from .constants import (
+-    AGENT_TOOL_NAME,
+-    ALL_AGENT_DISALLOWED_TOOLS,
+-    ASYNC_AGENT_ALLOWED_TOOLS,
+-    CUSTOM_AGENT_DISALLOWED_TOOLS,
+-    DEFAULT_AGENT_PROMPT,
+-    FORK_SUBAGENT_TYPE,
+-    LEGACY_AGENT_TOOL_NAME,
+-    ONE_SHOT_BUILTIN_AGENT_TYPES,
+-)
+-from .filter_agents_by_mcp import (
+-    filter_agents_by_mcp_requirements,
+-    has_required_mcp_servers,
+-)
+-from .load_agents_dir import (
+-    clear_agent_definitions_cache,
+-    get_active_agents_from_list,
+-    get_agent_definitions_with_overrides,
+-)
+-from .load_plugin_agents import load_plugin_agents
+-from .parse_agent_markdown import parse_agent_from_markdown
+-from .prompt import (
+-    format_agent_line,
+-    get_agent_prompt,
+-    get_agent_system_prompt,
+-)
+-from .run_agent import (
+-    RunAgentParams,
+-    RunAgentResult,
+-    filter_incomplete_tool_calls,
+-    resolve_permission_mode,
+-    run_agent,
+-)
+-from .subagent_context import (
+-    SubagentContextOverrides,
+-    create_subagent_context,
+-)
++# Lazy attribute table — maps public name → (submodule, attr) for the
++# heavy modules previously imported eagerly at the top of this file.
++_LAZY_ATTRS: dict[str, tuple[str, str]] = {
++    # clawcodex_ext.agent.agent_definitions
++    "AgentDefinition": ("clawcodex_ext.agent.agent_definitions", "AgentDefinition"),
++    "AgentSource": ("clawcodex_ext.agent.agent_definitions", "AgentSource"),
++    "BuiltInAgentDefinition": ("clawcodex_ext.agent.agent_definitions", "BuiltInAgentDefinition"),
++    "EXPLORE_AGENT": ("clawcodex_ext.agent.agent_definitions", "EXPLORE_AGENT"),
++    "FORK_AGENT": ("clawcodex_ext.agent.agent_definitions", "FORK_AGENT"),
++    "GENERAL_PURPOSE_AGENT": ("clawcodex_ext.agent.agent_definitions", "GENERAL_PURPOSE_AGENT"),
++    "PLAN_AGENT": ("clawcodex_ext.agent.agent_definitions", "PLAN_AGENT"),
++    "find_agent_by_type": ("clawcodex_ext.agent.agent_definitions", "find_agent_by_type"),
++    "get_built_in_agents": ("clawcodex_ext.agent.agent_definitions", "get_built_in_agents"),
++    "is_built_in_agent": ("clawcodex_ext.agent.agent_definitions", "is_built_in_agent"),
++    # .agent_tool_utils
++    "AgentToolResult": ("src.agent.agent_tool_utils", "AgentToolResult"),
++    "ResolvedAgentTools": ("src.agent.agent_tool_utils", "ResolvedAgentTools"),
++    "count_tool_uses": ("src.agent.agent_tool_utils", "count_tool_uses"),
++    "extract_partial_result": ("src.agent.agent_tool_utils", "extract_partial_result"),
++    "filter_tools_for_agent": ("src.agent.agent_tool_utils", "filter_tools_for_agent"),
++    "finalize_agent_tool": ("src.agent.agent_tool_utils", "finalize_agent_tool"),
++    "resolve_agent_tools": ("src.agent.agent_tool_utils", "resolve_agent_tools"),
++    # clawcodex_ext.agent.constants
++    "AGENT_TOOL_NAME": ("clawcodex_ext.agent.constants", "AGENT_TOOL_NAME"),
++    "ALL_AGENT_DISALLOWED_TOOLS": ("clawcodex_ext.agent.constants", "ALL_AGENT_DISALLOWED_TOOLS"),
++    "ASYNC_AGENT_ALLOWED_TOOLS": ("clawcodex_ext.agent.constants", "ASYNC_AGENT_ALLOWED_TOOLS"),
++    "CUSTOM_AGENT_DISALLOWED_TOOLS": ("clawcodex_ext.agent.constants", "CUSTOM_AGENT_DISALLOWED_TOOLS"),
++    "DEFAULT_AGENT_PROMPT": ("clawcodex_ext.agent.constants", "DEFAULT_AGENT_PROMPT"),
++    "FORK_SUBAGENT_TYPE": ("clawcodex_ext.agent.constants", "FORK_SUBAGENT_TYPE"),
++    "LEGACY_AGENT_TOOL_NAME": ("clawcodex_ext.agent.constants", "LEGACY_AGENT_TOOL_NAME"),
++    "ONE_SHOT_BUILTIN_AGENT_TYPES": ("clawcodex_ext.agent.constants", "ONE_SHOT_BUILTIN_AGENT_TYPES"),
++    # .filter_agents_by_mcp
++    "filter_agents_by_mcp_requirements": ("src.agent.filter_agents_by_mcp", "filter_agents_by_mcp_requirements"),
++    "has_required_mcp_servers": ("src.agent.filter_agents_by_mcp", "has_required_mcp_servers"),
++    # .load_agents_dir
++    "clear_agent_definitions_cache": ("src.agent.load_agents_dir", "clear_agent_definitions_cache"),
++    "get_active_agents_from_list": ("src.agent.load_agents_dir", "get_active_agents_from_list"),
++    "get_agent_definitions_with_overrides": ("src.agent.load_agents_dir", "get_agent_definitions_with_overrides"),
++    # .load_plugin_agents
++    "load_plugin_agents": ("src.agent.load_plugin_agents", "load_plugin_agents"),
++    # .parse_agent_markdown
++    "parse_agent_from_markdown": ("src.agent.parse_agent_markdown", "parse_agent_from_markdown"),
++    # .prompt
++    "format_agent_line": ("src.agent.prompt", "format_agent_line"),
++    "get_agent_prompt": ("src.agent.prompt", "get_agent_prompt"),
++    "get_agent_system_prompt": ("src.agent.prompt", "get_agent_system_prompt"),
++    # .run_agent
++    "RunAgentParams": ("src.agent.run_agent", "RunAgentParams"),
++    "RunAgentResult": ("src.agent.run_agent", "RunAgentResult"),
++    "filter_incomplete_tool_calls": ("src.agent.run_agent", "filter_incomplete_tool_calls"),
++    "resolve_permission_mode": ("src.agent.run_agent", "resolve_permission_mode"),
++    "run_agent": ("src.agent.run_agent", "run_agent"),
++    # .subagent_context
++    "SubagentContextOverrides": ("src.agent.subagent_context", "SubagentContextOverrides"),
++    "create_subagent_context": ("src.agent.subagent_context", "create_subagent_context"),
++}
++
++
++def __getattr__(name: str):  # noqa: D401 - PEP 562 lazy attribute
++    """Lazily resolve heavy agent exports on first attribute access.
++
++    ``src/agent/__init__.py`` historically ran ~14 heavy imports (plugins,
++    prompt, providers, run_agent, ...) at module load. Anything that did
++    ``import src.agent`` or ``from src.agent.X import Y`` paid the full
++    ~2.2s cold-start cost, even when it only needed the lightweight
++    ``Conversation`` class. Stage 6 perf budget for
++    ``from src.agent.conversation import Conversation`` is 2.0s; lazy
++    attribute access keeps the import path under that threshold by only
++    paying the heavy cost when callers actually touch those names.
++    """
++    target = _LAZY_ATTRS.get(name)
++    if target is None:
++        raise AttributeError(f"module 'src.agent' has no attribute {name!r}")
++    module_name, attr = target
++    import importlib
++
++    module = importlib.import_module(module_name)
++    value = getattr(module, attr)
++    # Cache in module __dict__ so subsequent lookups are O(1).
++    globals()[name] = value
++    return value
++
+
+ __all__ = [
+-    # Legacy
+-    "Conversation",
+-    "Message",
+-    "Session",
+-    # Agent definitions
+-    "AgentDefinition",
+-    "AgentSource",
+-    "BuiltInAgentDefinition",
+-    "EXPLORE_AGENT",
+-    "FORK_AGENT",
+-    "GENERAL_PURPOSE_AGENT",
+-    "PLAN_AGENT",
+-    "find_agent_by_type",
+-    "get_built_in_agents",
+-    "is_built_in_agent",
+-    # Agent tool utils
+-    "AgentToolResult",
+-    "ResolvedAgentTools",
+-    "count_tool_uses",
+-    "extract_partial_result",
+-    "filter_tools_for_agent",
+-    "finalize_agent_tool",
+-    "resolve_agent_tools",
+-    # Constants
+-    "AGENT_TOOL_NAME",
+-    "ALL_AGENT_DISALLOWED_TOOLS",
+-    "ASYNC_AGENT_ALLOWED_TOOLS",
+-    "CUSTOM_AGENT_DISALLOWED_TOOLS",
+-    "DEFAULT_AGENT_PROMPT",
+-    "FORK_SUBAGENT_TYPE",
+-    "LEGACY_AGENT_TOOL_NAME",
+-    "ONE_SHOT_BUILTIN_AGENT_TYPES",
+-    # Prompt
+-    "format_agent_line",
+-    "get_agent_prompt",
+-    "get_agent_system_prompt",
+-    # Run agent
+-    "RunAgentParams",
+-    "RunAgentResult",
+-    "filter_incomplete_tool_calls",
+-    "resolve_permission_mode",
+-    "run_agent",
+-    # Subagent context
+-    "SubagentContextOverrides",
+-    "create_subagent_context",
+-    # Custom-agent discovery
+-    "clear_agent_definitions_cache",
+-    "filter_agents_by_mcp_requirements",
+-    "get_active_agents_from_list",
+-    "get_agent_definitions_with_overrides",
+-    "has_required_mcp_servers",
+-    "load_plugin_agents",
+-    "parse_agent_from_markdown",
++    # Eager
++    'Conversation',
++    'Message',
++    'Session',
++    # Lazy
++    'AgentDefinition',
++    'AgentSource',
++    'BuiltInAgentDefinition',
++    'EXPLORE_AGENT',
++    'FORK_AGENT',
++    'GENERAL_PURPOSE_AGENT',
++    'PLAN_AGENT',
++    'find_agent_by_type',
++    'get_built_in_agents',
++    'is_built_in_agent',
++    'AgentToolResult',
++    'ResolvedAgentTools',
++    'count_tool_uses',
++    'extract_partial_result',
++    'filter_tools_for_agent',
++    'finalize_agent_tool',
++    'resolve_agent_tools',
++    'AGENT_TOOL_NAME',
++    'ALL_AGENT_DISALLOWED_TOOLS',
++    'ASYNC_AGENT_ALLOWED_TOOLS',
++    'CUSTOM_AGENT_DISALLOWED_TOOLS',
++    'DEFAULT_AGENT_PROMPT',
++    'FORK_SUBAGENT_TYPE',
++    'LEGACY_AGENT_TOOL_NAME',
++    'ONE_SHOT_BUILTIN_AGENT_TYPES',
++    'format_agent_line',
++    'get_agent_prompt',
++    'get_agent_system_prompt',
++    'RunAgentParams',
++    'RunAgentResult',
++    'filter_incomplete_tool_calls',
++    'resolve_permission_mode',
++    'run_agent',
++    'SubagentContextOverrides',
++    'create_subagent_context',
++    'clear_agent_definitions_cache',
++    'filter_agents_by_mcp_requirements',
++    'get_active_agents_from_list',
++    'get_agent_definitions_with_overrides',
++    'has_required_mcp_servers',
++    'load_plugin_agents',
++    'parse_agent_from_markdown',
+ ]

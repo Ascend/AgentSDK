@@ -1,0 +1,46 @@
+diff --git a/assistant/session_chooser.py b/assistant/session_chooser.py
+--- a/assistant/session_chooser.py	2026-07-23 08:42:36.000000 +0000
++++ b/assistant/session_chooser.py	2026-06-26 12:03:03.000000 +0800
+@@ -1,37 +1,6 @@
+-"""Stub mirror of ``typescript/src/assistant/AssistantSessionChooser.tsx``.
+-
+-The upstream TS file is itself a stub annotated
+-``// Stub — AssistantSessionChooser not included in source snapshot``.
+-We mirror the stub here so the parity audit reflects that *both* trees
+-are intentionally empty. The Python REPL has no interactive picker for
+-``claude assistant`` yet; this module exists so future ports of
+-``dialogLaunchers`` / ``main.tsx`` have a real import target with the
+-same export name (``AssistantSessionChooser``, PascalCase) as the TS
+-source — no rename needed at the call sites.
+-"""
+-
++"""Compatibility facade — see :mod:`clawcodex_ext.assistant.session_chooser`."""
+ from __future__ import annotations
+-
+-from collections.abc import Callable, Sequence
+-from typing import Any
+-
+-
+-def AssistantSessionChooser(  # noqa: N802 — mirrors TS React component name
+-    sessions: Sequence[Any],
+-    on_select: Callable[[str], None],
+-    on_cancel: Callable[[], None],
+-) -> None:
+-    """Pick a session to attach to. No-op stub (returns ``None``).
+-
+-    Matches the TS prop shape ``{ sessions, onSelect, onCancel }`` so
+-    callers can be ported without changing call sites. Name is PascalCase
+-    to match the TS React component export — a future port of
+-    ``dialogLaunchers.tsx::launchAssistantSessionChooser`` should be able
+-    to write ``from src.assistant.session_chooser import AssistantSessionChooser``
+-    without an alias.
+-    """
+-    del sessions, on_select, on_cancel  # silence unused-argument linters
+-    return None
+-
+-
+-__all__ = ['AssistantSessionChooser']
++import sys
++from clawcodex_ext.assistant import session_chooser as _module
++sys.modules[__name__] = _module
++__all__ = getattr(_module, '__all__', [])

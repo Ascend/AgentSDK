@@ -1,0 +1,65 @@
+diff --git a/agent/filter_agents_by_mcp.py b/agent/filter_agents_by_mcp.py
+--- a/agent/filter_agents_by_mcp.py	2026-07-23 08:42:36.000000 +0000
++++ b/agent/filter_agents_by_mcp.py	2026-07-04 09:47:03.000000 +0800
+@@ -1,49 +1,17 @@
+-"""Filter agents by their declared ``required_mcp_servers``.
++"""Facade — agent/filter_agents_by_mcp.py has been moved to clawcodex_ext/agent/filter_agents_by_mcp.
+
+-Port of ``hasRequiredMcpServers`` / ``filterAgentsByMcpRequirements`` in
+-typescript/src/tools/AgentTool/loadAgentsDir.ts:228-254.
++The MCP-requirements filter (``filter_agents_by_mcp_requirements``,
++``has_required_mcp_servers``) now lives in
++:mod:`clawcodex_ext.agent.filter_agents_by_mcp`. This module re-exports
++the public surface so existing
++``from src.agent.filter_agents_by_mcp import ...`` callers keep working
++without modification.
+
+-Built-in agents are never dropped — they're trusted regardless of MCP
+-availability.
++Uses ``globals().update()`` to preserve access to all public names
++regardless of ``__all__`` — the source module does not define ``__all__``.
+ """
+-from __future__ import annotations
+
+-from collections.abc import Iterable
++import clawcodex_ext.agent.filter_agents_by_mcp as _mod
+
+-from src.agent.agent_definitions import AgentDefinition, is_built_in_agent
+-
+-
+-def has_required_mcp_servers(
+-    agent: AgentDefinition,
+-    available_servers: Iterable[str],
+-) -> bool:
+-    """Return True iff every required pattern matches an available server.
+-
+-    Matching is case-insensitive substring (same as the TS reference): the
+-    pattern ``slack`` matches the server name ``MySlackServer``. Empty
+-    requirements pass through.
+-    """
+-    if not agent.required_mcp_servers:
+-        return True
+-    available_lower = [s.lower() for s in available_servers]
+-    return all(
+-        any(pattern.lower() in server for server in available_lower)
+-        for pattern in agent.required_mcp_servers
+-    )
+-
+-
+-def filter_agents_by_mcp_requirements(
+-    agents: Iterable[AgentDefinition],
+-    available_servers: Iterable[str],
+-) -> list[AgentDefinition]:
+-    """Drop agents whose required MCP servers aren't available.
+-
+-    Built-ins are exempt: they're not allowed to declare requirements and
+-    must always be reachable.
+-    """
+-    available_list = list(available_servers)
+-    return [
+-        agent
+-        for agent in agents
+-        if is_built_in_agent(agent) or has_required_mcp_servers(agent, available_list)
+-    ]
++_globals = {k: v for k, v in vars(_mod).items() if not k.startswith('_')}
++globals().update(_globals)

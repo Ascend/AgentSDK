@@ -1,0 +1,156 @@
+diff --git a/bridge/__init__.py b/bridge/__init__.py
+--- a/bridge/__init__.py	2026-07-23 08:42:36.000000 +0000
++++ b/bridge/__init__.py	2026-06-26 13:25:58.000000 +0800
+@@ -11,6 +11,12 @@
+ Per refactoring plan §4 risk row, every re-export must be importable
+ cleanly with no Phase 2 module present — verified by the legacy
+ test_porting_workspace test which would otherwise fail at import time.
++
++Batch J rerouted the remaining src-to-src imports in this aggregator to
++``clawcodex_ext.bridge.*`` (the downstream patch layer), leaving
++``src/bridge/__init__.py`` as the canonical re-export surface while
++preserving the ``src/bridge/`` package path for sibling submodules such as
++``src.bridge.repl_bridge`` and ``src.bridge.remote_bridge_core``.
+ """
+
+ from __future__ import annotations
+@@ -18,7 +24,9 @@
+ import json
+ from pathlib import Path
+
+-SNAPSHOT_PATH = Path(__file__).resolve().parent.parent / 'reference_data' / 'subsystems' / 'bridge.json'
++SNAPSHOT_PATH = (
++    Path(__file__).resolve().parent.parent / 'reference_data' / 'subsystems' / 'bridge.json'
++)
+ _SNAPSHOT = json.loads(SNAPSHOT_PATH.read_text())
+
+ ARCHIVE_NAME = _SNAPSHOT['archive_name']
+@@ -30,8 +38,8 @@
+ # Phase 1 re-exports (Phase 2 deps not required for any of these imports)
+ # -----------------------------------------------------------------------------
+
+-from src.bridge.bounded_uuid_set import BoundedUUIDSet
+-from src.bridge.bridge_api import (
++from clawcodex_ext.bridge.bounded_uuid_set import BoundedUUIDSet
++from clawcodex_ext.bridge.bridge_api import (
+     ANTHROPIC_VERSION,
+     BETA_HEADER,
+     create_bridge_api_client,
+@@ -39,17 +47,17 @@
+     is_suppressible_403,
+     validate_bridge_id,
+ )
+-from src.bridge.bridge_config import (
++from clawcodex_ext.bridge.bridge_config import (
+     get_bridge_access_token,
+     get_bridge_base_url,
+     get_bridge_base_url_override,
+     get_bridge_token_override,
+ )
+-from src.bridge.bridge_permission_callbacks import (
++from clawcodex_ext.bridge.bridge_permission_callbacks import (
+     BridgePermissionResponse,
+     is_bridge_permission_response,
+ )
+-from src.bridge.bridge_status_util import (
++from clawcodex_ext.bridge.bridge_status_util import (
+     BridgeStatusInfo,
+     build_active_footer_text,
+     build_bridge_connect_url,
+@@ -60,35 +68,35 @@
+     truncate_to_width,
+     wrap_with_osc8_link,
+ )
+-from src.bridge.capacity_wake import CapacityWake, create_capacity_wake
+-from src.bridge.close_codes import (
++from clawcodex_ext.bridge.capacity_wake import CapacityWake, create_capacity_wake
++from clawcodex_ext.bridge.close_codes import (
+     WS_CLOSE_EPOCH_MISMATCH,
+     WS_CLOSE_INIT_FAILURE,
+     WS_CLOSE_PERMANENT_UNAUTHORIZED,
+     WS_CLOSE_RECONNECT_BUDGET_EXHAUSTED,
+     WS_CLOSE_SESSION_NOT_FOUND,
+ )
+-from src.bridge.env_less_bridge_config import (
++from clawcodex_ext.bridge.env_less_bridge_config import (
+     DEFAULT_ENV_LESS_BRIDGE_CONFIG,
+     EnvLessBridgeConfig,
+     get_env_less_bridge_config,
+ )
+-from src.bridge.exceptions import (
++from clawcodex_ext.bridge.exceptions import (
+     BridgeAuthError,
+     BridgeFatalError,
+     EpochSupersededError,
+ )
+-from src.bridge.flush_gate import FlushGate
+-from src.bridge.inbound_messages import (
++from clawcodex_ext.bridge.flush_gate import FlushGate
++from clawcodex_ext.bridge.inbound_messages import (
+     extract_inbound_message_fields,
+     normalize_image_blocks,
+ )
+-from src.bridge.poll_config import get_poll_interval_config
+-from src.bridge.poll_config_defaults import (
++from clawcodex_ext.bridge.poll_config import get_poll_interval_config
++from clawcodex_ext.bridge.poll_config_defaults import (
+     DEFAULT_POLL_CONFIG,
+     PollIntervalConfig,
+ )
+-from src.bridge.repl_bridge_handle import (
++from clawcodex_ext.bridge.repl_bridge_handle import (
+     get_repl_bridge_handle,
+     get_self_bridge_compat_id,
+     set_repl_bridge_handle,
+@@ -97,24 +105,25 @@
+
+ # Lazy re-export of the Phase 5 orchestrator surface. ``remote_bridge_core``
+ # transitively imports ``repl_bridge_transport`` → ``src.transports.ccr_client``
+-# → ``src.bridge.exceptions``. Eagerly importing here triggers a circular
+-# import the first time any consumer starts at ``src.transports.ccr_client``
+-# (the ``exceptions`` import re-enters ``bridge/__init__.py`` mid-load).
++# → ``clawcodex_ext.bridge.exceptions``. Eagerly importing here triggers a
++# circular import the first time any consumer starts at ``src.transports.ccr_client``
++# (the ``exceptions`` import re-enters ``src/bridge/__init__.py`` mid-load).
+ # PEP 562 ``__getattr__`` defers the import until first attribute access,
+-# which by then has ``bridge/__init__.py`` fully loaded.
++# which by then has ``src/bridge/__init__.py`` fully loaded.
+ def __getattr__(name: str) -> object:
+-    if name in ('init_env_less_bridge_core', 'EnvLessBridgeParams',
+-                'RemoteBridgeHandle'):
+-        from src.bridge import remote_bridge_core as _rbc
++    if name in ('init_env_less_bridge_core', 'EnvLessBridgeParams', 'RemoteBridgeHandle'):
++        import extensions.ports.bridge.remote_bridge_core as _rbc
+
+         return getattr(_rbc, name)
+     raise AttributeError(f'module {__name__!r} has no attribute {name!r}')
+-from src.bridge.session_id_compat import (
++
++
++from clawcodex_ext.bridge.session_id_compat import (
+     set_cse_shim_gate,
+     to_compat_session_id,
+     to_infra_session_id,
+ )
+-from src.bridge.types import (
++from clawcodex_ext.bridge.types import (
+     BRIDGE_LOGIN_ERROR,
+     BRIDGE_LOGIN_INSTRUCTION,
+     DEFAULT_SESSION_TIMEOUT_MS,
+@@ -122,7 +131,7 @@
+     BridgeConfig,
+     SessionActivity,
+ )
+-from src.bridge.work_secret import (
++from clawcodex_ext.bridge.work_secret import (
+     WorkSecret,
+     build_ccr_v2_sdk_url,
+     build_sdk_url,
+@@ -146,6 +155,7 @@
+     'BridgeConfig',
+     'BridgeFatalError',
+     'BridgePermissionResponse',
++    'BridgeState',
+     'BridgeStatusInfo',
+     'CapacityWake',
+     'DEFAULT_ENV_LESS_BRIDGE_CONFIG',
