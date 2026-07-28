@@ -1,0 +1,51 @@
+diff --git a/cli_core/ndjson.py b/cli_core/ndjson.py
+--- a/cli_core/ndjson.py	2026-07-23 08:42:36.000000 +0000
++++ b/cli_core/ndjson.py	2026-07-04 09:47:03.000000 +0800
+@@ -1,37 +1,15 @@
+-"""NDJSON helpers.
++"""Facade — cli_core/ndjson.py has been moved to clawcodex_ext/cli_core/ndjson.
+
+-Port of ``typescript/src/cli/ndjsonSafeStringify.ts``.
++The F-88 NDJSON helpers (``ndjson_safe_dumps``) now live in
++:mod:`clawcodex_ext.cli_core.ndjson`. This module re-exports the public
++surface so existing ``from src.cli_core.ndjson import ...`` callers
++keep working without modification.
+
+-``json.dumps`` leaves U+2028 / U+2029 unescaped by default. Those code points
+-are valid in JSON but are treated as line terminators by a number of
+-line-oriented NDJSON receivers (most notably the JavaScript ``split`` family
+-and therefore the Claude Code SDK ``ProcessTransport``). A truncated line
+-silently loses the tail of the message, so we always escape them on the
+-emit side. The result is still valid JSON and parses to the same value.
++Uses ``globals().update()`` to preserve access to all public names
++regardless of ``__all__`` — the source module has no ``__all__``.
+ """
+
+-from __future__ import annotations
++import clawcodex_ext.cli_core.ndjson as _mod
+
+-import json
+-from typing import Any
+-
+-_LINE_SEPARATORS = {
+-    "\u2028": "\\u2028",
+-    "\u2029": "\\u2029",
+-}
+-
+-
+-def ndjson_safe_dumps(value: Any) -> str:
+-    """Serialize ``value`` to a single NDJSON-safe JSON string.
+-
+-    Mirrors ``ndjsonSafeStringify`` from the TypeScript implementation.
+-    """
+-
+-    encoded = json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+-    if "\u2028" not in encoded and "\u2029" not in encoded:
+-        return encoded
+-    out_parts: list[str] = []
+-    for ch in encoded:
+-        replacement = _LINE_SEPARATORS.get(ch)
+-        out_parts.append(replacement if replacement is not None else ch)
+-    return "".join(out_parts)
++_globals = {k: v for k, v in vars(_mod).items() if not k.startswith('_')}
++globals().update(_globals)

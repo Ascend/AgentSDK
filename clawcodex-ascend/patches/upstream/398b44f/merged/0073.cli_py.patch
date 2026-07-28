@@ -1,0 +1,1059 @@
+diff --git a/cli.py b/cli.py
+--- a/cli.py	2026-07-23 08:42:36.000000 +0000
++++ b/cli.py	2026-07-21 06:19:25.000000 -0700
+@@ -1,981 +1,124 @@
+-"""CLI entry point for Claw Codex."""
++"""CLI entry point for Claw Codex — compatibility facade.
++
++All implementation has moved to ``clawcodex_ext/cli/*``.
++This module is kept as a compatibility facade for:
++- Existing imports (``from src.cli import main``, ``_build_parser``, etc.)
++- Test monkeypatches (``monkeypatch.setattr(src.cli, "show_config", ...)``)
++- ``python -m src.cli`` invocation
++- ``tests/test_prefetch.py`` which asserts module-level handles exist
++"""
+
+ from __future__ import annotations
+
+-import argparse
+-import os
+ import sys
+-from pathlib import Path
+
+-# ch02 round-4 WI-3 — nothing heavy at module scope. This module IS the
+-# process entry (`clawcodex = src.cli:main`), so anything fired here is
+-# paid by EVERY invocation including the fast paths (--version, mcp,
+-# doctor, agent-server-as-subcommand; the Ink client's spawned backend
+-# does NOT route here — it runs `python -m src.entrypoints.agent_server_cli`
+-# directly). TS's fast paths pay neither rich-equivalent imports nor
+-# the keychain/MDM spawns because they run before main.tsx is imported
+-# (cli.tsx:84-427 vs main.tsx:13-20). The keychain/MDM prefetch now fires
+-# in main() once the invocation is known to need the full pipeline; rich
+-# imports live in the functions that render with them. Consumers self-heal
+-# regardless — init.py awaits the same get-or-start singletons, which
+-# start the subprocess on first use if the early fire was skipped.
++# WI-4.1 (ch17 Phase 4): fire keychain + MDM child processes at
++# MODULE-IMPORT time so the OS schedules them in parallel with the rest
++# of the Python interpreter's module-loading work. The handles are
++# awaited later by the consumer (typically post-trust-gate when keychain
++# values are actually needed). subprocess.Popen returns in microseconds;
++# the actual subprocess work overlaps with the heavyweight imports the
++# CLI is about to do. On non-macOS platforms these are no-ops
++# (``process=None`` sentinels) so call sites don't need to special-case
++# the platform.
+ from src.prefetch import (
+     get_or_start_keychain_prefetch,
+     get_or_start_mdm_raw_read,
+ )
+
++# Fire ONCE per process via the singleton getter. ``setup.run_setup``
++# reads the same handles instead of re-spawning, so the cost is paid
++# exactly once even when both entrypoints run in the same interpreter.
++_keychain_handle = get_or_start_keychain_prefetch()
++_mdm_handle = get_or_start_mdm_raw_read()
+
+-def main():
+-    """CLI main entry point."""
+-    # WI-0.1 (ch17 Phase 0): instrument cold-start phases. Env-gated by
+-    # ``CLAUDE_CODE_PROFILE_STARTUP``; a no-op import + no-op call when
+-    # disabled (~ns overhead). On exit the profiler writes a Markdown
+-    # report to ``$CLAWCODEX_CONFIG_DIR/startup-perf/{session_id}.txt``.
+-    from src.utils.startup_profiler import profile_checkpoint
+-    profile_checkpoint("cli_main_entry")
+-
+-    import os
+-
+-    # Worktree env hygiene — MUST run before anything snapshots the
+-    # environment (prefetch spawns, run_pre_action, tui_launcher child env),
+-    # and before the subcommand sieve so the ``tui`` path is covered too.
+-    # A clawcodex spawned from INSIDE a --worktree session (e.g. by the
+-    # agent's Bash tool) inherits the parent's CLAWCODEX_WORKTREE_* vars;
+-    # without the strip its TUI would adopt the OUTER session's worktree and
+-    # its clean-exit path would delete it out from under the parent. Only the
+-    # launcher that creates a worktree may advertise one (see
+-    # src/utils/worktree_session.py module docstring).
+-    from src.utils.worktree_session import strip_worktree_env
+-    strip_worktree_env()
+-
+-    # OpenClaude default: experimental API betas off unless the user opts in
+-    # (mirrors typescript/src/entrypoints/cli.tsx:44 — tool search
+-    # defer_loading / global cache scope / context management need internal
+-    # API support external accounts lack → 500). Per-process entry:
+-    # everything cli.main() spawns inherits this via the environment
+-    # (tui_launcher passes env=dict(os.environ)); the standalone
+-    # agent-server entry sets its own (agent_server_cli).
+-    os.environ.setdefault("CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS", "true")
+-
+-    if os.environ.get("CLAWCODEX_DEBUG", "").lower() in ("1", "true", "yes"):
+-        import logging
+-        logging.basicConfig(
+-            level=logging.WARNING,
+-            format="%(asctime)s %(name)s %(message)s",
+-            stream=sys.stderr,
+-        )
+-
+-    if len(sys.argv) == 2 and sys.argv[1] in ['--version', '-v', '-V']:
+-        from src import __version__
+-        print(f"claw-codex version {__version__} (Python)")
+-        return 0
+-
+-    # One-time legacy ``~/.claude`` → ``~/.clawcodex`` copy (directory
+-    # rebrand). Marker-gated: after the first run this is a single stat.
+-    # Runs before the subcommand sieve so ``mcp``/``daemon``/``tui`` also
+-    # see migrated state. Must never break startup. The explicit
+-    # ``migrate`` subcommand owns the pass itself (so its report shows
+-    # what THIS invocation copied rather than "already exists").
+-    if sys.argv[1:2] != ['migrate']:
+-        try:
+-            from src.utils.legacy_migration import migrate_user_dir_once
+-            migrate_user_dir_once()
+-        except Exception:  # noqa: BLE001 — migration is best-effort by contract
+-            pass
+-
+-    # Subcommands are matched BEFORE the main parser to avoid argparse treating
+-    # a free-form prompt (e.g. ``clawcodex -p "hello"``) as an unknown
+-    # subcommand.
+-    #
+-    # WI-4.3: ``mcp``, ``daemon``, and ``doctor`` are fast-path subcommands
+-    # — they get a thin handler that imports only what it needs, skipping
+-    # the TUI/REPL/full-tool-registry load. Mirrors TS ``main.tsx``'s
+-    # specialized-subcommand early-returns.
+-    #
+-    # Sieve looks at ``argv[0]`` ONLY so flag values that happen to equal a
+-    # subcommand name don't mis-route (e.g. ``clawcodex --model mcp`` or
+-    # ``clawcodex -p "doctor"``). The TS reference also positions
+-    # specialized subcommands at argv[0]; global flags don't precede them.
+-    argv = sys.argv[1:]
+-    if argv and not argv[0].startswith('-'):
+-        token = argv[0]
+-        rest = argv[1:]
+-        if token == 'login':
+-            return handle_login()
+-        if token == 'logout':
+-            return handle_logout(rest)
+-        if token == 'config':
+-            return show_config()
+-        if token == 'mcp':
+-            from src.entrypoints.mcp import run_mcp_subcommand
+-            return run_mcp_subcommand(rest)
+-        if token == 'daemon':
+-            from src.entrypoints.daemon import run_daemon_subcommand
+-            return run_daemon_subcommand(rest)
+-        if token == 'doctor':
+-            from src.entrypoints.doctor import run_doctor
+-            return run_doctor()
+-        if token == 'agent-server':
+-            from src.entrypoints.agent_server_cli import run_agent_server_subcommand
+-            return run_agent_server_subcommand(rest)
+-        if token == 'tui':
+-            return _run_tui_subcommand(rest)
+-        if token == 'migrate':
+-            from src.entrypoints.migrate import run_migrate_subcommand
+-            return run_migrate_subcommand(rest)
+-
+-    parser = _build_parser()
+-    args = parser.parse_args(argv)
+-    profile_checkpoint("argparse_done")
+-
+-    if args.version:
+-        from src import __version__
+-        print(f"claw-codex version {__version__} (Python)")
+-        return 0
+-
+-    if args.config:
+-        return show_config()
+-
+-    # Plan-phase-1 wiring (ch02-bootstrap-refactoring-plan.md P1.5):
+-    # ``run_pre_action(args)`` is the Python analog of Commander's
+-    # ``preAction`` hook. It runs the memoized ``init()`` (chapter
+-    # phase 2 — safe env vars + graceful-shutdown + API preconnect)
+-    # and mutates interactive bootstrap state.
+-    #
+-    # MUST PRECEDE ``_resolve_permission_state`` so init-side env-var
+-    # application can affect permission resolution. ``--version`` /
+-    # ``--config`` short-circuit above, so the chapter's
+-    # "fast paths skip init" property is preserved.
+-    #
+-    # The API-preconnect call previously lived here at module level;
+-    # it now runs inside ``init()`` so it overlaps with any callers
+-    # of ``init()`` (REPL, headless, etc.), not just the cli.py path.
+-    # WI-4.1 (ch17 Phase 4) as relocated by ch02 round-4 WI-3: fire the
+-    # keychain + MDM child processes the moment the invocation is known to
+-    # need the full pipeline (all fast paths have returned above). Popen
+-    # returns in microseconds; the subprocess work overlaps run_pre_action
+-    # → init(), whose consumer awaits these same singleton handles
+-    # (init.py:84-88). Non-macOS: no-op sentinels.
+-    get_or_start_keychain_prefetch()
+-    get_or_start_mdm_raw_read()
+-
+-    profile_checkpoint("phase0_end_phase2_start")
+-    from src.init import run_pre_action
+-    run_pre_action(args)
+-    profile_checkpoint("phase2_end_phase3_start")
+-
+-    # Resolve permission state ONCE here so all modes (print/TUI/REPL) honor
+-    # ``--dangerously-skip-permissions`` consistently. Mirrors
+-    # ``typescript/src/main.tsx:1383-1389``.
+-    _resolve_permission_state(args)
+-    profile_checkpoint("permissions_resolved")
+-
+-    # Startup provider validation (ENTRY-2, port of cli.tsx:149 /
+-    # providerValidation.ts:479-528): surface a broken provider config NOW
+-    # instead of deep inside the first API call. TS split: non-interactive
+-    # exits, an interactive TTY warns and continues (the TUI can repair).
+-    # Fast paths returned above, so their cold-start cost is untouched. The
+-    # headless path re-runs the same shared helper internally — idempotent
+-    # defense-in-depth for direct run_headless callers, not an accident.
+-    from src.entrypoints.provider_validation import validate_provider_at_startup
+-
+-    validate_provider_at_startup(
+-        args.provider,
+-        interactive=not args.print and sys.stdout.isatty(),
+-    )
+-    profile_checkpoint("phase3_end_phase4_start")
+-
+-    if args.print:
+-        profile_checkpoint("mode_dispatch_print")
+-        # ``phase4_dispatch``: launcher has chosen a mode and is about
+-        # to call the mode runner. Not the same as "first render" — the
+-        # mode runner is the one that paints. Per-mode first-render
+-        # checkpoints are plan phase 2 work (would need a callback
+-        # inside each runner).
+-        profile_checkpoint("phase4_dispatch")
+-        return _run_print_mode(args)
+-
+-    # Interactive path: the sole interactive UI is the TypeScript Ink TUI, which
+-    # spawns + owns a Python agent-server child (see
+-    # :mod:`src.entrypoints.tui_launcher`). The former in-process surfaces — the
+-    # opt-in Textual TUI (``src/tui/``) and the Rich/prompt_toolkit REPL
+-    # (``src/repl/``) — were removed in favor of this single, higher-fidelity
+-    # client. ``clawcodex tui`` is the explicit form (``_run_tui_subcommand``
+-    # runs this same bootstrap + trust gate).
+-    profile_checkpoint("mode_dispatch_tui")
+-
+-    # Folder-trust gate — runs HERE in the Python parent, before we hand the TTY
+-    # to the Ink client, because the agent-server backend performs no trust gate
+-    # of its own. Already-trusted sessions (incl. ones seeded by run_pre_action)
+-    # skip the prompt.
+-    if not _gate_folder_trust():
+-        return 1
+-
+-    # --worktree: create/resume AFTER the trust gate (the gate runs against
+-    # the ORIGINAL cwd — user consents to the repo before we mutate
+-    # .clawcodex/worktrees/; nothing re-checks trust against the worktree path,
+-    # the backend has no trust gate of its own). The worktree becomes the
+-    # session's workspace; the TUI + agent-server child run inside it and the
+-    # env block carries the session for the exit-time keep/remove flow.
+-    worktree_session = _maybe_create_worktree(args)
+-    if worktree_session is _WORKTREE_FAILED:
+-        return 1
+-
+-    profile_checkpoint("phase4_dispatch")
+-    from src.entrypoints.tui_launcher import launch_ink_tui
+-
+-    return launch_ink_tui(
+-        provider=args.provider,
+-        model=args.model,
+-        permission_mode=args._resolved_permission_mode,
+-        is_bypass_available=args._resolved_is_bypass_available,
+-        workspace=(worktree_session.worktree_path if worktree_session else None),
+-        worktree=worktree_session,
+-    )
+-
+-
+-#: Sentinel: worktree creation was requested and failed (error already
+-#: printed) — distinct from None (no --worktree flag).
+-_WORKTREE_FAILED = object()
+
++def main():
++    """Delegate to the downstream CLI dispatch."""
++    from clawcodex_ext.cli.dispatch import run_cli
+
+-def _maybe_create_worktree(args):
+-    """Create/resume the session worktree when ``--worktree`` was passed.
++    return run_cli()
+
+-    Returns the :class:`WorktreeSession`, ``None`` when the flag is absent, or
+-    :data:`_WORKTREE_FAILED` after printing the error (mirrors TS setup.ts:
+-    red stderr + exit 1).
+-    """
+-    option = getattr(args, "worktree", None)
+-    if option is None:
+-        return None
+-
+-    from src.utils.worktree_session import (
+-        WorktreeError,
+-        create_session_from_cli_option,
+-    )
+
+-    try:
+-        session = create_session_from_cli_option(option)
+-    except WorktreeError as exc:
+-        print(f"Error creating worktree: {exc}", file=sys.stderr)
+-        return _WORKTREE_FAILED
+-    print(
+-        f"Using worktree {session.worktree_name} at {session.worktree_path} "
+-        f"(branch {session.worktree_branch})",
+-        file=sys.stderr,
+-    )
+-    return session
++# ----------------------------------------------------------------------
++# Compatibility wrappers — delegate to downstream modules so existing
++# patches (e.g. ``monkeypatch.setattr(src.cli, "show_config", ...)``)
++# and imports (e.g. ``from src.cli import _build_parser``) keep working.
++# ----------------------------------------------------------------------
+
+
+-def _gate_folder_trust() -> bool:
+-    """Run the folder-trust gate; return ``False`` only when an interactive user
+-    declines (the caller then exits 1).
+-
+-    Shared by the default interactive entry and the ``clawcodex tui`` subcommand
+-    — both hand control to the tool-executing agent-server, which has no trust
+-    gate of its own, so the gate must run before either spawns it.
+-    """
+-    from src.services.startup_gates import check_trust_accepted
+-
+-    if check_trust_accepted():
+-        return True
+-    if sys.stdin.isatty():
+-        return _prompt_folder_trust()
+-    # Non-TTY (piped) stdin: grant trust implicitly. The Ink TUI needs a real
+-    # TTY to render, so this path normally proceeds to a clean launch failure
+-    # rather than an interactive session — but trust is still established so the
+-    # project env is applied for any diagnostics.
+-    from src.permissions.trust_boundary import establish_session_trust
+-
+-    establish_session_trust()
+-    return True
+-
+-
+-def _run_tui_subcommand(rest: list[str]) -> int:
+-    """``clawcodex tui`` — the explicit form of the default interactive entry.
+-
+-    Unlike the lean ``mcp`` / ``doctor`` / ``daemon`` fast-paths, this launches
+-    the tool-executing agent-server, so it runs the SAME interactive bootstrap
+-    (``run_pre_action`` — config-env application + trust seeding) and
+-    folder-trust gate as the default ``clawcodex`` entry before handing off to
+-    the Ink client. Without this, ``clawcodex tui`` would reach the backend with
+-    no trust prompt and without the project env the child inherits.
+-    """
+-    from types import SimpleNamespace
+-
+-    from src.init import run_pre_action
+-
+-    # Full-pipeline path — fire the keychain/MDM prefetch here just like
+-    # main()'s parsed path does (ch02 round-4 WI-3): the sieve dispatched
+-    # before the post-sieve fire, and init() below awaits these handles.
+-    get_or_start_keychain_prefetch()
+-    get_or_start_mdm_raw_read()
+-
+-    # ``print=False`` => treated as an interactive session by run_pre_action.
+-    run_pre_action(SimpleNamespace(print=False))
+-
+-    # Startup provider validation — this path never reaches main()'s
+-    # dispatch-region call site (the sieve returned before argparse), so it
+-    # runs the same shared helper itself (critic P3). ``rest`` is parsed by
+-    # run_tui_launcher, so eager-parse --provider here (the TS
+-    # eagerParseCliFlag idiom, cli.tsx:159-160).
+-    from src.entrypoints.provider_validation import validate_provider_at_startup
+-
+-    provider_flag = None
+-    for i, token in enumerate(rest):
+-        if token == "--provider" and i + 1 < len(rest):
+-            provider_flag = rest[i + 1]
+-        elif token.startswith("--provider="):
+-            provider_flag = token.split("=", 1)[1]
+-    validate_provider_at_startup(provider_flag, interactive=sys.stdout.isatty())
+-
+-    if not _gate_folder_trust():
+-        return 1
+-    from src.entrypoints.tui_launcher import run_tui_launcher
+-
+-    return run_tui_launcher(rest)
+-
+-
+-def _prompt_folder_trust() -> bool:
+-    """Plain-text folder-trust prompt (port of the C8 TrustFolderScreen).
+-
+-    Accept → persist (``record_trust_accepted``) + grant session trust +
+-    apply the full env. Decline/EOF → False (caller exits 1, mirroring TS
+-    TrustDialog's "No, exit" → gracefulShutdownSync(1)).
+-    """
+-    from src.permissions.trust_boundary import establish_session_trust
+-    from src.services.startup_gates import (
+-        collect_trust_warnings,
+-        record_trust_accepted,
+-    )
+-
+-    cwd = os.getcwd()
+-    print("Do you trust the files in this folder?")
+-    print(f"  {cwd}")
+-    try:
+-        warnings = collect_trust_warnings()
+-    except Exception:
+-        warnings = []
+-    if warnings:
+-        print()
+-        for warning in warnings:
+-            print(f"  ! {warning}")
+-    print()
+-    print(
+-        "ClawCodex may read, execute, and modify files here. Accept only if "
+-        "you trust this folder's contents and configuration."
+-    )
+-    try:
+-        answer = input("Trust this folder? [y/N] ").strip().lower()
+-    except (EOFError, KeyboardInterrupt):
+-        print()
+-        return False
+-    if answer not in ("y", "yes"):
+-        return False
+-    record_trust_accepted()
+-    establish_session_trust()
+-    return True
+-
+-
+-def _build_parser() -> argparse.ArgumentParser:
+-    parser = argparse.ArgumentParser(
+-        prog="clawcodex",
+-        description="ClawCodex - Claude Code Python Implementation",
+-        formatter_class=argparse.RawDescriptionHelpFormatter,
+-        epilog="""\
+-Examples:
+-  clawcodex --version                   Show version
+-  clawcodex login                       Configure API keys
+-  clawcodex config                      Show current configuration
+-  clawcodex                             Start the interactive Ink TUI
+-  clawcodex tui                         Start the interactive Ink TUI (explicit)
+-  clawcodex -p "hello"                  Non-interactive mode (text output)
+-  clawcodex -p "hi" --output-format json
+-  clawcodex -p --output-format stream-json --input-format stream-json < input.ndjson
+-""",
+-    )
+-
+-    parser.add_argument('prompt', nargs='?', help='Prompt to send in non-interactive mode')
+-    parser.add_argument('--version', action='store_true', help='Show version information')
+-    parser.add_argument('--config', action='store_true', help='Show current configuration')
+-    # Optional-value flag, mirroring TS `-w, --worktree [name]`
+-    # (typescript/src/main.tsx:3804). Bare `-w` → True → a name is generated.
+-    # Known commander/argparse ambiguity, same as TS: `-w <bareword>` consumes
+-    # the word, so a headless prompt should come via -p or --worktree=NAME.
+-    parser.add_argument(
+-        '-w', '--worktree',
+-        nargs='?', const=True, default=None, metavar='NAME',
+-        help=(
+-            'Run this session in an isolated git worktree at '
+-            '.clawcodex/worktrees/NAME (created or resumed; a name is generated '
+-            'when omitted). NAME may also be a PR reference (#123 or a GitHub '
+-            'PR URL). At exit you choose to keep or remove it; parallel '
+-            'sessions with different names never touch each other\'s files. '
+-            'Prefer --worktree=NAME when combining with a positional prompt.'
+-        ),
+-    )
+-
+-    # ---- Interactive UI ----
+-    #
+-    # The sole interactive UI is the TypeScript Ink TUI — ``clawcodex`` with no
+-    # mode flags, or the explicit ``clawcodex tui`` subcommand. It spawns + owns
+-    # a Python agent-server child (see :mod:`src.entrypoints.tui_launcher`). The
+-    # former in-process Textual TUI (``--tui``) and Rich REPL (``--legacy-repl`` /
+-    # ``--no-tui`` / ``--stream``) were removed in favor of this single client.
+-
+-    # ---- Non-interactive / print mode (Phase 1 parity) ----
+-    noninteractive = parser.add_argument_group("non-interactive mode")
+-    noninteractive.add_argument(
+-        '-p', '--print',
+-        action='store_true',
+-        help='Print response and exit (useful for pipes)',
+-    )
+-    noninteractive.add_argument(
+-        '--output-format',
+-        choices=('text', 'json', 'stream-json'),
+-        default='text',
+-        help='Output format for --print mode (default: text)',
+-    )
+-    noninteractive.add_argument(
+-        '--input-format',
+-        choices=('text', 'stream-json'),
+-        default='text',
+-        help='Input format for --print mode (default: text)',
+-    )
+-    noninteractive.add_argument(
+-        '--include-partial-messages',
+-        action='store_true',
+-        help='Include incremental assistant text chunks in stream-json output',
+-    )
+-    noninteractive.add_argument(
+-        '--max-turns',
+-        type=int,
+-        default=50,
+-        help='Maximum number of agent tool turns (default: 50)',
+-    )
+-    noninteractive.add_argument(
+-        '--model',
+-        type=str,
+-        default=None,
+-        help='Override the model used for this run',
+-    )
+-    noninteractive.add_argument(
+-        '--fallback-model',
+-        type=str,
+-        default=None,
+-        dest='fallback_model',
+-        help='Model to switch to after repeated overloaded (529) errors '
+-             '(session-sticky; never persisted)',
+-    )
+-    noninteractive.add_argument(
+-        '--provider',
+-        type=str,
+-        default=None,
+-        help='Override the provider (anthropic, openai, zai, minimax, openrouter, deepseek, meta)',
+-    )
+-    # Mirrors TS ``--effort <level>`` (main.tsx:995). TS registers it
+-    # session-wide; the interactive TUI equivalent here is the persisted
+-    # ``/effort`` setting, so the flag is exposed on the print path where
+-    # no dialog exists. None = auto (settings.effort, else the parameter is
+-    # omitted and the API applies its model default). xhigh acceptance is
+-    # model-dependent — resolve_thinking_effort clamps it to high on models
+-    # that reject it. KNOWN LIMIT: the flag governs the MAIN loop only;
+-    # subagents (Agent tool) resolve from settings.effort — persist
+-    # ``/effort`` (or seed settings) for session-wide coverage.
+-    noninteractive.add_argument(
+-        '--effort',
+-        choices=('low', 'medium', 'high', 'xhigh', 'max'),
+-        default=None,
+-        help='Effort level for the current session (low, medium, high, xhigh, max). '
+-             'Applies to the main agent loop; subagents follow the persisted '
+-             '/effort setting.',
+-    )
+-    noninteractive.add_argument(
+-        '--allowed-tools',
+-        type=str,
+-        default=None,
+-        help='Comma-separated list of tools allowed to run',
+-    )
+-    noninteractive.add_argument(
+-        '--disallowed-tools',
+-        type=str,
+-        default=None,
+-        help='Comma-separated list of tools that must NOT run',
+-    )
+-    noninteractive.add_argument(
+-        '--verbose',
+-        action='store_true',
+-        help='Emit verbose diagnostics to stderr',
+-    )
++def _build_parser():
++    from clawcodex_ext.cli.parser import build_parser
+
+-    # ---- Permissions ----
+-    # ``--dangerously-skip-permissions`` and ``--allow-dangerously-skip-permissions``
+-    # apply to all UI modes (REPL, TUI, headless), so they live in a top-level
+-    # group rather than under ``noninteractive``. Mirrors the TS reference at
+-    # ``typescript/src/main.tsx:970``.
+-    permissions_group = parser.add_argument_group("permissions")
+-    permissions_group.add_argument(
+-        '--dangerously-skip-permissions',
+-        dest='dangerously_skip_permissions',
+-        action='store_true',
+-        help=(
+-            'Bypass all permission checks. Recommended only for sandboxes '
+-            'with no internet access.'
+-        ),
+-    )
+-    permissions_group.add_argument(
+-        '--allow-dangerously-skip-permissions',
+-        dest='allow_dangerously_skip_permissions',
+-        action='store_true',
+-        help=(
+-            'Enable bypassing all permission checks as an option, without it '
+-            'being enabled by default. Recommended only for sandboxes with '
+-            'no internet access.'
+-        ),
+-    )
+-    permissions_group.add_argument(
+-        '--permission-mode',
+-        dest='permission_mode',
+-        choices=('default', 'plan', 'acceptEdits', 'bypassPermissions', 'dontAsk'),
+-        default=None,
+-        help='Initial permission mode (default: default)',
+-    )
++    return build_parser()
+
+-    # Subcommands are intercepted in ``main`` before argparse runs so that a
+-    # free-form prompt argument cannot be misinterpreted as a subcommand.
+-    # Listing them here purely for ``--help`` documentation.
+-    commands_group = parser.add_argument_group("subcommands")
+-    commands_group.add_argument(
+-        '--_commands_doc',
+-        help=argparse.SUPPRESS,
+-    )
+-    parser.epilog = (parser.epilog or "") + (
+-        "\nSubcommands:\n"
+-        "  login    Configure API keys (interactive)\n"
+-        "  config   Show current configuration\n"
+-    )
+-    return parser
+
++def _resolve_permission_state(args):
++    from clawcodex_ext.cli.permissions import resolve_permission_state
+
+-def _resolve_permission_state(args) -> None:
+-    """Resolve and stash permission state on ``args``.
++    return resolve_permission_state(args)
+
+-    Computes the effective :class:`PermissionMode` from the CLI flags and
+-    settings, runs the root/sudo safety gate, and emits a single log line
+-    when either bypass flag was passed. Stashes the result on ``args`` so
+-    every downstream mode (print, TUI, REPL) can read it without re-deriving.
+
+-    Mirrors the wiring in ``typescript/src/main.tsx`` lines 1087-1392 plus
+-    the safety check in ``typescript/src/setup.ts:382-401``.
+-    """
+-    import logging as _logging
++def _run_print_mode(args):
++    from clawcodex_ext.cli.runners import run_print_mode
+
+-    from src.permissions.dangerous_safety import (
+-        enforce_dangerous_skip_permissions_safety,
+-    )
+-    from src.permissions.modes import (
+-        has_allow_bypass_permissions_mode,
+-        initial_permission_mode_from_cli,
+-        is_bypass_permissions_mode_disabled,
+-    )
++    return run_print_mode(args)
+
+-    dangerously = bool(getattr(args, 'dangerously_skip_permissions', False))
+-    allow_dangerously = bool(getattr(args, 'allow_dangerously_skip_permissions', False))
+-    permission_mode_cli = getattr(args, 'permission_mode', None)
+-
+-    # Safety gate first — refuse to run as root outside a sandbox.
+-    enforce_dangerous_skip_permissions_safety(
+-        bypass_requested=dangerously or allow_dangerously,
+-    )
+
+-    mode = initial_permission_mode_from_cli(
+-        permission_mode_cli=permission_mode_cli,
+-        dangerously_skip_permissions=dangerously,
+-    )
++from clawcodex_ext.cli.worktree import WORKTREE_FAILED as _WORKTREE_FAILED
+
+-    # TS isBypassPermissionsModeAvailable (permissionSetup.ts:941-946):
+-    # (bypass-requested OR allow-key) AND NOT disabled. The negative guard was
+-    # dropped in the port → an operator's disableBypassPermissionsMode lockdown
+-    # was silently ignored (critic C12, a live fail-open). A disable overrides
+-    # even an explicit --dangerously-skip-permissions, matching TS's
+-    # unconditional `&& !settingsDisableBypassPermissionsMode`.
+-    is_bypass_available = (
+-        dangerously
+-        or allow_dangerously
+-        or has_allow_bypass_permissions_mode()
+-    ) and not is_bypass_permissions_mode_disabled()
+-
+-    # Stash on args so downstream entrypoints don't need to re-derive.
+-    args._resolved_permission_mode = mode
+-    args._resolved_is_bypass_available = is_bypass_available
+-
+-    if dangerously or allow_dangerously:
+-        _logging.getLogger("clawcodex.permissions").info(
+-            "permission flags: dangerously_skip=%s allow_dangerously_skip=%s mode=%s",
+-            dangerously,
+-            allow_dangerously,
+-            mode,
+-        )
+-
+-
+-def _run_print_mode(args) -> int:
+-    """Delegate to the headless entrypoint."""
+-
+-    from src.cli_core.exit import cli_error
+-    from src.entrypoints.headless import HeadlessOptions, run_headless
+-
+-    # Some combinations are invalid; report early with a helpful message.
+-    if args.input_format == 'stream-json' and args.output_format != 'stream-json':
+-        cli_error(
+-            "error: --input-format stream-json requires --output-format stream-json",
+-            2,
+-        )
+-    if args.include_partial_messages and args.output_format != 'stream-json':
+-        cli_error(
+-            "error: --include-partial-messages requires --output-format stream-json",
+-            2,
+-        )
+-
+-    allowed = _split_csv(args.allowed_tools)
+-    disallowed = _split_csv(args.disallowed_tools)
+-
+-    if args.fallback_model and args.fallback_model == args.model:
+-        # TS validates the same way (main.tsx:1339): a fallback equal to the
+-        # primary can never relieve capacity.
+-        print("error: --fallback-model must differ from --model", file=sys.stderr)
+-        return 2
+-
+-    # --worktree in print mode: run headless inside the worktree and KEEP it
+-    # (TS print mode has no exit dialog and leaves the worktree in place; the
+-    # stderr note is a deliberate small improvement so scripts can find it).
+-    worktree_session = _maybe_create_worktree(args)
+-    if worktree_session is _WORKTREE_FAILED:
+-        return 1
+-    if worktree_session is not None:
+-        os.chdir(worktree_session.worktree_path)
+-
+-    options = HeadlessOptions(
+-        prompt=args.prompt,
+-        output_format=args.output_format,
+-        input_format=args.input_format,
+-        provider_name=args.provider,
+-        model=args.model,
+-        fallback_model=args.fallback_model,
+-        effort=args.effort,
+-        max_turns=args.max_turns,
+-        skip_permissions=bool(args.dangerously_skip_permissions),
+-        permission_mode=args._resolved_permission_mode,
+-        is_bypass_permissions_mode_available=args._resolved_is_bypass_available,
+-        allowed_tools=tuple(allowed),
+-        disallowed_tools=tuple(disallowed),
+-        include_partial_messages=bool(args.include_partial_messages),
+-        verbose=bool(args.verbose),
+-    )
+-    try:
+-        return run_headless(options)
+-    finally:
+-        if worktree_session is not None:
+-            print(
+-                f"Worktree kept at {worktree_session.worktree_path} "
+-                f"(branch {worktree_session.worktree_branch})",
+-                file=sys.stderr,
+-            )
+-
+-
+-def _split_csv(value: str | None) -> list[str]:
+-    if not value:
+-        return []
+-    return [item.strip() for item in value.split(',') if item.strip()]
+-
+-
+-def _show_provider_defaults_table() -> None:
+-    """Print a table showing available providers and their defaults."""
+-    from rich.console import Console
+-    from rich.table import Table
+-
+-    from src.providers import PROVIDER_INFO
+-
+-    console = Console()
+-    table = Table(title="Available Providers & Defaults", show_header=True, header_style="bold")
+-    table.add_column("Provider", style="cyan")
+-    table.add_column("Default Model", style="magenta")
+-    table.add_column("Base URL", style="green")
+-
+-    for name, info in PROVIDER_INFO.items():
+-        table.add_row(
+-            f"{name} ({info['label']})",
+-            info["default_model"],
+-            info["default_base_url"],
+-        )
+
+-    console.print(table)
+-    console.print()
++def _maybe_create_worktree(args):
++    from clawcodex_ext.cli.worktree import maybe_create_worktree
+
++    return maybe_create_worktree(args)
+
+-def handle_login():
+-    """Interactive API configuration."""
+-    from rich.console import Console
+-    from rich.prompt import Prompt
+-
+-    console = Console()
+-    console.print("\n[bold blue]ClawCodex - API Configuration[/bold blue]\n")
+-
+-    _show_provider_defaults_table()
+-
+-    from src.providers import PROVIDER_INFO
+-    provider_names = list(PROVIDER_INFO.keys())
+-
+-    provider = Prompt.ask(
+-        "Select LLM provider",
+-        choices=provider_names,
+-        default="anthropic"
+-    )
+
+-    info = PROVIDER_INFO[provider]
++def _run_tui_mode(args):
++    from clawcodex_ext.cli.runners import run_tui_mode
+
+-    if provider == "anthropic":
+-        auth_method = Prompt.ask(
+-            "Authentication method",
+-            choices=["subscription", "api-key"],
+-            default="subscription",
+-        )
+-        if auth_method == "subscription":
+-            return _handle_anthropic_subscription_login(console, Prompt)
+-
+-    if provider == "openai":
+-        auth_method = Prompt.ask(
+-            "Authentication method",
+-            choices=["subscription", "api-key"],
+-            default="subscription",
+-        )
+-        if auth_method == "subscription":
+-            return _handle_openai_subscription_login(console, Prompt)
+-
+-    api_key = Prompt.ask(
+-        f"Enter {provider.upper()} API Key",
+-        password=True
+-    )
++    return run_tui_mode(args)
+
+-    if not api_key:
+-        console.print("\n[red]Error: API Key cannot be empty[/red]")
+-        return 1
+-
+-    console.print(f"\n[dim]Default:[/dim] {info['default_base_url']}")
+-    base_url = Prompt.ask(
+-        f"{provider.upper()} Base URL",
+-        default=info["default_base_url"]
+-    )
+
+-    console.print(f"\n[dim]Available models:[/dim] {', '.join(info['available_models'])}")
+-    console.print(f"[dim]Default:[/dim] [bold]{info['default_model']}[/bold]")
+-    default_model = Prompt.ask(
+-        f"{provider.upper()} Default Model",
+-        default=info["default_model"]
+-    )
++def _split_csv(value):
++    from clawcodex_ext.cli.runners import _split_csv
+
+-    from src.config import set_api_key, set_default_provider
++    return _split_csv(value)
+
+-    set_api_key(provider, api_key=api_key, base_url=base_url, default_model=default_model)
+-    set_default_provider(provider)
+
+-    console.print(f"\n[green]✓ {provider.upper()} API Key saved successfully![/green]")
+-    console.print(f"[green]✓ Default provider set to: {provider}[/green]\n")
+-    return 0
++def _show_provider_defaults_table():
++    from clawcodex_ext.cli.runners import _show_provider_defaults_table
+
++    return _show_provider_defaults_table()
+
+-def _handle_anthropic_subscription_login(console, Prompt):
+-    """Run Claude Pro/Max's copy/paste OAuth authorization flow."""
+-    import webbrowser
+
+-    from src.auth.anthropic_subscription import begin_login, complete_login
+-    from src.config import set_api_key, set_default_provider
+-    from src.providers import PROVIDER_INFO
++def handle_login():
++    from clawcodex_ext.cli.runners import handle_login
+
+-    console.print(
+-        "\n[yellow]Important:[/yellow] Anthropic does not officially support "
+-        "using Claude Pro/Max subscriptions from third-party clients. "
+-        "This flow may stop working and is subject to Anthropic's terms."
+-    )
+-    consent = Prompt.ask("Continue?", choices=["yes", "no"], default="no")
+-    if consent != "yes":
+-        console.print("Login cancelled.")
+-        return 1
+-    url, verifier = begin_login()
+-    console.print("\nOpening Claude authorization in your browser...")
+-    if not webbrowser.open(url):
+-        console.print(f"Open this URL manually:\n{url}")
+-    code = Prompt.ask("Paste the authorization code")
+-    try:
+-        complete_login(code, verifier)
+-    except Exception as exc:
+-        console.print(f"\n[red]Claude subscription login failed:[/red] {exc}")
+-        return 1
+-    info = PROVIDER_INFO["anthropic"]
+-    set_api_key(
+-        "anthropic", api_key="", base_url=info["default_base_url"],
+-        default_model=info["default_model"],
+-    )
+-    set_default_provider("anthropic")
+-    console.print("\n[green]✓ Claude Pro/Max subscription connected.[/green]")
+-    return 0
+-
+-
+-def _handle_openai_subscription_login(console, Prompt):
+-    """Run the ChatGPT "Sign in with ChatGPT" OAuth flow (Codex backend)."""
+-    import webbrowser
+-
+-    from src.auth import openai_subscription as oai
+-    from src.config import set_api_key, set_default_provider
+-    from src.providers import PROVIDER_INFO
+-
+-    console.print(
+-        "\n[yellow]Important:[/yellow] this signs in with your ChatGPT "
+-        "Plus/Pro plan via the same OAuth flow the Codex CLI uses. Usage "
+-        "draws on your plan's allowance, is subject to OpenAI's terms, "
+-        "and may stop working for third-party clients."
+-    )
+-    consent = Prompt.ask("Continue?", choices=["yes", "no"], default="no")
+-    if consent != "yes":
+-        console.print("Login cancelled.")
+-        return 1
+-
+-    methods = ["browser", "device-code"]
+-    if oai.has_codex_cli_credentials():
+-        methods.append("import-codex-cli")
+-    method = Prompt.ask("Login method", choices=methods, default=methods[0])
+-
+-    try:
+-        if method == "import-codex-cli":
+-            console.print(
+-                "[dim]Copying the ChatGPT login stored by Codex CLI "
+-                f"({oai.codex_cli_auth_path()}). Both clients refresh "
+-                "independently; if Codex CLI later asks you to sign in "
+-                "again, that's why.[/dim]"
+-            )
+-            oai.import_codex_cli_credentials()
+-        elif method == "device-code":
+-            device = oai.begin_device_login()
+-            console.print(
+-                f"\nOpen [bold]{device['verify_url']}[/bold] on any device "
+-                f"and enter code: [bold]{device['user_code']}[/bold]"
+-            )
+-            console.print("Waiting for authorization...")
+-            oai.poll_device_login(device)
+-        else:
+-            url, verifier, state = oai.begin_login()
+-            console.print("\nOpening ChatGPT authorization in your browser...")
+-            if not webbrowser.open(url):
+-                console.print(f"Open this URL manually:\n{url}")
+-            console.print("Waiting for the browser redirect on localhost:1455...")
+-            code = oai.wait_for_callback(state)
+-            oai.complete_login(code, verifier)
+-    except Exception as exc:
+-        console.print(f"\n[red]ChatGPT subscription login failed:[/red] {exc}")
+-        return 1
+-
+-    from src.providers.openai_responses import SUBSCRIPTION_MODELS
+-
+-    info = PROVIDER_INFO["openai"]
+-    set_api_key(
+-        "openai", api_key="", base_url=info["default_base_url"],
+-        default_model=info["default_model"],
+-    )
+-    set_default_provider("openai")
+-    console.print("\n[green]✓ ChatGPT subscription connected.[/green]")
+-    console.print(
+-        "[dim]Subscription models: " + ", ".join(SUBSCRIPTION_MODELS) + "[/dim]"
+-    )
+-    import os as _os
+-    if (_os.environ.get("OPENAI_API_KEY") or "").strip():
+-        console.print(
+-            "[yellow]Note:[/yellow] OPENAI_API_KEY is set in your environment "
+-            "and takes precedence — unset it to use the subscription."
+-        )
+-    return 0
+-
+-
+-def handle_logout(args: list[str]) -> int:
+-    """Remove locally stored provider OAuth credentials."""
+-    from rich.console import Console
+-
+-    console = Console()
+-    provider = args[0] if args else "anthropic"
+-    if provider == "anthropic":
+-        from src.auth.anthropic_subscription import remove_credentials
+-        label = "Claude Pro/Max"
+-    elif provider == "openai":
+-        from src.auth.openai_subscription import remove_credentials
+-        label = "ChatGPT"
+-    else:
+-        console.print(f"[red]OAuth logout is not supported for provider '{provider}'.[/red]")
+-        return 2
+-    if remove_credentials():
+-        console.print(f"[green]✓ {label} subscription disconnected.[/green]")
+-    else:
+-        console.print(f"No {label} subscription login was stored.")
+-    return 0
++    return handle_login()
+
+
+ def show_config():
+-    """Show current configuration."""
+-    from rich.console import Console
+-
+-    console = Console()
++    from clawcodex_ext.cli.runners import show_config
+
+-    try:
+-        from src.config import load_config, get_config_path
++    return show_config()
+
+-        config = load_config()
+-        config_path = get_config_path()
+-
+-        console.print(f"\n[bold]Configuration File:[/bold] {config_path}\n")
+-        console.print("[bold]Current Configuration:[/bold]\n")
+-
+-        console.print(f"[cyan]Default Provider:[/cyan] {config.get('default_provider', 'Not set')}")
+-
+-        console.print("\n[cyan]Configured Providers:[/cyan]")
+-        for provider_name, provider_config in config.get("providers", {}).items():
+-            api_key = provider_config.get("api_key", "")
+-            masked_key = f"{api_key[:8]}...{api_key[-4:]}" if len(api_key) > 12 else "Not set"
+-
+-            console.print(f"\n  [yellow]{provider_name.upper()}:[/yellow]")
+-            console.print(f"    API Key: {masked_key}")
+-            console.print(f"    Base URL: {provider_config.get('base_url', 'Not set')}")
+-            console.print(f"    Default Model: {provider_config.get('default_model', 'Not set')}")
+-
+-        from src.auth.anthropic_subscription import load_credentials
+-        console.print(
+-            "\n[cyan]Claude Pro/Max:[/cyan] "
+-            + ("Connected" if load_credentials() is not None else "Not connected")
+-        )
+-        from src.auth.openai_subscription import (
+-            load_credentials as load_openai_credentials,
+-        )
+-        console.print(
+-            "[cyan]ChatGPT subscription:[/cyan] "
+-            + ("Connected" if load_openai_credentials() is not None else "Not connected")
+-        )
+-
+-        # Stored API keys (config "env" block, e.g. TAVILY_API_KEY). Values are
+-        # masked — only the name and a hint are shown.
+-        from src.secret_store import get_secret, list_secret_names
+-
+-        stored_names = list_secret_names()
+-        if stored_names:
+-            console.print("\n[cyan]Stored Keys (env):[/cyan]")
+-            for name in stored_names:
+-                value = get_secret(name) or ""
+-                masked = f"{value[:4]}...{value[-4:]}" if len(value) > 10 else "Set"
+-                console.print(f"    {name}: {masked}")
+-
+-        console.print()
+-
+-    except Exception as e:
+-        console.print(f"\n[red]Error loading configuration: {e}[/red]\n")
+-        return 1
+
+-    return 0
++def start_repl(
++    stream: bool = False,
++    *,
++    permission_mode: str = 'default',
++    is_bypass_permissions_mode_available: bool = False,
++    resume_session_id: str | None = None,
++):
++    from clawcodex_ext.cli.runners import start_repl
++
++    return start_repl(
++        stream=stream,
++        permission_mode=permission_mode,
++        is_bypass_permissions_mode_available=is_bypass_permissions_mode_available,
++        resume_session_id=resume_session_id,
++    )
+
+
+ if __name__ == '__main__':
