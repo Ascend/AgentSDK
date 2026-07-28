@@ -1,0 +1,28 @@
+diff --git a/services/computer_use/exceptions.py b/services/computer_use/exceptions.py
+new file mode 100644
+--- /dev/null
++++ b/services/computer_use/exceptions.py	2026-06-25 15:09:03.000000 +0800
+@@ -0,0 +1,23 @@
++"""Facade — src/services/computer_use/exceptions.py has been moved to clawcodex_ext.
++
++The full implementation now lives in
++:mod:`clawcodex_ext.services.computer_use.exceptions`. This module re-exports the public surface so
++existing ``from src.services.computer_use.exceptions import ...``
++call sites keep working without modification.
++"""
++
++from clawcodex_ext.services.computer_use.exceptions import (  # noqa: F401
++    ComputerUseError,
++    BinaryNotFoundError,
++    SafetyViolationError,
++    CoordinatesOutOfBoundsError,
++    WindowNotFoundError,
++)
++
++__all__ = [
++    'ComputerUseError',
++    'BinaryNotFoundError',
++    'SafetyViolationError',
++    'CoordinatesOutOfBoundsError',
++    'WindowNotFoundError',
++]

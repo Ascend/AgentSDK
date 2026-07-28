@@ -1,0 +1,8 @@
+diff --git a/permissions/_treesitter_adapter.py b/permissions/_treesitter_adapter.py
+new file mode 100644
+--- /dev/null
++++ b/permissions/_treesitter_adapter.py	2026-06-24 13:07:42.000000 +0800
+@@ -0,0 +1,3 @@
++"""Compatibility facade — see :mod:`clawcodex_ext.permissions._treesitter_adapter`."""
++
++from clawcodex_ext.permissions._treesitter_adapter import *  # noqa: F401,F403

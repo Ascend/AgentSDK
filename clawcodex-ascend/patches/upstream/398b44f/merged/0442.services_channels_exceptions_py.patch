@@ -1,0 +1,8 @@
+diff --git a/services/channels/exceptions.py b/services/channels/exceptions.py
+new file mode 100644
+--- /dev/null
++++ b/services/channels/exceptions.py	2026-06-25 15:09:03.000000 +0800
+@@ -0,0 +1,3 @@
++"""Re-export facade — exceptions canonical impl in clawcodex_ext/."""
++
++from clawcodex_ext.services.channels.exceptions import *  # noqa: F401,F403

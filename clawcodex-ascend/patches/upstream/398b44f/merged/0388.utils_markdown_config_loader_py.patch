@@ -1,0 +1,68 @@
+diff --git a/utils/markdown_config_loader.py b/utils/markdown_config_loader.py
+--- a/utils/markdown_config_loader.py	2026-07-23 08:42:36.000000 +0000
++++ b/utils/markdown_config_loader.py	2026-07-21 04:56:27.000000 -0700
+@@ -45,15 +45,24 @@
+
+ def _get_global_config_dir() -> Path:
+     """Return ``$CLAWCODEX_CONFIG_DIR`` or ``~/.clawcodex`` (resolved)."""
+-    env_override = os.environ.get("CLAWCODEX_CONFIG_DIR")
++    env_override = os.environ.get("CLAWCODEX_CONFIG_DIR") or os.environ.get(
++        "CLAUDE_CONFIG_DIR"
++    )
+     if env_override:
+         return Path(env_override).expanduser().resolve()
+     return (Path.home() / ".clawcodex").resolve()
+
+
++def _get_legacy_global_config_dir() -> Path:
++    """Return the former Claude-named user directory for migration reads."""
++    return (Path.home() / ".claude").resolve()
++
++
+ def _get_managed_file_path() -> Path:
+     """Return ``$CLAWCODEX_MANAGED_CONFIG_DIR`` or ``/etc/clawcodex``."""
+-    env_override = os.environ.get("CLAWCODEX_MANAGED_CONFIG_DIR")
++    env_override = os.environ.get("CLAWCODEX_MANAGED_CONFIG_DIR") or os.environ.get(
++        "CLAUDE_MANAGED_CONFIG_DIR"
++    )
+     if env_override:
+         return Path(env_override).expanduser().resolve()
+     return Path("/etc/clawcodex")
+@@ -89,7 +98,7 @@
+     dirs: list[str] = []
+
+     while True:
+-        for config_dir_name in (".clawcodex", ".openclaude"):
++        for config_dir_name in (".clawcodex", ".claude", ".openclaude"):
+             candidate = current / config_dir_name / subdir
+             dirs.append(str(candidate))
+         if current == home or current.parent == current:
+@@ -144,8 +153,14 @@
+     First-seen realpath wins (later duplicates are dropped). The caller is
+     responsible for applying source-priority overrides on parsed entries.
+     """
+-    managed_dir = str(_get_managed_file_path() / ".clawcodex" / subdir)
+-    user_dir = str(_get_global_config_dir() / subdir)
++    managed_dirs = [
++        str(_get_managed_file_path() / ".clawcodex" / subdir),
++        str(Path("/etc/claude") / ".claude" / subdir),
++    ]
++    user_dirs = [
++        str(_get_legacy_global_config_dir() / subdir),
++        str(_get_global_config_dir() / subdir),
++    ]
+     project_dirs = _get_project_subdir_paths(cwd, subdir)
+
+     seen: set[str] = set()
+@@ -171,8 +186,10 @@
+                 )
+             )
+
+-    _collect(managed_dir, SOURCE_MANAGED)
+-    _collect(user_dir, SOURCE_USER)
++    for managed_dir in managed_dirs:
++        _collect(managed_dir, SOURCE_MANAGED)
++    for user_dir in user_dirs:
++        _collect(user_dir, SOURCE_USER)
+     for project_dir in project_dirs:
+         _collect(project_dir, SOURCE_PROJECT)

@@ -1,0 +1,26 @@
+diff --git a/tui/__init__.py b/tui/__init__.py
+new file mode 100644
+--- /dev/null
++++ b/tui/__init__.py	2026-07-04 09:47:03.000000 +0800
+@@ -0,0 +1,21 @@
++"""Facade — tui/__init__.py has been moved to clawcodex_ext (lazy proxy)."""
++
++from __future__ import annotations
++
++__all__ = [
++    'ClawCodexTUI',
++    'AdvisorEventMessage',
++    'AgentRunFinished',
++    'AgentRunStarted',
++    'AssistantChunk',
++    'AssistantMessage',
++    'ToolEventMessage',
++]
++
++
++def __getattr__(name: str):
++    import clawcodex_ext.tui as _mod
++
++    val = getattr(_mod, name)
++    globals()[name] = val
++    return val

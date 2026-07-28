@@ -1,0 +1,23 @@
+diff --git a/agent/routing.py b/agent/routing.py
+new file mode 100644
+--- /dev/null
++++ b/agent/routing.py	2026-06-22 10:15:06.000000 +0800
+@@ -0,0 +1,18 @@
++"""Facade — agent/routing.py has been moved to clawcodex_ext/agent/routing.
++
++The F-88 P88-C prompt-to-subagent-type classifier
++(``classify_prompt_to_agent_type``, ``AGENT_TYPE_*`` constants) now
++lives in :mod:`clawcodex_ext.agent.routing`. This module re-exports the
++public surface so existing
++``from src.agent.routing import ...`` callers keep working without
++modification.
++
++Uses ``globals().update()`` to preserve access to all public names
++regardless of ``__all__`` — the source module's ``__all__`` only covers
++2 of 5 public names.
++"""
++
++import clawcodex_ext.agent.routing as _mod
++
++_globals = {k: v for k, v in vars(_mod).items() if not k.startswith('_')}
++globals().update(_globals)

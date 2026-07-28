@@ -1,0 +1,14 @@
+diff --git a/services/ultraplan/__init__.py b/services/ultraplan/__init__.py
+new file mode 100644
+--- /dev/null
++++ b/services/ultraplan/__init__.py	2026-07-04 09:47:03.000000 +0800
+@@ -0,0 +1,9 @@
++"""Facade — services/ultraplan/ moved to clawcodex_ext/services/ultraplan/.
++
++The full F-83 implementation now lives in
++:mod:`clawcodex_ext.services.ultraplan`. This module re-exports it
++verbatim so existing ``from src.services.ultraplan import ...`` callers
++keep working without modification.
++"""
++
++from clawcodex_ext.services.ultraplan import *  # noqa: F401,F403

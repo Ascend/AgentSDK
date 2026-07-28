@@ -1,0 +1,20 @@
+diff --git a/tui/screens/monitor_panel.py b/tui/screens/monitor_panel.py
+new file mode 100644
+--- /dev/null
++++ b/tui/screens/monitor_panel.py	2026-07-09 15:56:51.000000 +0800
+@@ -0,0 +1,15 @@
++"""Facade — tui/screens/monitor_panel.py has been moved to clawcodex_ext."""
++
++from __future__ import annotations
++
++__all__ = ["MonitorPanel"]
++
++
++def __getattr__(name: str):
++    import clawcodex_ext.tui.screens.monitor_panel as _mod
++
++    if name in _mod.__dict__:
++        val = _mod.__dict__[name]
++        globals()[name] = val
++        return val
++    raise AttributeError(f'module {__name__!r} has no attribute {name!r}')

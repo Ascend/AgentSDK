@@ -1,0 +1,14 @@
+diff --git a/auth/codex_store.py b/auth/codex_store.py
+new file mode 100644
+--- /dev/null
++++ b/auth/codex_store.py	2026-07-21 04:45:53.000000 -0700
+@@ -0,0 +1,9 @@
++"""Module-identity facade for the downstream Codex credential store."""
++
++from __future__ import annotations
++
++import sys
++
++from clawcodex_ext.auth import codex_store as _module
++
++sys.modules[__name__] = _module

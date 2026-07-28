@@ -1,0 +1,19 @@
+diff --git a/repl/agent_mention_completer.py b/repl/agent_mention_completer.py
+new file mode 100644
+--- /dev/null
++++ b/repl/agent_mention_completer.py	2026-06-25 15:09:03.000000 +0800
+@@ -0,0 +1,14 @@
++"""Facade — repl/agent_mention_completer.py has been moved to clawcodex_ext.
++
++The full implementation now lives in
++:mod:`clawcodex_ext.utils.agent_mention_completer`. This module re-exports
++the public surface so legacy callers using
++``from src.repl.agent_mention_completer import AgentMentionCompleter``
++keep working without modification.
++"""
++
++from clawcodex_ext.utils.agent_mention_completer import (  # noqa: F401
++    AgentMentionCompleter,
++)
++
++__all__ = ['AgentMentionCompleter']

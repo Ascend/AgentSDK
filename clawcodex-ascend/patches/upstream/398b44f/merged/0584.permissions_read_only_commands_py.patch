@@ -1,0 +1,237 @@
+diff --git a/permissions/read_only_commands.py b/permissions/read_only_commands.py
+--- a/permissions/read_only_commands.py	2026-07-23 08:42:36.000000 +0000
++++ b/permissions/read_only_commands.py	2026-07-27 19:13:22.000000 +0800
+@@ -78,6 +78,7 @@
+ # validateFlags — port of readOnlyCommandValidation.ts:1650-1893
+ # ---------------------------------------------------------------------------
+
++
+ def validate_flag_argument(value: str, arg_type: str) -> bool:
+     """Port of ``validateFlagArgument`` (readOnlyCommandValidation.ts:1650)."""
+     if arg_type == "none":
+@@ -237,7 +238,7 @@
+ # ---------------------------------------------------------------------------
+
+ _UNC_PATTERNS = [
+-    re.compile(r"\\\\[\w.\[\]:@-]+"),   # \\server\share, \\server@SSL@8443\
++    re.compile(r"\\\\[\w.\[\]:@-]+"),  # \\server\share, \\server@SSL@8443\
+     re.compile(r"(?:^|[\s\"'=(])//[\w.\[\]:-]+\.[\w.\[\]:-]+/"),  # //host.tld/share
+     re.compile(r"DavWWWRoot", re.IGNORECASE),
+ ]
+@@ -306,6 +307,7 @@
+ # Unquoted shell operators (port-specific pre-guard; see module docstring)
+ # ---------------------------------------------------------------------------
+
++
+ def _contains_unquoted_operator(command: str) -> bool:
+     """True when an unquoted ``< > | & ; ( )`` appears outside quotes.
+
+@@ -339,6 +341,7 @@
+ # isCommandSafeViaFlagParsing — port of readOnlyValidation.ts:1180-1342
+ # ---------------------------------------------------------------------------
+
++
+ def _tokenize_simple(command: str) -> list[str] | None:
+     """shlex tokenization of an operator-free simple command.
+
+@@ -396,9 +399,7 @@
+         command_config,
+         command_name=tokens[0],
+         raw_command=command,
+-        xargs_target_commands=(
+-            SAFE_TARGET_COMMANDS_FOR_XARGS if tokens[0] == "xargs" else None
+-        ),
++        xargs_target_commands=(SAFE_TARGET_COMMANDS_FOR_XARGS if tokens[0] == "xargs" else None),
+     ):
+         return False
+
+@@ -415,9 +416,7 @@
+         return False
+
+     if command_config.additional_command_is_dangerous is not None:
+-        if command_config.additional_command_is_dangerous(
+-            command, tokens[command_tokens:]
+-        ):
++        if command_config.additional_command_is_dangerous(command, tokens[command_tokens:]):
+             return False
+
+     return True
+@@ -469,10 +468,74 @@
+ # isNormalizedGitCommand (bashPermissions.ts:2570-2634)
+ # ---------------------------------------------------------------------------
+
+-def _strip_env_and_wrappers(command: str) -> str:
+-    from .check import _normalize_for_deny_ask
++# A leading ``NAME=value`` assignment where value may be single-quoted,
++# double-quoted (both may contain spaces), or a bare word. Matching the quote
++# form is what stops ``FOO="a b" rm x`` from splitting mid-value and leaving the
++# ``rm`` unstripped. The bare value class excludes shell metachars
++# (``;|&()<>$`` + backtick) so it can't over-consume an operator into the value.
++_ENV_ASSIGNMENT_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=(?:'[^']*'|\"[^\"]*\"|[^\s'\";|&()<>$`]*)")
++
++# Safe command wrappers TS strips before reading the command head
++# (stripSafeWrappers, bashPermissions.ts:501-540). Only wrappers that don't
++# change WHICH program runs (sudo/env/xargs are deliberately excluded — they
++# can redirect execution).
++_SAFE_WRAPPER_RES = [
++    re.compile(
++        r"^timeout[ \t]+(?:(?:--\S+|-[A-Za-z][ \t]+\S+|-[A-Za-z]\S*)[ \t]+)*"
++        r"(?:--[ \t]+)?\d+(?:\.\d+)?[smhd]?[ \t]+"
++    ),
++    re.compile(r"^time[ \t]+(?:--[ \t]+)?"),
++    re.compile(r"^nice(?:[ \t]+-n[ \t]+-?\d+|[ \t]+-\d+)?[ \t]+(?:--[ \t]+)?"),
++    re.compile(r"^stdbuf(?:[ \t]+-[ioe]\S+)+[ \t]+(?:--[ \t]+)?"),
++    re.compile(r"^nohup[ \t]+(?:--[ \t]+)?"),
++]
++
++
++def _strip_safe_wrappers(command: str) -> str:
++    rest = command.lstrip()
++    changed = True
++    while changed:
++        changed = False
++        for pat in _SAFE_WRAPPER_RES:
++            m = pat.match(rest)
++            if m:
++                rest = rest[m.end() :].lstrip()
++                changed = True
++                break
++    return rest
+
+-    return _normalize_for_deny_ask(command)
++
++def _strip_all_env_assignments(command: str) -> str:
++    """Drop ALL leading ``NAME=value`` assignments (values may be single/double
++    quoted or bare). The remainder is returned as its original substring (no
++    re-tokenization)."""
++
++    rest = command.lstrip()
++    while rest:
++        m = _ENV_ASSIGNMENT_RE.match(rest)
++        # Must consume a whole shell word: the char after the assignment has to
++        # be whitespace or end-of-string, else this is part of a larger token.
++        if not m or (m.end() < len(rest) and not rest[m.end()].isspace()):
++            break
++        rest = rest[m.end() :].lstrip()
++    return rest
++
++
++def _strip_env_and_wrappers(command: str) -> str:
++    """Reduce a command to the program it will actually run: strip ALL env
++    assignments and safe wrappers, interleaved to a fixed point
++    (``nohup FOO=1 timeout 5 rm`` → ``rm``), then unescape a leading ``\\`` on
++    the command word (bash runs ``\\rm`` as ``rm``)."""
++
++    prev = None
++    cur = command.lstrip()
++    while cur != prev:
++        prev = cur
++        cur = _strip_all_env_assignments(cur)
++        cur = _strip_safe_wrappers(cur)
++    if cur.startswith("\\") and len(cur) > 1 and cur[1] not in " \t\\":
++        cur = cur[1:]
++    return cur
+
+
+ # Builtins that re-parse a NAME operand and ARITHMETICALLY evaluate an
+@@ -487,10 +550,22 @@
+ # ``$(`` / backtick / ``${`` anywhere in it is refused. Over-blocks only exotic
+ # literal-bracket+substitution strings under exactly these builtins (safe —
+ # just prompts); normal ``printf '%s' x`` / ``test -f x`` / ``read var`` pass.
+-_NAME_EVAL_BUILTINS: frozenset[str] = frozenset({
+-    "test", "[", "[[", "printf", "read", "unset", "wait",
+-    "declare", "typeset", "local", "readonly", "getopts",
+-})
++_NAME_EVAL_BUILTINS: frozenset[str] = frozenset(
++    {
++        "test",
++        "[",
++        "[[",
++        "printf",
++        "read",
++        "unset",
++        "wait",
++        "declare",
++        "typeset",
++        "local",
++        "readonly",
++        "getopts",
++    }
++)
+
+ _SUBSCRIPT_SUBST_RE = re.compile(r"\[[^\]]*(?:\$\(|`|\$\{)")
+
+@@ -510,9 +585,7 @@
+     first — bash reads ``/proc/self/\\environ`` as ``.../environ`` (TS
+     ast.ts:1098)."""
+     unescaped = command.replace("\\", "")
+-    return bool(
+-        _PROC_ENVIRON_RE.search(command) or _PROC_ENVIRON_RE.search(unescaped)
+-    )
++    return bool(_PROC_ENVIRON_RE.search(command) or _PROC_ENVIRON_RE.search(unescaped))
+
+
+ def find_name_eval_subscript_attack(command: str) -> str | None:
+@@ -596,6 +669,7 @@
+ # (typescript/src/utils/git.ts:876-925)
+ # ---------------------------------------------------------------------------
+
++
+ def is_current_directory_bare_git_repo(cwd: str) -> bool:
+     """True when ``cwd`` looks like a bare git repo with no valid ``.git``.
+
+@@ -615,7 +689,12 @@
+     except OSError:
+         pass
+
+-    for indicator, kind in (("HEAD", "file"), ("objects", "dir"), ("refs", "dir"), ("hooks", "dir")):
++    for indicator, kind in (
++        ("HEAD", "file"),
++        ("objects", "dir"),
++        ("refs", "dir"),
++        ("hooks", "dir"),
++    ):
+         target = os.path.join(cwd, indicator)
+         try:
+             if kind == "file" and os.path.isfile(target):
+@@ -657,9 +736,7 @@
+     return out
+
+
+-def _paths_within_roots(
+-    subs: list[str], cwd: str, allowed_roots: Sequence[str]
+-) -> bool:
++def _paths_within_roots(subs: list[str], cwd: str, allowed_roots: Sequence[str]) -> bool:
+     resolved_roots = []
+     for root in allowed_roots:
+         try:
+@@ -671,9 +748,7 @@
+
+     def _inside(p: str) -> bool:
+         try:
+-            rp = os.path.realpath(
+-                os.path.join(cwd, os.path.expanduser(p))
+-            )
++            rp = os.path.realpath(os.path.join(cwd, os.path.expanduser(p)))
+         except OSError:
+             return False
+         for root in resolved_roots:
+@@ -695,6 +770,7 @@
+ # checkReadOnlyConstraints — port of readOnlyValidation.ts:1810-1924
+ # ---------------------------------------------------------------------------
+
++
+ def compound_structure_guards_ok(subs: Sequence[str], cwd: str) -> bool:
+     """Compound-level guards that must hold before ANY sub-command may be
+     treated as read-only: at most one directory change (TS asks on multiple
+@@ -721,9 +797,7 @@
+     :func:`compound_structure_guards_ok` over the WHOLE sub list first —
+     per-sub checks alone cannot see multi-cd / cd+git structure.
+     """
+-    return is_command_read_only(sub) and _paths_within_roots(
+-        [sub], cwd, allowed_roots
+-    )
++    return is_command_read_only(sub) and _paths_within_roots([sub], cwd, allowed_roots)
+
+
+ def check_read_only_constraints(

@@ -1,0 +1,23 @@
+diff --git a/context_system/claude_md.py b/context_system/claude_md.py
+new file mode 100644
+--- /dev/null
++++ b/context_system/claude_md.py	2026-07-04 09:47:03.000000 +0800
+@@ -0,0 +1,18 @@
++"""Facade — context_system/claude_md.py moved to clawcodex_ext.context_system.claude_md (sys.modules swap).
++
++Some tests introspect private internals (functions whose names start
++with ``_``) and rely on ``from src.context_system.claude_md import _something``
++resolving against the real module object. The plain
++``from clawcodex_ext.context_system.claude_md import *`` form would silently drop those
++underscore-prefixed names. A ``sys.modules`` swap preserves the
++underlying ext module as the canonical object so attribute access,
++``inspect.getsource()``, and AST walking keep working unchanged.
++"""
++
++from __future__ import annotations
++
++import importlib
++import sys
++
++_ext_mod = importlib.import_module('clawcodex_ext.context_system.claude_md')
++sys.modules[__name__] = _ext_mod

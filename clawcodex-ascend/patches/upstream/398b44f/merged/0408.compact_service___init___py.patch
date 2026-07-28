@@ -1,0 +1,34 @@
+diff --git a/compact_service/__init__.py b/compact_service/__init__.py
+new file mode 100644
+--- /dev/null
++++ b/compact_service/__init__.py	2026-06-25 15:09:03.000000 +0800
+@@ -0,0 +1,29 @@
++"""Facade — src/compact_service/__init__.py has been moved to clawcodex_ext.
++
++The full implementation now lives in
++:mod:`clawcodex_ext.compact_service`. This module re-exports the public
++surface so existing ``from src.compact_service import ...`` call sites
++keep working without modification.
++"""
++
++from __future__ import annotations
++
++from clawcodex_ext.compact_service import (  # noqa: F401
++    CompactBoundaryMetadata,
++    PreservedSegment,
++    annotate_boundary_with_preserved_segment,
++    create_compact_boundary_message,
++    create_compact_summary_message,
++    get_messages_after_boundary,
++    is_compact_boundary_message,
++)
++
++__all__ = [
++    'CompactBoundaryMetadata',
++    'PreservedSegment',
++    'annotate_boundary_with_preserved_segment',
++    'create_compact_boundary_message',
++    'create_compact_summary_message',
++    'get_messages_after_boundary',
++    'is_compact_boundary_message',
++]

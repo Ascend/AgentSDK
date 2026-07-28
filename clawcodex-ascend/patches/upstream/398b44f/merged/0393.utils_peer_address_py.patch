@@ -1,0 +1,42 @@
+diff --git a/utils/peer_address.py b/utils/peer_address.py
+--- a/utils/peer_address.py	2026-07-23 08:42:36.000000 +0000
++++ b/utils/peer_address.py	2026-07-04 09:47:03.000000 +0800
+@@ -16,12 +16,13 @@
+ (``NotImplementedError`` stubs preserving TS dispatch order so a
+ future implementation is a localized body change).
+ """
++
+ from __future__ import annotations
+
+ from dataclasses import dataclass
+ from typing import Literal
+
+-AddressScheme = Literal["bridge", "uds", "other"]
++AddressScheme = Literal['bridge', 'uds', 'other']
+
+
+ @dataclass(frozen=True)
+@@ -47,15 +48,15 @@
+     SendMessage's input-validation layer rejects empty strings before
+     they reach this helper.
+     """
+-    if to.startswith("bridge:"):
+-        return ParsedAddress(scheme="bridge", target=to[len("bridge:"):])
+-    if to.startswith("uds:"):
+-        return ParsedAddress(scheme="uds", target=to[len("uds:"):])
+-    return ParsedAddress(scheme="other", target=to)
++    if to.startswith('bridge:'):
++        return ParsedAddress(scheme='bridge', target=to[len('bridge:') :])
++    if to.startswith('uds:'):
++        return ParsedAddress(scheme='uds', target=to[len('uds:') :])
++    return ParsedAddress(scheme='other', target=to)
+
+
+ __all__ = [
+-    "AddressScheme",
+-    "ParsedAddress",
+-    "parse_address",
++    'AddressScheme',
++    'ParsedAddress',
++    'parse_address',
+ ]

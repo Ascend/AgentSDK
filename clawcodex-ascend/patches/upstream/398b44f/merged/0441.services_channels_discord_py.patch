@@ -1,0 +1,8 @@
+diff --git a/services/channels/discord.py b/services/channels/discord.py
+new file mode 100644
+--- /dev/null
++++ b/services/channels/discord.py	2026-06-25 15:09:03.000000 +0800
+@@ -0,0 +1,3 @@
++"""Re-export facade — discord canonical impl in clawcodex_ext/."""
++
++from clawcodex_ext.services.channels.discord import *  # noqa: F401,F403

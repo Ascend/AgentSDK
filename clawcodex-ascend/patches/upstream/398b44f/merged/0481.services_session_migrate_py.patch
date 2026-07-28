@@ -1,0 +1,30 @@
+diff --git a/services/session_migrate.py b/services/session_migrate.py
+new file mode 100644
+--- /dev/null
++++ b/services/session_migrate.py	2026-06-25 15:09:03.000000 +0800
+@@ -0,0 +1,25 @@
++"""Facade — services/session_migrate.py has been moved to clawcodex_ext.
++
++The full F-49 P5-H session format migration tool now lives in
++:mod:`clawcodex_ext.services.session_migrate`. This module re-exports
++the public surface (``migrate_session``, ``migrate_all``,
++``handle_session_migrate_cli``, ``MigrationResult``, ``MigrationSummary``)
++so existing ``from src.services.session_migrate import ...`` callers keep
++working without modification.
++"""
++
++from clawcodex_ext.services.session_migrate import (  # noqa: F401
++    MigrationResult,
++    MigrationSummary,
++    migrate_session,
++    migrate_all,
++    handle_session_migrate_cli,
++)
++
++__all__ = [
++    'MigrationResult',
++    'MigrationSummary',
++    'migrate_session',
++    'migrate_all',
++    'handle_session_migrate_cli',
++]

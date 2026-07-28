@@ -1,0 +1,138 @@
+diff --git a/plugins/schema.py b/plugins/schema.py
+new file mode 100644
+--- /dev/null
++++ b/plugins/schema.py	2026-07-04 09:47:03.000000 +0800
+@@ -0,0 +1,133 @@
++"""Plugin manifest schema — pydantic models for plugin metadata.
++
++Provides strict validation models for plugin manifests (``plugin.yaml``,
++``plugin.json``, ``pyproject.toml`` plugin tables).  These models are
++used by the loader and validator to enforce a consistent plugin contract.
++
++If ``pydantic`` is not installed the module gracefully degrades to
++lightweight dataclasses.
++"""
++
++from __future__ import annotations
++
++import logging
++from dataclasses import dataclass, field
++from typing import Any
++
++logger = logging.getLogger(__name__)
++
++_PYDANTIC_AVAILABLE = False
++try:
++    from pydantic import BaseModel, Field, field_validator  # noqa: I001
++
++    _PYDANTIC_AVAILABLE = True
++
++    class PermissionModel(BaseModel):
++        """A single permission entry."""
++
++        name: str = Field(..., description="Permission name (read|write|execute|network|mcp)")
++        scope: str = Field(default="", description="Optional scope qualifier")
++
++        @field_validator("name")
++        @classmethod
++        def validate_name(cls, v: str) -> str:
++            valid = {"read", "write", "execute", "network", "mcp"}
++            if v not in valid:
++                raise ValueError(f"Invalid permission: {v!r}. Must be one of {sorted(valid)}")
++            return v
++
++    class HookConfigModel(BaseModel):
++        """Configuration for a single hook event."""
++
++        command: str = Field(default="", description="Shell command to run")
++        script: str = Field(default="", description="Inline script to execute")
++        enabled: bool = Field(default=True)
++
++    class PluginManifestSchema(BaseModel):
++        """Strict pydantic model for a plugin manifest.
++
++        Mirrors the fields accepted by ``plugin.yaml`` / ``plugin.json``.
++        """
++
++        name: str = Field(..., min_length=1, description="Unique plugin name")
++        description: str = Field(default="", description="Plugin description")
++        version: str = Field(default="1.0.0", description="Semantic version")
++        author: str = Field(default="", description="Author name")
++        repository: str = Field(default="", description="Source repository URL")
++        license: str = Field(default="", description="License identifier")
++        permissions: list[str] = Field(default_factory=list)
++        dependencies: dict[str, str] = Field(default_factory=dict)
++        hooks: dict[str, Any] = Field(default_factory=dict)
++        mcp_servers: dict[str, Any] = Field(default_factory=dict)
++        enabled: bool = Field(default=True)
++        agents_paths: list[str] = Field(default_factory=list)
++
++        @field_validator("version")
++        @classmethod
++        def validate_version(cls, v: str) -> str:
++            import re
++
++            if not re.match(r"^\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?$", v):
++                raise ValueError(f"Invalid semantic version: {v!r}")
++            return v
++
++        @field_validator("name")
++        @classmethod
++        def validate_name(cls, v: str) -> str:
++            import re
++
++            if not re.match(r"^[a-zA-Z][a-zA-Z0-9_-]{0,63}$", v):
++                raise ValueError(
++                    "Plugin name must start with a letter, "
++                    "contain only [a-zA-Z0-9_-], and be ≤64 chars"
++                )
++            return v
++
++except ImportError:
++    pass
++
++# ── Lightweight fallback ──────────────────────────────────────────────
++
++
++@dataclass
++class PluginManifestSchema:
++    """Lightweight fallback when pydantic is unavailable.
++
++    Provides the same interface as the pydantic model but without
++    runtime validation.  Validation is delegated to
++    ``src.plugins.validator.validate_manifest``.
++    """
++
++    name: str = ""
++    description: str = ""
++    version: str = "1.0.0"
++    author: str = ""
++    repository: str = ""
++    license: str = ""
++    permissions: list[str] = field(default_factory=list)
++    dependencies: dict[str, str] = field(default_factory=dict)
++    hooks: dict[str, Any] = field(default_factory=dict)
++    mcp_servers: dict[str, Any] = field(default_factory=dict)
++    enabled: bool = True
++    agents_paths: list[str] = field(default_factory=list)
++
++    @classmethod
++    def from_dict(cls, data: dict[str, Any]) -> PluginManifestSchema:
++        """Construct from a raw manifest dict."""
++        return cls(**{k: v for k, v in data.items() if k in cls.__dataclass_fields__})  # type: ignore[attr-defined]
++
++    def to_dict(self) -> dict[str, Any]:
++        """Serialize back to a dict."""
++        from dataclasses import asdict
++
++        return asdict(self)  # type: ignore[no-any-return]
++
++
++# ── Public alias (without leading underscore) ─────────────────────────
++
++PYDANTIC_AVAILABLE = _PYDANTIC_AVAILABLE
++
++__all__ = [
++    "PluginManifestSchema",
++    "PYDANTIC_AVAILABLE",
++]

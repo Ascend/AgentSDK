@@ -1,0 +1,44 @@
+diff --git a/tasks/dream/dream_task.py b/tasks/dream/dream_task.py
+new file mode 100644
+--- /dev/null
++++ b/tasks/dream/dream_task.py	2026-06-25 15:09:03.000000 +0800
+@@ -0,0 +1,39 @@
++"""Facade — src/tasks/dream/dream_task.py has been moved to clawcodex_ext.
++
++The full implementation now lives in
++:mod:`clawcodex_ext.tasks.dream.dream_task`. This module re-exports the
++public surface so existing ``from src.tasks.dream.dream_task import ...``
++call sites keep working without modification.
++"""
++
++from __future__ import annotations
++
++from clawcodex_ext.tasks.dream.dream_task import (  # noqa: F401
++    MAX_DREAM_TURNS,
++    DreamPhase,
++    DreamTask,
++    DreamTaskState,
++    add_dream_turn,
++    complete_dream_task,
++    create_task_state_base,
++    fail_dream_task,
++    is_dream_task,
++    is_dream_task_terminal,
++    register_dream_task,
++    rollback_dream_lock_after_kill,
++)
++
++__all__ = [
++    'DreamPhase',
++    'DreamTask',
++    'DreamTaskState',
++    'MAX_DREAM_TURNS',
++    'add_dream_turn',
++    'complete_dream_task',
++    'create_task_state_base',
++    'fail_dream_task',
++    'is_dream_task',
++    'is_dream_task_terminal',
++    'register_dream_task',
++    'rollback_dream_lock_after_kill',
++]

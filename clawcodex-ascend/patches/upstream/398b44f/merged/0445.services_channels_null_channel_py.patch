@@ -1,0 +1,8 @@
+diff --git a/services/channels/null_channel.py b/services/channels/null_channel.py
+new file mode 100644
+--- /dev/null
++++ b/services/channels/null_channel.py	2026-06-25 15:09:03.000000 +0800
+@@ -0,0 +1,3 @@
++"""Re-export facade — null_channel canonical impl in clawcodex_ext/."""
++
++from clawcodex_ext.services.channels.null_channel import *  # noqa: F401,F403

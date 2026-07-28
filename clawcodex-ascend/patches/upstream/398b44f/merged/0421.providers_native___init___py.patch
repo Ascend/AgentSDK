@@ -1,0 +1,48 @@
+diff --git a/providers/native/__init__.py b/providers/native/__init__.py
+new file mode 100644
+--- /dev/null
++++ b/providers/native/__init__.py	2026-06-25 15:09:03.000000 +0800
+@@ -0,0 +1,43 @@
++"""Facade — providers/native/ has been moved to clawcodex_ext/providers/native/.
++
++This module uses ``sys.modules`` swap because the test suite reaches into
++private symbols on this package (e.g. ``from src.providers.native import
++_NATIVE_REGISTRY``); a star-import facade would hide them.
++
++After the parent swap, the parent's ``__path__`` points to the
++ext directory. Without the eager aliasing below, Python's path-based
++finder would load ``clawcodex_ext/providers/native/gemini_adapter.py``
++a second time under the ``src.providers.native.gemini_adapter`` name,
++creating a separate module instance and breaking ``is`` identity
++assertions in ``tests/provider/native/test_factory.py``.
++"""
++
++from __future__ import annotations
++
++import importlib
++import sys
++
++_ext_mod = importlib.import_module('clawcodex_ext.providers.native')
++sys.modules[__name__] = _ext_mod
++
++# Eagerly register every child module under both names so that subsequent
++# ``from src.providers.native.<child> import X`` resolves to the same module
++# instance as ``from .<child> import X`` inside the ext package. We swallow
++# ``ImportError`` so that a missing optional SDK (e.g. ``google-genai`` for
++# the gemini adapter) does not block startup — the factory's lazy
++# ``_register_gemini`` still handles the unavailable name.
++for _child_name in (
++    'base',
++    'capabilities',
++    'openai_adapter',
++    'grok_adapter',
++    'gemini_adapter',
++):
++    _full_ext_name = f'clawcodex_ext.providers.native.{_child_name}'
++    _full_src_name = f'src.providers.native.{_child_name}'
++    try:
++        _ext_child = importlib.import_module(_full_ext_name)
++    except ImportError:
++        continue
++    sys.modules[_full_ext_name] = _ext_child
++    sys.modules[_full_src_name] = _ext_child

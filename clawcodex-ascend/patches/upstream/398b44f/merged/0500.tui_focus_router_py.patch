@@ -1,0 +1,24 @@
+diff --git a/tui/focus_router.py b/tui/focus_router.py
+new file mode 100644
+--- /dev/null
++++ b/tui/focus_router.py	2026-07-04 09:47:03.000000 +0800
+@@ -0,0 +1,19 @@
++"""Facade — tui/focus_router.py has been moved to clawcodex_ext (lazy proxy)."""
++
++from __future__ import annotations
++
++__all__ = [
++    'owns_input',
++    'should_show_overlay',
++    'higher_priority',
++]
++
++
++def __getattr__(name: str):
++    import clawcodex_ext.tui.focus_router as _mod
++
++    if name in _mod.__dict__:
++        val = _mod.__dict__[name]
++        globals()[name] = val
++        return val
++    raise AttributeError(f'module {__name__!r} has no attribute {name!r}')

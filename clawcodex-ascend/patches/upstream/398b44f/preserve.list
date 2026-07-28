@@ -1,0 +1,5 @@
+# Preserve list for upstream snapshot 398b44f.
+#
+# Intentionally empty. Every upstream file is present in the reconciled src/
+# tree, so the strict patch queue can reconstruct src/ without silently
+# replacing a downstream reconciliation with the base copy.
