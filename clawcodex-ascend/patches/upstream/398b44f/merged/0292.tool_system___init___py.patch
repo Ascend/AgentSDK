@@ -1,0 +1,65 @@
+diff --git a/tool_system/__init__.py b/tool_system/__init__.py
+--- a/tool_system/__init__.py	2026-07-23 08:42:36.000000 +0000
++++ b/tool_system/__init__.py	2026-07-04 09:47:03.000000 +0800
+@@ -1,59 +1,3 @@
+-from __future__ import annotations
++"""Facade — tool_system/ moved to clawcodex_ext/tool_system/."""
+
+-# WI-0.1 (ch17 Phase 0): mark the moment the tool-system package starts
+-# import work. Placed before the heavy re-exports so the checkpoint's
+-# delta-from-previous reflects the package's cost.
+-from src.utils.startup_profiler import profile_checkpoint
+-
+-profile_checkpoint("tool_system_imported")
+-
+-from .build_tool import (
+-    McpInfo,
+-    SearchOrReadResult,
+-    Tool,
+-    Tools,
+-    ValidationResult,
+-    build_tool,
+-    find_tool_by_name,
+-    tool_matches_name,
+-)
+-from .context import (
+-    FileReadingLimits,
+-    GlobLimits,
+-    QueryChainTracking,
+-    ToolContext,
+-    ToolUseOptions,
+-)
+-from .protocol import ToolCall, ToolResult
+-from .registry import (
+-    ToolRegistry,
+-    assemble_tool_pool,
+-    filter_tools_by_deny_rules,
+-    get_all_base_tools,
+-    get_merged_tools,
+-    get_tools,
+-)
+-
+-__all__ = [
+-    "FileReadingLimits",
+-    "GlobLimits",
+-    "McpInfo",
+-    "QueryChainTracking",
+-    "SearchOrReadResult",
+-    "Tool",
+-    "ToolCall",
+-    "ToolContext",
+-    "ToolRegistry",
+-    "ToolResult",
+-    "ToolUseOptions",
+-    "Tools",
+-    "ValidationResult",
+-    "assemble_tool_pool",
+-    "build_tool",
+-    "filter_tools_by_deny_rules",
+-    "find_tool_by_name",
+-    "get_all_base_tools",
+-    "get_merged_tools",
+-    "get_tools",
+-    "tool_matches_name",
+-]
++from clawcodex_ext.tool_system import *  # noqa: F401,F403

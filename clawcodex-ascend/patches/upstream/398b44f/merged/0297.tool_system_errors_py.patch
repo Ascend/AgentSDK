@@ -1,0 +1,24 @@
+diff --git a/tool_system/errors.py b/tool_system/errors.py
+--- a/tool_system/errors.py	2026-07-23 08:42:36.000000 +0000
++++ b/tool_system/errors.py	2026-07-04 09:47:03.000000 +0800
+@@ -1,18 +1,3 @@
+-from __future__ import annotations
+-
+-
+-class ToolError(Exception):
+-    pass
+-
+-
+-class ToolInputError(ToolError):
+-    pass
+-
+-
+-class ToolPermissionError(ToolError):
+-    pass
+-
+-
+-class ToolExecutionError(ToolError):
+-    pass
++"""Facade — tool_system/errors.py moved to clawcodex_ext/tool_system/."""
+
++from clawcodex_ext.tool_system.errors import *  # noqa: F401,F403

@@ -1,0 +1,41 @@
+diff --git a/tool_system/protocol.py b/tool_system/protocol.py
+--- a/tool_system/protocol.py	2026-07-23 08:42:36.000000 +0000
++++ b/tool_system/protocol.py	2026-07-04 09:47:03.000000 +0800
+@@ -1,30 +1,9 @@
+-from __future__ import annotations
++"""Facade — tool_system/protocol.py moved to clawcodex_ext/tool_system/.
+
+-from dataclasses import dataclass
+-from typing import TYPE_CHECKING, Any, Callable, Literal, Optional
++The tool protocol types (``ToolCall``, ``ToolResult``) now live in
++:mod:`clawcodex_ext.tool_system.protocol`. This module re-exports them
++verbatim so existing ``from src.tool_system.protocol import ...``
++callers keep working.
++"""
+
+-if TYPE_CHECKING:
+-    from .context import ToolContext
+-
+-
+-@dataclass(frozen=True)
+-class ToolCall:
+-    name: str
+-    input: dict[str, Any]
+-    tool_use_id: Optional[str] = None
+-
+-
+-@dataclass(frozen=True)
+-class ToolResult:
+-    name: str
+-    output: Any
+-    is_error: bool = False
+-    tool_use_id: Optional[str] = None
+-    content_type: Literal["text", "json"] = "json"
+-    new_messages: list[Any] | None = None
+-    context_modifier: Callable[["ToolContext"], "ToolContext"] | None = None
+-    mcp_meta: dict[str, Any] | None = None
+-
+-    @property
+-    def data(self) -> Any:
+-        return self.output
++from clawcodex_ext.tool_system.protocol import *  # noqa: F401,F403
