@@ -1,0 +1,95 @@
+from __future__ import annotations
+
+from typing import Any
+
+from clawcodex_ext.query.outbox_types import GenericOutboxEvent
+
+from ..build_tool import Tool, build_tool
+from ..context import ToolContext
+from ..errors import ToolInputError
+from ..protocol import ToolResult
+
+
+def _ask_user_question_classifier_input(input_data: dict) -> str:
+    """Mirror TS ``AskUserQuestionTool.toAutoClassifierInput`` --
+    join the question text from each question entry. Each entry may be
+    a string or a dict with a ``question`` field; tolerate both.
+    """
+    qs = (input_data or {}).get("questions") or []
+    parts: list[str] = []
+    for q in qs:
+        if isinstance(q, str):
+            parts.append(q)
+        elif isinstance(q, dict):
+            text = q.get("question")
+            if isinstance(text, str):
+                parts.append(text)
+    return " | ".join(parts)
+
+
+def _ask_user_question_call(tool_input: dict[str, Any], context: ToolContext) -> ToolResult:
+    questions = tool_input.get("questions")
+    if not isinstance(questions, list) or not questions:
+        raise ToolInputError("questions must be a non-empty list")
+
+    normalized: list[dict[str, Any]] = []
+    for q in questions:
+        if isinstance(q, str):
+            q = {"question": q}
+        if not isinstance(q, dict) or not isinstance(q.get("question"), str):
+            raise ToolInputError("each question must be a dict with a 'question' string")
+        if isinstance(q.get("options"), list):
+            q["options"] = [
+                opt if isinstance(opt, dict) else {"label": str(opt), "description": ""} for opt in q["options"]
+            ]
+        normalized.append(q)
+
+    if context.ask_user is not None:
+        answers = context.ask_user(normalized)
+        return ToolResult(name="AskUserQuestion", output={"answers": answers})
+
+    context.outbox.append(GenericOutboxEvent.from_dict({"tool": "AskUserQuestion", "questions": normalized}))
+    return ToolResult(name="AskUserQuestion", output={"questions": normalized, "status": "pending"})
+
+
+AskUserQuestionTool: Tool = build_tool(
+    name="AskUserQuestion",
+    input_schema={
+        "type": "object",
+        "properties": {
+            "questions": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "question": {"type": "string"},
+                        "header": {"type": "string"},
+                        "multiSelect": {"type": "boolean"},
+                        "options": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "label": {"type": "string"},
+                                    "description": {"type": "string"},
+                                    "preview": {"type": "string"},
+                                },
+                                "required": ["label"],
+                            },
+                        },
+                    },
+                    "required": ["question"],
+                },
+            },
+        },
+        "required": ["questions"],
+    },
+    call=_ask_user_question_call,
+    prompt="Ask the user one or more clarifying questions.",
+    description="Ask the user one or more clarifying questions.",
+    max_result_size_chars=10_000,
+    is_read_only=lambda _input: True,
+    is_concurrency_safe=lambda _input: True,
+    search_hint="ask question user input",
+    to_auto_classifier_input=_ask_user_question_classifier_input,
+)
