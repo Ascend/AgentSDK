@@ -1,0 +1,35 @@
+diff --git a/tool_system/utils/path_utils.py b/tool_system/utils/path_utils.py
+--- a/tool_system/utils/path_utils.py	2026-07-23 08:42:36.000000 +0000
++++ b/tool_system/utils/path_utils.py	2026-07-04 09:47:03.000000 +0800
+@@ -1,29 +1,3 @@
+-"""Shared path utilities for tools (relative paths, suggestions)."""
++"""Facade — tool_system/utils/path_utils.py moved to clawcodex_ext/tool_system/utils/."""
+
+-from __future__ import annotations
+-
+-import os
+-from pathlib import Path
+-
+-
+-def to_relative_path(absolute: str, cwd: str | Path) -> str:
+-    """Convert an absolute path to a relative one if shorter."""
+-    try:
+-        rel = os.path.relpath(absolute, str(cwd))
+-    except ValueError:
+-        return absolute
+-    if len(rel) < len(absolute):
+-        return rel
+-    return absolute
+-
+-
+-def suggest_path_under_cwd(path: str, cwd: str | Path) -> str | None:
+-    """Suggest a corrected path if the given path looks like a relative path
+-    that should be under cwd."""
+-    name = os.path.basename(path)
+-    if not name:
+-        return None
+-    candidate = os.path.join(str(cwd), name)
+-    if os.path.exists(candidate):
+-        return candidate
+-    return None
++from clawcodex_ext.tool_system.utils.path_utils import *  # noqa: F401,F403

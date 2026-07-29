@@ -1,0 +1,33 @@
+diff --git a/upstreamproxy/ca_bundle.py b/upstreamproxy/ca_bundle.py
+--- a/upstreamproxy/ca_bundle.py	2026-07-23 08:42:36.000000 +0000
++++ b/upstreamproxy/ca_bundle.py	2026-07-04 09:47:03.000000 +0800
+@@ -35,9 +35,7 @@
+ #: ensures multiple blocks in a bundle are matched separately. This
+ #: regex is structural-only; we don't parse the cert itself (the OpenSSL
+ #: layer downstream of ``SSL_CERT_FILE`` will reject malformed certs).
+-_PEM_BLOCK_RE = re.compile(
+-    rb'-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----'
+-)
++_PEM_BLOCK_RE = re.compile(rb'-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----')
+
+ DEFAULT_CA_FETCH_TIMEOUT_SECONDS = 5.0
+
+@@ -107,16 +105,12 @@
+         return False
+
+     if resp.status_code < 200 or resp.status_code >= 300:
+-        logger.warning(
+-            '[upstreamproxy] ca-cert fetch %d; proxy disabled', resp.status_code
+-        )
++        logger.warning('[upstreamproxy] ca-cert fetch %d; proxy disabled', resp.status_code)
+         return False
+
+     ccr_ca = resp.content
+     if not is_valid_pem_content(ccr_ca):
+-        logger.warning(
+-            '[upstreamproxy] ca-cert response is not valid PEM; proxy disabled'
+-        )
++        logger.warning('[upstreamproxy] ca-cert response is not valid PEM; proxy disabled')
+         return False
+
+     # System bundle may not exist (alpine, distroless); empty fallback
