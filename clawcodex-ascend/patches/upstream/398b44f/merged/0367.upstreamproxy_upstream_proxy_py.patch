@@ -1,0 +1,60 @@
+diff --git a/upstreamproxy/upstream_proxy.py b/upstreamproxy/upstream_proxy.py
+--- a/upstreamproxy/upstream_proxy.py	2026-07-23 08:42:36.000000 +0000
++++ b/upstreamproxy/upstream_proxy.py	2026-07-21 04:15:00.000000 -0700
+@@ -35,7 +35,7 @@
+ from dataclasses import dataclass
+ from pathlib import Path
+
+-from src.bridge.no_proxy import default_no_proxy
++from clawcodex_ext.bridge.no_proxy import default_no_proxy
+
+ from .ca_bundle import download_ca_bundle
+ from .ptrace_guard import set_non_dumpable
+@@ -51,6 +51,7 @@
+ #: ``ca-certificates``.
+ SYSTEM_CA_BUNDLE = '/etc/ssl/certs/ca-certificates.crt'
+
++
+ #: Default location of the merged CCR + system CA bundle.
+ def _default_ca_bundle_out() -> Path:
+     return Path.home() / '.ccr' / 'ca-bundle.crt'
+@@ -125,9 +126,7 @@
+     # tunnel header).
+     session_id = os.environ.get('CLAUDE_CODE_REMOTE_SESSION_ID')
+     if not session_id:
+-        logger.warning(
+-            '[upstreamproxy] CLAUDE_CODE_REMOTE_SESSION_ID unset; proxy disabled'
+-        )
++        logger.warning('[upstreamproxy] CLAUDE_CODE_REMOTE_SESSION_ID unset; proxy disabled')
+         return _state
+
+     # Step 1: read the session token.
+@@ -141,11 +140,7 @@
+     set_non_dumpable()
+
+     # Step 3: resolve base URL and download the CA bundle.
+-    base_url = (
+-        ccr_base_url
+-        or os.environ.get('ANTHROPIC_BASE_URL')
+-        or 'https://api.anthropic.com'
+-    )
++    base_url = ccr_base_url or os.environ.get('ANTHROPIC_BASE_URL') or 'https://api.anthropic.com'
+     ca_bundle_resolved = (
+         Path(ca_bundle_path) if ca_bundle_path is not None else _default_ca_bundle_out()
+     )
+@@ -164,13 +159,9 @@
+     ws_url = base_url.replace('http://', 'ws://', 1).replace('https://', 'wss://', 1)
+     ws_url = ws_url.rstrip('/') + '/v1/code/upstreamproxy/ws'
+     try:
+-        relay = await start_upstream_proxy_relay(
+-            ws_url=ws_url, session_id=session_id, token=token
+-        )
++        relay = await start_upstream_proxy_relay(ws_url=ws_url, session_id=session_id, token=token)
+     except Exception as exc:  # noqa: BLE001 -- fail-open per A11
+-        logger.warning(
+-            '[upstreamproxy] relay start failed: %s; proxy disabled', exc
+-        )
++        logger.warning('[upstreamproxy] relay start failed: %s; proxy disabled', exc)
+         return _state
+
+     # Step 5: unlink the token file (now that the relay is up — a

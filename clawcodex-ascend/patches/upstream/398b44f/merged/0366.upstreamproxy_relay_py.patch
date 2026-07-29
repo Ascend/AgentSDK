@@ -1,0 +1,45 @@
+diff --git a/upstreamproxy/relay.py b/upstreamproxy/relay.py
+--- a/upstreamproxy/relay.py	2026-07-23 08:42:36.000000 +0000
++++ b/upstreamproxy/relay.py	2026-07-04 09:47:03.000000 +0800
+@@ -131,6 +131,7 @@
+     socket error; the caller's ``handle_connection`` task-group catches
+     the resulting cancellation.
+     """
++
+     async def _send(data: bytes) -> None:
+         for off in range(0, len(data), MAX_CHUNK_BYTES):
+             slice_ = data[off : off + MAX_CHUNK_BYTES]
+@@ -268,11 +269,7 @@
+     # can authenticate the tunnel target. The server responds with its
+     # own ``HTTP/1.1 200 ...`` over the tunnel; we just pipe it through
+     # to the local client.
+-    head = (
+-        f'{parsed.raw_line}\r\n'
+-        f'Proxy-Authorization: {auth_header}\r\n'
+-        f'\r\n'
+-    ).encode('ascii')
++    head = (f'{parsed.raw_line}\r\nProxy-Authorization: {auth_header}\r\n\r\n').encode('ascii')
+
+     established = False
+
+@@ -377,9 +374,8 @@
+     ``Proxy-Authorization: Basic`` for the tunnel target. The two
+     headers are different roles even though they share the same token.
+     """
+-    auth_header = (
+-        'Basic '
+-        + base64.b64encode(f'{session_id}:{token}'.encode('utf-8')).decode('ascii')
++    auth_header = 'Basic ' + base64.b64encode(f'{session_id}:{token}'.encode('utf-8')).decode(
++        'ascii'
+     )
+     ws_auth_header = f'Bearer {token}'
+
+@@ -393,9 +389,7 @@
+     if not sockets:
+         raise RuntimeError('upstreamproxy: server has no listening socket')
+     bound_port = sockets[0].getsockname()[1]
+-    logger.debug(
+-        '[upstreamproxy] relay listening on %s:%d', host, bound_port
+-    )
++    logger.debug('[upstreamproxy] relay listening on %s:%d', host, bound_port)
+     return UpstreamProxyRelay(port=bound_port, server=server)
