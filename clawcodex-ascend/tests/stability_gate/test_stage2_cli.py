@@ -1,0 +1,125 @@
+"""Stage 2 — CLI 烟雾测试（< 5 秒）。
+
+使用子进程执行 CLI 命令，验证：
+- --help / --version 正常退出
+- provider list / model list 正常列出
+- print 模式正常工作
+- 常见标志解析不崩溃
+- --help 不加载重型模块（快速路径）
+"""
+
+from __future__ import annotations
+
+import subprocess
+import sys
+
+import pytest
+
+
+def _run_cli(*args: str) -> subprocess.CompletedProcess:
+    """Run ``python -m src.cli`` with *args in a subprocess."""
+    return subprocess.run(  # noqa: PLW1510
+        [sys.executable, "-m", "src.cli", *args],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+
+
+class TestStage2CliSmoke:
+    """CLI smoke tests — 子进程执行，不依赖 provider 配置。"""
+
+    def test_cli_help_exits_0(self):
+        proc = _run_cli("--help")
+        assert proc.returncode == 0, f"stderr={proc.stderr!r}"
+        assert "usage:" in proc.stdout.lower() or "usage:" in proc.stderr.lower()
+
+    def test_cli_help_contains_subcommands(self):
+        proc = _run_cli("--help")
+        output = proc.stdout + proc.stderr
+        for keyword in ("provider", "model", "schedule", "print"):
+            assert keyword in output, f"Expected {keyword!r} in --help output"
+
+    def test_cli_version_exits_0(self):
+        proc = _run_cli("--version")
+        assert proc.returncode == 0
+        assert len(proc.stdout) > 0 or len(proc.stderr) > 0
+
+    def test_cli_provider_list_exits_0(self):
+        proc = _run_cli("provider", "list")
+        assert proc.returncode == 0, f"stderr={proc.stderr!r}"
+        output = proc.stdout + proc.stderr
+        for name in ("anthropic", "openai"):
+            assert name.lower().replace("-", "") in output.lower().replace("-", ""), (
+                f"Expected {name!r} in provider list output"
+            )
+
+    def test_cli_model_list_exits_0(self):
+        proc = _run_cli("model", "list")
+        assert proc.returncode == 0, f"stderr={proc.stderr!r}"
+        assert len(proc.stdout.strip()) > 0
+
+    def test_cli_telemetry_status_exits_0(self):
+        proc = _run_cli("telemetry", "status")
+        assert proc.returncode == 0, f"stderr={proc.stderr!r}"
+        assert "Telemetry status" in proc.stdout
+
+    @pytest.mark.parametrize(
+        "flag,desc",
+        [
+            ("--dangerously-skip-permissions", "bypass permissions flag"),
+            ("--verbose", "verbose mode flag"),
+        ],
+    )
+    def test_cli_common_flags_parse(self, flag, desc):
+        if flag == "--permission-mode":
+            proc = _run_cli(flag, "plan", "--help")
+        else:
+            proc = _run_cli(flag, "--help")
+        assert proc.returncode == 0, f"{desc}: stderr={proc.stderr!r}"
+
+    def test_cli_help_does_not_load_heavy_modules(self):
+        """--help 应该快速返回，不加载 TUI/REPL 重型模块。"""
+        import time
+
+        start = time.monotonic()
+        proc = _run_cli("--help")
+        elapsed = time.monotonic() - start
+        assert proc.returncode == 0
+        assert elapsed < 5.0, f"--help took {elapsed:.2f}s, expected < 5s"
+
+    def test_cli_print_mode_initializes_without_crash(self):
+        """-p \"hello\" 初始化路径不崩溃（即使等待 LLM 超时）。
+
+        print mode 会触发完整的 RuntimeContext 初始化（包括 cron 调度器
+        文件锁），然后进入 headless 等待 LLM 响应。本测试验证初始化阶段
+        不会抛出未捕获异常（如 Windows 上 os.kill 的 SystemError）。
+
+        预期行为：进程因等待 LLM 响应而超时（TimeoutExpired），
+        而非崩溃退出（traceback / SystemError）。
+        """
+        import subprocess as _sp
+
+        proc = _sp.Popen(
+            [sys.executable, "-m", "src.cli", "-p", "hello"],
+            stdout=_sp.PIPE,
+            stderr=_sp.STDOUT,
+            text=True,
+        )
+        try:
+            stdout, _ = proc.communicate(timeout=12)
+            # 如果 12 秒内返回了，检查非崩溃退出
+            output = stdout
+            assert "Traceback (most recent call last)" not in output, f"CLI crashed with unhandled exception:\n{output}"
+            assert "SystemError" not in output, f"CLI crashed with SystemError:\n{output}"
+        except _sp.TimeoutExpired:
+            proc.kill()
+            stdout, _ = proc.communicate(timeout=5)
+            output = stdout
+            # 超时是预期行为（等待 LLM 响应），检查 partial output 无崩溃
+            assert "Traceback (most recent call last)" not in output, (
+                f"CLI crashed with unhandled exception (partial output):\n{output}"
+            )
+            assert "SystemError" not in output, f"CLI crashed with SystemError (partial output):\n{output}"
+            # 应包含预期的初始化输出
+            assert "model" in output.lower(), f"Expected model-related output in print mode:\n{output}"
