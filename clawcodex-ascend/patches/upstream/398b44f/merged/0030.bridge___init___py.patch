@@ -12,23 +12,23 @@ diff --git a/bridge/__init__.py b/bridge/__init__.py
 +preserving the ``src/bridge/`` package path for sibling submodules such as
 +``src.bridge.repl_bridge`` and ``src.bridge.remote_bridge_core``.
  """
-
+ 
  from __future__ import annotations
 @@ -18,7 +24,9 @@
  import json
  from pathlib import Path
-
+ 
 -SNAPSHOT_PATH = Path(__file__).resolve().parent.parent / 'reference_data' / 'subsystems' / 'bridge.json'
 +SNAPSHOT_PATH = (
 +    Path(__file__).resolve().parent.parent / 'reference_data' / 'subsystems' / 'bridge.json'
 +)
  _SNAPSHOT = json.loads(SNAPSHOT_PATH.read_text())
-
+ 
  ARCHIVE_NAME = _SNAPSHOT['archive_name']
 @@ -30,8 +38,8 @@
  # Phase 1 re-exports (Phase 2 deps not required for any of these imports)
  # -----------------------------------------------------------------------------
-
+ 
 -from src.bridge.bounded_uuid_set import BoundedUUIDSet
 -from src.bridge.bridge_api import (
 +from clawcodex_ext.bridge.bounded_uuid_set import BoundedUUIDSet
@@ -103,7 +103,7 @@ diff --git a/bridge/__init__.py b/bridge/__init__.py
      get_self_bridge_compat_id,
      set_repl_bridge_handle,
 @@ -97,24 +105,25 @@
-
+ 
  # Lazy re-export of the Phase 5 orchestrator surface. ``remote_bridge_core``
  # transitively imports ``repl_bridge_transport`` → ``src.transports.ccr_client``
 -# → ``src.bridge.exceptions``. Eagerly importing here triggers a circular
@@ -121,7 +121,7 @@ diff --git a/bridge/__init__.py b/bridge/__init__.py
 -        from src.bridge import remote_bridge_core as _rbc
 +    if name in ('init_env_less_bridge_core', 'EnvLessBridgeParams', 'RemoteBridgeHandle'):
 +        import extensions.ports.bridge.remote_bridge_core as _rbc
-
+ 
          return getattr(_rbc, name)
      raise AttributeError(f'module {__name__!r} has no attribute {name!r}')
 -from src.bridge.session_id_compat import (

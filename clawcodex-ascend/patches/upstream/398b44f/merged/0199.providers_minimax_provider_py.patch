@@ -4,7 +4,7 @@ diff --git a/providers/minimax_provider.py b/providers/minimax_provider.py
 @@ -1,300 +1,30 @@
 -"""Minimax provider implementation using Anthropic-compatible API."""
 +"""Facade — providers/minimax_provider.py — sys.modules swap.
-
+ 
 -from __future__ import annotations
 -
 -from typing import Generator, Optional, Any
@@ -154,7 +154,7 @@ diff --git a/providers/minimax_provider.py b/providers/minimax_provider.py
 +``isinstance``/identity checks and keeps the two paths structurally
 +equivalent.
 +"""
-
+ 
 -        Returns:
 -            Chat response
 -        """
@@ -305,12 +305,12 @@ diff --git a/providers/minimax_provider.py b/providers/minimax_provider.py
 -            tool_uses=None,
 -        )
 +from __future__ import annotations
-
+ 
 -    def get_available_models(self) -> list[str]:
 -        """Get list of available Minimax models.
 +import importlib
 +import sys
-
+ 
 -        Returns:
 -            List of model names
 -        """

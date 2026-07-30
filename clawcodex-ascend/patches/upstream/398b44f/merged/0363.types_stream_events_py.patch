@@ -4,14 +4,14 @@ diff --git a/types/stream_events.py b/types/stream_events.py
 @@ -1,131 +1,9 @@
 -"""Typed stream event models for provider streaming interoperability."""
 +"""Facade — types/stream_events.py moved to clawcodex_ext/types/.
-
+ 
 -from __future__ import annotations
 +The full typed stream event dataclasses now live in
 +:mod:`clawcodex_ext.types.stream_events`. This module re-exports
 +them verbatim so existing ``from src.types.stream_events import ...``
 +callers keep working.
 +"""
-
+ 
 -from dataclasses import dataclass, field
 -from typing import Any, Literal, TypeAlias
 -

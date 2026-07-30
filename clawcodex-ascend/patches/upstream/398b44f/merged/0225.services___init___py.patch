@@ -3,7 +3,7 @@ diff --git a/services/__init__.py b/services/__init__.py
 +++ b/services/__init__.py	2026-07-04 09:47:03.000000 +0800
 @@ -6,17 +6,27 @@
  from pathlib import Path
-
+ 
  # Preserve backward-compat archive metadata
 -_SNAPSHOT_PATH = Path(__file__).resolve().parent.parent / 'reference_data' / 'subsystems' / 'services.json'
 +_SNAPSHOT_PATH = (
@@ -25,7 +25,7 @@ diff --git a/services/__init__.py b/services/__init__.py
      SAMPLE_FILES = ()
 -    PORTING_NOTE = "Services package (archive metadata unavailable)."
 +    PORTING_NOTE = 'Services package (archive metadata unavailable).'
-
+ 
 -__all__ = ['ARCHIVE_NAME', 'MODULE_COUNT', 'PORTING_NOTE', 'SAMPLE_FILES', 'mcp']
 +__all__ = ['ARCHIVE_NAME', 'MODULE_COUNT', 'PORTING_NOTE', 'SAMPLE_FILES']
 +

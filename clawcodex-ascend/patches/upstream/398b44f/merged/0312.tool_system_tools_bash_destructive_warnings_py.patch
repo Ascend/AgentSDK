@@ -4,7 +4,7 @@ diff --git a/tool_system/tools/bash/destructive_warnings.py b/tool_system/tools/
 @@ -1,58 +1,3 @@
 -"""Detects potentially destructive bash commands and returns a warning string.
 +"""Facade — tool_system/tools/bash/destructive_warnings.py moved to clawcodex_ext/tool_system/tools/bash/."""
-
+ 
 -Purely informational -- does not affect permission logic or auto-approval.
 -"""
 -

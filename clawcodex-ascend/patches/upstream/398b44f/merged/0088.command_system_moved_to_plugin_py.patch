@@ -4,13 +4,13 @@ diff --git a/command_system/moved_to_plugin.py b/command_system/moved_to_plugin.
 @@ -1,90 +1,18 @@
 -"""create_moved_to_plugin_command — Python port of TS commands/createMovedToPluginCommand.ts.
 +"""Facade — command_system/moved_to_plugin.py has been moved to clawcodex_ext (lazy proxy)."""
-
+ 
 -Builds a builtin 'prompt' command whose prompt depends on USER_TYPE: ant users get a
 -static "this command moved to a plugin" message; everyone else dispatches to a private
 -prompt builder (the command's real implementation while the marketplace is private).
 -"""
  from __future__ import annotations
-
+ 
 -import inspect
 -import os
 -from dataclasses import dataclass, field
@@ -26,8 +26,8 @@ diff --git a/command_system/moved_to_plugin.py b/command_system/moved_to_plugin.
 +    'MovedToPluginCommand',
 +    'create_moved_to_plugin_command',
  ]
-
-
+ 
+ 
 -def _moved_to_plugin_text(plugin_name: str, plugin_command: str) -> str:
 -    """Verbatim from createMovedToPluginCommand.ts:48-57."""
 -    return (
@@ -77,7 +77,7 @@ diff --git a/command_system/moved_to_plugin.py b/command_system/moved_to_plugin.
 -
 +def __getattr__(name: str):
 +    import clawcodex_ext.command_system.moved_to_plugin as _mod
-
+ 
 -def create_moved_to_plugin_command(
 -    *,
 -    name: str,

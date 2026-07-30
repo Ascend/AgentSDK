@@ -4,7 +4,7 @@ diff --git a/buddy/notification.py b/buddy/notification.py
 @@ -1,62 +1,3 @@
 -"""Buddy notification helpers + date gates + trigger highlights.
 +"""Compatibility facade — see :mod:`clawcodex_ext.buddy.notification`."""
-
+ 
 -Ports the non-React parts of ``typescript/src/buddy/useBuddyNotification.tsx``.
 -The React hook ``useBuddyNotification`` itself stays deferred (Class C1
 -in ``my-docs/get-parity-by-folder/buddy-gap-analysis.md`` §3.3) — Python

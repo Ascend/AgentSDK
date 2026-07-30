@@ -119,7 +119,7 @@ diff --git a/tool_system/tools/write.py b/tool_system/tools/write.py
 -        )
 -    return ValidationResult.ok()
 +"""Facade — tool_system/tools/write.py moved to clawcodex_ext.tool_system.tools.write (sys.modules swap).
-
+ 
 +Some tests introspect private internals (functions whose names start
 +with ``_``) and rely on ``from src.tool_system.tools.write import _something``
 +resolving against the real module object. The plain
@@ -128,7 +128,7 @@ diff --git a/tool_system/tools/write.py b/tool_system/tools/write.py
 +underlying ext module as the canonical object so attribute access,
 +``inspect.getsource()``, and AST walking keep working unchanged.
 +"""
-
+ 
 -# ---------------------------------------------------------------------------
 -# check_permissions
 -# ---------------------------------------------------------------------------
@@ -305,13 +305,13 @@ diff --git a/tool_system/tools/write.py b/tool_system/tools/write.py
 -    return f"{fp}: new content ({len(content)} chars)"
 -
 +from __future__ import annotations
-
+ 
 -# ---------------------------------------------------------------------------
 -# Tool definition
 -# ---------------------------------------------------------------------------
 +import importlib
 +import sys
-
+ 
 -WriteTool: Tool = build_tool(
 -    name="Write",
 -    input_schema={

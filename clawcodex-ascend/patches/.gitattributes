@@ -1,0 +1,3 @@
+*.patch text eol=lf diff -whitespace
+series text eol=lf
+preserve.list text eol=lf

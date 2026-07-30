@@ -4,7 +4,7 @@ diff --git a/agent/filter_agents_by_mcp.py b/agent/filter_agents_by_mcp.py
 @@ -1,49 +1,17 @@
 -"""Filter agents by their declared ``required_mcp_servers``.
 +"""Facade — agent/filter_agents_by_mcp.py has been moved to clawcodex_ext/agent/filter_agents_by_mcp.
-
+ 
 -Port of ``hasRequiredMcpServers`` / ``filterAgentsByMcpRequirements`` in
 -typescript/src/tools/AgentTool/loadAgentsDir.ts:228-254.
 +The MCP-requirements filter (``filter_agents_by_mcp_requirements``,
@@ -13,17 +13,17 @@ diff --git a/agent/filter_agents_by_mcp.py b/agent/filter_agents_by_mcp.py
 +the public surface so existing
 +``from src.agent.filter_agents_by_mcp import ...`` callers keep working
 +without modification.
-
+ 
 -Built-in agents are never dropped — they're trusted regardless of MCP
 -availability.
 +Uses ``globals().update()`` to preserve access to all public names
 +regardless of ``__all__`` — the source module does not define ``__all__``.
  """
 -from __future__ import annotations
-
+ 
 -from collections.abc import Iterable
 +import clawcodex_ext.agent.filter_agents_by_mcp as _mod
-
+ 
 -from src.agent.agent_definitions import AgentDefinition, is_built_in_agent
 -
 -

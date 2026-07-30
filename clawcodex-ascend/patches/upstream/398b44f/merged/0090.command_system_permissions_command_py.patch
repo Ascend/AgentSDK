@@ -3,7 +3,7 @@ diff --git a/command_system/permissions_command.py b/command_system/permissions_
 +++ b/command_system/permissions_command.py	2026-07-21 10:20:06.000000 +0800
 @@ -29,8 +29,10 @@
  )
-
+ 
  # User-facing permission modes, in the Shift+Tab cycle order
 -# (``src/permissions/cycle.py``). The internal modes (dontAsk / auto / bubble)
 +# (``src/permissions/cycle.py``). The internal modes (dontAsk / bubble)
@@ -23,3 +23,5 @@ diff --git a/command_system/permissions_command.py b/command_system/permissions_
 +        description="Automatically classify and allow safe commands",
 +    ),
  ]
+ 
+ 

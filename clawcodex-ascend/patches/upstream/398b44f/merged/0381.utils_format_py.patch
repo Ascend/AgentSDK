@@ -12,11 +12,11 @@ diff --git a/utils/format.py b/utils/format.py
 -implementations produce byte-identical output for the spinner row.
 -"""
 +"""Compatibility facade — see :mod:`clawcodex_ext.utils.format`."""
-
+ 
  from __future__ import annotations
 +import sys
 +from clawcodex_ext.utils import format as _module
-
+ 
 -import math
 -
 -

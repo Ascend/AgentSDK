@@ -4,7 +4,7 @@ diff --git a/utils/frontmatter_validators.py b/utils/frontmatter_validators.py
 @@ -1,173 +1,8 @@
 -"""Frontmatter field validators shared across agent / skill / output-style loaders.
 +"""Compatibility facade — see :mod:`clawcodex_ext.utils.frontmatter_validators`."""
-
+ 
 -Mirrors helpers from typescript/src/utils/frontmatterParser.ts,
 -typescript/src/utils/effort.ts, and
 -typescript/src/utils/permissions/PermissionMode.ts.
@@ -16,7 +16,7 @@ diff --git a/utils/frontmatter_validators.py b/utils/frontmatter_validators.py
  from __future__ import annotations
 +import sys
 +from clawcodex_ext.utils import frontmatter_validators as _module
-
+ 
 -import logging
 -from typing import Any
 -

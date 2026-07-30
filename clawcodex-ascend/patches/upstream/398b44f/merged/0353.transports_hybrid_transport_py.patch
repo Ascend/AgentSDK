@@ -4,14 +4,14 @@ diff --git a/transports/hybrid_transport.py b/transports/hybrid_transport.py
 @@ -1,388 +1,21 @@
 -"""Hybrid transport — WebSocket reads + HTTP POST writes.
 +"""Facade — transports/hybrid_transport.py has been moved to extensions/ports/transports/.
-
+ 
 -Ports ``typescript/src/cli/transports/HybridTransport.ts``.
 +The full hybrid transport (WebSocket reads + HTTP POST writes) for the v1
 +bridge path now lives in :mod:`extensions.ports.transports.hybrid_v1`
 +(renamed from ``hybrid_transport.py`` to disambiguate from the v2
 +transport). This module re-exports the public surface so existing
 +``from src.transports.hybrid_transport import ...`` callers keep working.
-
+ 
 -Design overview
 ----------------
 -
@@ -61,7 +61,7 @@ diff --git a/transports/hybrid_transport.py b/transports/hybrid_transport.py
 +Uses ``globals().update()`` to preserve access to all public names
 +regardless of ``__all__``.
  """
-
+ 
 -from __future__ import annotations
 -
 -import asyncio
@@ -386,17 +386,17 @@ diff --git a/transports/hybrid_transport.py b/transports/hybrid_transport.py
 -    if not path.endswith('/events'):
 -        path = (path + 'events') if path.endswith('/') else (path + '/events')
 +import extensions.ports.transports.hybrid_v1 as _mod
-
+ 
 -    return urlunparse((
 -        scheme, parsed.netloc, path, parsed.params,
 -        parsed.query, parsed.fragment,
 -    ))
 +_globals = {k: v for k, v in vars(_mod).items() if not k.startswith('_')}
 +globals().update(_globals)
-
+ 
 +# Keep private URL conversion helpers reachable through the historical path.
 +import sys
-
+ 
 -__all__ = [
 -    'BATCH_FLUSH_INTERVAL_S',
 -    'CLOSE_GRACE_S',

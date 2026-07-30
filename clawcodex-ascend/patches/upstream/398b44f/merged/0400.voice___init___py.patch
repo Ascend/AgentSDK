@@ -4,11 +4,11 @@ diff --git a/voice/__init__.py b/voice/__init__.py
 @@ -5,7 +5,9 @@
  import json
  from pathlib import Path
-
+ 
 -SNAPSHOT_PATH = Path(__file__).resolve().parent.parent / 'reference_data' / 'subsystems' / 'voice.json'
 +SNAPSHOT_PATH = (
 +    Path(__file__).resolve().parent.parent / 'reference_data' / 'subsystems' / 'voice.json'
 +)
  _SNAPSHOT = json.loads(SNAPSHOT_PATH.read_text())
-
+ 
  ARCHIVE_NAME = _SNAPSHOT['archive_name']

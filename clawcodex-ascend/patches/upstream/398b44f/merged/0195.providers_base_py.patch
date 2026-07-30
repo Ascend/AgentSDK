@@ -4,7 +4,7 @@ diff --git a/providers/base.py b/providers/base.py
 @@ -1,213 +1,10 @@
 -"""Base provider abstract class for LLM providers."""
 +"""Facade — providers/base.py moved to clawcodex_ext/providers/.
-
+ 
 -from __future__ import annotations
 +The base provider types (``BaseProvider``, ``ChatResponse``,
 +``ChatMessage``, ``MessageInput``, ``TextChunkCallback``) now live in
@@ -12,7 +12,7 @@ diff --git a/providers/base.py b/providers/base.py
 +verbatim so existing ``from src.providers.base import ...`` callers
 +keep working.
 +"""
-
+ 
 -import asyncio
 -from abc import ABC, abstractmethod
 -from dataclasses import dataclass

@@ -4,14 +4,14 @@ diff --git a/transports/serial_batch_event_uploader.py b/transports/serial_batch
 @@ -1,503 +1,16 @@
 -"""Serial batched POST queue with retry/backoff and backpressure.
 +"""Facade — transports/serial_batch_event_uploader.py has been moved to extensions/ports/transports/.
-
+ 
 -Ports ``typescript/src/cli/transports/SerialBatchEventUploader.ts``.
 +The full serial batched POST queue with retry/backoff and backpressure now
 +lives in :mod:`extensions.ports.transports.serial_uploader` (renamed from
 +``serial_batch_event_uploader.py``). This module re-exports the public
 +surface so existing
 +``from src.transports.serial_batch_event_uploader import ...`` callers keep working.
-
+ 
 -Used by ``HybridTransport`` (phase 14c) for the v1 POST writes, and
 -by ``CCRClient`` in TS for v2 — the Python v2 transport
 -(``src/transports/ccr_client.py``) currently has its own ad-hoc queue
@@ -62,7 +62,7 @@ diff --git a/transports/serial_batch_event_uploader.py b/transports/serial_batch
 +Uses ``globals().update()`` to preserve access to all public names
 +regardless of ``__all__``.
  """
-
+ 
 -from __future__ import annotations
 -
 -import asyncio
@@ -508,7 +508,7 @@ diff --git a/transports/serial_batch_event_uploader.py b/transports/serial_batch
 -            return
 -
 +import extensions.ports.transports.serial_uploader as _mod
-
+ 
 -__all__ = [
 -    'RetryableError',
 -    'SerialBatchEventUploader',

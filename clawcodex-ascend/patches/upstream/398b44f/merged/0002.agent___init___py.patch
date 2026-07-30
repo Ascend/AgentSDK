@@ -3,7 +3,7 @@ diff --git a/agent/__init__.py b/agent/__init__.py
 +++ b/agent/__init__.py	2026-07-24 11:24:35.000000 +0800
 @@ -1,119 +1,142 @@
  """Agent module for Claw Codex."""
-
+ 
 +# Eager imports — only the lightweight primitives that downstream
 +# ``from src.agent.X import Y`` consumers hit at module load. Anything
 +# pulling in plugins/prompt/providers (the 2s+ cold-start cost documented
@@ -11,7 +11,7 @@ diff --git a/agent/__init__.py b/agent/__init__.py
 +# ``__getattr__`` so the import cost is paid lazily on first access.
  from .conversation import Conversation, Message
  from .session import Session
-
+ 
 -from .agent_definitions import (
 -    AgentDefinition,
 -    AgentSource,
@@ -152,7 +152,7 @@ diff --git a/agent/__init__.py b/agent/__init__.py
 +    globals()[name] = value
 +    return value
 +
-
+ 
  __all__ = [
 -    # Legacy
 -    "Conversation",

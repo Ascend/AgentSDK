@@ -753,7 +753,7 @@ diff --git a/query/query.py b/query/query.py
 -        strip_advisor_blocks,
 -    )
 +"""Facade — query/query.py moved to clawcodex_ext/query/ (sys.modules swap).
-
+ 
 -    # Advisor activation decision. Three outcomes:
 -    #
 -    # * SERVER_SIDE: 1P Anthropic provider + opus-4-6/sonnet-4-6 main
@@ -812,7 +812,7 @@ diff --git a/query/query.py b/query/query.py
 +underlying ext module as the canonical object so attribute access,
 +``inspect.getsource()``, and AST walking keep working unchanged.
 +"""
-
+ 
 -    api_messages = normalize_messages_for_api(messages)
 -
 -    # Server-side advisor blocks (``server_tool_use(name=advisor)`` and
@@ -2430,14 +2430,14 @@ diff --git a/query/query.py b/query/query.py
 -    """Ch5/A.4: Convenience helper for callers that want both the
 -    yielded messages and the Terminal in one call.
 +from __future__ import annotations
-
+ 
 -    Drives the canonical :func:`query` async generator, collects all
 -    yielded messages into a list, and returns ``(messages, terminal)``.
 -    The terminal's reason discriminates why the loop stopped (11
 -    distinct reasons, matching TS query/transitions.ts).
 +import importlib
 +import sys
-
+ 
 -    Tests and convenience entry points should use this helper.
 -    Streaming consumers (REPL, TUI) should keep using ``async for``
 -    with their own ``TerminalHolder``.

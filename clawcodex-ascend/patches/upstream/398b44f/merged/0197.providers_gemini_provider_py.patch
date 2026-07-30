@@ -10,8 +10,8 @@ diff --git a/providers/gemini_provider.py b/providers/gemini_provider.py
 +            'google-genai package is not installed. Run '
 +            '`pip install google-genai` to use GeminiProvider.'
          )
-
-
+ 
+ 
 @@ -36,54 +36,54 @@
      """Flatten an Anthropic-style text or text-list block to a plain string."""
      if not isinstance(block, dict):
@@ -21,8 +21,8 @@ diff --git a/providers/gemini_provider.py b/providers/gemini_provider.py
 +    if block.get('type') == 'text':
 +        return str(block.get('text', ''))
      return str(block)
-
-
+ 
+ 
  _GEMINI_SCHEMA_DISALLOWED = frozenset(
      {
          # Polymorphic constraints — Gemini's Schema is single-type
@@ -103,7 +103,7 @@ diff --git a/providers/gemini_provider.py b/providers/gemini_provider.py
 +        'title',
      }
  )
-
+ 
 @@ -106,29 +106,28 @@
      for k, v in schema.items():
          if k in _GEMINI_SCHEMA_DISALLOWED:
@@ -124,7 +124,7 @@ diff --git a/providers/gemini_provider.py b/providers/gemini_provider.py
              ]
          else:
              out[k] = v
-
+ 
 -    if any(k in schema for k in ("oneOf", "anyOf", "allOf")) and "type" not in out:
 -        out["type"] = "string"
 -        existing = out.get("description", "")
@@ -135,28 +135,28 @@ diff --git a/providers/gemini_provider.py b/providers/gemini_provider.py
 +        existing = out.get('description', '')
 +        hint = '(polymorphic — accepts any value, coerced to string)'
 +        out['description'] = f'{existing} {hint}'.strip()
-
+ 
      # Gemini requires every object to declare ``properties`` (can be empty).
 -    if out.get("type") == "object" and "properties" not in out:
 -        out["properties"] = {}
 +    if out.get('type') == 'object' and 'properties' not in out:
 +        out['properties'] = {}
-
+ 
      return out
-
+ 
 @@ -136,7 +135,7 @@
  class GeminiProvider(BaseProvider):
      """Native Gemini provider via the google-genai SDK."""
-
+ 
 -    DEFAULT_MODEL = "gemini-2.5-pro"
 +    DEFAULT_MODEL = 'gemini-2.5-pro'
-
+ 
      def __init__(
          self,
 @@ -156,9 +155,7 @@
-
+ 
      # ---------- message conversion ----------
-
+ 
 -    def _convert_messages(
 -        self, messages: list[MessageInput]
 -    ) -> tuple[list[Any], Optional[str]]:
@@ -165,14 +165,14 @@ diff --git a/providers/gemini_provider.py b/providers/gemini_provider.py
          _ensure_sdk()
          contents: list[Any] = []
 @@ -166,10 +163,10 @@
-
+ 
          for msg in messages:
              md = msg if isinstance(msg, dict) else msg.to_dict()
 -            role = md.get("role", "user")
 -            content = md.get("content", "")
 +            role = md.get('role', 'user')
 +            content = md.get('content', '')
-
+ 
 -            if role == "system":
 +            if role == 'system':
                  if isinstance(content, str):
@@ -181,11 +181,11 @@ diff --git a/providers/gemini_provider.py b/providers/gemini_provider.py
 @@ -177,7 +174,7 @@
                          system_parts.append(_text_from_anthropic_block(b))
                  continue
-
+ 
 -            gemini_role = "model" if role == "assistant" else "user"
 +            gemini_role = 'model' if role == 'assistant' else 'user'
              parts: list[Any] = []
-
+ 
              if isinstance(content, str):
 @@ -189,26 +186,24 @@
                          if block:
@@ -233,19 +233,19 @@ diff --git a/providers/gemini_provider.py b/providers/gemini_provider.py
 +                                response={'output': raw_text},
                              )
                          )
-
+ 
              if parts:
 -                contents.append(
 -                    genai_types.Content(role=gemini_role, parts=parts)
 -                )
 +                contents.append(genai_types.Content(role=gemini_role, parts=parts))
-
+ 
 -        system_instruction = "\n".join(p for p in system_parts if p) or None
 +        system_instruction = '\n'.join(p for p in system_parts if p) or None
          return contents, system_instruction
-
+ 
      # ---------- tool conversion ----------
-
+ 
 -    def _convert_tools(
 -        self, tools: Optional[list[dict[str, Any]]]
 -    ) -> Optional[list[Any]]:
@@ -273,14 +273,14 @@ diff --git a/providers/gemini_provider.py b/providers/gemini_provider.py
              try:
 @@ -274,50 +265,46 @@
      # ---------- response building ----------
-
+ 
      def _build_chat_response(self, response: Any, model: str) -> ChatResponse:
 -        content_text = ""
 +        content_text = ''
          tool_uses: list[dict[str, Any]] = []
 -        finish_reason = "stop"
 +        finish_reason = 'stop'
-
+ 
 -        candidates = getattr(response, "candidates", None) or []
 +        candidates = getattr(response, 'candidates', None) or []
          if candidates:
@@ -324,7 +324,7 @@ diff --git a/providers/gemini_provider.py b/providers/gemini_provider.py
 +                            'input': args,
                          }
                      )
-
+ 
 -        usage = getattr(response, "usage_metadata", None)
 +        usage = getattr(response, 'usage_metadata', None)
          usage_dict = {
@@ -340,7 +340,7 @@ diff --git a/providers/gemini_provider.py b/providers/gemini_provider.py
          return ChatResponse(
              content=content_text,
 @@ -342,24 +329,20 @@
-
+ 
          config_kwargs: dict[str, Any] = {}
          if system_instruction:
 -            config_kwargs["system_instruction"] = system_instruction
@@ -372,9 +372,9 @@ diff --git a/providers/gemini_provider.py b/providers/gemini_provider.py
 +            **({'config': config} if config else {}),
          )
          return self._build_chat_response(response, model)
-
+ 
 @@ -389,7 +372,7 @@
-
+ 
      def get_available_models(self) -> list[str]:
          return [
 -            "gemini-2.5-pro",

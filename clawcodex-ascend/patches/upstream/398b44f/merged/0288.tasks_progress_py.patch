@@ -4,7 +4,7 @@ diff --git a/tasks/progress.py b/tasks/progress.py
 @@ -1,218 +1,10 @@
 -"""Progress tracking for running agents — Chunk C / WI-2.4.
 +"""Facade — tasks/progress.py moved to clawcodex_ext/tasks/.
-
+ 
 -Mirrors the ``ProgressTracker`` machinery in
 -``typescript/src/tasks/LocalAgentTask/LocalAgentTask.tsx:23-115``. Two
 -chapter-correctness pillars hold the design together:
@@ -215,7 +215,7 @@ diff --git a/tasks/progress.py b/tasks/progress.py
 -        recent_activities=list(tracker.recent_activities),
 -    )
 -
-
+ 
 -__all__ = [
 -    "MAX_RECENT_ACTIVITIES",
 -    "ToolActivity",

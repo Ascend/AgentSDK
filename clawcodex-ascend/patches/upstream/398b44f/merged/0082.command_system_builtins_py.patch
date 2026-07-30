@@ -8,9 +8,9 @@ diff --git a/command_system/builtins.py b/command_system/builtins.py
 -Implements core commands like /help, /clear, /exit, /skills, etc.
 -"""
 +"""Facade — command_system/builtins.py has been moved to clawcodex_ext (lazy proxy)."""
-
+ 
  from __future__ import annotations
-
+ 
 -import asyncio
 -import sys
 -from pathlib import Path
@@ -471,16 +471,16 @@ diff --git a/command_system/builtins.py b/command_system/builtins.py
 +    'execute_command_async',
 +    'get_command_registry',
 +]
-
+ 
 -    model = context.config.get("model", "claude-sonnet-4-6")
 -    custom_instructions = args.strip() or None
-
+ 
 -    try:
 -        # Import here to avoid circular imports
 -        from ..compact_service.service import compact_conversation
 +def get_command_registry():
 +    from src.command_system.registry import get_command_registry as _get_command_registry
-
+ 
 -        result = await compact_conversation(
 -            conversation=context.conversation,
 -            provider=provider,
@@ -1054,7 +1054,7 @@ diff --git a/command_system/builtins.py b/command_system/builtins.py
 -            value=f"Nothing to compact: only {len(messages)} messages.",
 -        )
 +    return _get_command_registry()
-
+ 
 -    # Get messages after last boundary
 -    try:
 -        from ..compact_service.messages import (
@@ -1292,12 +1292,12 @@ diff --git a/command_system/builtins.py b/command_system/builtins.py
 -        if builtin_cmd.name.lower() == cmd_name.lower() or cmd_name.lower() in [a.lower() for a in builtin_cmd.aliases]:
 -            cmd = builtin_cmd
 -            break
-
+ 
 -    if cmd is None:
 -        return False, None, f"Unknown command: {cmd_name}"
 +def _with_facade_registry(call, *args, **kwargs):
 +    import clawcodex_ext.command_system.builtins as _mod
-
+ 
 +    original = _mod.get_command_registry
 +    _mod.get_command_registry = get_command_registry
      try:
@@ -1416,10 +1416,10 @@ diff --git a/command_system/builtins.py b/command_system/builtins.py
 +    import clawcodex_ext.command_system.builtins as _mod
 +
 +    return _mod.get_builtin_commands()
-
+ 
 -        if is_workflows_enabled():
 -            from .workflows_integration import bundled_workflow_commands
-
+ 
 -            cmds.extend(bundled_workflow_commands())
 -    except Exception:  # noqa: BLE001 — never break command listing on a bad file
 -        pass
@@ -1480,7 +1480,7 @@ diff --git a/command_system/builtins.py b/command_system/builtins.py
 -        command_input += f" {args}"
 +def __getattr__(name: str):
 +    import clawcodex_ext.command_system.builtins as _mod
-
+ 
 -    return await engine.execute(command_input)
 +    if name in _mod.__dict__:
 +        val = _mod.__dict__[name]

@@ -12,11 +12,11 @@ diff --git a/bridge/debug_utils.py b/bridge/debug_utils.py
 -plain ``Exception`` — the API is generalized as ``describe_http_error``.
 -"""
 +"""Compatibility facade — see :mod:`clawcodex_ext.bridge.debug_utils`."""
-
+ 
  from __future__ import annotations
 +import sys
 +from clawcodex_ext.bridge import debug_utils as _module
-
+ 
 -import json
 -import logging
 -import re

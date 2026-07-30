@@ -4,7 +4,7 @@ diff --git a/command_system/theme_command.py b/command_system/theme_command.py
 @@ -1,125 +1,18 @@
 -"""theme — interactive ``/theme`` command (port of TS local-jsx).
 +"""Facade — command_system/theme_command.py has been moved to clawcodex_ext (lazy proxy)."""
-
+ 
 -Port of ``typescript/src/commands/theme/`` (``theme.tsx`` + ``index.ts``). A
 -``local-jsx`` command becomes an :class:`InteractiveCommand` (blocked remotely by
 -type). Unlike ``/export`` — which proves its bridge wiring by *falling through* the
@@ -49,7 +49,7 @@ diff --git a/command_system/theme_command.py b/command_system/theme_command.py
 -palettes, stdlib-only) and is imported at module top.
 -"""
  from __future__ import annotations
-
+ 
 -from dataclasses import dataclass
 -
 -from src.config import load_config, set_theme
@@ -118,7 +118,7 @@ diff --git a/command_system/theme_command.py b/command_system/theme_command.py
 +    'THEME_COMMAND',
 +    'ThemeCommand',
 +]
-
+ 
 -THEME_COMMAND = ThemeCommand(
 -    name="theme",
 -    # Verbatim from typescript/src/commands/theme/index.ts. (The TUI popup shows
@@ -126,10 +126,10 @@ diff --git a/command_system/theme_command.py b/command_system/theme_command.py
 -    # suggestion dedup; this TS-verbatim text surfaces on the registry/SDK listings.)
 -    description="Change the theme",
 -)
-
+ 
 +def __getattr__(name: str):
 +    import clawcodex_ext.command_system.theme_command as _mod
-
+ 
 -__all__ = [
 -    "THEME_COMMAND",
 -    "ThemeCommand",

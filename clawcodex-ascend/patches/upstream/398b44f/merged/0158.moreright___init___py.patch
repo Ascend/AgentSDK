@@ -4,11 +4,11 @@ diff --git a/moreright/__init__.py b/moreright/__init__.py
 @@ -5,7 +5,9 @@
  import json
  from pathlib import Path
-
+ 
 -SNAPSHOT_PATH = Path(__file__).resolve().parent.parent / 'reference_data' / 'subsystems' / 'moreright.json'
 +SNAPSHOT_PATH = (
 +    Path(__file__).resolve().parent.parent / 'reference_data' / 'subsystems' / 'moreright.json'
 +)
  _SNAPSHOT = json.loads(SNAPSHOT_PATH.read_text())
-
+ 
  ARCHIVE_NAME = _SNAPSHOT['archive_name']

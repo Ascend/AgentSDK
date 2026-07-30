@@ -4,7 +4,7 @@ diff --git a/services/swarm/mailbox.py b/services/swarm/mailbox.py
 @@ -1,337 +1,3 @@
 -"""File-based JSONL mailbox — Chunk F / WI-6.3.
 +"""Facade — services/swarm/mailbox.py moved to clawcodex_ext/services/swarm/."""
-
+ 
 -Mirrors the ``writeToMailbox`` / envelope-helper surface in
 -``typescript/src/utils/teammateMailbox.ts``. Per assumption A4
 -(JSONL with atomic-append-without-locking) and critic concern C1

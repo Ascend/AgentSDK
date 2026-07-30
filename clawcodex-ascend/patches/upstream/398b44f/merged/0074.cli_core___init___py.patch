@@ -3,7 +3,7 @@ diff --git a/cli_core/__init__.py b/cli_core/__init__.py
 +++ b/cli_core/__init__.py	2026-07-04 09:47:03.000000 +0800
 @@ -23,17 +23,17 @@
  )
-
+ 
  __all__ = [
 -    "cli_error",
 -    "cli_ok",

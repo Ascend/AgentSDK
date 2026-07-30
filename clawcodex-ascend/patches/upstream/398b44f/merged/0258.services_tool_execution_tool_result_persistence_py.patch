@@ -20,9 +20,9 @@ diff --git a/services/tool_execution/tool_result_persistence.py b/services/tool_
 -compaction/resume which is a separate chapter.
 -"""
 +"""Compatibility facade — see :mod:`clawcodex_ext.services.tool_execution.tool_result_persistence`."""
-
+ 
  from __future__ import annotations
-
+ 
 -import hashlib
 -import json
 -import logging
@@ -481,17 +481,17 @@ diff --git a/services/tool_execution/tool_result_persistence.py b/services/tool_
 -# ---------------------------------------------------------------------------
 -
 +import sys
-
+ 
 -def resolve_tool_results_dir(context: "ToolContext") -> Path:
 -    """Resolve the per-session tool-results dir.
 +from clawcodex_ext.services.tool_execution import tool_result_persistence as _module
-
+ 
 -    Preference order:
 -    1. ``~/.clawcodex/<workspace_basename>/<session_id>/tool-results/`` when the
 -       context has a session id.
 -    2. ``/tmp/clawcodex_tool_results/<pid>/tool-results/`` as a fallback.
 +sys.modules[__name__] = _module
-
+ 
 -    The TS reference uses a more elaborate path layout (project-dir hashing
 -    in ``utils/sessionStorage.ts``); we keep it simple and Python-native.
 -    Tests can monkeypatch this function or pass an explicit dir.

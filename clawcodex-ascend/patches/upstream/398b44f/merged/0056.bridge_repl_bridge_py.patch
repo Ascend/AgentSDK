@@ -4,7 +4,7 @@ diff --git a/bridge/repl_bridge.py b/bridge/repl_bridge.py
 @@ -1,1394 +1,9 @@
 -"""Env-based bridge orchestrator — Phase 6 MVP slice.
 +"""Facade — bridge/repl_bridge.py has been moved to extensions/ports/bridge/.
-
+ 
 -Ports the **public surface + happy path** of
 -``typescript/src/bridge/replBridge.ts`` (~2400 lines in TS).
 -
@@ -60,7 +60,7 @@ diff --git a/bridge/repl_bridge.py b/bridge/repl_bridge.py
 +the public surface so existing ``from src.bridge.repl_bridge import ...``
 +callers keep working without modification.
  """
-
+ 
 -from __future__ import annotations
 -
 -import asyncio

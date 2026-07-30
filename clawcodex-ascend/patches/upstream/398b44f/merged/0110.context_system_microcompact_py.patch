@@ -11,7 +11,7 @@ diff --git a/context_system/microcompact.py b/context_system/microcompact.py
 -
 -Port of ``typescript/src/services/compact/microCompact.ts``.
 +"""Facade — context_system/microcompact.py moved to clawcodex_ext/context_system/.
-
+ 
 -Supports both typed ``Message`` objects (WS-1) and raw ``dict`` messages
 -for backward compatibility.
 +The microcompact machinery (``compact_microcompact``, etc.) now lives
@@ -19,7 +19,7 @@ diff --git a/context_system/microcompact.py b/context_system/microcompact.py
 +re-exports it verbatim so existing ``from src.context_system.microcompact
 +import ...`` callers keep working.
  """
-
+ 
 -from __future__ import annotations
 -
 -import time

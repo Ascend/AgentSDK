@@ -22,11 +22,11 @@ diff --git a/bridge/jwt_utils.py b/bridge/jwt_utils.py
 -   Constants match TS exactly.
 -"""
 +"""Compatibility facade — see :mod:`clawcodex_ext.bridge.jwt_utils`."""
-
+ 
  from __future__ import annotations
 +import sys
 +from clawcodex_ext.bridge import jwt_utils as _module
-
+ 
 -import asyncio
 -import base64
 -import json
@@ -68,7 +68,7 @@ diff --git a/bridge/jwt_utils.py b/bridge/jwt_utils.py
 -
 -
 -def decode_jwt_expiry(token: str) -> int | None:
--    """Return the ``exp`` claim (Unix seconds) or None if unparsable.
+-    """Return the ``exp`` claim (Unix seconds) or None if unparseable.
 -
 -    Mirrors ``typescript/src/bridge/jwtUtils.ts:38-49``.
 -    """

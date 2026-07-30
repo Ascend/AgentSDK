@@ -4,7 +4,7 @@ diff --git a/buddy/soul.py b/buddy/soul.py
 @@ -1,75 +1,3 @@
 -"""Deterministic soul generator.
 +"""Compatibility facade — see :mod:`clawcodex_ext.buddy.soul`."""
-
+ 
 -Splits ``NAME_PREFIXES`` / ``NAME_SUFFIXES`` / ``PERSONALITIES`` out of
 -TS ``commands/buddy/buddy.tsx`` per
 -``my-docs/get-parity-by-folder/buddy-gap-analysis.md`` §4.1: this

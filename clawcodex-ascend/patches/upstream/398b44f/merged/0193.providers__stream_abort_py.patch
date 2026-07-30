@@ -4,7 +4,7 @@ diff --git a/providers/_stream_abort.py b/providers/_stream_abort.py
 @@ -1,239 +1,10 @@
 -"""Shared abort-signal helper for provider streaming paths.
 +"""Facade — providers/_stream_abort.py has been moved to clawcodex_ext/providers/_stream_abort.py.
-
+ 
 -Three providers (Anthropic, Minimax, OpenAI-compatible) all need the
 -same pattern to make ESC interrupt a streaming HTTP read mid-flight:
 -
@@ -212,7 +212,7 @@ diff --git a/providers/_stream_abort.py b/providers/_stream_abort.py
 -
 -        def _close() -> None:
 -            _close_response_safely(stream)
-
+ 
 -        # Register, then re-check. See the docstring above for the
 -        # race analysis.
 -        self._listener = self._signal.add_listener(_close, once=True)
@@ -220,7 +220,7 @@ diff --git a/providers/_stream_abort.py b/providers/_stream_abort.py
 -            _close()
 -        return self
 +import clawcodex_ext.providers._stream_abort as _mod
-
+ 
 -    def __exit__(self, exc_type, exc, tb) -> bool:
 -        # Close-on-abort guarantee. The listener-firing path closes
 -        # the response synchronously from whichever thread tripped

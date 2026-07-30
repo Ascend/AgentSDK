@@ -67,7 +67,7 @@ diff --git a/plugins/__init__.py b/plugins/__init__.py
      LoadedPlugin,
 @@ -71,59 +101,99 @@
  )
-
+ 
  __all__ = [
 -    "BuiltinPluginDefinition",
 -    "LoadedPlugin",

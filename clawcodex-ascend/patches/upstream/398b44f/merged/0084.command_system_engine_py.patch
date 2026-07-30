@@ -8,9 +8,9 @@ diff --git a/command_system/engine.py b/command_system/engine.py
 -Handles execution of commands and integration with the REPL.
 -"""
 +"""Facade — command_system/engine.py has been moved to clawcodex_ext (lazy proxy)."""
-
+ 
  from __future__ import annotations
-
+ 
 -from dataclasses import dataclass, field
 -from pathlib import Path
 -from typing import Any, Callable, Optional
@@ -330,13 +330,13 @@ diff --git a/command_system/engine.py b/command_system/engine.py
 +    'CommandEngine',
 +    'create_command_context',
 +]
-
+ 
 -    Returns:
 -        CommandContext instance
 -    """
 -    root = Path(workspace_root).expanduser().resolve()
 -    current = Path(cwd).expanduser().resolve() if cwd is not None else root
-
+ 
 -    return CommandContext(
 -        workspace_root=root,
 -        cwd=current,

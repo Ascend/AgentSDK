@@ -11,7 +11,7 @@ diff --git a/server/session_index.py b/server/session_index.py
 +            str(payload['permission_mode']) if payload.get('permission_mode') is not None else None
          ),
      )
-
+ 
 @@ -123,9 +121,7 @@
          try:
              out[str(key)] = _dict_to_entry(value)
@@ -22,7 +22,7 @@ diff --git a/server/session_index.py b/server/session_index.py
 +            logger.warning('[session_index] skipping malformed entry %r: %s', key, exc)
              continue
      return out
-
+ 
 @@ -142,9 +138,7 @@
      }
      serialized = json.dumps(payload, sort_keys=True, indent=2).encode('utf-8')

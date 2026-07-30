@@ -8,8 +8,8 @@ diff --git a/plugins/lsp_integration.py b/plugins/lsp_integration.py
 -    source: str = ""
 +    source: str = ''
      code: str | None = None
-
-
+ 
+ 
 @@ -34,7 +34,7 @@
      command: str
      args: list[str] = field(default_factory=list)
@@ -17,9 +17,9 @@ diff --git a/plugins/lsp_integration.py b/plugins/lsp_integration.py
 -    root_uri: str = ""
 +    root_uri: str = ''
      initialization_options: dict[str, Any] = field(default_factory=dict)
-
-
-@@ -52,17 +52,17 @@
+ 
+ 
+@@ -52,18 +52,18 @@
  def wrap_lsp_server_as_plugin(
      config: LspServerConfig,
      *,
@@ -34,7 +34,7 @@ diff --git a/plugins/lsp_integration.py b/plugins/lsp_integration.py
 +        description=description or f'LSP server: {config.name}',
 +        version='1.0.0',
      )
-
+ 
      plugin = LoadedPlugin(
          name=manifest.name,
          manifest=manifest,
@@ -42,3 +42,4 @@ diff --git a/plugins/lsp_integration.py b/plugins/lsp_integration.py
 +        source=f'lsp:{config.name}',
          enabled=True,
      )
+ 

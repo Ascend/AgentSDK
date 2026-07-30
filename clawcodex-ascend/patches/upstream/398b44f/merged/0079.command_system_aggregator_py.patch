@@ -21,9 +21,9 @@ diff --git a/command_system/aggregator.py b/command_system/aggregator.py
 -rationale.
 -"""
 +"""Facade — command_system/aggregator.py has been moved to clawcodex_ext (lazy proxy)."""
-
+ 
  from __future__ import annotations
-
+ 
 -import logging
 -from functools import lru_cache
 -from pathlib import Path

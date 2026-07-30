@@ -4,7 +4,7 @@ diff --git a/hooks/shell_invocation.py b/hooks/shell_invocation.py
 @@ -1,82 +1,23 @@
 -"""Per-hook shell selection — Chapter 12 round 2.
 +"""Facade — hooks/shell_invocation.py — sys.modules swap.
-
+ 
 -Command hooks can opt into PowerShell execution via the ``shell`` field on
 -each ``HookConfig``. Mirrors:
 -
@@ -31,9 +31,9 @@ diff --git a/hooks/shell_invocation.py b/hooks/shell_invocation.py
 +the same module object as ``clawcodex_ext.hooks.shell_invocation``,
 +so string-path patches reach the real binding.
  """
-
+ 
  from __future__ import annotations
-
+ 
 -import shutil
 -from typing import Literal
 -
@@ -91,7 +91,7 @@ diff --git a/hooks/shell_invocation.py b/hooks/shell_invocation.py
 -
 +import importlib
 +import sys
-
+ 
 -__all__ = [
 -    "SHELL_TYPES",
 -    "ShellType",

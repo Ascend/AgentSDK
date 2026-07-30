@@ -3,8 +3,8 @@ diff --git a/bootstrap/state.py b/bootstrap/state.py
 +++ b/bootstrap/state.py	2026-07-21 04:45:53.000000 -0700
 @@ -1165,6 +1165,24 @@
      _budget_continuation_count = 0
-
-
+ 
+ 
 +# Legacy downstream spelling aliases. The canonical storage and new APIs use
 +# CLAWCODEX.md, but existing TUI/REPL integrations still import the old names.
 +def get_cached_claude_md_content() -> str | None:

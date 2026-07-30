@@ -12,14 +12,14 @@ diff --git a/cli.py b/cli.py
 +- ``python -m src.cli`` invocation
 +- ``tests/test_prefetch.py`` which asserts module-level handles exist
 +"""
-
+ 
  from __future__ import annotations
-
+ 
 -import argparse
 -import os
  import sys
 -from pathlib import Path
-
+ 
 -# ch02 round-4 WI-3 — nothing heavy at module scope. This module IS the
 -# process entry (`clawcodex = src.cli:main`), so anything fired here is
 -# paid by EVERY invocation including the fast paths (--version, mcp,
@@ -45,13 +45,13 @@ diff --git a/cli.py b/cli.py
      get_or_start_keychain_prefetch,
      get_or_start_mdm_raw_read,
  )
-
+ 
 +# Fire ONCE per process via the singleton getter. ``setup.run_setup``
 +# reads the same handles instead of re-spawning, so the cost is paid
 +# exactly once even when both entrypoints run in the same interpreter.
 +_keychain_handle = get_or_start_keychain_prefetch()
 +_mdm_handle = get_or_start_mdm_raw_read()
-
+ 
 -def main():
 -    """CLI main entry point."""
 -    # WI-0.1 (ch17 Phase 0): instrument cold-start phases. Env-gated by
@@ -264,15 +264,15 @@ diff --git a/cli.py b/cli.py
 -#: Sentinel: worktree creation was requested and failed (error already
 -#: printed) — distinct from None (no --worktree flag).
 -_WORKTREE_FAILED = object()
-
+ 
 +def main():
 +    """Delegate to the downstream CLI dispatch."""
 +    from clawcodex_ext.cli.dispatch import run_cli
-
+ 
 -def _maybe_create_worktree(args):
 -    """Create/resume the session worktree when ``--worktree`` was passed.
 +    return run_cli()
-
+ 
 -    Returns the :class:`WorktreeSession`, ``None`` when the flag is absent, or
 -    :data:`_WORKTREE_FAILED` after printing the error (mirrors TS setup.ts:
 -    red stderr + exit 1).
@@ -285,7 +285,7 @@ diff --git a/cli.py b/cli.py
 -        WorktreeError,
 -        create_session_from_cli_option,
 -    )
-
+ 
 -    try:
 -        session = create_session_from_cli_option(option)
 -    except WorktreeError as exc:
@@ -302,8 +302,8 @@ diff --git a/cli.py b/cli.py
 +# patches (e.g. ``monkeypatch.setattr(src.cli, "show_config", ...)``)
 +# and imports (e.g. ``from src.cli import _build_parser``) keep working.
 +# ----------------------------------------------------------------------
-
-
+ 
+ 
 -def _gate_folder_trust() -> bool:
 -    """Run the folder-trust gate; return ``False`` only when an interactive user
 -    declines (the caller then exits 1).
@@ -546,7 +546,7 @@ diff --git a/cli.py b/cli.py
 -    )
 +def _build_parser():
 +    from clawcodex_ext.cli.parser import build_parser
-
+ 
 -    # ---- Permissions ----
 -    # ``--dangerously-skip-permissions`` and ``--allow-dangerously-skip-permissions``
 -    # apply to all UI modes (REPL, TUI, headless), so they live in a top-level
@@ -580,7 +580,7 @@ diff --git a/cli.py b/cli.py
 -        help='Initial permission mode (default: default)',
 -    )
 +    return build_parser()
-
+ 
 -    # Subcommands are intercepted in ``main`` before argparse runs so that a
 -    # free-form prompt argument cannot be misinterpreted as a subcommand.
 -    # Listing them here purely for ``--help`` documentation.
@@ -595,26 +595,26 @@ diff --git a/cli.py b/cli.py
 -        "  config   Show current configuration\n"
 -    )
 -    return parser
-
+ 
 +def _resolve_permission_state(args):
 +    from clawcodex_ext.cli.permissions import resolve_permission_state
-
+ 
 -def _resolve_permission_state(args) -> None:
 -    """Resolve and stash permission state on ``args``.
 +    return resolve_permission_state(args)
-
+ 
 -    Computes the effective :class:`PermissionMode` from the CLI flags and
 -    settings, runs the root/sudo safety gate, and emits a single log line
 -    when either bypass flag was passed. Stashes the result on ``args`` so
 -    every downstream mode (print, TUI, REPL) can read it without re-deriving.
-
+ 
 -    Mirrors the wiring in ``typescript/src/main.tsx`` lines 1087-1392 plus
 -    the safety check in ``typescript/src/setup.ts:382-401``.
 -    """
 -    import logging as _logging
 +def _run_print_mode(args):
 +    from clawcodex_ext.cli.runners import run_print_mode
-
+ 
 -    from src.permissions.dangerous_safety import (
 -        enforce_dangerous_skip_permissions_safety,
 -    )
@@ -624,7 +624,7 @@ diff --git a/cli.py b/cli.py
 -        is_bypass_permissions_mode_disabled,
 -    )
 +    return run_print_mode(args)
-
+ 
 -    dangerously = bool(getattr(args, 'dangerously_skip_permissions', False))
 -    allow_dangerously = bool(getattr(args, 'allow_dangerously_skip_permissions', False))
 -    permission_mode_cli = getattr(args, 'permission_mode', None)
@@ -633,13 +633,13 @@ diff --git a/cli.py b/cli.py
 -    enforce_dangerous_skip_permissions_safety(
 -        bypass_requested=dangerously or allow_dangerously,
 -    )
-
+ 
 -    mode = initial_permission_mode_from_cli(
 -        permission_mode_cli=permission_mode_cli,
 -        dangerously_skip_permissions=dangerously,
 -    )
 +from clawcodex_ext.cli.worktree import WORKTREE_FAILED as _WORKTREE_FAILED
-
+ 
 -    # TS isBypassPermissionsModeAvailable (permissionSetup.ts:941-946):
 -    # (bypass-requested OR allow-key) AND NOT disabled. The negative guard was
 -    # dropped in the port → an operator's disableBypassPermissionsMode lockdown
@@ -754,14 +754,14 @@ diff --git a/cli.py b/cli.py
 -            info["default_model"],
 -            info["default_base_url"],
 -        )
-
+ 
 -    console.print(table)
 -    console.print()
 +def _maybe_create_worktree(args):
 +    from clawcodex_ext.cli.worktree import maybe_create_worktree
-
+ 
 +    return maybe_create_worktree(args)
-
+ 
 -def handle_login():
 -    """Interactive API configuration."""
 -    from rich.console import Console
@@ -780,11 +780,11 @@ diff --git a/cli.py b/cli.py
 -        choices=provider_names,
 -        default="anthropic"
 -    )
-
+ 
 -    info = PROVIDER_INFO[provider]
 +def _run_tui_mode(args):
 +    from clawcodex_ext.cli.runners import run_tui_mode
-
+ 
 -    if provider == "anthropic":
 -        auth_method = Prompt.ask(
 -            "Authentication method",
@@ -808,7 +808,7 @@ diff --git a/cli.py b/cli.py
 -        password=True
 -    )
 +    return run_tui_mode(args)
-
+ 
 -    if not api_key:
 -        console.print("\n[red]Error: API Key cannot be empty[/red]")
 -        return 1
@@ -818,7 +818,7 @@ diff --git a/cli.py b/cli.py
 -        f"{provider.upper()} Base URL",
 -        default=info["default_base_url"]
 -    )
-
+ 
 -    console.print(f"\n[dim]Available models:[/dim] {', '.join(info['available_models'])}")
 -    console.print(f"[dim]Default:[/dim] [bold]{info['default_model']}[/bold]")
 -    default_model = Prompt.ask(
@@ -827,31 +827,31 @@ diff --git a/cli.py b/cli.py
 -    )
 +def _split_csv(value):
 +    from clawcodex_ext.cli.runners import _split_csv
-
+ 
 -    from src.config import set_api_key, set_default_provider
 +    return _split_csv(value)
-
+ 
 -    set_api_key(provider, api_key=api_key, base_url=base_url, default_model=default_model)
 -    set_default_provider(provider)
-
+ 
 -    console.print(f"\n[green]✓ {provider.upper()} API Key saved successfully![/green]")
 -    console.print(f"[green]✓ Default provider set to: {provider}[/green]\n")
 -    return 0
 +def _show_provider_defaults_table():
 +    from clawcodex_ext.cli.runners import _show_provider_defaults_table
-
+ 
 +    return _show_provider_defaults_table()
-
+ 
 -def _handle_anthropic_subscription_login(console, Prompt):
 -    """Run Claude Pro/Max's copy/paste OAuth authorization flow."""
 -    import webbrowser
-
+ 
 -    from src.auth.anthropic_subscription import begin_login, complete_login
 -    from src.config import set_api_key, set_default_provider
 -    from src.providers import PROVIDER_INFO
 +def handle_login():
 +    from clawcodex_ext.cli.runners import handle_login
-
+ 
 -    console.print(
 -        "\n[yellow]Important:[/yellow] Anthropic does not officially support "
 -        "using Claude Pro/Max subscriptions from third-party clients. "
@@ -976,19 +976,19 @@ diff --git a/cli.py b/cli.py
 -        console.print(f"No {label} subscription login was stored.")
 -    return 0
 +    return handle_login()
-
-
+ 
+ 
  def show_config():
 -    """Show current configuration."""
 -    from rich.console import Console
 -
 -    console = Console()
 +    from clawcodex_ext.cli.runners import show_config
-
+ 
 -    try:
 -        from src.config import load_config, get_config_path
 +    return show_config()
-
+ 
 -        config = load_config()
 -        config_path = get_config_path()
 -
@@ -1037,7 +1037,7 @@ diff --git a/cli.py b/cli.py
 -    except Exception as e:
 -        console.print(f"\n[red]Error loading configuration: {e}[/red]\n")
 -        return 1
-
+ 
 -    return 0
 +def start_repl(
 +    stream: bool = False,
@@ -1054,6 +1054,6 @@ diff --git a/cli.py b/cli.py
 +        is_bypass_permissions_mode_available=is_bypass_permissions_mode_available,
 +        resume_session_id=resume_session_id,
 +    )
-
-
+ 
+ 
  if __name__ == '__main__':

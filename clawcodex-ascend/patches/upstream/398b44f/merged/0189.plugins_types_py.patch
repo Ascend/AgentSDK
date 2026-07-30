@@ -9,8 +9,8 @@ diff --git a/plugins/types.py b/plugins/types.py
 -    version: str = "1.0.0"
 +    description: str = ''
 +    version: str = '1.0.0'
-
-
+ 
+ 
  @dataclass
  class LoadedPlugin:
      name: str

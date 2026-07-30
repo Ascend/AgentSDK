@@ -380,11 +380,11 @@ diff --git a/utils/git.py b/utils/git.py
 -    _, _, rc = _run_git(args, cwd)
 -    return rc == 0
 +"""Compatibility facade — see :mod:`clawcodex_ext.utils.git`."""
-
+ 
 +from __future__ import annotations
 +import sys
 +from clawcodex_ext.utils import git as _module
-
+ 
 -async def get_session_diff_async(
 -    cwd: str | None = None,
 -    **kwargs: Any,

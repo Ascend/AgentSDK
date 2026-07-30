@@ -4,7 +4,7 @@ diff --git a/utils/image_validation.py b/utils/image_validation.py
 @@ -1,155 +1,9 @@
 -"""Pre-API image size validation.
 +"""Facade — utils/image_validation.py moved to clawcodex_ext/utils/.
-
+ 
 -Port of ``typescript/src/utils/imageValidation.ts``. Walks the messages
 -about to be sent to the API, rejects any base64-encoded image whose
 -payload exceeds Anthropic's 5 MB hard limit. Catching this client-side
@@ -132,7 +132,7 @@ diff --git a/utils/image_validation.py b/utils/image_validation.py
 -
 -    Each image block's base64 string length is compared to
 -    ``API_IMAGE_MAX_BASE64_SIZE`` (5 MB). Mirrors TS imageValidation.ts:52-105.
-
+ 
 -    Recursion covers tool_result-nested images so the Read tool's image
 -    return path is also guarded; see ``_iter_image_blocks``.
 -    """

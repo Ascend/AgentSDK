@@ -4,7 +4,7 @@ diff --git a/skills/mcp_skill_builders.py b/skills/mcp_skill_builders.py
 @@ -1,16 +1,16 @@
 -from __future__ import annotations
 +"""Facade — skills/mcp_skill_builders.py has been moved to clawcodex_ext/skills/mcp_skill_builders.
-
+ 
 -from typing import Any, Callable
 +The F-88 MCP skill builders now live in
 +:mod:`clawcodex_ext.skills.mcp_skill_builders`. This module
@@ -15,10 +15,10 @@ diff --git a/skills/mcp_skill_builders.py b/skills/mcp_skill_builders.py
 +Uses ``globals().update()`` to preserve access to all public names
 +regardless of ``__all__`` — the source module has no ``__all__``.
 +"""
-
+ 
 -_builders: dict[str, Callable[..., Any]] | None = None
 +import clawcodex_ext.skills.mcp_skill_builders as _mod
-
+ 
 -
 -def register_mcp_skill_builders(builders: dict[str, Callable[..., Any]]) -> None:
 -    global _builders

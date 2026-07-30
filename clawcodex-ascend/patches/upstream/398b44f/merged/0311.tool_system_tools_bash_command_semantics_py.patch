@@ -4,7 +4,7 @@ diff --git a/tool_system/tools/bash/command_semantics.py b/tool_system/tools/bas
 @@ -1,90 +1,3 @@
 -"""Exit code interpretation for common commands.
 +"""Facade — tool_system/tools/bash/command_semantics.py moved to clawcodex_ext/tool_system/tools/bash/."""
-
+ 
 -Many commands use exit codes to convey information other than success/failure.
 -For example, grep returns 1 when no matches are found, which is not an error.
 -"""

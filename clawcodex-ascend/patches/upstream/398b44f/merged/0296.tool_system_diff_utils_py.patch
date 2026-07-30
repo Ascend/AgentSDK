@@ -98,5 +98,5 @@ diff --git a/tool_system/diff_utils.py b/tool_system/diff_utils.py
 -    except Exception:  # noqa: BLE001 — cost accounting is best-effort
 -        pass
 +"""Facade — tool_system/diff_utils.py moved to clawcodex_ext/tool_system/."""
-
+ 
 +from clawcodex_ext.tool_system.diff_utils import *  # noqa: F401,F403

@@ -9,8 +9,8 @@ diff --git a/models/agent_routing.py b/models/agent_routing.py
 +
 +    model: str = ''
      inherit_parent: bool = True
-
-
+ 
+ 
  def get_model_for_agent(
      agent_type: str,
      *,

@@ -44,9 +44,9 @@ diff --git a/bridge/init_repl_bridge.py b/bridge/init_repl_bridge.py
 -The function signature matches TS so a future expansion is non-breaking.
 -"""
 +"""Compatibility facade — see :mod:`clawcodex_ext.bridge.init_repl_bridge`."""
-
+ 
  from __future__ import annotations
-
+ 
 -import logging
 -import re
 -from collections.abc import Awaitable, Callable
@@ -379,7 +379,7 @@ diff --git a/bridge/init_repl_bridge.py b/bridge/init_repl_bridge.py
 -# ── Helpers ──────────────────────────────────────────────────────────────
 -
 +import sys
-
+ 
 -def _fire_state(
 -    cb: OnStateChange | None,
 -    state: str,
@@ -395,9 +395,9 @@ diff --git a/bridge/init_repl_bridge.py b/bridge/init_repl_bridge.py
 -    except Exception as err:  # noqa: BLE001
 -        logger.warning('[bridge:repl] on_state_change raised: %s', err)
 +from clawcodex_ext.bridge import init_repl_bridge as _module
-
+ 
 +sys.modules[__name__] = _module
-
+ 
 -__all__ = [
 -    'TITLE_MAX_LEN',
 -    'InitBridgeOptions',

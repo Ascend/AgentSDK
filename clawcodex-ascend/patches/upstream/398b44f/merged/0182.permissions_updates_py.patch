@@ -4,7 +4,7 @@ diff --git a/permissions/updates.py b/permissions/updates.py
 @@ -1,755 +1,3 @@
 -"""Apply and persist :class:`PermissionUpdate` objects.
 +"""Facade — permissions/updates.py moved to clawcodex_ext/permissions/."""
-
+ 
 -Mirrors ``typescript/src/utils/permissions/PermissionUpdate.ts``. The TS file
 -threads updates through both an in-memory context (``applyPermissionUpdate``)
 -and on-disk settings (``persistPermissionUpdate``); we keep the same split.
@@ -610,7 +610,7 @@ diff --git a/permissions/updates.py b/permissions/updates.py
 -                    ),
 -                )
 -            ]
--        # Unparsable URL → fall through to the content-less rule below.
+-        # Unparseable URL → fall through to the content-less rule below.
 -
 -    # Every other tool (Skill, MCP, …): persisted content-less rule.
 -    if tool_name:

@@ -4,14 +4,14 @@ diff --git a/services/session_title.py b/services/session_title.py
 @@ -1,98 +1,9 @@
 -"""Session title generation matching TypeScript session/title.ts."""
 +"""Facade — services/session_title.py has been moved to clawcodex_ext.
-
+ 
 -from __future__ import annotations
 +The session title generation functions now live in
 +:mod:`clawcodex_ext.services.session_title`. This module re-exports
 +the public surface so existing ``from src.services.session_title
 +import ...`` callers keep working.
 +"""
-
+ 
 -import logging
 -import re
 -from typing import Any

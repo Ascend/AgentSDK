@@ -8,7 +8,7 @@ diff --git a/services/compact/pipeline.py b/services/compact/pipeline.py
 -Runs cheap → expensive.  If earlier layers free enough tokens, later
 -layers are no-ops.
 +"""Facade — services/compact/* moved to clawcodex_ext/services/compact/.
-
+ 
 -Layers:
 -  1. apply_tool_result_budget  — Persist large results to disk
 -  2. snip_compact              — Trim old tool results
@@ -22,7 +22,7 @@ diff --git a/services/compact/pipeline.py b/services/compact/pipeline.py
 +``pipeline`` submodule verbatim so existing ``from
 +src.services.compact.pipeline import ...`` callers keep working.
  """
-
+ 
 -from __future__ import annotations
 -
 -import logging

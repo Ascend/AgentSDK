@@ -27,7 +27,7 @@ diff --git a/hooks/exec_http_hook.py b/hooks/exec_http_hook.py
 -    if not url:
 -        return HookResult(blocking_error="HTTP hook has no URL configured")
 +"""Facade — hooks/exec_http_hook.py — sys.modules swap.
-
+ 
 -    safe, reason = validate_hook_url(url, resolve_dns=True)
 -    if not safe:
 -        return HookResult(
@@ -47,7 +47,7 @@ diff --git a/hooks/exec_http_hook.py b/hooks/exec_http_hook.py
 +the same module object as ``clawcodex_ext.hooks.exec_http_hook``,
 +so the patches reach the real bindings.
 +"""
-
+ 
 -    start_time = time.monotonic()
 -    effective_timeout = (hook.timeout or timeout_ms) / 1000.0
 -
@@ -100,11 +100,11 @@ diff --git a/hooks/exec_http_hook.py b/hooks/exec_http_hook.py
 -            except json.JSONDecodeError:
 -                pass
 +from __future__ import annotations
-
+ 
 -        return result
 +import importlib
 +import sys
-
+ 
 -    except TimeoutError:
 -        duration_ms = int((time.monotonic() - start_time) * 1000)
 -        return HookResult(

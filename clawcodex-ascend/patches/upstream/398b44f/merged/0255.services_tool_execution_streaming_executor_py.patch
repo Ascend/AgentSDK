@@ -4,7 +4,7 @@ diff --git a/services/tool_execution/streaming_executor.py b/services/tool_execu
 @@ -1,525 +1,3 @@
 -"""StreamingToolExecutor — mirrors TypeScript StreamingToolExecutor.ts.
 +"""Compatibility facade — see :mod:`clawcodex_ext.services.tool_execution.streaming_executor`."""
-
+ 
 -Executes tools as they stream in with concurrency control:
 -- Concurrent-safe tools can execute in parallel with other concurrent-safe tools
 -- Non-concurrent tools must execute alone (exclusive access)

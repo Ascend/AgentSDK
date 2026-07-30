@@ -5,19 +5,19 @@ diff --git a/command_system/__init__.py b/command_system/__init__.py
 -"""
 -Command system for Claw Codex.
 +"""Facade — command_system/__init__.py has been moved to clawcodex_ext (lazy proxy)."""
-
+ 
 -A complete reimplementation of Claude Code's command system.
 -"""
 +from __future__ import annotations
-
+ 
 -# WI-0.1 (ch17 Phase 0): mark the moment the command-system package starts
 -# import work. Placed before the heavy re-exports so the checkpoint's
 -# delta-from-previous reflects the package's cost.
 -from src.utils.startup_profiler import profile_checkpoint
 +__all__ = []
-
+ 
 -profile_checkpoint("command_system_imported")
-
+ 
 -from .aggregator import (
 -    clear_commands_cache,
 -    get_commands,
@@ -117,7 +117,7 @@ diff --git a/command_system/__init__.py b/command_system/__init__.py
 -)
 +def __getattr__(name: str):
 +    import clawcodex_ext.command_system as _mod
-
+ 
 -__all__ = [
 -    # Types
 -    "Command",

@@ -32,11 +32,11 @@ diff --git a/utils/advisor.py b/utils/advisor.py
 -Anthropic advisors on Anthropic main loops, or for transparency).
 -"""
 +"""Compatibility facade — see :mod:`clawcodex_ext.utils.advisor`."""
-
+ 
  from __future__ import annotations
 +import sys
 +from clawcodex_ext.utils import advisor as _module
-
+ 
 -import os
 -import time
 -from typing import Any, Mapping, TYPE_CHECKING

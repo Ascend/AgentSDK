@@ -4,7 +4,7 @@ diff --git a/command_system/output_style_command.py b/command_system/output_styl
 @@ -1,52 +1,18 @@
 -"""output-style — deprecated ``/output-style`` command (port of TS local-jsx).
 +"""Facade — command_system/output_style_command.py has been moved to clawcodex_ext (lazy proxy)."""
-
+ 
 -The TypeScript command (``typescript/src/commands/output-style/``) is a
 -``local-jsx`` command that renders nothing interactive: its ``call`` immediately
 -invokes ``onDone(<deprecation notice>, { display: 'system' })``. It exists only
@@ -17,7 +17,7 @@ diff --git a/command_system/output_style_command.py b/command_system/output_styl
 -on every surface (REPL, Textual, and ``NullUIHost`` headless).
 -"""
  from __future__ import annotations
-
+ 
 -from dataclasses import dataclass
 -
 -from .types import (
@@ -56,8 +56,8 @@ diff --git a/command_system/output_style_command.py b/command_system/output_styl
 +    'OUTPUT_STYLE_COMMAND',
 +    'OutputStyleCommand',
 +]
-
-
+ 
+ 
 -__all__ = ["OUTPUT_STYLE_COMMAND", "OutputStyleCommand"]
 +def __getattr__(name: str):
 +    import clawcodex_ext.command_system.output_style_command as _mod

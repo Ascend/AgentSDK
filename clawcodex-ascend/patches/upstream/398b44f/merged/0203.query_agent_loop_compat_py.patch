@@ -4,7 +4,7 @@ diff --git a/query/agent_loop_compat.py b/query/agent_loop_compat.py
 @@ -1,855 +1,3 @@
 -"""Adapter from ``query.query`` → ``AgentLoopResult`` shape.
 +"""Facade — query/agent_loop_compat.py moved to clawcodex_ext/query/."""
-
+ 
 -Headless and TUI production paths invoke ``run_query_as_agent_loop``
 -(async) to drive the canonical ``query()`` loop while keeping the
 -legacy ``AgentLoopResult`` return contract. Tests inherited from the

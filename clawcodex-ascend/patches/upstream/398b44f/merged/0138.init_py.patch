@@ -4,7 +4,7 @@ diff --git a/init.py b/init.py
 @@ -1,217 +1,22 @@
 -"""Bootstrap init — chapter phase 2 of the bootstrap pipeline.
 +"""Bootstrap init — facade re-export.
-
+ 
 -Mirrors ``typescript/src/entrypoints/init.ts``. The memoize property is
 -load-bearing: multiple entry points (REPL, headless, MCP fast-path if
 -it grows to need init) may each call ``init()``, and each call must
@@ -38,7 +38,7 @@ diff --git a/init.py b/init.py
 +cheaper (one line, no attribute lookup at call time) and leaves no
 +room for identity drift between src/ and clawcodex_ext/.
  """
-
+ 
 -from __future__ import annotations
 -
 -import logging
@@ -225,7 +225,7 @@ diff --git a/init.py b/init.py
 -
 -def reset_init_for_test_only() -> None:
 -    """Reset the memoize cache. Test-only.
-
+ 
 -    Gated by ``PYTEST_CURRENT_TEST`` so production callers cannot
 -    accidentally re-run init mid-session. Matches the discipline used
 -    by ``bootstrap.state.reset_state_for_tests``.

@@ -4,14 +4,14 @@ diff --git a/agent/parse_agent_markdown.py b/agent/parse_agent_markdown.py
 @@ -1,228 +1,16 @@
 -"""Parse a markdown agent definition into an ``AgentDefinition``.
 +"""Facade — agent/parse_agent_markdown.py has been moved to clawcodex_ext/agent/parse_agent_markdown.
-
+ 
 -Mirrors ``parseAgentFromMarkdown`` in typescript/src/tools/AgentTool/loadAgentsDir.ts.
 +The ``parse_agent_from_markdown`` parser and related markdown-discovery
 +helpers now live in :mod:`clawcodex_ext.agent.parse_agent_markdown`. This
 +module re-exports the public surface so existing
 +``from src.agent.parse_agent_markdown import ...`` callers keep working
 +without modification.
-
+ 
 -Field mapping (frontmatter → AgentDefinition):
 -    name                    → agent_type   (defaults to filename stem)
 -    description             → when_to_use  (required)
@@ -212,11 +212,11 @@ diff --git a/agent/parse_agent_markdown.py b/agent/parse_agent_markdown.py
 -    effort = parse_effort_value(_first(frontmatter, "effort"))
 -
 -    body_text = body.strip()
-
+ 
 -    def _get_system_prompt(**_kwargs: Any) -> str:
 -        return body_text
 +import clawcodex_ext.agent.parse_agent_markdown as _mod
-
+ 
 -    return AgentDefinition(
 -        agent_type=agent_type,
 -        when_to_use=when_to_use,

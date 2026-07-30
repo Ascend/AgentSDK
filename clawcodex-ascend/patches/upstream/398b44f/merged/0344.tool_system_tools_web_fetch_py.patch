@@ -4,7 +4,7 @@ diff --git a/tool_system/tools/web_fetch.py b/tool_system/tools/web_fetch.py
 @@ -1,657 +1,9 @@
 -"""WebFetch tool — fetch a URL and return extracted text content.
 +"""Facade — tool_system/tools/web_fetch.py moved to clawcodex_ext/tool_system/tools/."""
-
+ 
 -Features:
 -- HTML-to-markdown conversion (markdownify or regex fallback)
 -- URL validation with private host blocking
@@ -14,10 +14,10 @@ diff --git a/tool_system/tools/web_fetch.py b/tool_system/tools/web_fetch.py
 -- Prompt parameter for secondary model processing
 -"""
 +from clawcodex_ext.tool_system.tools.web_fetch import *  # noqa: F401,F403
-
+ 
 -from __future__ import annotations
 +import sys
-
+ 
 -import gzip
 -import html
 -import http.client
@@ -31,7 +31,7 @@ diff --git a/tool_system/tools/web_fetch.py b/tool_system/tools/web_fetch.py
 -import zlib
 -from typing import Any
 +from clawcodex_ext.tool_system.tools import web_fetch as _implementation
-
+ 
 -from ..build_tool import Tool, build_tool
 -from ..context import ToolContext
 -from ..errors import ToolInputError, ToolPermissionError

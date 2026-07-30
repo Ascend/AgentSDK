@@ -25,9 +25,9 @@ diff --git a/bridge/code_session_api.py b/bridge/code_session_api.py
 -and continue.
 -"""
 +"""Compatibility facade — see :mod:`clawcodex_ext.bridge.code_session_api`."""
-
+ 
  from __future__ import annotations
-
+ 
 -import logging
 -from dataclasses import dataclass
 -from typing import Any
@@ -247,7 +247,7 @@ diff --git a/bridge/code_session_api.py b/bridge/code_session_api.py
 -    except ValueError as exc:
 -        raise RuntimeError(f'register_worker: invalid JSON response: {exc}') from exc
 +import sys
-
+ 
 -    if not isinstance(data, dict):
 -        raise RuntimeError('register_worker: response is not an object')
 -    raw = data.get('worker_epoch')
@@ -260,9 +260,9 @@ diff --git a/bridge/code_session_api.py b/bridge/code_session_api.py
 -            f'register_worker: invalid worker_epoch: {exc}'
 -        ) from exc
 +from clawcodex_ext.bridge import code_session_api as _module
-
+ 
 +sys.modules[__name__] = _module
-
+ 
 -__all__ = [
 -    'ANTHROPIC_VERSION',
 -    'DEFAULT_TIMEOUT_SECONDS',

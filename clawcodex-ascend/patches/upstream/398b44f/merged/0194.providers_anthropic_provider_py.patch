@@ -31,9 +31,9 @@ diff --git a/providers/anthropic_provider.py b/providers/anthropic_provider.py
 +replace).  ``sys.modules`` swap makes the two module identities
 +literally identical, which is the only reliable fix here.
 +"""
-
+ 
  from __future__ import annotations
-
+ 
 -import copy
 -import logging
 -import os
@@ -908,7 +908,7 @@ diff --git a/providers/anthropic_provider.py b/providers/anthropic_provider.py
 -
 -    def get_available_models(self) -> list[str]:
 -        """Get list of available Anthropic models.
-
+ 
 -        Returns:
 -            List of model names
 -        """

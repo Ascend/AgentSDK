@@ -22,11 +22,11 @@ diff --git a/bridge/inbound_attachments.py b/bridge/inbound_attachments.py
 -The shape of the module is correct; only the network fetch is gated.
 -"""
 +"""Compatibility facade — see :mod:`clawcodex_ext.bridge.inbound_attachments`."""
-
+ 
  from __future__ import annotations
 +import sys
 +from clawcodex_ext.bridge import inbound_attachments as _module
-
+ 
 -import base64
 -import logging
 -import os

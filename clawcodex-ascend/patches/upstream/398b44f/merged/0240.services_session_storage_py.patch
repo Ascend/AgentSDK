@@ -4,7 +4,7 @@ diff --git a/services/session_storage.py b/services/session_storage.py
 @@ -1,350 +1,40 @@
 -"""Session storage — JSONL transcript recording matching TypeScript session/storage.ts.
 +"""Facade — services/session_storage.py has been moved to clawcodex_ext (lazy proxy).
-
+ 
 -Provides:
 -- SessionStorage: write/read JSONL transcripts with metadata
 -- Atomic writes, content replacement for large tool results
@@ -21,9 +21,9 @@ diff --git a/services/session_storage.py b/services/session_storage.py
 +``__dict__`` directly and would otherwise miss proxy-cached symbols
 +that haven't been imported yet.
  """
-
+ 
  from __future__ import annotations
-
+ 
 -import json
 -import logging
 -import os

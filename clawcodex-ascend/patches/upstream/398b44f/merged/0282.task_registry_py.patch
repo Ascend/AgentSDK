@@ -4,7 +4,7 @@ diff --git a/task_registry.py b/task_registry.py
 @@ -1,225 +1,14 @@
 -"""Runtime task registry + per-type Task interface — Chunk B / WI-1.2.
 +"""Facade — task_registry.py moved to clawcodex_ext/.
-
+ 
 -Mirrors the dispatch shape of ``typescript/src/tasks.ts`` and ``Task.ts``'s
 -minimal ``Task`` interface (``{name, type, kill}``), translated to Python's
 -type system. The registry is the typed substitute for the TS pattern of
@@ -90,7 +90,7 @@ diff --git a/task_registry.py b/task_registry.py
 -        self._tasks: dict[str, TaskStateBase] = {}
 -
 -    # -- read paths -------------------------------------------------------
-
+ 
 -    def get(self, task_id: str) -> TaskStateBase | None:
 -        """Return the task with the given id, or ``None`` if absent."""
 -        with self._lock:
@@ -223,10 +223,10 @@ diff --git a/task_registry.py b/task_registry.py
 -            return task
 -    return None
 +from __future__ import annotations
-
+ 
 +import importlib
 +import sys
-
+ 
 -__all__ = [
 -    "Task",
 -    "RuntimeTaskRegistry",

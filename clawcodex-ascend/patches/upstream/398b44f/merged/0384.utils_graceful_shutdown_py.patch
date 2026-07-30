@@ -3,7 +3,7 @@ diff --git a/utils/graceful_shutdown.py b/utils/graceful_shutdown.py
 +++ b/utils/graceful_shutdown.py	2026-07-04 09:47:03.000000 +0800
 @@ -34,10 +34,10 @@
  from typing import Callable
-
+ 
  __all__ = [
 -    "register_cleanup",
 -    "setup_graceful_shutdown",
@@ -14,8 +14,8 @@ diff --git a/utils/graceful_shutdown.py b/utils/graceful_shutdown.py
 +    'graceful_shutdown_sync',
 +    'reset_for_test_only',
  ]
-
-
+ 
+ 
 @@ -109,8 +109,8 @@
              fn()
          except Exception as exc:  # noqa: BLE001 — best-effort
@@ -26,7 +26,7 @@ diff --git a/utils/graceful_shutdown.py b/utils/graceful_shutdown.py
 +                sys.stderr.write(f'cleanup error in {name}: {exc}\n')
              except Exception:
                  pass  # last-resort: never block exit on logging
-
+ 
 @@ -132,10 +132,8 @@
      accidentally re-arm the signal handlers mid-session. Matches the
      discipline used by ``bootstrap.state.reset_state_for_tests``.

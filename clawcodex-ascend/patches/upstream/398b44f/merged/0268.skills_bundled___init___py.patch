@@ -4,7 +4,7 @@ diff --git a/skills/bundled/__init__.py b/skills/bundled/__init__.py
 @@ -1,79 +1,20 @@
 -"""Bundled-skill catalogue + init orchestrator.
 +"""Facade — src/skills/bundled/ has been moved to clawcodex_ext/skills/bundled.
-
+ 
 -Mirrors the TS pattern in ``typescript/src/skills/bundled/index.ts``:
 -each individual skill module exposes a ``register_*_skill()`` function
 -that calls ``register_bundled_skill(BundledSkillDefinition(...))``;
@@ -17,7 +17,7 @@ diff --git a/skills/bundled/__init__.py b/skills/bundled/__init__.py
 +Re-exports the public API so existing
 +``from src.skills.bundled import ...`` callers keep working.
  """
-
+ 
 -from __future__ import annotations
 -
 -import logging

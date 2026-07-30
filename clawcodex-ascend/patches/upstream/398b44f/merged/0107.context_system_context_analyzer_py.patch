@@ -5,7 +5,7 @@ diff --git a/context_system/context_analyzer.py b/context_system/context_analyze
 -"""
 -Context analysis for /context command.
 +"""Facade — context_system/context_analyzer.py moved to clawcodex_ext/context_system/."""
-
+ 
 -Collects token estimates across all context categories and returns
 -a structured ContextData object that can be formatted as Markdown.
 -"""

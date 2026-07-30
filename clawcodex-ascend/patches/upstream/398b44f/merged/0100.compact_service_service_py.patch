@@ -3,7 +3,7 @@ diff --git a/compact_service/service.py b/compact_service/service.py
 +++ b/compact_service/service.py	2026-07-21 04:15:00.000000 -0700
 @@ -13,8 +13,8 @@
  from typing import Any, Optional
-
+ 
  from ..agent.conversation import Conversation, Message
 -from ..providers.base import BaseProvider
 -from ..services.compact.compact import (
@@ -26,8 +26,8 @@ diff --git a/compact_service/service.py b/compact_service/service.py
 -    trigger: str = "manual"
 +    trigger: str = 'manual'
      user_display_message: Optional[str] = None
-
-
+ 
+ 
 @@ -42,7 +43,7 @@
      provider: BaseProvider,
      model: str,
@@ -38,19 +38,19 @@ diff --git a/compact_service/service.py b/compact_service/service.py
      plan_file_path: Optional[str] = None,
      memory_paths: Optional[set[str]] = None,
 @@ -86,8 +87,7 @@
-
+ 
      # Apply the pipeline result to the conversation in place
      boundary_indices = [
 -        i for i, m in enumerate(conversation.messages)
 -        if is_compact_boundary_message(m)
 +        i for i, m in enumerate(conversation.messages) if is_compact_boundary_message(m)
      ]
-
+ 
      if boundary_indices:
 @@ -106,12 +106,12 @@
      conversation.messages = new_messages
      post_compact_count = len(conversation.messages)
-
+ 
 -    summary_text = ""
 +    summary_text = ''
      for msg in pipeline_result.summary_messages:

@@ -9,9 +9,9 @@ diff --git a/skills/bundled/batch.py b/skills/bundled/batch.py
 -open a PR. User-invocable only (``disable_model_invocation``).
 -"""
 +"""Module-identity facade for the canonical bundled Batch skill."""
-
+ 
  from __future__ import annotations
-
+ 
 -from ..bundled_skills import BundledSkillDefinition, register_bundled_skill
 -
 -# Port tool-name literals (TS interpolates the *_TOOL_NAME constants; the
@@ -134,7 +134,7 @@ diff --git a/skills/bundled/batch.py b/skills/bundled/batch.py
 -
 +import importlib
 +import sys
-
+ 
 -def register_batch_skill() -> None:
 -    register_bundled_skill(
 -        BundledSkillDefinition(

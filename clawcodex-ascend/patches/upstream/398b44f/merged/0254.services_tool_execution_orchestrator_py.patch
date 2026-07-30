@@ -4,24 +4,24 @@ diff --git a/services/tool_execution/orchestrator.py b/services/tool_execution/o
 @@ -1,340 +1,9 @@
 -"""Tool orchestration — mirrors TypeScript toolOrchestration.ts.
 +"""Compatibility facade — see :mod:`clawcodex_ext.services.tool_execution.orchestrator`."""
-
+ 
 -Two modes:
 -- Mode 1: Streaming — use StreamingToolExecutor (called from query loop during streaming)
 -- Mode 2: Batch — run_tools() with partition_tool_calls() for batching
 -  consecutive concurrency-safe tools
 -"""
 +from clawcodex_ext.services.tool_execution.orchestrator import *  # noqa: F401,F403
-
+ 
 -from __future__ import annotations
 +import sys
-
+ 
 -import asyncio
 -import logging
 -import os
 -from dataclasses import dataclass
 -from typing import TYPE_CHECKING, Any, AsyncGenerator
 +from clawcodex_ext.services.tool_execution import orchestrator as _implementation
-
+ 
 -from src.services.tool_execution.streaming_executor import (
 -    MessageUpdate,
 -    ToolUseBlock,

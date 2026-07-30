@@ -4,7 +4,7 @@ diff --git a/agent/load_plugin_agents.py b/agent/load_plugin_agents.py
 @@ -1,109 +1,16 @@
 -"""Load agent definitions exposed by enabled plugins.
 +"""Facade — agent/load_plugin_agents.py has been moved to clawcodex_ext/agent/load_plugin_agents.
-
+ 
 -Mirrors ``loadPluginAgents`` in
 -typescript/src/utils/plugins/loadPluginAgents.ts. For each enabled
 -plugin with a non-empty ``agents_paths``, walks the directory
@@ -16,7 +16,7 @@ diff --git a/agent/load_plugin_agents.py b/agent/load_plugin_agents.py
 +re-exports the public surface so existing
 +``from src.agent.load_plugin_agents import ...`` callers keep working
 +without modification.
-
+ 
 -Plugin agents intentionally drop ``permission_mode``, ``hooks``, and
 -``mcp_servers`` from the parsed definition — those grant capabilities
 -beyond install-time trust and must come from user-controlled settings,
@@ -25,12 +25,12 @@ diff --git a/agent/load_plugin_agents.py b/agent/load_plugin_agents.py
 +regardless of ``__all__`` — the source module does not define ``__all__``.
  """
 -from __future__ import annotations
-
+ 
 -import logging
 -from dataclasses import replace
 -from pathlib import Path
 +import clawcodex_ext.agent.load_plugin_agents as _mod
-
+ 
 -from src.agent.agent_definitions import AgentDefinition
 -from src.agent.parse_agent_markdown import parse_agent_from_markdown
 -from src.plugins.types import LoadedPlugin

@@ -4,7 +4,7 @@ diff --git a/services/swarm/leader_permission_bridge.py b/services/swarm/leader_
 @@ -1,276 +1,30 @@
 -"""Leader permission bridge — Chunk H / WI-9.1.
 +"""Facade — services/swarm/leader_permission_bridge.py has been moved to clawcodex_ext.
-
+ 
 -Mirrors ``typescript/src/utils/swarm/leaderPermissionBridge.ts`` (per
 -gap analysis #15). Workers escalate permission requests to the leader
 -via the team mailbox; the leader's UI surfaces the request, approves
@@ -45,7 +45,7 @@ diff --git a/services/swarm/leader_permission_bridge.py b/services/swarm/leader_
 -from dataclasses import dataclass, field
 -from pathlib import Path
 -from typing import Any, Callable, TYPE_CHECKING
-
+ 
 -from src.services.swarm.mailbox import (
 -    TeammateMessage,
 -    make_iso_timestamp,
@@ -60,7 +60,7 @@ diff --git a/services/swarm/leader_permission_bridge.py b/services/swarm/leader_
 +    deliver_permission_decision,
 +    send_permission_request_via_mailbox,
  )
-
+ 
 -if TYPE_CHECKING:
 -    pass
 -

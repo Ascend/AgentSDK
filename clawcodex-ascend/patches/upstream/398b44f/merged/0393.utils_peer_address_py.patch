@@ -7,14 +7,14 @@ diff --git a/utils/peer_address.py b/utils/peer_address.py
  """
 +
  from __future__ import annotations
-
+ 
  from dataclasses import dataclass
  from typing import Literal
-
+ 
 -AddressScheme = Literal["bridge", "uds", "other"]
 +AddressScheme = Literal['bridge', 'uds', 'other']
-
-
+ 
+ 
  @dataclass(frozen=True)
 @@ -47,15 +48,15 @@
      SendMessage's input-validation layer rejects empty strings before
@@ -30,8 +30,8 @@ diff --git a/utils/peer_address.py b/utils/peer_address.py
 +    if to.startswith('uds:'):
 +        return ParsedAddress(scheme='uds', target=to[len('uds:') :])
 +    return ParsedAddress(scheme='other', target=to)
-
-
+ 
+ 
  __all__ = [
 -    "AddressScheme",
 -    "ParsedAddress",

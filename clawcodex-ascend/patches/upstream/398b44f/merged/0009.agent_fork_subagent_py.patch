@@ -4,7 +4,7 @@ diff --git a/agent/fork_subagent.py b/agent/fork_subagent.py
 @@ -1,297 +1,19 @@
 -"""Fork subagent helpers.
 +"""Facade — agent/fork_subagent.py has been moved to clawcodex_ext/agent/fork_subagent.
-
+ 
 -Mirrors ``typescript/src/tools/AgentTool/forkSubagent.ts``.
 -
 -Fork is an implicit-spawn path where the child inherits the parent's full
@@ -299,9 +299,9 @@ diff --git a/agent/fork_subagent.py b/agent/fork_subagent.py
 -    if isinstance(obj, dict):
 -        return obj.get(name, default)
 -    return getattr(obj, name, default)
-
+ 
 +import clawcodex_ext.agent.fork_subagent as _mod
-
+ 
 -__all__ = [
 -    "FORK_AGENT",
 -    "FORK_PLACEHOLDER_RESULT",

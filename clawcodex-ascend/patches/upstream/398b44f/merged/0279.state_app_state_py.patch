@@ -4,7 +4,7 @@ diff --git a/state/app_state.py b/state/app_state.py
 @@ -1,607 +1,18 @@
 -"""Reactive UI state — the Python analogue of ``state/AppStateStore.ts``.
 +"""Compatibility facade — see :mod:`clawcodex_ext.state.app_state`.
-
+ 
 -Phase 2.1 of the ch03 state refactor: a minimal, immutable-update-style
 -``AppState`` dataclass backed by ``src.utils.store.create_store``, with
 -a centralized ``on_change_app_state`` handler that bridges UI state
@@ -50,9 +50,9 @@ diff --git a/state/app_state.py b/state/app_state.py
 +legacy import path so those references resolve to the same module
 +object.
  """
-
+ 
  from __future__ import annotations
-
+ 
 -import dataclasses
 -import logging
 -from dataclasses import dataclass, field, fields as dc_fields
@@ -592,7 +592,7 @@ diff --git a/state/app_state.py b/state/app_state.py
 -) -> Store[AppState]:
 -    """Construct an AppState store with the centralized side-effect router.
 +import sys
-
+ 
 -    Equivalent to TS:
 -    ``createStore(getDefaultAppState(), onChangeAppState)`` — plus the
 -    settings read-side: when ``initial`` is not supplied, the state is
@@ -603,9 +603,9 @@ diff --git a/state/app_state.py b/state/app_state.py
 -        initial = seed_app_state_from_settings(active_provider)
 -    return create_store(initial, on_change=on_change_app_state)
 +import clawcodex_ext.state.app_state as _ext_mod
-
+ 
 +sys.modules[__name__] = _ext_mod
-
+ 
 -__all__ = [
 -    "AppState",
 -    "create_app_state_store",

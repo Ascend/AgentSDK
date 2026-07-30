@@ -15,9 +15,9 @@ diff --git a/command_system/safe_commands.py b/command_system/safe_commands.py
 -yet (the allowlist is a forward-looking policy, not a runtime object set).
 -"""
 +"""Facade — command_system/safe_commands.py has been moved to clawcodex_ext (lazy proxy)."""
-
+ 
  from __future__ import annotations
-
+ 
 -from .types import Command, CommandType
 -
 -# Safe in --remote mode: only affect local TUI state; no fs/git/shell/IDE/MCP.

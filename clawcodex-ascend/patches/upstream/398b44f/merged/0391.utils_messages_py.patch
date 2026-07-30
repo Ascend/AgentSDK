@@ -8,11 +8,11 @@ diff --git a/utils/messages.py b/utils/messages.py
 -thinking block handling, and message predicates.
 -"""
 +"""Compatibility facade — see :mod:`clawcodex_ext.utils.messages`."""
-
+ 
  from __future__ import annotations
 +import sys
 +from clawcodex_ext.utils import messages as _module
-
+ 
 -from typing import Any
 -
 -from ..types.content_blocks import (

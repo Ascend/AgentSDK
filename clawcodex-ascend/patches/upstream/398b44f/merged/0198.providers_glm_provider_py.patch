@@ -13,9 +13,9 @@ diff --git a/providers/glm_provider.py b/providers/glm_provider.py
 -``from src.providers.glm_provider import GLMProvider`` import path.
 -"""
 +"""GLM (Zhipu AI) provider implementation."""
-
+ 
  from __future__ import annotations
-
+ 
 -from .zai_provider import ZaiProvider
 +from typing import Any, Optional
 +
@@ -63,12 +63,12 @@ diff --git a/providers/glm_provider.py b/providers/glm_provider.py
 +
 +        raw.chat.completions.create = _patched_create  # type: ignore[method-assign]
 +        return raw
-
+ 
 -# Legacy alias: ``GLMProvider`` now IS ``ZaiProvider``.
 -GLMProvider = ZaiProvider
 +    def get_available_models(self) -> list[str]:
 +        """Get list of available GLM models.
-
+ 
 -__all__ = ["GLMProvider", "ZaiProvider"]
 +        Returns:
 +            List of model names (with zai/ prefix for z.ai API)

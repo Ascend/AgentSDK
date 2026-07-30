@@ -2,7 +2,7 @@ diff --git a/utils/effort.py b/utils/effort.py
 --- a/utils/effort.py	2026-07-23 08:42:36.000000 +0000
 +++ b/utils/effort.py	2026-07-04 09:47:03.000000 +0800
 @@ -8,26 +8,27 @@
-
+ 
  class EffortLevel(Enum):
      """Effort levels that control thinking depth and token budgets."""
 -    LOW = "low"
@@ -14,8 +14,8 @@ diff --git a/utils/effort.py b/utils/effort.py
 +    MEDIUM = 'medium'
 +    HIGH = 'high'
 +    MAX = 'max'
-
-
+ 
+ 
  # Keyword → effort level mapping for user input detection
  EFFORT_KEYWORDS: dict[str, EffortLevel] = {
 -    "low": EffortLevel.LOW,
@@ -43,11 +43,11 @@ diff --git a/utils/effort.py b/utils/effort.py
 +    'maximum': EffortLevel.MAX,
 +    'comprehensive': EffortLevel.MAX,
  }
-
+ 
  # Max output tokens per effort level
 @@ -77,10 +78,10 @@
      lower = text.lower()
-
+ 
      # Check --effort flag
 -    if "--effort" in lower:
 -        parts = lower.split("--effort")
@@ -61,7 +61,7 @@ diff --git a/utils/effort.py b/utils/effort.py
              try:
 @@ -89,11 +90,11 @@
                  pass
-
+ 
      # Check --thorough, --quick flags
 -    if "--thorough" in lower:
 +    if '--thorough' in lower:
@@ -72,5 +72,5 @@ diff --git a/utils/effort.py b/utils/effort.py
 -    if "--max" in lower:
 +    if '--max' in lower:
          return EffortLevel.MAX
-
+ 
      return None

@@ -4,7 +4,7 @@ diff --git a/agent/prompt.py b/agent/prompt.py
 @@ -1,224 +1,16 @@
 -"""Agent tool prompt generation.
 +"""Facade — agent/prompt.py has been moved to clawcodex_ext/agent/prompt.
-
+ 
 -Mirrors typescript/src/tools/AgentTool/prompt.ts.
 -"""
 -from __future__ import annotations
@@ -70,7 +70,7 @@ diff --git a/agent/prompt.py b/agent/prompt.py
 +:mod:`clawcodex_ext.agent.prompt`. This module re-exports the public
 +surface so existing ``from src.agent.prompt import ...`` callers keep
 +working without modification.
-
+ 
 -    ``is_coordinator``: return only the shared header — the coordinator
 -    system prompt already carries usage notes, examples, and
 -    when-not-to-use guidance (mirrors ``prompt.ts:206-211``).
@@ -227,13 +227,13 @@ diff --git a/agent/prompt.py b/agent/prompt.py
 +Uses ``globals().update()`` to preserve access to all public names
 +regardless of ``__all__`` — the source module does not define ``__all__``.
 +"""
-
+ 
 -    # Use agent's own prompt generator
 -    prompt = agent_definition.get_system_prompt()
 -    if prompt:
 -        return prompt
 +import clawcodex_ext.agent.prompt as _mod
-
+ 
 -    # Fallback to default
 -    return DEFAULT_AGENT_PROMPT
 +_globals = {k: v for k, v in vars(_mod).items() if not k.startswith('_')}

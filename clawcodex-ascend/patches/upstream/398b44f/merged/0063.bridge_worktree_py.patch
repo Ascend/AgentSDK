@@ -28,11 +28,11 @@ diff --git a/bridge/worktree.py b/bridge/worktree.py
 -the daemon's poll loop.
 -"""
 +"""Compatibility facade — see :mod:`clawcodex_ext.bridge.worktree`."""
-
+ 
  from __future__ import annotations
 +import sys
 +from clawcodex_ext.bridge import worktree as _module
-
+ 
 -import asyncio
 -import logging
 -import os

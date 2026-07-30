@@ -19,6 +19,6 @@ diff --git a/utils/startup_profiler.py b/utils/startup_profiler.py
 +        # USERPROFILE. Profiling is advisory, so keep import side-effect free.
 +        home = Path.cwd()
 +    return home / ".clawcodex" / "startup-perf"
-
-
+ 
+ 
  _OUTPUT_DIR = _resolve_output_dir()

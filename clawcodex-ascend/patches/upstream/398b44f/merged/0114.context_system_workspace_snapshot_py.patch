@@ -4,7 +4,7 @@ diff --git a/context_system/workspace_snapshot.py b/context_system/workspace_sna
 @@ -1,74 +1,3 @@
 -from __future__ import annotations
 +"""Facade — context_system/workspace_snapshot.py moved to clawcodex_ext/context_system/."""
-
+ 
 -from pathlib import Path
 -
 -from .models import WorkspaceSnapshot

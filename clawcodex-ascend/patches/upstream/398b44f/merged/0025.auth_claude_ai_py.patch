@@ -4,7 +4,7 @@ diff --git a/auth/claude_ai.py b/auth/claude_ai.py
 @@ -1,275 +1,3 @@
 -"""claude.ai OAuth token + entitlement helpers.
 +"""Compatibility facade — see :mod:`clawcodex_ext.auth.claude_ai`."""
-
+ 
 -Ports the consumer-facing surface of ``typescript/src/utils/auth.ts``
 -that the bridge subsystem needs:
 -

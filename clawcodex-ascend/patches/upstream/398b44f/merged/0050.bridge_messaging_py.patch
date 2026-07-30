@@ -20,11 +20,11 @@ diff --git a/bridge/messaging.py b/bridge/messaging.py
 -without external locking.
 -"""
 +"""Compatibility facade — see :mod:`clawcodex_ext.bridge.messaging`."""
-
+ 
  from __future__ import annotations
 +import sys
 +from clawcodex_ext.bridge import messaging as _module
-
+ 
 -import asyncio
 -import inspect
 -import json

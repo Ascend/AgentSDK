@@ -4,7 +4,7 @@ diff --git a/services/pricing.py b/services/pricing.py
 @@ -1,392 +1,9 @@
 -"""Per-model pricing for cost calculation.
 +"""Facade — services/pricing.py has been moved to clawcodex_ext.
-
+ 
 -Pure functions and constants — no state, no class. The actual accumulation
 -of cost state lives in ``src.bootstrap.state`` (via
 -``add_to_total_cost_state`` and friends); this module just computes the
@@ -25,7 +25,7 @@ diff --git a/services/pricing.py b/services/pricing.py
 +public surface so existing ``from src.services.pricing import ...``
 +callers keep working.
  """
-
+ 
 -from __future__ import annotations
 -
 -from typing import Any

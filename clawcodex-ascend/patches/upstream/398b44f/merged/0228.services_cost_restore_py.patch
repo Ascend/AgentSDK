@@ -4,7 +4,7 @@ diff --git a/services/cost_restore.py b/services/cost_restore.py
 @@ -1,182 +1,28 @@
 -"""Cost-state restore orchestrator.
 +"""Facade — services/cost_restore.py has been moved to clawcodex_ext (lazy proxy).
-
+ 
 -Mirrors TS ``cost-tracker.ts:149`` (``restoreCostStateForSession``). Reads
 -the persisted cost snapshot for a given session ID and dispatches
 -``set_cost_state_for_restore`` into the bootstrap singleton so the
@@ -29,9 +29,9 @@ diff --git a/services/cost_restore.py b/services/cost_restore.py
 +``__dict__`` directly and would otherwise miss proxy-cached symbols
 +that haven't been imported yet.
  """
-
+ 
  from __future__ import annotations
-
+ 
 -import json
 -from pathlib import Path
 -from typing import Any
@@ -194,8 +194,8 @@ diff --git a/services/cost_restore.py b/services/cost_restore.py
 -    )
 -    return True
 +__all__ = ['restore_cost_state_for_session']
-
-
+ 
+ 
 -__all__ = ["restore_cost_state_for_session"]
 +def __getattr__(name: str):
 +    import clawcodex_ext.services.cost_restore as _mod

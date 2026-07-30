@@ -243,7 +243,7 @@ diff --git a/tool_system/tools/bash/bash_tool.py b/tool_system/tools/bash/bash_t
 -    and normalization-hardened) before this is called; here we resolve:
 -
 -    1. STRUCTURAL refusals only — a command the parser can't statically
--       analyze (control flow, unparsable quoting) or one hiding executable
+-       analyze (control flow, unparseable quoting) or one hiding executable
 -       substitution asks with NO suggestions (TS too-complex/injection asks,
 -       ``suggestions: []``), except that a raw exact-string allow rule is
 -       honored first (TS checkEarlyExitDeny exact-allow: the user consciously
@@ -483,7 +483,7 @@ diff --git a/tool_system/tools/bash/bash_tool.py b/tool_system/tools/bash/bash_t
 -        )
 -    return ValidationResult.ok()
 +"""Facade — tool_system/tools/bash/bash_tool.py moved to clawcodex_ext.tool_system.tools.bash.bash_tool (sys.modules swap).
-
+ 
 +Some tests introspect private internals (functions whose names start
 +with ``_``) and rely on ``from src.tool_system.tools.bash.bash_tool import _something``
 +resolving against the real module object. The plain
@@ -492,7 +492,7 @@ diff --git a/tool_system/tools/bash/bash_tool.py b/tool_system/tools/bash/bash_t
 +underlying ext module as the canonical object so attribute access,
 +``inspect.getsource()``, and AST walking keep working unchanged.
 +"""
-
+ 
 -def bash_command_safety_guard(command: str) -> None:
 -    """Pre-spawn safety for any shell command run through the bash machinery:
 -    the hardcoded-dangerous-pattern block + the C8 sandbox hard-gate.
@@ -970,10 +970,10 @@ diff --git a/tool_system/tools/bash/bash_tool.py b/tool_system/tools/bash/bash_t
 -    cmd = input_data.get("command", "")
 -    return cmd[:TOOL_SUMMARY_MAX_LENGTH] if cmd else None
 +from __future__ import annotations
-
+ 
 +import importlib
 +import sys
-
+ 
 -BashTool: Tool = build_tool(
 -    name=BASH_TOOL_NAME,
 -    input_schema={

@@ -4,7 +4,7 @@ diff --git a/token_estimation.py b/token_estimation.py
 @@ -1,484 +1,15 @@
 -"""Token estimation utilities — mirrors TypeScript tokenEstimation.ts.
 +"""Facade — token_estimation.py moved to clawcodex_ext/utils/.
-
+ 
 -Provides rough token counting for messages and content blocks, plus
 -accurate tiktoken-based counting when available. API-based counting
 -is also supported for precise results.
@@ -24,7 +24,7 @@ diff --git a/token_estimation.py b/token_estimation.py
 +it verbatim so existing ``from src.token_estimation import ...``
 +callers keep working without modification.
  """
-
+ 
 -from __future__ import annotations
 -
 -import json
@@ -464,7 +464,7 @@ diff --git a/token_estimation.py b/token_estimation.py
 -) -> dict[str, int]:
 -    """Break down token counts with cache awareness.
 +from clawcodex_ext.utils.token_estimation import *  # noqa: F401,F403
-
+ 
 -    Returns dict with:
 -    - uncached_tokens: tokens that were not cached
 -    - cache_read_tokens: tokens read from cache (cheaper)
@@ -481,9 +481,9 @@ diff --git a/token_estimation.py b/token_estimation.py
 -        "effective_tokens": effective,
 -    }
 +import sys
-
+ 
 +from clawcodex_ext.utils import token_estimation as _implementation
-
+ 
 -def rough_token_count_estimation_per_block_type(
 -    blocks: list[Any],
 -) -> dict[str, int]:

@@ -37,9 +37,9 @@ diff --git a/bridge/bridge_status_util.py b/bridge/bridge_status_util.py
 -``hide_trailing_zeros=True`` to match TS bridge exactly.
 -"""
 +"""Compatibility facade — see :mod:`clawcodex_ext.bridge.bridge_status_util`."""
-
+ 
  from __future__ import annotations
-
+ 
 -import time
 -from dataclasses import dataclass
 -from typing import Literal
@@ -420,16 +420,16 @@ diff --git a/bridge/bridge_status_util.py b/bridge/bridge_status_util.py
 -def wrap_with_osc8_link(text: str, url: str) -> str:
 -    """Wrap text in an OSC 8 terminal hyperlink. Zero visual width.
 +import sys
-
+ 
 -    Mirrors TS ``wrapWithOsc8Link`` on ``bridgeStatusUtil.ts:161-163``.
 -    Strippable by ``_strip_ansi`` so ``string_width`` returns the visible
 -    text width only.
 -    """
 -    return f'\x1b]8;;{url}\x07{text}\x1b]8;;\x07'
 +from clawcodex_ext.bridge import bridge_status_util as _module
-
+ 
 +sys.modules[__name__] = _module
-
+ 
 -__all__ = [
 -    'BridgeStatusInfo',
 -    'FAILED_FOOTER_TEXT',

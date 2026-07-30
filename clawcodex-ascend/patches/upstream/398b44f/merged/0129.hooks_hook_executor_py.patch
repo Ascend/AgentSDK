@@ -16,9 +16,9 @@ diff --git a/hooks/hook_executor.py b/hooks/hook_executor.py
 -Hook 'allow' does not bypass settings deny/ask rules.
 -"""
 +"""Module-identity facade for the canonical hook executor."""
-
+ 
  from __future__ import annotations
-
+ 
 -import asyncio
 -import json
 -import logging
@@ -1209,7 +1209,7 @@ diff --git a/hooks/hook_executor.py b/hooks/hook_executor.py
 -    ignored — a notification hook cannot change control flow.
 +import importlib
 +import sys
-
+ 
 -    This is ``-> None`` fire-and-forget (TS ``void executeNotificationHooks``,
 -    elicitationHandler.ts:283/298/307): the ENTIRE body is guarded so it can
 -    NEVER raise. Callers ``await`` it while computing a return value (e.g.

@@ -7,9 +7,9 @@ diff --git a/query/stop_hooks.py b/query/stop_hooks.py
 -Handles end-of-turn hook execution, background tasks, and abort handling.
 -"""
 +"""Module-identity bridge to the downstream stop-hook implementation."""
-
+ 
  from __future__ import annotations
-
+ 
 -import logging
 -import time
 -from dataclasses import dataclass, field
@@ -385,7 +385,7 @@ diff --git a/query/stop_hooks.py b/query/stop_hooks.py
 -
 +import importlib
 +import sys
-
+ 
 -def _get_stop_hook_message(error_info: Any) -> str:
 -    if isinstance(error_info, dict):
 -        blocking_error = error_info.get("blocking_error", "")

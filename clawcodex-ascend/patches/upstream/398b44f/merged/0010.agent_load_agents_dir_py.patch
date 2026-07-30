@@ -4,7 +4,7 @@ diff --git a/agent/load_agents_dir.py b/agent/load_agents_dir.py
 @@ -1,157 +1,19 @@
 -"""Discover and merge custom agent definitions from disk + plugins.
 +"""Facade — agent/load_agents_dir.py has been moved to clawcodex_ext/agent/load_agents_dir.
-
+ 
 -Port of ``getAgentDefinitionsWithOverrides`` in
 -typescript/src/tools/AgentTool/loadAgentsDir.ts. Combines built-in agents
 -(``src/agent/agent_definitions.py:get_built_in_agents``), plugin agents
@@ -18,7 +18,7 @@ diff --git a/agent/load_agents_dir.py b/agent/load_agents_dir.py
 +re-exports the public surface so existing
 +``from src.agent.load_agents_dir import ...`` callers keep working
 +without modification.
-
+ 
 -Last-wins merge order on duplicate ``agent_type``:
 -    [built-in, plugin, user, project, managed]
 -
@@ -152,7 +152,7 @@ diff --git a/agent/load_agents_dir.py b/agent/load_agents_dir.py
 -            plugin_agents = []
 -
 -        custom = _load_custom_agents(cwd)
-
+ 
 -        sources_in_order: dict[str, list[AgentDefinition]] = {
 -            "built-in": builtins,
 -            "plugin": plugin_agents,
@@ -164,7 +164,7 @@ diff --git a/agent/load_agents_dir.py b/agent/load_agents_dir.py
 -        for source_key in _MERGE_ORDER:
 -            flat.extend(sources_in_order.get(source_key, []))
 +import clawcodex_ext.agent.load_agents_dir as _mod
-
+ 
 -        active = get_active_agents_from_list(flat)
 -        _agent_dir_cache[key] = active
 -        return list(active)

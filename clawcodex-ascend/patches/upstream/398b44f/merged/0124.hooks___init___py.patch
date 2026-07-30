@@ -4,7 +4,7 @@ diff --git a/hooks/__init__.py b/hooks/__init__.py
 @@ -1,68 +1,3 @@
 -"""Hook system — PreToolUse, PostToolUse, Stop, Notification, PostSampling hook execution runtime.
 +"""Facade — hooks/ moved to clawcodex_ext/hooks/."""
-
+ 
 -Mirrors TypeScript utils/hooks.ts and hooks/ directory.
 -"""
 -

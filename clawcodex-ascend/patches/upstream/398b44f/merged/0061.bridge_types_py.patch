@@ -16,9 +16,9 @@ diff --git a/bridge/types.py b/bridge/types.py
 -TS files.
 -"""
 +"""Compatibility facade — see :mod:`clawcodex_ext.bridge.types`."""
-
+ 
  from __future__ import annotations
-
+ 
 -from dataclasses import dataclass, field
 -from typing import (
 -    Any,
@@ -474,9 +474,9 @@ diff --git a/bridge/types.py b/bridge/types.py
 -``remoteBridgeCore.ts``, and ``replBridge.ts``.
 -"""
 +import sys
-
+ 
 +from clawcodex_ext.bridge import types as _module
-
+ 
 -__all__ = [
 -    'BRIDGE_LOGIN_ERROR',
 -    'BRIDGE_LOGIN_INSTRUCTION',
@@ -502,7 +502,7 @@ diff --git a/bridge/types.py b/bridge/types.py
 -    'WorkResponse',
 -]
 +sys.modules[__name__] = _module
-
+ 
 -# Re-affirm WorkDataType is exported (Literal alias — appears in WorkData).
 -# Listed above explicitly so downstream consumers can write
 -# ``from src.bridge.types import WorkDataType``.

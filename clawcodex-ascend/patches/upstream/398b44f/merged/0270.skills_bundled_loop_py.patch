@@ -4,7 +4,7 @@ diff --git a/skills/bundled/loop.py b/skills/bundled/loop.py
 @@ -1,276 +1,9 @@
 -"""Bundled ``/loop`` skill — port of ``bundled/loop.ts``.
 +"""Facade — src/skills/bundled/loop.py has been moved to clawcodex_ext/skills/bundled/loop.
-
+ 
 -Pure argument-parsing logic + two prompt builders. Three modes:
 -``fixed-prompt``, ``fixed-maintenance``, ``dynamic-prompt``,
 -``dynamic-maintenance``. Routes to ``buildFixedPrompt`` or
@@ -15,7 +15,7 @@ diff --git a/skills/bundled/loop.py b/skills/bundled/loop.py
 -visible. TODO: wire to a real Python feature gate when one lands.
 +Re-exports so ``from src.skills.bundled.loop import ...`` callers keep working.
  """
-
+ 
 -from __future__ import annotations
 -
 -import re

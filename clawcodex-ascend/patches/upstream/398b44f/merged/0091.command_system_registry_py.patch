@@ -8,9 +8,9 @@ diff --git a/command_system/registry.py b/command_system/registry.py
 -Manages registration and lookup of commands.
 -"""
 +"""Facade — command_system/registry.py has been moved to clawcodex_ext (lazy proxy)."""
-
+ 
  from __future__ import annotations
-
+ 
 -from dataclasses import dataclass, field
 -from typing import Optional
 -

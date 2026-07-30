@@ -4,7 +4,7 @@ diff --git a/constants/xml.py b/constants/xml.py
 @@ -1,60 +1,8 @@
 -"""XML tag constants for chapter-10 task notifications.
 +"""Facade — constants/xml.py moved to clawcodex_ext/constants/.
-
+ 
 -Mirrors ``typescript/src/constants/xml.ts``. Single source of truth for
 -the tag names that appear in ``<task-notification>`` envelopes the model
 -sees in its conversation flow. Keep names byte-identical to the TS
@@ -15,7 +15,7 @@ diff --git a/constants/xml.py b/constants/xml.py
 +``from src.constants.xml import ...`` callers keep working.
  """
 -from __future__ import annotations
-
+ 
 -from typing import Final
 -
 -TASK_NOTIFICATION_TAG: Final[str] = "task-notification"

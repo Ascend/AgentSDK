@@ -8,9 +8,9 @@ diff --git a/command_system/argument_substitution.py b/command_system/argument_s
 -Handles replacing $arg, $1, $ARGUMENTS placeholders in command/skill content.
 -"""
 +"""Facade — command_system/argument_substitution.py has been moved to clawcodex_ext (lazy proxy)."""
-
+ 
  from __future__ import annotations
-
+ 
 -import re
 -import shlex
 -from typing import Sequence
@@ -122,10 +122,10 @@ diff --git a/command_system/argument_substitution.py b/command_system/argument_s
 +    'substitute_arguments',
 +    'parse_argument_names',
 +]
-
+ 
 -        # Split by commas
 -        return [name.strip() for name in spec.split(',') if name.strip()]
-
+ 
 -    return []
 +def __getattr__(name: str):
 +    import clawcodex_ext.command_system.argument_substitution as _mod

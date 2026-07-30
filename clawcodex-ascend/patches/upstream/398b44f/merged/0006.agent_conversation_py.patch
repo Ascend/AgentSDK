@@ -4,19 +4,19 @@ diff --git a/agent/conversation.py b/agent/conversation.py
 @@ -1,102 +1,15 @@
 -"""Conversation management for Claw Codex."""
 +"""Facade — agent/conversation.py has been moved to clawcodex_ext/agent/conversation.
-
+ 
 -from __future__ import annotations
 +The ``Conversation`` class and related message-construction helpers now live in
 +:mod:`clawcodex_ext.agent.conversation`. This module re-exports the public
 +surface so existing ``from src.agent.conversation import ...`` callers keep
 +working without modification.
-
+ 
 -from dataclasses import dataclass, field
 -from typing import Any
 +Uses ``globals().update()`` to preserve access to all public names
 +regardless of ``__all__`` — the source module does not define ``__all__``.
 +"""
-
+ 
 -from ..types.content_blocks import (
 -    ContentBlock,
 -    TextBlock,
@@ -34,7 +34,7 @@ diff --git a/agent/conversation.py b/agent/conversation.py
 -    normalize_messages_for_api,
 -)
 +import clawcodex_ext.agent.conversation as _mod
-
+ 
 -
 -@dataclass
 -class Conversation:

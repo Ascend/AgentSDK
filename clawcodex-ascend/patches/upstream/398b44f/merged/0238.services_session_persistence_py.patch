@@ -18,3 +18,4 @@ diff --git a/services/session_persistence.py b/services/session_persistence.py
 +                    pass
          except Exception as exc:
              self._warn(exc)
+ 

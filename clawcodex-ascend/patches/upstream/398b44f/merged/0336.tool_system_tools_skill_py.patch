@@ -4,7 +4,7 @@ diff --git a/tool_system/tools/skill.py b/tool_system/tools/skill.py
 @@ -1,539 +1,9 @@
 -from __future__ import annotations
 +"""Facade — tool_system/tools/skill.py moved to clawcodex_ext/tool_system/tools/."""
-
+ 
 -import importlib
 -import json
 -import os
@@ -237,7 +237,7 @@ diff --git a/tool_system/tools/skill.py b/tool_system/tools/skill.py
 -        normalized = skill_name.strip().lstrip("/")
 -        return _run_markdown_skill(normalized, tool_input.get("args", ""), context)
 +from clawcodex_ext.tool_system.tools.skill import *  # noqa: F401,F403
-
+ 
 -    legacy_name = tool_input.get("name")
 -    if isinstance(legacy_name, str) and legacy_name.strip():
 -        return _run_legacy_python_skill(legacy_name.strip(), tool_input.get("input", {}), context)
@@ -507,9 +507,9 @@ diff --git a/tool_system/tools/skill.py b/tool_system/tools/skill.py
 -        return d
 -    return None
 +import sys
-
+ 
 +from clawcodex_ext.tool_system.tools import skill as _implementation
-
+ 
 -SkillTool: Tool = build_tool(
 -    name="Skill",
 -    input_schema={

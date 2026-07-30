@@ -9,9 +9,9 @@ diff --git a/memdir/__init__.py b/memdir/__init__.py
 -(safety net + write carve-out) build on top of these primitives.
 -"""
 +"""Compatibility facade — see :mod:`clawcodex_ext.memdir`."""
-
+ 
  from __future__ import annotations
-
+ 
 -from .find_relevant_memories import (
 -    MAX_RELEVANT_MEMORIES,
 -    RelevantMemory,

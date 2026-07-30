@@ -4,16 +4,16 @@ diff --git a/upstreamproxy/upstream_proxy.py b/upstreamproxy/upstream_proxy.py
 @@ -35,7 +35,7 @@
  from dataclasses import dataclass
  from pathlib import Path
-
+ 
 -from src.bridge.no_proxy import default_no_proxy
 +from clawcodex_ext.bridge.no_proxy import default_no_proxy
-
+ 
  from .ca_bundle import download_ca_bundle
  from .ptrace_guard import set_non_dumpable
 @@ -51,6 +51,7 @@
  #: ``ca-certificates``.
  SYSTEM_CA_BUNDLE = '/etc/ssl/certs/ca-certificates.crt'
-
+ 
 +
  #: Default location of the merged CCR + system CA bundle.
  def _default_ca_bundle_out() -> Path:
@@ -27,11 +27,11 @@ diff --git a/upstreamproxy/upstream_proxy.py b/upstreamproxy/upstream_proxy.py
 -        )
 +        logger.warning('[upstreamproxy] CLAUDE_CODE_REMOTE_SESSION_ID unset; proxy disabled')
          return _state
-
+ 
      # Step 1: read the session token.
 @@ -141,11 +140,7 @@
      set_non_dumpable()
-
+ 
      # Step 3: resolve base URL and download the CA bundle.
 -    base_url = (
 -        ccr_base_url
@@ -56,5 +56,5 @@ diff --git a/upstreamproxy/upstream_proxy.py b/upstreamproxy/upstream_proxy.py
 -        )
 +        logger.warning('[upstreamproxy] relay start failed: %s; proxy disabled', exc)
          return _state
-
+ 
      # Step 5: unlink the token file (now that the relay is up — a

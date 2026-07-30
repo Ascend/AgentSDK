@@ -4,7 +4,7 @@ diff --git a/services/ide/diagnostics.py b/services/ide/diagnostics.py
 @@ -1,75 +1,3 @@
 -"""IDE diagnostics collection.
 +"""Compatibility facade — see :mod:`clawcodex_ext.services.ide.diagnostics`."""
-
+ 
 -Mirrors TypeScript ide/diagnostics.ts — collects LSP diagnostics from the IDE
 -and makes them available to the agent context.
 -"""

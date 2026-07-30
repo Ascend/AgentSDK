@@ -20,9 +20,9 @@ diff --git a/remote/remote_session_manager.py b/remote/remote_session_manager.py
 -    timeout, no title updates) live in the front-end consumer per A16.
 -"""
 +"""Compatibility facade — see :mod:`clawcodex_ext.remote.remote_session_manager`."""
-
+ 
  from __future__ import annotations
-
+ 
 -import asyncio
 -import logging
 -from collections.abc import Awaitable, Callable
@@ -272,7 +272,7 @@ diff --git a/remote/remote_session_manager.py b/remote/remote_session_manager.py
 -            await result
 -
 +import sys
-
+ 
 -def create_remote_session_config(
 -    session_id: str,
 -    get_access_token: Callable[[], str],
@@ -290,9 +290,9 @@ diff --git a/remote/remote_session_manager.py b/remote/remote_session_manager.py
 -        viewer_only=viewer_only,
 -    )
 +from clawcodex_ext.remote import remote_session_manager as _module
-
+ 
 +sys.modules[__name__] = _module
-
+ 
 -__all__ = [
 -    'RemoteSessionCallbacks',
 -    'RemoteSessionConfig',

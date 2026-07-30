@@ -5,7 +5,7 @@ diff --git a/context_system/git_context.py b/context_system/git_context.py
 -"""
 -Git context collection — aligned with typescript/src/context.ts getGitStatus().
 +"""Facade — context_system/git_context.py moved to clawcodex_ext.context_system.git_context (sys.modules swap).
-
+ 
 -Runs parallel git commands: branch, default branch, status --short,
 -log --oneline -n 5, config user.name.  Status truncated at 2000 chars.
 -Results are memoized per session; call clear_git_caches() to invalidate.
@@ -17,9 +17,9 @@ diff --git a/context_system/git_context.py b/context_system/git_context.py
 +underlying ext module as the canonical object so attribute access,
 +``inspect.getsource()``, and AST walking keep working unchanged.
  """
-
+ 
  from __future__ import annotations
-
+ 
 -import asyncio
 -import logging
 -import os
@@ -267,7 +267,7 @@ diff --git a/context_system/git_context.py b/context_system/git_context.py
 -        parts.append(f"Recent commits:\n{ctx.recent_commits}")
 +import importlib
 +import sys
-
+ 
 -    return "\n\n".join(parts)
 +_ext_mod = importlib.import_module('clawcodex_ext.context_system.git_context')
 +sys.modules[__name__] = _ext_mod

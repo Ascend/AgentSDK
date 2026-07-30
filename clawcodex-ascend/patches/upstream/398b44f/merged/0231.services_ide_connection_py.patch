@@ -4,7 +4,7 @@ diff --git a/services/ide/connection.py b/services/ide/connection.py
 @@ -1,169 +1,3 @@
 -"""IDE connection management via JSON-RPC.
 +"""Compatibility facade — see :mod:`clawcodex_ext.services.ide.connection`."""
-
+ 
 -Mirrors TypeScript ide/connection.ts — manages the lifecycle of IDE connections
 -including connect, disconnect, and request/notification handling.
 -"""

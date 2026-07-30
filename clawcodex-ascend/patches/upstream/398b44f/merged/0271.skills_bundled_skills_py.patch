@@ -206,14 +206,14 @@ diff --git a/skills/bundled_skills.py b/skills/bundled_skills.py
 -            return skill
 -    return None
 +"""Module-identity facade for bundled-skill registry compatibility."""
-
+ 
 +from __future__ import annotations
-
+ 
 -def clear_bundled_skills() -> None:
 -    """Wipe the registry and reset the lazy-init flag.
 +import importlib
 +import sys
-
+ 
 -    Resetting the flag ensures the next ``get_bundled_skills`` /
 -    ``register_bundled_skill`` cycle re-seeds the catalogue, which is
 -    what test fixtures want — otherwise a clear-then-read would return

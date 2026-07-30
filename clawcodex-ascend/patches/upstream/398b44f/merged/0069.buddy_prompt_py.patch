@@ -4,20 +4,20 @@ diff --git a/buddy/prompt.py b/buddy/prompt.py
 @@ -1,137 +1,9 @@
 -"""Companion-intro attachment + system-prompt text.
 +"""Compatibility facade — see :mod:`clawcodex_ext.buddy.prompt`."""
-
+ 
 -Port of ``typescript/src/buddy/prompt.ts``.
 +from clawcodex_ext.buddy.prompt import *  # noqa: F401,F403
-
+ 
 -Two functions:
 +import sys
-
+ 
 -* :func:`companion_intro_text` — the system-prompt block (TS prompt.ts:7-13).
 -* :func:`build_companion_intro_attachment` — guards + dedup + attachment
 -  dict construction (TS prompt.ts:15-35). Signature matches TS exactly
 -  (only ``messages`` argument; ``companion`` resolved internally) per
 -  ``my-docs/get-parity-by-folder/buddy-gap-analysis.md`` §4.6 item 1.
 +from clawcodex_ext.buddy import prompt as _implementation
-
+ 
 -Plus :func:`format_companion_intro_attachments` — a SIBLING formatter
 -to ``src.command_system.input_processing.format_at_mention_attachments``
 -that renders the companion-intro into a ``<system-reminder>`` block.

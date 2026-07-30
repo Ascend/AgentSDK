@@ -22,11 +22,11 @@ diff --git a/bridge/inbound_messages.py b/bridge/inbound_messages.py
 -needed are PNG / JPEG / GIF / WebP.
 -"""
 +"""Compatibility facade — see :mod:`clawcodex_ext.bridge.inbound_messages`."""
-
+ 
  from __future__ import annotations
 +import sys
 +from clawcodex_ext.bridge import inbound_messages as _module
-
+ 
 -import base64
 -from typing import Any
 -

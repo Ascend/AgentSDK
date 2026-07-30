@@ -4,7 +4,7 @@ diff --git a/tool_system/tools/notebook_edit.py b/tool_system/tools/notebook_edi
 @@ -1,308 +1,3 @@
 -"""NotebookEdit tool — edit cells in Jupyter notebooks (.ipynb files).
 +"""Facade — tool_system/tools/notebook_edit.py moved to clawcodex_ext/tool_system/tools/."""
-
+ 
 -Supports three edit modes:
 -- replace: Replace the source of an existing cell
 -- insert: Insert a new cell after a specified cell (or at the beginning)

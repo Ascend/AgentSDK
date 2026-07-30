@@ -4,7 +4,7 @@ diff --git a/memdir/memdir.py b/memdir/memdir.py
 @@ -1,371 +1,3 @@
 -"""Auto-memory prompt builders and ``MEMORY.md`` index handling.
 +"""Compatibility facade — see :mod:`clawcodex_ext.memdir.memdir`."""
-
+ 
 -Ports the load-bearing pieces of `typescript/src/memdir/memdir.ts`:
 -
 -- :func:`truncate_entrypoint_content` — enforces the 200-line / 25KB caps

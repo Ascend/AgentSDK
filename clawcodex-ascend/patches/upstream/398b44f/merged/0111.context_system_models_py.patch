@@ -5,7 +5,7 @@ diff --git a/context_system/models.py b/context_system/models.py
 -"""
 -Context system data models — aligned with TypeScript Claude Code architecture.
 +"""Facade — context_system/models.py moved to clawcodex_ext/context_system/."""
-
+ 
 -TypeScript references:
 -  - claudemd.ts: MemoryFileInfo, MemoryType
 -  - context.ts: getUserContext, getSystemContext (return dict[str, str])

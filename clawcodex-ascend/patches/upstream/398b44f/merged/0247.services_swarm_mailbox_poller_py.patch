@@ -5,7 +5,7 @@ diff --git a/services/swarm/mailbox_poller.py b/services/swarm/mailbox_poller.py
 -"""Mailbox poller daemon — Chunk H / WI-9.1 + plan-mode receiver-side
 -defense-in-depth (deferred from Chunk-F D1).
 +"""Facade — services/swarm/mailbox_poller.py moved to clawcodex_ext/services/swarm/."""
-
+ 
 -Periodically reads each tracked recipient's inbox file and dispatches
 -structured envelopes back into runtime state:
 -

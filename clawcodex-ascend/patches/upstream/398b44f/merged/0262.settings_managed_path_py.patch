@@ -11,26 +11,26 @@ diff --git a/settings/managed_path.py b/settings/managed_path.py
          p = Path(env_path)
          if p.exists():
 @@ -24,21 +24,22 @@
-
+ 
      # Platform-specific defaults
      import platform
 +
      system = platform.system()
-
+ 
 -    if system == "Darwin":
 -        managed = Path("/Library/Application Support/ClawCodex/managed-settings.json")
 +    if system == 'Darwin':
 +        managed = Path('/Library/Application Support/ClawCodex/managed-settings.json')
          if managed.exists():
              return managed
-
+ 
 -    if system == "Linux":
 -        managed = Path("/etc/clawcodex/managed-settings.json")
 +    if system == 'Linux':
 +        managed = Path('/etc/clawcodex/managed-settings.json')
          if managed.exists():
              return managed
-
+ 
 -    if system == "Windows":
 -        program_data = os.environ.get("ProgramData", r"C:\ProgramData")
 -        managed = Path(program_data) / "ClawCodex" / "managed-settings.json"
@@ -39,3 +39,4 @@ diff --git a/settings/managed_path.py b/settings/managed_path.py
 +        managed = Path(program_data) / 'ClawCodex' / 'managed-settings.json'
          if managed.exists():
              return managed
+ 

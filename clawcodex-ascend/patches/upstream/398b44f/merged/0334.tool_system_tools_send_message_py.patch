@@ -4,7 +4,7 @@ diff --git a/tool_system/tools/send_message.py b/tool_system/tools/send_message.
 @@ -1,623 +1,14 @@
 -"""SendMessage tool — Chunk F / WI-7.1 + WI-7.2 + WI-7.3.
 +"""Facade — tool_system/tools/send_message.py moved to clawcodex_ext/.
-
+ 
 -Mirrors ``typescript/src/tools/SendMessageTool/SendMessageTool.ts``.
 -The universal communication primitive for inter-agent messaging:
 -plain text from leader → teammate, structured protocol envelopes
@@ -287,9 +287,9 @@ diff --git a/tool_system/tools/send_message.py b/tool_system/tools/send_message.
 -        f"Message delivered to mailbox of {to!r}.",
 -        recipient=to,
 -    )
-
+ 
 +from __future__ import annotations
-
+ 
 -def _broadcast(
 -    *,
 -    team_file: TeamFile,
@@ -626,7 +626,7 @@ diff --git a/tool_system/tools/send_message.py b/tool_system/tools/send_message.
 -
 +import importlib
 +import sys
-
+ 
 -__all__ = [
 -    "SEND_MESSAGE_TOOL_NAME",
 -    "SEND_MESSAGE_INPUT_SCHEMA",

@@ -4,7 +4,7 @@ diff --git a/agent/resume_agent.py b/agent/resume_agent.py
 @@ -1,246 +1,19 @@
 -"""Auto-resume for terminal local_agent tasks — Chunk F / WI-7.4.
 +"""Facade — agent/resume_agent.py has been moved to clawcodex_ext/agent/resume_agent.
-
+ 
 -Mirrors ``typescript/src/tools/AgentTool/resumeAgent.ts``. When
 -SendMessage targets a terminal-state agent (completed / failed /
 -killed), instead of returning an error this module re-spawns the
@@ -254,9 +254,9 @@ diff --git a/agent/resume_agent.py b/agent/resume_agent.py
 -        replayed_message_count=len(replayed),
 -        reason="",
 -    )
-
+ 
 +import clawcodex_ext.agent.resume_agent as _mod
-
+ 
 -__all__ = [
 -    "ResumeResult",
 -    "resume_agent_background",

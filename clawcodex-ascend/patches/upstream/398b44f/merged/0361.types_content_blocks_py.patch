@@ -4,14 +4,14 @@ diff --git a/types/content_blocks.py b/types/content_blocks.py
 @@ -1,231 +1,9 @@
 -"""Typed content block models mirroring TypeScript ContentBlock/ContentBlockParam."""
 +"""Facade — types/content_blocks.py moved to clawcodex_ext/types/.
-
+ 
 -from __future__ import annotations
 +The full typed content block dataclasses now live in
 +:mod:`clawcodex_ext.types.content_blocks`. This module re-exports
 +them verbatim so existing ``from src.types.content_blocks import ...``
 +callers keep working.
 +"""
-
+ 
 -from dataclasses import dataclass, field
 -from typing import Any, Literal, Mapping, TypeAlias
 -
