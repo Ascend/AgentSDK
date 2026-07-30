@@ -67,7 +67,7 @@ readonly CLAWCODEX_VERSION="2026.6.24"
 # REPO_REF is intentionally NOT readonly — it gets reassigned when the user
 # passes --ref. Same for CLAWCODEX_HOME / CLAWCODEX_PARENT_DIR / CONFIG_DIR
 # (derived from overridable defaults below).
-REPO_REF="v${CLAWCODEX_VERSION}"
+REPO_REF="tech_v26.2.0"
 readonly REPO_URL="https://gitcode.com/Ascend/AgentSDK"
 # --- Overridable paths (defaults; overridden by --install-dir / --config-dir) ---
 # Install dir = where the project source is cloned and (by default) the .venv lives.
@@ -79,6 +79,8 @@ readonly DEFAULT_CONFIG_DIR="$HOME/.clawcodex"
 readonly LOCAL_BIN="$HOME/.local/bin"
 readonly PYTHON_MIN_VERSION="3.11"
 readonly PYTHON_MAX_SUPPORTED="3.13"
+# Minimum disk space required for venv + dependencies (~500 MB)
+readonly MIN_DISK_KB=$((512 * 1024))
 readonly ENTRY_POINT="clawcodex-dev"   # the single registered entry in pyproject.toml
 readonly RC_MARKER="# clawcodex installer — managed by install.sh"
 # --- Upstream source for src/ directory (Claude Code upstream fork) ---
@@ -376,16 +378,29 @@ ensure_python_pyo3_compat() {
 }
 
 # ============================================================================
+#  Helper: adjust CLAWCODEX_HOME to clawcodex-ascend subdir if present
+# ============================================================================
+_adjust_to_subdir() {
+    if [[ -d "$CLAWCODEX_HOME/clawcodex-ascend" ]]; then
+        CLAWCODEX_HOME="$CLAWCODEX_HOME/clawcodex-ascend"
+        CLAWCODEX_PARENT_DIR="$(dirname -- "$CLAWCODEX_HOME")"
+    fi
+}
+
+# ============================================================================
 #  Clone or update the repo
 # ============================================================================
 clone_or_update_repo() {
-    # Try to detect if we're already inside an AgentSDK git repo
-    local repo_root
-    repo_root=$(git rev-parse --show-toplevel 2>/dev/null || true)
-    if [[ -n "$repo_root" && -f "$repo_root/README.md" ]]; then
-        # We are inside a git repo — use it directly
-        CLAWCODEX_HOME="$repo_root"
-        log_info "Using existing repo at $CLAWCODEX_HOME"
+    # Only auto-detect repo location when --install-dir was NOT explicitly set
+    if [[ "$CLAWCODEX_HOME" == "$DEFAULT_INSTALL_DIR" ]]; then
+        # Try to detect if we're already inside an AgentSDK git repo
+        local repo_root
+        repo_root=$(git rev-parse --show-toplevel 2>/dev/null || true)
+        if [[ -n "$repo_root" && -f "$repo_root/README.md" ]]; then
+            # We are inside a git repo — use it directly
+            CLAWCODEX_HOME="$repo_root"
+            _adjust_to_subdir
+            log_info "Using existing repo at $CLAWCODEX_HOME"
         if [[ -d "$CLAWCODEX_HOME/.git" ]]; then
             log_info "Pulling latest changes..."
             if (cd "$CLAWCODEX_HOME" && git pull --ff-only) >/dev/null 2>&1; then
@@ -400,6 +415,8 @@ clone_or_update_repo() {
         fi
         return
     fi
+    fi
+    # --- End of auto-detect block (--install-dir check above) ---
 
     if [[ -d "$CLAWCODEX_HOME/.git" ]]; then
         log_info "Existing repo found at $CLAWCODEX_HOME — pulling latest changes..."
@@ -412,6 +429,7 @@ clone_or_update_repo() {
                           "             git pull --rebase               (rebase your changes)" \
                           "Then re-run: $0 update"
         fi
+        _adjust_to_subdir
         return
     fi
 
@@ -438,6 +456,7 @@ clone_or_update_repo() {
     # version, so old install.sh + old clawcodex + old deps always line up.
     if git clone --depth 1 --branch "$REPO_REF" "$REPO_URL" "$CLAWCODEX_HOME" 2>/dev/null; then
         log_ok "Cloned ref $REPO_REF (clawcodex $CLAWCODEX_VERSION)"
+        _adjust_to_subdir
         return
     fi
 
@@ -455,6 +474,7 @@ clone_or_update_repo() {
                       "Diagnose: $0 doctor"
     fi
     log_ok "Cloned default branch (clawcodex version NOT pinned)"
+    _adjust_to_subdir
 }
 
 # ============================================================================
@@ -806,14 +826,19 @@ install_main() {
     log_step "5/10  Initializing local release .env"
     ensure_local_env_file
 
+    log_step "6/10  Setting up upstream source (src/)"
+    setup_upstream_src
+
     log_step "7/10  $([[ $USE_VENV -eq 1 ]] && echo "Creating virtual environment" || echo "Preparing (no venv — using system Python)")"
     create_venv
 
     log_step "8/10  Installing dependencies (uv sync --extra all, lock-pinned)"
     install_deps
 
-    # Git hook installation deferred to follow-up version
-    log_step "9/10  Registering global commands & patching PATH"
+    log_step "9/10  Installing local Git hooks"
+    install_git_hooks
+
+    log_step "10/10  Registering global commands & patching PATH"
     register_commands
     update_shell_rc
 
@@ -846,6 +871,7 @@ CONFIG_DIR_OVERRIDE=""
 USE_VENV=1       # --no-venv flips to 0
 RUN_SETUP=1      # --no-setup flips to 0
 DRY_RUN=0        # --dry-run flips to 1
+FORCE_SRC=0      # --force-src flips to 1 (force re-fetch upstream src/)
 ASSUME_YES=0     # --yes/-y flips to 1
 LOG_FILE=""      # --log-file <path>
 DEBUG=0          # --debug flips to 1 (set -x trace)
@@ -860,7 +886,7 @@ parse_args() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
             # --- Subcommands ---
-            install)
+            install|status|doctor|verify|update|uninstall|help)
                 SUBCOMMAND="$1"; shift ;;
 
             # --- Option flags ---
@@ -878,6 +904,8 @@ parse_args() {
                 LOG_FILE="$2"; shift 2 ;;
             --dry-run)
                 DRY_RUN=1; shift ;;
+            --force-src)
+                FORCE_SRC=1; shift ;;
             --yes|-y)
                 ASSUME_YES=1; shift ;;
             --no-venv)
@@ -889,6 +917,12 @@ parse_args() {
             --version|-v)
                 echo "install.sh v${INSTALLER_VERSION} (installs clawcodex v${CLAWCODEX_VERSION})"
                 exit 0 ;;
+            --uninstall|-u)
+                SUBCOMMAND="uninstall"; shift ;;
+            --help|-h)
+                print_help; exit 0 ;;
+            --help-zh)
+                print_help_zh; exit 0 ;;
 
             --)
                 shift; break ;;
@@ -975,13 +1009,910 @@ trap '_on_exit_summary $?' EXIT
 if [[ "$DEBUG" -eq 1 ]]; then
     set -x
 fi
+find_project_python() {
+    if [[ "$USE_VENV" -eq 1 ]]; then
+        for candidate in \
+            "$CLAWCODEX_HOME/.venv/bin/python" \
+            "$CLAWCODEX_HOME/.venv/Scripts/python.exe" \
+            "$CLAWCODEX_HOME/.venv/Scripts/python"; do
+            if [[ -x "$candidate" ]]; then
+                echo "$candidate"
+                return 0
+            fi
+        done
+        return 1
+    fi
+
+    for candidate in \
+        "$(command -v python3 2>/dev/null || true)" \
+        "$(command -v python 2>/dev/null || true)"; do
+        if [[ -n "$candidate" && -x "$candidate" ]]; then
+            echo "$candidate"
+            return 0
+        fi
+    done
+    return 1
+}
+
+install_git_hooks() {
+    log_info "Installing local Git hooks (pre-commit, best-effort)..."
+    if [[ "${DRY_RUN:-0}" -eq 1 ]]; then
+        _script_p1
+        echo "[DRY-RUN] would run: python -m pre_commit install   (in $CLAWCODEX_HOME)"
+        return 0
+    fi
+
+    local repo_root
+    repo_root=$(dirname "$CLAWCODEX_HOME" 2>/dev/null || echo "$CLAWCODEX_HOME")
+    if [[ ! -d "$CLAWCODEX_HOME/.git" && ! -d "$repo_root/.git" ]] || \
+       [[ ! -f "$CLAWCODEX_HOME/.pre-commit-config.yaml" && ! -f "$repo_root/.pre-commit-config.yaml" ]]; then
+        log_warn "Skipping pre-commit hook install (not a Git worktree with .pre-commit-config.yaml)."
+        return 0
+    fi
+
+    local git_root="$CLAWCODEX_HOME"
+    if [[ -f "$repo_root/.pre-commit-config.yaml" ]]; then
+        git_root="$repo_root"
+    fi
+
+    local python_bin
+    if ! python_bin=$(find_project_python); then
+        log_warn "Skipping pre-commit hook install (project Python not found)."
+        return 0
+    fi
+
+    if ! "$python_bin" -m pre_commit --version >/dev/null 2>&1; then
+        log_warn "Skipping pre-commit hook install (pre-commit is not available in the install environment)."
+        return 0
+    fi
+
+    if (cd "$git_root" && "$python_bin" -m pre_commit install --hook-type pre-commit >/dev/null); then
+        log_ok "Installed .git/hooks/pre-commit"
+    else
+        log_warn "Could not install .git/hooks/pre-commit; run 'python -m pre_commit install' manually if you develop in this checkout."
+    fi
+}
+
+# ============================================================================
+#  Inspection subcommands (read-only diagnostics — safe for agents to call,
+#  except for empty directory creation during write-permission checks)
+# ============================================================================
+
+# Show current install state. No side effects.
+cmd_status() {
+    echo "=== clawcodex install status ==="
+    echo "  Installer   : v${INSTALLER_VERSION}  (would install clawcodex v${CLAWCODEX_VERSION})"
+    echo "  Repo URL    : $REPO_URL"
+    echo "  Git ref     : $REPO_REF"
+    echo "  Upstream URL: $UPSTREAM_URL"
+    echo "  Upstream ref: $UPSTREAM_REF"
+    echo "  Install dir : $CLAWCODEX_HOME"
+    echo "  Config dir  : $CONFIG_DIR"
+    echo "  Local bin   : $LOCAL_BIN"
+    echo ""
+    if [[ -d "$CLAWCODEX_HOME/.git" ]]; then
+        local installed_sha installed_branch
+        installed_sha=$(cd "$CLAWCODEX_HOME" && git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+        installed_branch=$(cd "$CLAWCODEX_HOME" && git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+        echo "  Git state   :"
+        echo "    branch    : $installed_branch"
+        echo "    commit    : $installed_sha"
+        if [[ -d "$CLAWCODEX_HOME/.venv" ]]; then
+            local py_ver
+            py_ver=$("$CLAWCODEX_HOME/.venv/bin/python" --version 2>&1 | head -1 || echo "missing")
+            echo "  Venv        : present (Python: $py_ver)"
+        else
+            echo "  Venv        : MISSING (run '$0 update' to recreate)"
+        fi
+        if [[ -d "$CLAWCODEX_HOME/src" ]]; then
+            echo "  src/        : present"
+        else
+            echo "  src/        : MISSING (will be pulled from upstream on install)"
+        fi
+    else
+        echo "  Git state   : NOT INSTALLED (run '$0 install')"
+    fi
+    echo ""
+    echo "  Commands:"
+    for cmd in clawcodex-dev clawcodex; do
+        if [[ -x "$LOCAL_BIN/$cmd" ]]; then
+            echo "    $LOCAL_BIN/$cmd : present"
+        else
+            echo "    $LOCAL_BIN/$cmd : MISSING"
+        fi
+    done
+    echo ""
+    if command -v clawcodex-dev >/dev/null 2>&1; then
+        echo "  clawcodex-dev resolves to: $(command -v clawcodex-dev)"
+    else
+        echo "  clawcodex-dev NOT on PATH (run: source ~/.bashrc)"
+    fi
+    echo ""
+    echo "=== end of status ==="
+}
+
+# Diagnose the environment. No side effects (only reads).
+# Exit 0 if all critical checks pass, 1 if any fail.
+cmd_doctor() {
+    local fail=0 warn=0
+    echo "=== clawcodex environment doctor ==="
+    echo ""
+
+    # 1. OS
+    echo "[1/10] OS detection"
+    if [[ "$OS" == "unknown" ]]; then
+        echo "        ✗ unknown OS"
+        fail=$((fail+1))
+    else
+        echo "        ✓ $OS"
+    fi
+
+    # 2. Git
+    echo "[2/10] Git"
+    if command -v git >/dev/null 2>&1; then
+        echo "        ✓ $(git --version)"
+    else
+        echo "        ✗ git not found"
+        echo "          install: $(os_install_hint_oneliner "$OS")"
+        fail=$((fail+1))
+    fi
+
+    # 3. Python
+    echo "[3/10] Python >= $PYTHON_MIN_VERSION"
+    if command -v uv >/dev/null 2>&1; then
+        local py
+        if py=$(uv python find "$PYTHON_MIN_VERSION" 2>/dev/null) && [[ -n "$py" ]]; then
+            echo "        ✓ $py ($($py --version 2>&1))"
+        else
+            echo "        ! no Python $PYTHON_MIN_VERSION+ found (uv will provision on install)"
+            warn=$((warn+1))
+        fi
+    else
+        echo "        ! uv not on PATH yet (Python check deferred to install time)"
+        warn=$((warn+1))
+    fi
+
+    # 4. uv
+    echo "[4/10] uv"
+    if command -v uv >/dev/null 2>&1; then
+        echo "        ✓ $(uv --version)"
+    else
+        echo "        ! uv not on PATH (will be installed by $0)"
+        warn=$((warn+1))
+    fi
+
+    # 5. Network
+    echo "[5/10] Network reachability"
+    if curl -sSf --connect-timeout 5 --max-time 10 -o /dev/null "$REPO_URL" 2>/dev/null; then
+        echo "        ✓ repo reachable: $REPO_URL"
+    else
+        echo "        ✗ cannot reach $REPO_URL"
+        echo "          check: proxy settings, VPN, DNS, firewall"
+        fail=$((fail+1))
+    fi
+
+    # 6. Write access to install dir
+    echo "[6/10] Write access to install dir"
+    local parent
+    parent=$(dirname -- "$CLAWCODEX_HOME")
+    # Walk up to find the nearest existing parent directory for write check
+    local check_dir="$parent"
+    while [[ ! -d "$check_dir" && "$check_dir" != "/" ]]; do
+        check_dir=$(dirname -- "$check_dir")
+    done
+    if [[ -w "$check_dir" ]]; then
+        echo "        ✓ writable: $parent (parent $check_dir is writable)"
+    else
+        echo "        ✗ cannot write: $parent"
+        echo "          fix: sudo chown -R \$USER $parent   (or pick a different --install-dir)"
+        fail=$((fail+1))
+    fi
+
+    # 7. Write access to config dir
+    echo "[7/10] Write access to config dir"
+    local cfg_check="$CONFIG_DIR"
+    while [[ ! -d "$cfg_check" && "$cfg_check" != "/" ]]; do
+        cfg_check=$(dirname -- "$cfg_check")
+    done
+    if [[ -w "$cfg_check" ]]; then
+        echo "        ✓ writable: $CONFIG_DIR"
+    else
+        echo "        ✗ cannot write: $CONFIG_DIR"
+        fail=$((fail+1))
+    fi
+
+    # 8. Disk space
+    echo "[8/10] Disk space"
+    local avail_kb
+    avail_kb=$(df -Pk "$CLAWCODEX_PARENT_DIR" 2>/dev/null | awk 'NR==2 {print $4}')
+    if [[ -n "$avail_kb" ]] && [[ $avail_kb -gt $MIN_DISK_KB ]]; then
+        echo "        ✓ $(( avail_kb / 1024 ))MB available"
+    else
+        echo "        ✗ < $(( MIN_DISK_KB / 1024 ))MB available at $CLAWCODEX_PARENT_DIR (need ~$(( MIN_DISK_KB / 1024 ))MB for venv + deps)"
+        fail=$((fail+1))
+    fi
+
+    # 9. PATH
+    echo "[9/10] ~/.local/bin in PATH"
+    if [[ ":$PATH:" == *":$HOME/.local/bin:"* ]]; then
+        echo "        ✓ $HOME/.local/bin is in current PATH"
+    else
+        echo "        ! $HOME/.local/bin NOT in current PATH (will be patched on install)"
+        warn=$((warn+1))
+    fi
+
+    # 10. Existing install
+    echo "[10/10] Existing install"
+    if [[ -d "$CLAWCODEX_HOME/.git" ]]; then
+        echo "        ✓ installed at $CLAWCODEX_HOME"
+        echo "          (run '$0 verify' to check health, '$0 update' to refresh)"
+    else
+        echo "        ! not installed yet"
+        warn=$((warn+1))
+    fi
+
+    echo ""
+    echo "=== summary ==="
+    echo "  critical : $fail"
+    echo "  warnings : $warn"
+    echo ""
+    if [[ $fail -gt 0 ]]; then
+        echo "  Result: NOT READY ($fail critical issue(s))"
+        exit 1
+    else
+        echo "  Result: READY to install (or already installed)"
+        exit 0
+    fi
+}
+
+# Health check an existing install. No side effects.
+cmd_verify() {
+    local fail=0 warn=0
+    echo "=== clawcodex install verification ==="
+    echo ""
+
+    # 1. Repo
+    echo "[1/6] Repo"
+    if [[ -d "$CLAWCODEX_HOME/.git" ]]; then
+        echo "      ✓ present at $CLAWCODEX_HOME"
+    else
+        echo "      ✗ NOT FOUND at $CLAWCODEX_HOME"
+        echo "        run: $0 install"
+        fail=$((fail+1))
+    fi
+
+    # 2. Venv
+    echo "[2/6] Venv"
+    if [[ -d "$CLAWCODEX_HOME/.venv" ]]; then
+        echo "      ✓ present at $CLAWCODEX_HOME/.venv"
+        if [[ -x "$CLAWCODEX_HOME/.venv/bin/python" ]]; then
+            echo "      ✓ python works: $($CLAWCODEX_HOME/.venv/bin/python --version 2>&1)"
+        else
+            echo "      ✗ python missing in venv"
+            fail=$((fail+1))
+        fi
+    else
+        echo "      ✗ venv MISSING at $CLAWCODEX_HOME/.venv"
+        echo "        run: $0 update   (or: $0 install)"
+        fail=$((fail+1))
+    fi
+
+    # 3. Entry point
+    echo "[3/6] Entry point"
+    local entry=""
+    if [[ -d "$CLAWCODEX_HOME/.venv" ]]; then
+        entry=$(find_venv_entry "$CLAWCODEX_HOME/.venv" "$ENTRY_POINT" 2>/dev/null || true)
+    fi
+    if [[ -n "$entry" && -x "$entry" ]]; then
+        echo "      ✓ $ENTRY_POINT at $entry"
+    else
+        echo "      ✗ $ENTRY_POINT not found in venv"
+        echo "        run: $0 update"
+        fail=$((fail+1))
+    fi
+
+    # 4. Wrappers
+    echo "[4/6] Command wrappers"
+    for cmd in clawcodex-dev clawcodex; do
+        if [[ -x "$LOCAL_BIN/$cmd" ]]; then
+            echo "      ✓ $LOCAL_BIN/$cmd"
+        else
+            echo "      ✗ $LOCAL_BIN/$cmd MISSING"
+            echo "        run: $0 install"
+            fail=$((fail+1))
+        fi
+    done
+
+    # 5. PATH
+    echo "[5/6] PATH"
+    if command -v clawcodex-dev >/dev/null 2>&1; then
+        echo "      ✓ clawcodex-dev resolves to: $(command -v clawcodex-dev)"
+    else
+        echo "      ! clawcodex-dev NOT on PATH (wrappers exist but not exported)"
+        echo "        run: source ~/.bashrc   (or ~/.zshrc)"
+        warn=$((warn+1))
+    fi
+
+    # 6. Smoke test
+    echo "[6/6] Smoke test (clawcodex-dev --version)"
+    if command -v clawcodex-dev >/dev/null 2>&1; then
+        if clawcodex-dev --version >/dev/null 2>&1; then
+            echo "      ✓ clawcodex-dev --version works"
+        else
+            echo "      ✗ clawcodex-dev --version FAILED (exit $?)"
+            fail=$((fail+1))
+        fi
+    else
+        echo "      ! skipped (not on PATH)"
+        warn=$((warn+1))
+    fi
+
+    echo ""
+    if [[ $fail -gt 0 ]]; then
+        echo "=== Result: UNHEALTHY ($fail issue(s), $warn warning(s)) ==="
+        echo ""
+        echo "Try:"
+        echo "  $0 update                                  # re-pull and re-install deps"
+        echo "  $0 uninstall && $0                         # full clean reinstall"
+        exit 1
+    else
+        echo "=== Result: HEALTHY ($warn warning(s)) ==="
+        exit 0
+    fi
+}
+
+# Update: pull latest and reinstall deps. Side effects: yes.
+cmd_update() {
+    log_info "Updating clawcodex at $CLAWCODEX_HOME (ref: $REPO_REF)..."
+    if [[ ! -d "$CLAWCODEX_HOME/.git" ]]; then
+        die_with_help "No existing install at $CLAWCODEX_HOME." \
+                      "Run: $0 install   (fresh install)" \
+                      "Or:  $0 doctor    (diagnose environment)"
+    fi
+    clone_or_update_repo
+    ensure_local_env_file
+    install_deps
+    install_git_hooks
+    register_commands
+    log_ok "Update complete."
+    log_info "Run '$0 verify' to confirm health."
+}
+
+# ============================================================================
+#  Uninstall — only removes what this script created
+# ============================================================================
+uninstall() {
+    log_info "Uninstalling clawcodex..."
+    log_info "  Install dir : $CLAWCODEX_HOME"
+    log_info "  Config dir  : $CONFIG_DIR"
+    log_info "  Local bin   : $LOCAL_BIN"
+
+    for f in clawcodex-dev clawcodex; do
+        local wrapper="$LOCAL_BIN/$f"
+        if [[ -e "$wrapper" || -L "$wrapper" ]]; then
+            # Safety check: only remove wrappers that point inside THIS
+            # install dir. This protects multi-install users from
+            # cascading deletes when they uninstall one install while
+            # another (sharing $LOCAL_BIN) is still active. It also
+            # prevents `uninstall --install-dir /tmp/test` from wiping
+            # the production wrappers in $HOME/.local/bin.
+            if grep -qF "$CLAWCODEX_HOME" "$wrapper" 2>/dev/null; then
+                rm -f "$wrapper"
+                log_ok "Removed $wrapper"
+            else
+                log_warn "Skipped $wrapper — does not point inside $CLAWCODEX_HOME (other install?)"
+            fi
+        fi
+    done
+
+    if [[ -d "$CLAWCODEX_HOME" ]]; then
+        # Safety check: prevent accidental rm -rf of system directories
+        local _abort=""
+        if [[ ${#CLAWCODEX_HOME} -lt 8 ]]; then
+            log_err "Safety check FAILED: install dir path is too short (${#CLAWCODEX_HOME} chars)."
+            _abort=1
+        fi
+        case "$CLAWCODEX_HOME" in
+            /|/bin|/boot|/dev|/etc|/home|/lib|/lib64|/opt|/proc|/root|/sbin|/sys|/usr|/var)
+                log_err "Safety check FAILED: refusing to remove system directory '$CLAWCODEX_HOME'."
+                _abort=1 ;;
+        esac
+        if [[ -z "$_abort" ]]; then
+            rm -rf "$CLAWCODEX_HOME"
+            log_ok "Removed $CLAWCODEX_HOME"
+        else
+            log_err "Uninstall aborted — re-run with a valid --install-dir."
+            return 1
+        fi
+    fi
+    # Only auto-remove the install's parent dir if it's empty AND it's NOT
+    # also the config dir. Otherwise --config-dir == --install-dir-parent
+    # would nuke the runtime state we explicitly keep.
+    if [[ -d "$CLAWCODEX_PARENT_DIR" ]] \
+        && [[ "$CLAWCODEX_PARENT_DIR" != "$CONFIG_DIR" ]] \
+        && [[ -z "$(ls -A "$CLAWCODEX_PARENT_DIR" 2>/dev/null)" ]]; then
+        rmdir "$CLAWCODEX_PARENT_DIR" 2>/dev/null || true
+        log_ok "Removed empty $CLAWCODEX_PARENT_DIR"
+    fi
+
+    # Config dir is preserved by design — it contains the user's sessions,
+    # auth tokens, history, etc. Removing it requires an explicit rm.
+    if [[ -d "$CONFIG_DIR" ]]; then
+        log_warn "Preserved config dir: $CONFIG_DIR  (delete manually with 'rm -rf' if desired)"
+    fi
+
+    log_warn "Note: this script does not edit your shell rc files. To remove the"
+    log_warn "PATH entry, search for '$RC_MARKER' in ~/.bashrc / ~/.zshrc / ~/.profile"
+    log_warn "and delete the two lines under it."
+
+    # Auto-clean rc files when --yes is passed
+    if [[ "${ASSUME_YES:-0}" -eq 1 ]]; then
+        for rc in "$HOME/.bashrc" "$HOME/.zshrc" "$HOME/.profile"; do
+            if [[ -f "$rc" ]] && grep -qF "$RC_MARKER" "$rc" 2>/dev/null; then
+                log_info "Cleaning clawcodex PATH entry from $rc..."
+                # Using sed to delete lines from RC_MARKER to the next line
+                sed -i "/$RC_MARKER/,+1d" "$rc" 2>/dev/null && \
+                    log_ok "Cleaned $rc" || \
+                    log_warn "Could not auto-clean $rc — please remove the clawcodex PATH entry manually."
+            fi
+        done
+    fi
+
+    log_ok "Uninstall complete."
+}
+
+# ============================================================================
+print_help() {
+    cat <<EOF
+clawcodex installer v${INSTALLER_VERSION}  (installs clawcodex v${CLAWCODEX_VERSION})
+
+USAGE
+    $0 [SUBCOMMAND] [OPTIONS]
+
+SUBCOMMANDS
+    (none) / install   Install clawcodex (default action).
+    status             Show current install state — no side effects.
+    doctor             Diagnose the environment (git, python, network, disk,
+                       permissions) — no side effects.
+    verify             Health-check an existing install (venv, entry point,
+                       PATH, smoke test) — no side effects.
+    update             Pull latest from the configured ref and reinstall deps.
+    uninstall          Remove everything this installer created.
+    help               Show this help.
+
+OPTIONS
+    --ref <ref>            Override the git ref to install (commit SHA, tag, or
+                           branch). Default: ${REPO_REF} (derived from
+                           CLAWCODEX_VERSION). Useful for pinning to an exact
+                           commit during bisection or for testing unreleased
+                           code.
+    --install-dir <path>   Override the project clone + venv location.
+                           Default: ${DEFAULT_INSTALL_DIR}
+    --config-dir <path>    Override the runtime config directory
+                           (sessions, auth, history). Default: ${DEFAULT_CONFIG_DIR}
+                           Exposed to clawcodex-dev via the CLAWCODEX_CONFIG_DIR
+                           env var injected by the wrapper scripts.
+    --no-venv              Skip virtual-environment creation. Dependencies are
+                           installed into the active system Python via
+                           'uv pip install --system'. Use this in Docker
+                           images, system-Python distros, or any environment
+                           where the venv would be redundant.
+    --no-setup             Skip the post-install configuration-wizard prompt.
+                           Use for non-interactive / CI / Docker installs.
+                           You can configure later by running 'clawcodex-dev'.
+    --debug                Enable shell trace mode (set -x) for debugging
+                           installer failures.  Produces verbose output of
+                           every command executed.
+    --dry-run              Preview every change without applying it. Prints
+                           each command that would run as '[DRY-RUN] would
+                           run: ...'. Combines well with status / doctor.
+    --force-src            Force re-fetch of upstream src/ from the pinned
+                           commit. Removes existing src/ before pulling.
+    --yes, -y              Assume 'yes' for any interactive prompts.
+    --log-file <path>      Tee all output (stdout + stderr) to <path>. The
+                           EXIT summary prints the log file path on success
+                           and on failure.
+    --uninstall, -u        Alias for the 'uninstall' subcommand.
+    --help, -h             Show this help (English).
+    --help-zh              Show help in Chinese (中文帮助).
+    --version, -v          Print installer version.
+
+DEFAULTS
+    Repo         : ${REPO_URL}
+    Git ref      : ${REPO_REF}  (override with --ref)
+    Install path : ${DEFAULT_INSTALL_DIR}  (override with --install-dir)
+    Config path  : ${DEFAULT_CONFIG_DIR}  (override with --config-dir)
+    Python       : ${PYTHON_MIN_VERSION} - ${PYTHON_MAX_SUPPORTED}  (provisioned by uv if missing)
+    Tooling      : uv (Astral's package manager — installed user-local, no sudo)
+
+EXAMPLES
+    # First-time install (most common):
+    $0
+
+    # Check if install is healthy (agent / CI / post-deploy check):
+    $0 verify
+
+    # See what's installed and where:
+    $0 status
+
+    # Diagnose the environment before installing:
+    $0 doctor
+
+    # Install a specific tag (e.g. for bisection):
+    $0 --ref v0.5.0
+
+    # Custom install + config directories (e.g. system-wide):
+    sudo $0 --install-dir /opt/clawcodex --config-dir /var/lib/clawcodex
+
+    # Non-interactive install for CI / Docker (no venv, no setup wizard):
+    $0 --no-venv --no-setup --yes --log-file /tmp/install.log
+
+    # Preview what an install would do without applying:
+    $0 --dry-run
+
+    # Re-run after a failed install to capture full output for bug reports:
+    $0 --log-file /tmp/install.log
+    # ... and read /tmp/install.log
+
+    # Remove everything this script installed (preserves config dir):
+    $0 uninstall
+
+TROUBLESHOOTING
+    "Git is not installed"
+        Install Git for your platform (apt/dnf/brew/xcode-select). Re-run $0.
+
+    "uv installer failed to download" / network errors
+        Check your network, proxy, or VPN. Retry: $0.
+        Manual uv install: pip install uv
+
+    "git clone failed"
+        Verify network: curl -I ${REPO_URL}
+        If behind a firewall, configure a proxy or use a mirror.
+
+    "uv venv failed" / "uv sync failed" / "uv pip install failed"
+        Re-run with --log-file to capture full output: $0 --log-file /tmp/out.log
+        Diagnose: $0 doctor
+        Clean reinstall: $0 uninstall && $0
+
+    "Python 3.14+ detected — pyo3-ffi version mismatch"
+        Python 3.14 is not yet supported by the pyo3-ffi dependency used
+        by outlines-core. The installer auto-detects this and attempts to
+        provision Python 3.13. If it fails, manually install 3.11-3.13:
+            uv python install 3.13
+            pyenv install 3.13 && pyenv local 3.13
+        Or set PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 and retry (risky).
+
+    "clawcodex-dev: command not found" after install
+        Your shell hasn't picked up the new PATH yet. Run:
+            source ~/.bashrc   # or: source ~/.zshrc
+        Or open a new terminal.
+
+    Permission errors when writing to $HOME/.local/bin or $HOME/.clawcodex
+        Pick a writable location: $0 --install-dir ~/apps/clawcodex
+
+    Stale install (changes don't take effect)
+        Pull latest + reinstall: $0 update
+        Hard reset:             $0 uninstall && $0
+
+EXIT CODES
+    0    Success.
+    1    Installation / verification / doctor found a problem.
+    2    Invalid CLI argument (unknown flag, missing value).
+    3    Doctor / verify found critical issues.
+
+VERSIONING
+    This install.sh is paired 1:1 with a clawcodex release. CLAWCODEX_VERSION and
+    REPO_REF are the version pin; the matching uv.lock pins every transitive
+    dependency. To install a different clawcodex version, download the
+    install.sh that ships with that release — do NOT just edit these constants
+    in isolation, since the lock file is what actually pins the dependency
+    versions. The --ref flag is a deliberate escape hatch for testing specific
+    commits and is NOT a substitute for shipping a properly tagged installer.
+
+NOTES
+    - Re-running this script is safe: existing repos are fast-forwarded,
+      existing venvs are reused, command wrappers are regenerated.
+    - install/update creates a local .env template when missing and attempts
+      to install .git/hooks/pre-commit after deps are available. Hook
+      installation is best-effort and never blocks CLI setup.
+    - On Windows, run from Git Bash or WSL. To set up:
+        Git Bash : install Git for Windows (https://git-scm.com/download/win),
+                   open "Git Bash" from the Start menu, then run this script.
+        WSL2     : open PowerShell as Admin, run 'wsl --install -d Ubuntu',
+                   then run this script in the Ubuntu terminal.
+        The script detects native cmd.exe / PowerShell and exits with a
+        clear instruction — it does NOT support those shells directly.
+    - In non-TTY mode (piped / agent / CI), every emitted line is prefixed
+      with '[install.sh]'. The EXIT trap emits a 'DONE: success|FAILED'
+      line on its own, so you can grep the tail of any captured log.
+EOF
+}
+
+print_help_zh() {
+    cat <<EOF
+clawcodex 安装脚本 v${INSTALLER_VERSION}  (安装 clawcodex v${CLAWCODEX_VERSION})
+
+用法
+    $0 [子命令] [选项]
+
+子命令
+    （无） / install   安装 clawcodex（默认动作）。
+    status             显示当前安装状态——无副作用。
+    doctor             诊断环境（git、python、网络、磁盘、权限）——无副作用。
+    verify             健康检查已有安装（venv、入口、PATH、烟雾测试）——无副作用。
+    update             拉取最新代码并重装依赖。
+    uninstall          卸载本脚本创建的所有内容。
+    help               显示本帮助。
+
+选项
+    --ref <引用>           覆盖要安装的 git 引用（commit SHA、tag 或分支）。
+                           默认：${REPO_REF}（由 CLAWCODEX_VERSION 推导得出）。
+                           常用于 bisect 时精确锁定 commit，或测试未发布代码。
+    --install-dir <路径>   覆盖项目克隆和 venv 所在的位置。
+                           默认：${DEFAULT_INSTALL_DIR}
+    --config-dir <路径>    覆盖运行时配置目录（会话、鉴权、历史记录）。
+                           默认：${DEFAULT_CONFIG_DIR}
+                           通过 wrapper 脚本注入的 CLAWCODEX_CONFIG_DIR
+                           环境变量暴露给 clawcodex-dev。
+    --no-venv              跳过虚拟环境的创建。依赖直接安装到当前系统
+                           Python（使用 'uv pip install --system'）。适用
+                           于 Docker 镜像、发行版自带 Python、或任何 venv
+                           多余的环境。
+    --no-setup             跳过安装后的交互式配置向导。适用于非交互 / CI
+                           / Docker 场景。之后可随时手动运行
+                           'clawcodex-dev' 进行配置。
+    --debug                启用 shell 追踪模式（set -x），用于调试安装
+                           失败原因。会输出每一条执行的命令。
+    --dry-run              预览所有改动但不实际执行。把每条会运行的命令打
+                           印为 '[DRY-RUN] would run: ...'。与 status /
+                           doctor 配合使用效果更佳。
+    --force-src            强制重新拉取上游 src/ 源码。移除已有 src/ 后
+                           从固定 commit 重新拉取并应用补丁。
+    --yes, -y              对所有交互式提示默认回答 yes。
+    --log-file <路径>      把所有输出（stdout + stderr）同时写入 <路径>。
+                           退出摘要会在成功 / 失败时都打印日志路径。
+    --uninstall, -u        'uninstall' 子命令的简写。
+    --help, -h             显示英文版帮助。
+    --help-zh              显示本中文版帮助。
+    --version, -v          打印安装脚本版本。
+
+默认值
+    仓库地址   ：${REPO_URL}
+    Git 引用  ：${REPO_REF}  （用 --ref 覆盖）
+    安装路径  ：${DEFAULT_INSTALL_DIR}  （用 --install-dir 覆盖）
+    配置路径  ：${DEFAULT_CONFIG_DIR}  （用 --config-dir 覆盖）
+    Python    ：${PYTHON_MIN_VERSION} - ${PYTHON_MAX_SUPPORTED}  （缺失时由 uv 自动提供）
+    工具链    ：uv（Astral 的包管理器——用户级安装，无需 sudo）
+
+示例
+    # 首次安装（最常见）：
+    $0
+
+    # 检查安装是否健康（agent / CI / 部署后检查）：
+    $0 verify
+
+    # 查看已安装的内容和位置：
+    $0 status
+
+    # 安装前诊断环境：
+    $0 doctor
+
+    # 安装特定 tag（例如 bisect 时）：
+    $0 --ref v0.5.0
+
+    # 自定义安装和配置目录（例如系统级）：
+    sudo $0 --install-dir /opt/clawcodex --config-dir /var/lib/clawcodex
+
+    # CI / Docker 环境的非交互式安装（无 venv、无配置向导）：
+    $0 --no-venv --no-setup --yes --log-file /tmp/install.log
+
+    # 预览安装流程而不实际执行：
+    $0 --dry-run
+
+    # 安装失败后重新运行以捕获完整输出供排查：
+    $0 --log-file /tmp/install.log
+    # ... 然后查看 /tmp/install.log
+
+    # 移除本脚本安装的所有内容（保留配置目录）：
+    $0 uninstall
+
+故障排查
+    "Git is not installed"
+        安装 Git：apt/dnf/brew/xcode-select，然后重新运行 $0。
+
+    "uv installer failed to download" / 网络错误
+        检查网络、代理、VPN。重试：$0。
+        手动安装 uv：pip install uv
+
+    "git clone failed"
+        验证网络：curl -I ${REPO_URL}
+        如果在防火墙后，配置代理或使用镜像。
+
+    "uv venv failed" / "uv sync failed" / "uv pip install failed"
+        重新运行并用 --log-file 捕获完整输出：$0 --log-file /tmp/out.log
+        诊断：$0 doctor
+        干净重装：$0 uninstall && $0
+
+    "检测到 Python 3.14+ — pyo3-ffi 版本不兼容"
+        Python 3.14 尚不被 outlines-core 依赖的 pyo3-ffi 支持。
+        安装脚本会自动检测并尝试安装 Python 3.13。如果自动修复失败，
+        请手动安装 3.11-3.13：
+            uv python install 3.13
+            pyenv install 3.13 && pyenv local 3.13
+        或者设置 PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 后重试（有风险）。
+
+    安装后提示 "clawcodex-dev: command not found"
+        当前 shell 还没加载新的 PATH。运行：
+            source ~/.bashrc   # 或：source ~/.zshrc
+        或新开一个终端。
+
+    写入 $HOME/.local/bin 或 $HOME/.clawcodex 时权限错误
+        选择可写位置：$0 --install-dir ~/apps/clawcodex
+
+    安装版本陈旧（修改不生效）
+        拉取最新 + 重装：$0 update
+        硬重置：        $0 uninstall && $0
+
+退出码
+    0    成功。
+    1    安装 / 验证 / 诊断发现问题。
+    2    无效的 CLI 参数（未知选项、缺少值）。
+    3    doctor / verify 发现严重问题。
+
+版本控制
+    本 install.sh 与 clawcodex 的某个发布版本一一对应。CLAWCODEX_VERSION
+    和 REPO_REF 是版本钉子；对应的 uv.lock 把所有传递依赖一并锁定。要
+    安装不同版本的 clawcodex，请下载该发布版自带的 install.sh——不要
+    单独修改这些常量，因为真正钉住依赖版本的是 lock 文件。--ref 标志
+    是用于测试特定 commit 的有意保留的逃生口，**不能**替代正规打 tag
+    的安装脚本。
+
+注意事项
+    - 重复运行本脚本是安全的：已存在的仓库会 fast-forward，已存在的
+      venv 会复用，命令 wrapper 会重新生成。
+    - install/update 会在缺失时创建本地 .env 模板，并在依赖可用后尝试
+      安装 .git/hooks/pre-commit。hook 安装是 best-effort，不会阻断
+      CLI 安装。
+    - 在 Windows 上请从 Git Bash 或 WSL 运行。设置方式：
+        Git Bash : 安装 Git for Windows (https://git-scm.com/download/win)，
+                   在开始菜单中打开 "Git Bash"，然后运行本脚本。
+        WSL2     : 以管理员身份打开 PowerShell，执行 'wsl --install -d Ubuntu'，
+                   重启后在 Ubuntu 终端中运行本脚本。
+        原生 cmd.exe / PowerShell 不支持本脚本——运行时会被检测到并给出
+        明确的提示信息。
+    - 在非 TTY 模式（管道 / agent / CI）下，每一行输出都会加上
+      '[install.sh]' 前缀。EXIT trap 会单独输出一行
+      'DONE: success|FAILED'，所以你可以直接 grep 日志末尾判断结果。
+EOF
+}
+
+setup_upstream_src() {
+    if [[ "${FORCE_SRC:-0}" -eq 1 ]]; then
+        if [[ -d "$CLAWCODEX_HOME/src" ]]; then
+            log_info "Removing existing src/ (--force-src)..."
+            rm -rf "$CLAWCODEX_HOME/src"
+        fi
+    fi
+
+    if [[ -d "$CLAWCODEX_HOME/src" ]]; then
+        log_ok "src/ already present (skipping upstream source setup)"
+        return
+    fi
+
+    log_info "src/ not found — pulling upstream source (ref: $UPSTREAM_REF)..."
+
+    if [[ "${DRY_RUN:-0}" -eq 1 ]]; then
+        _script_p1
+        echo "[DRY-RUN] would clone: $UPSTREAM_URL (ref: $UPSTREAM_REF) -> temp"
+        _script_p1
+        echo "[DRY-RUN] would copy: src/ -> $CLAWCODEX_HOME/src"
+        _script_p1
+        echo "[DRY-RUN] would apply patches from: patches/upstream/$UPSTREAM_REF/merged/"
+        return 0
+    fi
+
+    local upstream_tmp
+    upstream_tmp=$(mktemp -d)
+    # Cleanup helper: always remove the temp dir on exit or return
+    _cleanup_upstream_tmp() { rm -rf "${upstream_tmp:-}"; }
+    # Save global EXIT trap and set our own (covers both return and exit)
+    local _old_exit_trap
+    _old_exit_trap=$(trap -p EXIT 2>/dev/null || true)
+    trap _cleanup_upstream_tmp EXIT
+
+    log_info "Cloning $UPSTREAM_URL (ref: $UPSTREAM_REF)..."
+
+    # Commit hash (7-40 hex chars) can't be used with --branch for shallow clone.
+    # Skip the shallow attempt and go straight to full clone + checkout.
+    if [[ "$UPSTREAM_REF" =~ ^[0-9a-f]{7,40}$ ]]; then
+        if ! git clone "$UPSTREAM_URL" "$upstream_tmp" 2>/dev/null; then
+            die_with_help "Failed to clone upstream source." \
+                          "Check your network connection." \
+                          "Verify:  git ls-remote $UPSTREAM_URL" \
+                          "Retry:   $0"
+        fi
+        if ! (cd "$upstream_tmp" && git checkout "$UPSTREAM_REF" 2>/dev/null); then
+            die_with_help "Failed to checkout upstream ref '$UPSTREAM_REF'." \
+                          "Verify:  git ls-remote $UPSTREAM_URL $UPSTREAM_REF" \
+                          "Retry:   $0 update"
+        fi
+    else
+        # Try shallow clone first (works for branches and tags), fall back to full clone.
+        if ! (git clone --depth 1 --branch "$UPSTREAM_REF" "$UPSTREAM_URL" "$upstream_tmp" 2>/dev/null); then
+            log_warn "Shallow clone failed — trying full clone..."
+            if ! git clone "$UPSTREAM_URL" "$upstream_tmp" 2>/dev/null; then
+                die_with_help "Failed to clone upstream source." \
+                              "Check your network connection." \
+                              "Verify:  git ls-remote $UPSTREAM_URL" \
+                              "Retry:   $0"
+            fi
+            if ! (cd "$upstream_tmp" && git checkout "$UPSTREAM_REF" 2>/dev/null); then
+                die_with_help "Failed to checkout upstream ref '$UPSTREAM_REF'." \
+                              "Verify:  git ls-remote $UPSTREAM_URL $UPSTREAM_REF" \
+                              "Retry:   $0 update"
+            fi
+        fi
+    fi
+
+    if [[ ! -d "$upstream_tmp/src" ]]; then
+        die_with_help "src/ directory not found in upstream source." \
+                      "Verify:  ls $upstream_tmp/" \
+                      "The upstream repo may have changed its layout."
+    fi
+
+    cp -r "$upstream_tmp/src" "$CLAWCODEX_HOME/src"
+    log_ok "Upstream src/ copied (ref: $UPSTREAM_REF)"
+
+    # Apply patches
+    local patch_dir="$CLAWCODEX_HOME/patches/upstream/$UPSTREAM_REF/merged"
+    if [[ -d "$patch_dir" ]]; then
+        log_info "Applying patches from patches/upstream/$UPSTREAM_REF/merged/..."
+        local patch_count=0 fail_count=0
+        pushd "$CLAWCODEX_HOME/src" >/dev/null
+        for patch in "$patch_dir"/*.patch; do
+            [[ -f "$patch" ]] || continue
+            if patch -p1 < "$patch" >/dev/null 2>&1; then
+                patch_count=$((patch_count + 1))
+            else
+                fail_count=$((fail_count + 1))
+                if [[ $fail_count -le 5 ]]; then
+                    log_warn "Patch failed: $(basename "$patch")"
+                fi
+            fi
+        done
+        popd >/dev/null
+        if [[ $fail_count -eq 0 ]]; then
+            log_ok "Applied $patch_count patches successfully"
+        else
+            die_with_help "Patch application incomplete: $patch_count applied, $fail_count failed." \
+                          "Inspect .rej files in $CLAWCODEX_HOME/src/ for conflicts." \
+                          "Fix the conflicts manually and re-run: $0 --force-src" \
+                          "Or contact the maintainer to update the patch set."
+        fi
+    else
+        log_warn "Patch directory not found: $patch_dir — src/ is unpatched upstream"
+    fi
+
+    _cleanup_upstream_tmp
+    # Restore global EXIT trap
+    trap - EXIT
+    [[ -n "$_old_exit_trap" ]] && eval "$_old_exit_trap" 2>/dev/null || true
+    # Unset the helper function to avoid polluting global namespace
+    unset -f _cleanup_upstream_tmp 2>/dev/null || true
+}
 
 # Dispatch to subcommand. Default to 'install' when none was given.
 case "${SUBCOMMAND:-install}" in
     install)   install_main ;;
+    status)    cmd_status ;;
+    doctor)    cmd_doctor ;;
+    verify)    cmd_verify ;;
+    update)    cmd_update ;;
+    uninstall) uninstall ;;
+    help)      print_help ;;
     *)
         log_err "Unknown subcommand: $SUBCOMMAND"
-        echo "Usage: $0 install"
+        echo "Usage: $0 {install|status|doctor|verify|update|uninstall|help}"
         exit 1
         ;;
 esac
