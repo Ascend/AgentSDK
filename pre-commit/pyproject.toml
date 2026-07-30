@@ -102,7 +102,7 @@ disable = [
   "duplicate-code",
 ]
 
-ignore-paths = ["aura", "presmoke", "pre-commit"]
+ignore-paths = ["aura", "presmoke", "pre-commit", "clawcodex-ascend/tests"]
 
 # ==============================================
 # Bandit 安全门禁专用配置
