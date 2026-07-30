@@ -4,7 +4,7 @@ diff --git a/memdir/find_relevant_memories.py b/memdir/find_relevant_memories.py
 @@ -1,248 +1,3 @@
 -"""LLM-driven recall of relevant memories.
 +"""Compatibility facade — see :mod:`clawcodex_ext.memdir.find_relevant_memories`."""
-
+ 
 -Ports `typescript/src/memdir/findRelevantMemories.ts`. Replaces the
 -keyword-heuristic in ``src/context_system/memory_prefetch.py`` with the
 -chapter's named pipeline:

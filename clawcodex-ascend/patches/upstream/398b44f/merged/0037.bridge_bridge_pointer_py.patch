@@ -49,11 +49,11 @@ diff --git a/bridge/bridge_pointer.py b/bridge/bridge_pointer.py
 -:func:`read_pointer` to return ``None`` (treats the pointer as stale).
 -"""
 +"""Compatibility facade — see :mod:`clawcodex_ext.bridge.bridge_pointer`."""
-
+ 
  from __future__ import annotations
 +import sys
 +from clawcodex_ext.bridge import bridge_pointer as _module
-
+ 
 -import json
 -import logging
 -import os

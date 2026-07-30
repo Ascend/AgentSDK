@@ -4,7 +4,7 @@ diff --git a/memdir/team_mem_prompts.py b/memdir/team_mem_prompts.py
 @@ -1,214 +1,3 @@
 -"""Combined private-and-team memory prompt builder.
 +"""Compatibility facade — see :mod:`clawcodex_ext.memdir.team_mem_prompts`."""
-
+ 
 -Ports `typescript/src/memdir/teamMemPrompts.ts`. Emitted when both
 -auto-memory and team-memory are active. Uses a COMBINED variant of the
 -type taxonomy that adds ``<scope>`` tags and swaps the single-directory

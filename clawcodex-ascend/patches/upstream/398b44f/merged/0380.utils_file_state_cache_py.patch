@@ -47,7 +47,7 @@ diff --git a/utils/file_state_cache.py b/utils/file_state_cache.py
 -                while len(self._cache) > self._max_entries:
 -                    self._cache.popitem(last=False)
 +"""Compatibility facade — see :mod:`clawcodex_ext.utils.file_state_cache`."""
-
+ 
 -    async def invalidate(self, path: str) -> bool:
 -        abs_path = os.path.abspath(path)
 -        async with self._lock:
@@ -105,7 +105,7 @@ diff --git a/utils/file_state_cache.py b/utils/file_state_cache.py
 +from __future__ import annotations
 +import sys
 +from clawcodex_ext.utils import file_state_cache as _module
-
+ 
 -    def set_sync(self, path: str, content: str) -> None:
 -        abs_path = os.path.abspath(path)
 -        if abs_path in self._cache:

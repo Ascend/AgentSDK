@@ -49,7 +49,7 @@ diff --git a/hooks/ssrf_guard.py b/hooks/ssrf_guard.py
 -    return False
 -
 +"""Facade — hooks/ssrf_guard.py — sys.modules swap.
-
+ 
 -def _resolve_hostname(hostname: str) -> list[str]:
 -    try:
 -        results = socket.getaddrinfo(hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM)
@@ -69,9 +69,9 @@ diff --git a/hooks/ssrf_guard.py b/hooks/ssrf_guard.py
 +same module object as ``clawcodex_ext.hooks.ssrf_guard``, so the
 +string-path patch reaches the real binding.
 +"""
-
+ 
 +from __future__ import annotations
-
+ 
 -def validate_hook_url(url: str, *, resolve_dns: bool = True) -> tuple[bool, str | None]:
 -    try:
 -        parsed = urlparse(url)
@@ -109,7 +109,7 @@ diff --git a/hooks/ssrf_guard.py b/hooks/ssrf_guard.py
 -
 +import importlib
 +import sys
-
+ 
 -def is_safe_url(url: str, *, resolve_dns: bool = True) -> bool:
 -    safe, _ = validate_hook_url(url, resolve_dns=resolve_dns)
 -    return safe

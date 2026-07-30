@@ -17,14 +17,14 @@ diff --git a/settings/validation.py b/settings/validation.py
 +``__dict__`` directly and would otherwise miss proxy-cached symbols
 +that haven't been imported yet.
 +"""
-
+ 
  from __future__ import annotations
-
+ 
 -from dataclasses import dataclass, field
 -from typing import Any
 +__all__ = ['validate_settings', 'ValidationError']
 +
-
+ 
 -from .constants import (
 -    VALID_EFFORT_VALUES,
 -    VALID_PERMISSION_MODES,
@@ -149,7 +149,7 @@ diff --git a/settings/validation.py b/settings/validation.py
 -            ))
 +def __getattr__(name: str):
 +    import clawcodex_ext.settings.validation as _mod
-
+ 
 -    return errors
 +    if name in _mod.__dict__:
 +        val = _mod.__dict__[name]

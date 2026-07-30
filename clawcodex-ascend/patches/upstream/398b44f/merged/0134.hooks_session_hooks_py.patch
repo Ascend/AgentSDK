@@ -19,9 +19,9 @@ diff --git a/hooks/session_hooks.py b/hooks/session_hooks.py
 -read from the registry/snapshot, the events have been canonicalized.
 -"""
 +"""Module-identity facade for canonical session hooks."""
-
+ 
  from __future__ import annotations
-
+ 
 -import logging
 -from typing import Any, AsyncGenerator
 -
@@ -294,7 +294,7 @@ diff --git a/hooks/session_hooks.py b/hooks/session_hooks.py
 -        results.append({"hook": config, "result": result})
 +import importlib
 +import sys
-
+ 
 -    return results
 +_ext_mod = importlib.import_module("clawcodex_ext.hooks.session_hooks")
 +sys.modules[__name__] = _ext_mod

@@ -14,7 +14,7 @@ diff --git a/services/compact/__init__.py b/services/compact/__init__.py
 -4. context_collapse   — Read-time projection via collapse store
 -5. autocompact        — Full LLM summarization (last resort)
 +"""Facade — services/compact/* moved to clawcodex_ext/services/compact/.
-
+ 
 -The pipeline runs cheap → expensive; if earlier layers free enough tokens,
 -later layers are no-ops.
 +The full compact pipeline machinery (``CompressionPipeline``,
@@ -24,7 +24,7 @@ diff --git a/services/compact/__init__.py b/services/compact/__init__.py
 +verbatim so existing ``from src.services.compact import ...`` callers
 +keep working.
  """
-
+ 
 -from __future__ import annotations
 -
 -from .pipeline import CompressionPipeline, CompressionResult, run_compression_pipeline

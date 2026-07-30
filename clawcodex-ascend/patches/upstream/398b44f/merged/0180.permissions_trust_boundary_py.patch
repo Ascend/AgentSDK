@@ -49,9 +49,9 @@ diff --git a/permissions/trust_boundary.py b/permissions/trust_boundary.py
 -project-source-relative, not absolute).
 -"""
 +"""Module-identity facade for the downstream trust-boundary implementation."""
-
+ 
  from __future__ import annotations
-
+ 
 -import json
 -import os
 -from pathlib import Path
@@ -435,14 +435,14 @@ diff --git a/permissions/trust_boundary.py b/permissions/trust_boundary.py
 -def extract_mdm_env(payload: str | None) -> dict[str, str]:
 -    """Parse an MDM plist-as-JSON payload and return its env block.
 +import sys
-
+ 
 -    ``payload`` is the stdout from ``plutil -convert json -o -
 -    /Library/Managed Preferences/com.anthropic.claude-code.plist`` (see
 -    ``src/prefetch.py:start_mdm_raw_read``). Failure modes (None, empty,
 -    malformed JSON, missing/non-dict ``env``) silently return ``{}`` —
 -    init() must never raise due to MDM failures.
 +from clawcodex_ext.permissions import trust_boundary as _module
-
+ 
 -    UNFILTERED (ch02 round-3): the managed-preferences plist is root-owned
 -    — it is the port's policy tier, which TS applies without a safe-key
 -    filter (managedEnv.ts:160-172). The previous safe-filtering broke the

@@ -7,7 +7,7 @@ diff --git a/utils/pdf_extraction.py b/utils/pdf_extraction.py
  """
 +
  from __future__ import annotations
-
+ 
  import shutil
 @@ -38,6 +39,7 @@
  @dataclass(frozen=True)
@@ -18,13 +18,13 @@ diff --git a/utils/pdf_extraction.py b/utils/pdf_extraction.py
      page_count: int
      file_size: int
 @@ -45,15 +47,16 @@
-
-
+ 
+ 
  def _have_pdftoppm() -> bool:
 -    return shutil.which("pdftoppm") is not None
 +    return shutil.which('pdftoppm') is not None
-
-
+ 
+ 
  def _log_pdf_event(success: bool, **fields: Any) -> None:
      try:
 -        from src.services.analytics.events import EventType, log_event
@@ -43,7 +43,7 @@ diff --git a/utils/pdf_extraction.py b/utils/pdf_extraction.py
      if not pdf_path.is_file():
 -        raise PdfExtractionFailed(f"PDF does not exist: {pdf_path}")
 +        raise PdfExtractionFailed(f'PDF does not exist: {pdf_path}')
-
+ 
      file_size = pdf_path.stat().st_size
      if file_size == 0:
 -        raise PdfExtractionFailed(f"PDF file is empty: {pdf_path}")
@@ -57,7 +57,7 @@ diff --git a/utils/pdf_extraction.py b/utils/pdf_extraction.py
 +            f'({PDF_MAX_EXTRACT_SIZE:,} bytes). Use a smaller PDF or extract '
 +            f'a specific page range with the `pages` parameter.'
          )
-
+ 
      if not _have_pdftoppm():
          raise PdfExtractionUnavailable(
 -            "pdftoppm not found on PATH. Install poppler-utils: "
@@ -67,12 +67,12 @@ diff --git a/utils/pdf_extraction.py b/utils/pdf_extraction.py
 +            '`brew install poppler` on macOS or '
 +            '`apt-get install poppler-utils` on Debian/Ubuntu.'
          )
-
+ 
 -    out_dir = Path(tempfile.mkdtemp(prefix="clawcodex-pdf-"))
 -    out_prefix = out_dir / "page"
 +    out_dir = Path(tempfile.mkdtemp(prefix='clawcodex-pdf-'))
 +    out_prefix = out_dir / 'page'
-
+ 
 -    argv = ["pdftoppm", "-jpeg", "-r", str(_PDF_DPI)]
 +    argv = ['pdftoppm', '-jpeg', '-r', str(_PDF_DPI)]
      if first_page is not None:
@@ -82,7 +82,7 @@ diff --git a/utils/pdf_extraction.py b/utils/pdf_extraction.py
 -        argv += ["-l", str(last_page)]
 +        argv += ['-l', str(last_page)]
      argv += [str(pdf_path), str(out_prefix)]
-
+ 
      try:
 @@ -114,21 +117,19 @@
              capture_output=True,
@@ -106,7 +106,7 @@ diff --git a/utils/pdf_extraction.py b/utils/pdf_extraction.py
 -            f"pdftoppm timed out after {_PDFTOPPM_TIMEOUT_S}s"
 -        ) from e
 +        raise PdfExtractionFailed(f'pdftoppm timed out after {_PDFTOPPM_TIMEOUT_S}s') from e
-
+ 
 -    image_paths = sorted(out_dir.glob("page-*.jpg"))
 +    image_paths = sorted(out_dir.glob('page-*.jpg'))
      _log_pdf_event(

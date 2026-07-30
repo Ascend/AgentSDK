@@ -17,13 +17,13 @@ diff --git a/settings/types.py b/settings/types.py
 +directly and would otherwise miss proxy-cached symbols that haven't
 +been imported yet.
 +"""
-
+ 
  from __future__ import annotations
-
+ 
 -from dataclasses import dataclass, field
 -from typing import Any, Literal
 +# ruff: noqa: F822
-
+ 
 +__all__ = [
 +    'PermissionRule',
 +    'PermissionsConfig',
@@ -48,11 +48,11 @@ diff --git a/settings/types.py b/settings/types.py
 +        globals()[name] = val
 +        return val
 +    raise AttributeError(f'module {__name__!r} has no attribute {name!r}')
-
+ 
 -PermissionModeType = Literal["default", "plan", "bypassPermissions"]
-
+ 
 +import sys
-
+ 
 -@dataclass
 -class PermissionRule:
 -    """A single permission rule."""
@@ -404,7 +404,7 @@ diff --git a/settings/types.py b/settings/types.py
 -                for name, v in known["mcp_servers"].items()
 -            }
 +import clawcodex_ext.settings.types as _implementation
-
+ 
 -        known["extra"] = extra
 -        return cls(**known)
 +sys.modules[__name__] = _implementation

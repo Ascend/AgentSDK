@@ -4,7 +4,7 @@ diff --git a/assistant/__init__.py b/assistant/__init__.py
 @@ -5,8 +5,8 @@
  import json
  from pathlib import Path
-
+ 
 -from src.assistant.session_chooser import AssistantSessionChooser
 -from src.assistant.session_history import (
 +from clawcodex_ext.assistant.session_chooser import AssistantSessionChooser
@@ -15,11 +15,11 @@ diff --git a/assistant/__init__.py b/assistant/__init__.py
 @@ -15,7 +15,9 @@
      fetch_older_events,
  )
-
+ 
 -SNAPSHOT_PATH = Path(__file__).resolve().parent.parent / 'reference_data' / 'subsystems' / 'assistant.json'
 +SNAPSHOT_PATH = (
 +    Path(__file__).resolve().parent.parent / 'reference_data' / 'subsystems' / 'assistant.json'
 +)
  _SNAPSHOT = json.loads(SNAPSHOT_PATH.read_text())
-
+ 
  ARCHIVE_NAME = _SNAPSHOT['archive_name']

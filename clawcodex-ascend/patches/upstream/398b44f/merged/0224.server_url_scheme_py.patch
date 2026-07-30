@@ -1,7 +1,7 @@
 diff --git a/server/url_scheme.py b/server/url_scheme.py
 --- a/server/url_scheme.py	2026-07-23 08:42:36.000000 +0000
 +++ b/server/url_scheme.py	2026-07-04 09:47:03.000000 +0800
-@@ -43,7 +43,7 @@
+@@ -43,9 +43,9 @@
      consistently across Python versions; we parse by hand.
      """
      if raw.startswith('cc+unix://'):
@@ -11,3 +11,5 @@ diff --git a/server/url_scheme.py b/server/url_scheme.py
 -        return _parse_cc_tcp(raw[len('cc://'):])
 +        return _parse_cc_tcp(raw[len('cc://') :])
      raise ValueError(f'unsupported scheme: {raw!r}')
+ 
+ 

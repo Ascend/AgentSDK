@@ -4,7 +4,7 @@ diff --git a/agent/constants.py b/agent/constants.py
 @@ -1,82 +1,11 @@
 -"""Agent system constants.
 +"""Facade — agent/constants.py moved to clawcodex_ext/agent/.
-
+ 
 -Mirrors typescript/src/constants/tools.ts and typescript/src/tools/AgentTool/constants.ts.
 +The agent constants (``AGENT_TOOL_NAME``, ``ALL_AGENT_DISALLOWED_TOOLS``,
 +``ASYNC_AGENT_ALLOWED_TOOLS``, ``CUSTOM_AGENT_DISALLOWED_TOOLS``,
@@ -14,7 +14,7 @@ diff --git a/agent/constants.py b/agent/constants.py
 +keep working.
  """
 -from __future__ import annotations
-
+ 
 -# --- Tool name constants ---
 -AGENT_TOOL_NAME = "Agent"
 -LEGACY_AGENT_TOOL_NAME = "Task"

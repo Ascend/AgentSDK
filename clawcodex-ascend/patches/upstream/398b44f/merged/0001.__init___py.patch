@@ -4,7 +4,7 @@ diff --git a/__init__.py b/__init__.py
 @@ -1,24 +1,52 @@
 -"""Claw Codex - Claude Code Python Implementation."""
 +"""Claw Codex - Claude Code Python Implementation.
-
+ 
 -from importlib.metadata import PackageNotFoundError, version
 +Module-level names ``__version__`` and ``BaseProvider`` are resolved lazily
 +via :func:`__getattr__` to defer the import of ``clawcodex_ext`` (which
@@ -13,7 +13,7 @@ diff --git a/__init__.py b/__init__.py
 +import on first use — callers that never touch these symbols (e.g. CLI
 +``--help``) pay zero overhead.
 +"""
-
+ 
 -try:
 -    __version__ = version("clawcodex-cli")
 -except PackageNotFoundError:  # Running directly from an unpackaged checkout.
@@ -24,9 +24,9 @@ diff --git a/__init__.py b/__init__.py
 +import sys as _sys
 +
 +__author__ = 'Claw Codex Team'
-
+ 
  from .config import load_config, get_provider_config
-
+ 
 -try:  # pragma: no cover
 -    from .providers.base import BaseProvider
 -except Exception:  # pragma: no cover
@@ -57,7 +57,7 @@ diff --git a/__init__.py b/__init__.py
 +def __dir__() -> list[str]:
 +    return list(__all__)
 +
-
+ 
  __all__ = [
 -    "__version__",
 -    "__author__",

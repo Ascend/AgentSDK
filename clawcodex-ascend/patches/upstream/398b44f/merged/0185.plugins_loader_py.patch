@@ -2,7 +2,7 @@ diff --git a/plugins/loader.py b/plugins/loader.py
 --- a/plugins/loader.py	2026-07-23 08:42:36.000000 +0000
 +++ b/plugins/loader.py	2026-07-04 09:47:03.000000 +0800
 @@ -2,18 +2,234 @@
-
+ 
  import json
  import logging
 +import os
@@ -10,12 +10,12 @@ diff --git a/plugins/loader.py b/plugins/loader.py
  from pathlib import Path
 -from typing import Any
 +from typing import Any, Callable
-
+ 
  from .types import LoadedPlugin, PluginError, PluginManifest
  from .validator import validate_manifest
-
+ 
  logger = logging.getLogger(__name__)
-
+ 
 -MANIFEST_FILENAME = "plugin.json"
 +# Supported manifest filenames (order matters: first match wins).
 +# pyproject.toml is supported as an extension format: the plugin manifest
@@ -76,7 +76,7 @@ diff --git a/plugins/loader.py b/plugins/loader.py
 +    proj_dir.mkdir(parents=True, exist_ok=True)
 +    dirs.append(proj_dir)
 +    return dirs
-
+ 
 -TRUST_LEVELS = ("bundled", "managed", "user", "project", "mcp")
 +
 +def scan_plugin_directory(
@@ -236,13 +236,13 @@ diff --git a/plugins/loader.py b/plugins/loader.py
 +
 +
 +# ── Core loader functions ─────────────────────────────────────────────
-
-
+ 
+ 
  @dataclass
 @@ -22,9 +238,6 @@
      errors: list[PluginError] = field(default_factory=list)
-
-
+ 
+ 
 -_loaded_plugins: dict[str, LoadedPlugin] = {}
 -
 -
@@ -258,7 +258,7 @@ diff --git a/plugins/loader.py b/plugins/loader.py
 +        manifest_path = _find_manifest_path(entry)
 +        if manifest_path is None:
              continue
-
+ 
          try:
 @@ -52,36 +265,41 @@
  def load_plugin_from_directory(
@@ -277,7 +277,7 @@ diff --git a/plugins/loader.py b/plugins/loader.py
 +            plugin_dir.name,
 +            f'No manifest found (looked for {", ".join(MANIFEST_FILES)})',
 +        )
-
+ 
      try:
 -        raw = json.loads(manifest_path.read_text(encoding="utf-8"))
 -    except (json.JSONDecodeError, OSError) as e:
@@ -285,7 +285,7 @@ diff --git a/plugins/loader.py b/plugins/loader.py
 +        raw = _read_manifest(manifest_path)
 +    except PluginError as e:
 +        raise e
-
+ 
      errors = validate_manifest(raw)
      if errors:
          raise PluginError(
@@ -293,7 +293,7 @@ diff --git a/plugins/loader.py b/plugins/loader.py
 -            f"Invalid manifest: {'; '.join(e.message for e in errors)}",
 +            f'Invalid manifest: {"; ".join(e.message for e in errors)}',
          )
-
+ 
      manifest = PluginManifest(
 -        name=raw["name"],
 -        description=raw.get("description", ""),
@@ -302,7 +302,7 @@ diff --git a/plugins/loader.py b/plugins/loader.py
 +        description=raw.get('description', ''),
 +        version=raw.get('version', '1.0.0'),
      )
-
+ 
      agents_paths: list[str] = []
 -    single = raw.get("agentsPath")
 +    # Accept both camelCase (plugin.yaml/json convention) and snake_case
@@ -329,23 +329,23 @@ diff --git a/plugins/loader.py b/plugins/loader.py
 +        mcp_servers=raw.get('mcp_servers'),
          agents_paths=resolved_agents_paths,
      )
-
+ 
 @@ -111,12 +329,14 @@
-
+ 
  def register_plugin(plugin: LoadedPlugin) -> None:
      _loaded_plugins[plugin.name] = plugin
 -    logger.debug("Registered plugin: %s", plugin.name)
 +    _register_lifecycle_callbacks(plugin.name)
 +    logger.debug('Registered plugin: %s', plugin.name)
-
-
+ 
+ 
  def unregister_plugin(name: str) -> bool:
      if name in _loaded_plugins:
          del _loaded_plugins[name]
 +        _lifecycle_callbacks.pop(name, None)
          return True
      return False
-
+ 
 @@ -136,11 +356,15 @@
  def load_plugins_from_directories(
      directories: list[str | Path],
@@ -365,7 +365,7 @@ diff --git a/plugins/loader.py b/plugins/loader.py
              plugin.source = source
              register_plugin(plugin)
 @@ -151,3 +375,208 @@
-
+ 
  def clear_loaded_plugins() -> None:
      _loaded_plugins.clear()
 +    _lifecycle_callbacks.clear()

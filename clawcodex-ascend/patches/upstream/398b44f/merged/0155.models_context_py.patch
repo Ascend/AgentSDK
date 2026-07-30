@@ -7,6 +7,6 @@ diff --git a/models/context.py b/models/context.py
  ONE_MILLION_CONTEXT_TOKENS = 1_000_000
 -ONE_MILLION_SUFFIX = "[1m]"
 +ONE_MILLION_SUFFIX = '[1m]'
-
-
+ 
+ 
  def has_1m_context_suffix(model_id: str) -> bool:

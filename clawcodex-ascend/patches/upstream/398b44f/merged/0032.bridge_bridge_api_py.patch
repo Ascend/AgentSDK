@@ -29,9 +29,9 @@ diff --git a/bridge/bridge_api.py b/bridge/bridge_api.py
 -as ``code_session_api.py``).
 -"""
 +"""Compatibility facade — see :mod:`clawcodex_ext.bridge.bridge_api`."""
-
+ 
  from __future__ import annotations
-
+ 
 -import logging
 -import re
 -from typing import Any, Awaitable, Callable
@@ -683,7 +683,7 @@ diff --git a/bridge/bridge_api.py b/bridge/bridge_api.py
 -    detail = extract_error_detail(data)
 -    error_type = _extract_error_type_from_data(data)
 +import sys
-
+ 
 -    if status == 401:
 -        raise BridgeFatalError(
 -            f'{context}: Authentication failed (401)'
@@ -734,9 +734,9 @@ diff --git a/bridge/bridge_api.py b/bridge/bridge_api.py
 -        + (f': {detail}' if detail else '')
 -    )
 +from clawcodex_ext.bridge import bridge_api as _module
-
+ 
 +sys.modules[__name__] = _module
-
+ 
 -__all__ = [
 -    'ANTHROPIC_VERSION',
 -    'BETA_HEADER',

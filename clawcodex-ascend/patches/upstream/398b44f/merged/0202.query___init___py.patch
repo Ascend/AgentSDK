@@ -22,7 +22,7 @@ diff --git a/query/__init__.py b/query/__init__.py
 +from __future__ import annotations
 +
 +import importlib
-
+ 
  __all__ = [
 -    "QueryConfig",
 -    "QueryEngine",

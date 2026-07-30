@@ -4,7 +4,7 @@ diff --git a/agent/transcript.py b/agent/transcript.py
 @@ -1,338 +1,37 @@
 -"""Sidechain JSONL transcript writer + reader — Chunk C / WI-2.2.
 +"""Facade — agent/transcript.py has been moved to clawcodex_ext (lazy proxy).
-
+ 
 -**This is gate-zero for Chunk D and Chunk F.** Without on-disk transcript
 -persistence:
 -
@@ -292,7 +292,7 @@ diff --git a/agent/transcript.py b/agent/transcript.py
 -        return self._iterate()
 -
 -    def _iterate(self) -> Iterator[Any]:
--        """Yield one parsed object per line; skip blank/unparsable lines."""
+-        """Yield one parsed object per line; skip blank/unparseable lines."""
 -        try:
 -            handle = open(self._path, "rb")
 -        except FileNotFoundError:
@@ -321,7 +321,7 @@ diff --git a/agent/transcript.py b/agent/transcript.py
 -                        # Log once per reader instance — a corrupt
 -                        # transcript shouldn't spam the log.
 -                        logger.warning(
--                            "skipping unparsable transcript line in %s "
+-                            "skipping unparseable transcript line in %s "
 -                            "(file may have a trailing partial-write)",
 -                            self._path,
 -                        )
@@ -343,9 +343,9 @@ diff --git a/agent/transcript.py b/agent/transcript.py
 -    through ``get_agent_transcript_path``.
 -    """
 -    return str(_transcripts_root())
-
+ 
 +from __future__ import annotations
-
+ 
  __all__ = [
 -    "TranscriptWriter",
 -    "TranscriptReader",

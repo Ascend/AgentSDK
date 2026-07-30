@@ -14,9 +14,9 @@ diff --git a/context_system/prompt_assembly.py b/context_system/prompt_assembly.
 -typescript/src/utils/api.ts.
 -"""
 +"""Facade — context_system/prompt_assembly.py has been moved to clawcodex_ext (lazy proxy)."""
-
+ 
  from __future__ import annotations
-
+ 
 -import functools
 -import os
 -from datetime import datetime

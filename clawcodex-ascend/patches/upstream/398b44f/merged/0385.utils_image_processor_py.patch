@@ -4,7 +4,7 @@ diff --git a/utils/image_processor.py b/utils/image_processor.py
 @@ -1,545 +1,8 @@
 -"""Image processing utilities for the Read tool.
 +"""Compatibility facade — see :mod:`clawcodex_ext.utils.image_processor`."""
-
+ 
 -Port of ``typescript/src/utils/imageResizer.ts``. Pillow replaces ``sharp``.
 -
 -The TS reference implements:
@@ -24,7 +24,7 @@ diff --git a/utils/image_processor.py b/utils/image_processor.py
  from __future__ import annotations
 +import sys
 +from clawcodex_ext.utils import image_processor as _module
-
+ 
 -import io
 -import math
 -from dataclasses import dataclass

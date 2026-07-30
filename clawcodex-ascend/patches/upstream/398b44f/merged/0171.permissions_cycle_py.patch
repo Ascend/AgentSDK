@@ -4,7 +4,7 @@ diff --git a/permissions/cycle.py b/permissions/cycle.py
 @@ -1,68 +1,3 @@
 -"""Permission-mode cycling for the Shift+Tab keybinding.
 +"""Compatibility facade — see :mod:`clawcodex_ext.permissions.cycle`."""
-
+ 
 -Mirrors ``typescript/src/utils/permissions/getNextPermissionMode.ts``. The TS
 -reference has an Anthropic-internal ``USER_TYPE === 'ant'`` branch and a
 -``TRANSCRIPT_CLASSIFIER``-gated ``auto`` cycle target; we omit both — Python

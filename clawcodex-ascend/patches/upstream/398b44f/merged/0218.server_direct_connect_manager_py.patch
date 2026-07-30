@@ -2,7 +2,7 @@ diff --git a/server/direct_connect_manager.py b/server/direct_connect_manager.py
 --- a/server/direct_connect_manager.py	2026-07-23 08:42:36.000000 +0000
 +++ b/server/direct_connect_manager.py	2026-07-21 04:15:00.000000 -0700
 @@ -54,23 +54,21 @@
-
+ 
  def _is_stdout_message(value: object) -> bool:
      """True for ``{type: str}`` payloads — pre-narrowing guard."""
 -    return (
@@ -11,8 +11,8 @@ diff --git a/server/direct_connect_manager.py b/server/direct_connect_manager.py
 -        and isinstance(value.get('type'), str)
 -    )
 +    return isinstance(value, dict) and 'type' in value and isinstance(value.get('type'), str)
-
-
+ 
+ 
  # Message types that the manager filters out (server-internal noise that
  # the local CLI does not need to surface). Mirrors the inverted check at
  # ``directConnectManager.ts:104-110``.
@@ -32,8 +32,8 @@ diff --git a/server/direct_connect_manager.py b/server/direct_connect_manager.py
 +        'streamlined_tool_use_summary',
 +    }
 +)
-
-
+ 
+ 
  class DirectConnectSessionManager:
 @@ -309,9 +307,7 @@
              )

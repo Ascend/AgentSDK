@@ -4,7 +4,7 @@ diff --git a/state/cache_state.py b/state/cache_state.py
 @@ -1,293 +1,18 @@
 -"""Sticky-on header/parameter latches for prompt-cache stability.
 +"""Compatibility facade — see :mod:`clawcodex_ext.state.cache_state`.
-
+ 
 -Mirrors TS ``bootstrap/state.ts:225,229,233,237,242`` (the five latch field
 -declarations) and ``bootstrap/state.ts:1738-1787`` (their getters/setters/
 -reset). Five toggle latches plus a 1h-eligibility evaluation primitive plus
@@ -34,9 +34,9 @@ diff --git a/state/cache_state.py b/state/cache_state.py
 +registered under the legacy import path so those patches resolve to
 +the same module object.
  """
-
+ 
  from __future__ import annotations
-
+ 
 -from dataclasses import dataclass, field
 -from typing import TYPE_CHECKING
 -
@@ -286,18 +286,18 @@ diff --git a/state/cache_state.py b/state/cache_state.py
 -    _LATCHES = BetaHeaderLatches()
 -
 +import sys
-
+ 
 -def clear_beta_header_latches() -> None:
 -    """Reset the sticky beta-header latches.
 +import clawcodex_ext.state.cache_state as _ext_mod
-
+ 
 -    Mirrors TS ``clearBetaHeaderLatches()`` from
 -    ``bootstrap/state.ts``. Called on ``/clear`` and ``/compact`` so a fresh
 -    conversation re-evaluates AFK / fast-mode / cache-editing / thinking-
 -    clear / 1h-eligibility from scratch (per chapter §"Sticky Latch
 -    Fields").
 +sys.modules[__name__] = _ext_mod
-
+ 
 -    The 1h-eligibility latch is included because the conversation rewind
 -    invalidates the request-source history that informed the original
 -    evaluation.

@@ -173,7 +173,7 @@ diff --git a/agent/run_agent.py b/agent/run_agent.py
 -        await_automated_checks_before_dialog=await_automated,
 -    )
 +"""Facade — agent/run_agent.py has been moved to clawcodex_ext/agent/run_agent.
-
+ 
 +The agent-lifecycle machinery (``run_agent`` async generator,
 +``RunAgentParams`` / ``RunAgentResult`` dataclasses,
 +``resolve_permission_mode``, ``filter_incomplete_tool_calls``,
@@ -181,7 +181,7 @@ diff --git a/agent/run_agent.py b/agent/run_agent.py
 +:mod:`clawcodex_ext.agent.run_agent`. This module re-exports the public
 +surface so existing ``from src.agent.run_agent import ...`` callers keep
 +working without modification.
-
+ 
 -def filter_incomplete_tool_calls(messages: list[Message]) -> list[Message]:
 -    """Remove assistant messages that contain incomplete tool_use blocks.
 -
@@ -427,15 +427,15 @@ diff --git a/agent/run_agent.py b/agent/run_agent.py
 +Uses ``globals().update()`` to preserve access to all public names
 +regardless of ``__all__`` — the source module does not define ``__all__``.
 +"""
-
+ 
 -            if params.on_message:
 -                params.on_message(message)
 +import clawcodex_ext.agent.run_agent as _mod
-
+ 
 -            yield message
 +_globals = {k: v for k, v in vars(_mod).items() if not k.startswith('_')}
 +globals().update(_globals)
-
+ 
 -    except Exception as exc:
 -        logger.error("Agent %s (%s) failed: %s", agent_id, agent_def.agent_type, exc)
 -        raise
@@ -449,7 +449,7 @@ diff --git a/agent/run_agent.py b/agent/run_agent.py
 -            from src.tasks.local_shell import kill_shell_tasks_for_agent
 +# Preserve private upstream compatibility helpers and monkeypatch identity.
 +import sys
-
+ 
 -            registry = getattr(subagent_context, "runtime_tasks", None)
 -            if registry is not None:
 -                await kill_shell_tasks_for_agent(agent_id, registry)

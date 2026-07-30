@@ -10,14 +10,14 @@ diff --git a/models/model.py b/models/model.py
 -        )
 +        logger.warning('Model %s is deprecated: %s', canonical, config.deprecation_message)
      return canonical
-
-
+ 
+ 
 @@ -38,7 +36,7 @@
      if config:
          return config.display_name
      # Fallback: title-case the model ID
 -    return model_id.replace("-", " ").title()
 +    return model_id.replace('-', ' ').title()
-
-
+ 
+ 
  def deprecation_warning(model_id: str) -> str | None:

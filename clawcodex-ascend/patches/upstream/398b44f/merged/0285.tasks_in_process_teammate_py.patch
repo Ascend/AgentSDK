@@ -7,18 +7,18 @@ diff --git a/tasks/in_process_teammate.py b/tasks/in_process_teammate.py
  """
 +
  from __future__ import annotations
-
+ 
  import asyncio
  from dataclasses import dataclass, field, replace
  from typing import Any, Awaitable, Callable, Literal, TYPE_CHECKING, TypeVar
-
+ 
 -from src.tasks_core import TaskStateBase, is_terminal_task_status
 +from clawcodex_ext.tasks_core import TaskStateBase, is_terminal_task_status
-
+ 
  if TYPE_CHECKING:
 -    from src.task_registry import RuntimeTaskRegistry
 +    from clawcodex_ext.task_registry import RuntimeTaskRegistry
-
+ 
  # ---------------------------------------------------------------------------
  # Two-level abort exception hierarchy (sub-WI-6.2.a)
 @@ -94,7 +95,7 @@
@@ -29,15 +29,15 @@ diff --git a/tasks/in_process_teammate.py b/tasks/in_process_teammate.py
 +    parent_session_id: str = ''
      color: str | None = None
      plan_mode_required: bool = False
-
+ 
 @@ -111,7 +112,7 @@
  # whale session 9a990de8 reached 36.8GB across 292 agents in 2 minutes.
  TEAMMATE_MESSAGES_UI_CAP: int = 50
-
+ 
 -T = TypeVar("T")
 +T = TypeVar('T')
-
-
+ 
+ 
  def append_capped_message(prev: list[T] | None, item: T) -> list[T]:
 @@ -124,7 +125,7 @@
      if prev is None or len(prev) == 0:
@@ -46,12 +46,12 @@ diff --git a/tasks/in_process_teammate.py b/tasks/in_process_teammate.py
 -        return list(prev[-(TEAMMATE_MESSAGES_UI_CAP - 1):]) + [item]
 +        return list(prev[-(TEAMMATE_MESSAGES_UI_CAP - 1) :]) + [item]
      return list(prev) + [item]
-
-
+ 
+ 
 @@ -166,25 +167,25 @@
        LocalAgentTaskState's progress fields.
      """
-
+ 
 -    type: Literal["in_process_teammate"] = "in_process_teammate"  # type: ignore[assignment]
 +    type: Literal['in_process_teammate'] = 'in_process_teammate'  # type: ignore[assignment]
      identity: TeammateIdentity = field(
@@ -95,24 +95,24 @@ diff --git a/tasks/in_process_teammate.py b/tasks/in_process_teammate.py
 -            f"teammate {state.identity.agent_id!r} current-work redirect"
 -        )
 +        raise CurrentWorkAbortedError(f'teammate {state.identity.agent_id!r} current-work redirect')
-
-
+ 
+ 
  async def run_with_two_level_abort(
 @@ -329,12 +326,10 @@
      unwinds the lifecycle.
      """
-
+ 
 -    name: str = "InProcessTeammateTask"
 -    type: Literal["in_process_teammate"] = "in_process_teammate"
 +    name: str = 'InProcessTeammateTask'
 +    type: Literal['in_process_teammate'] = 'in_process_teammate'
-
+ 
 -    async def kill(
 -        self, task_id: str, registry: "RuntimeTaskRegistry"
 -    ) -> None:
 +    async def kill(self, task_id: str, registry: 'RuntimeTaskRegistry') -> None:
          aborted_event: asyncio.Event | None = None
-
+ 
          def _kill(prev: TaskStateBase) -> TaskStateBase:
 @@ -344,7 +339,7 @@
              if is_terminal_task_status(prev.status):
@@ -120,7 +120,7 @@ diff --git a/tasks/in_process_teammate.py b/tasks/in_process_teammate.py
              aborted_event = prev.abort_event
 -            return replace(prev, status="killed")
 +            return replace(prev, status='killed')
-
+ 
          registry.update(task_id, _kill)
          # Set the event OUTSIDE the registry lock — same defense-in-depth
 @@ -357,21 +352,22 @@
@@ -132,8 +132,8 @@ diff --git a/tasks/in_process_teammate.py b/tasks/in_process_teammate.py
 -                    "failed to set abort event for killed teammate %s", task_id
 +                    'failed to set abort event for killed teammate %s', task_id
                  )
-
-
+ 
+ 
  __all__ = [
 -    "TeammateAbortedError",
 -    "CurrentWorkAbortedError",

@@ -4,7 +4,7 @@ diff --git a/auth/oauth.py b/auth/oauth.py
 @@ -1,178 +1,3 @@
 -"""OAuth authorization code flow matching TypeScript services/oauth/.
 +"""Compatibility facade — see :mod:`clawcodex_ext.auth.oauth`."""
-
+ 
 -Supports PKCE, localhost callback server, token exchange, and refresh.
 -"""
 -

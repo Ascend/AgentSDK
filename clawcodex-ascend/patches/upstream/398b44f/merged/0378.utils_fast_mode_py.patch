@@ -3,19 +3,19 @@ diff --git a/utils/fast_mode.py b/utils/fast_mode.py
 +++ b/utils/fast_mode.py	2026-07-04 09:47:03.000000 +0800
 @@ -6,12 +6,13 @@
  from dataclasses import dataclass, field
-
-
+ 
+ 
 -FAST_MODE_MODEL = "claude-3-5-haiku-20241022"
 +FAST_MODE_MODEL = 'claude-3-5-haiku-20241022'
-
-
+ 
+ 
  @dataclass
  class FastModeState:
      """Track fast mode on/off per session."""
 +
      _enabled: bool = False
      _session_override: bool | None = None
-
+ 
 @@ -58,6 +59,7 @@
          # late-import to avoid a top-level circular dependency between
          # state/cache_state.py and src.providers (used by is_first_party_provider).
@@ -27,7 +27,7 @@ diff --git a/utils/fast_mode.py b/utils/fast_mode.py
 @@ -82,10 +84,10 @@
      if env_override is not None:
          return env_override
-
+ 
 -    env_val = os.environ.get("CLAUDE_FAST_MODE", "").lower()
 -    if env_val in ("1", "true", "yes"):
 +    env_val = os.environ.get('CLAUDE_FAST_MODE', '').lower()
@@ -36,10 +36,10 @@ diff --git a/utils/fast_mode.py b/utils/fast_mode.py
 -    if env_val in ("0", "false", "no"):
 +    if env_val in ('0', 'false', 'no'):
          return False
-
+ 
      if config_value is not None:
 @@ -96,4 +98,4 @@
-
+ 
  def get_fast_mode_model() -> str:
      """Get the model to use in fast mode."""
 -    return os.environ.get("CLAUDE_FAST_MODE_MODEL", FAST_MODE_MODEL)

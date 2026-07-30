@@ -4,7 +4,7 @@ diff --git a/services/cost_tracker.py b/services/cost_tracker.py
 @@ -1,247 +1,13 @@
 -"""Cost tracker — per-model pricing, per-turn + cumulative cost, cache hit savings.
 +"""Facade — services/cost_tracker.py has been moved to clawcodex_ext.
-
+ 
 -**DEPRECATED**: This module's ``CostTracker`` class is test-only and
 -predates the Phase 2.3 consolidation onto the bootstrap singleton. New
 -production code should use:
@@ -23,7 +23,7 @@ diff --git a/services/cost_tracker.py b/services/cost_tracker.py
 +itself out at import time (Pattern C) so that ``_get_pricing`` and
 +other private symbols remain accessible to tests.
  """
-
+ 
 -from __future__ import annotations
 -
 -import time
@@ -253,7 +253,7 @@ diff --git a/services/cost_tracker.py b/services/cost_tracker.py
 -        return self._total_cost >= max_budget_usd
 +import importlib
 +import sys
-
+ 
 -    def record(self, label: str, units: int) -> None:
 -        self._total_input_tokens += units
 +_ext_mod = importlib.import_module('clawcodex_ext.services.cost_tracker')

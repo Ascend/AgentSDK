@@ -3,7 +3,7 @@ diff --git a/utils/export_renderer.py b/utils/export_renderer.py
 +++ b/utils/export_renderer.py	2026-07-04 09:47:03.000000 +0800
 @@ -43,7 +43,7 @@
  from typing import Any, List, Optional
-
+ 
  from src.constants.xml import TASK_NOTIFICATION_TAG
 -from src.types.content_blocks import content_block_to_dict
 +from clawcodex_ext.types.content_blocks import content_block_to_dict
@@ -13,12 +13,12 @@ diff --git a/utils/export_renderer.py b/utils/export_renderer.py
 @@ -55,8 +55,8 @@
  # Constants
  # --------------------------------------------------------------------------- #
-
+ 
 -SKIP_MESSAGE_TYPES = frozenset({"progress", "attachment"})
 -SKIP_SYSTEM_SUBTYPES = frozenset({"api_metrics"})
 +SKIP_MESSAGE_TYPES = frozenset({'progress', 'attachment'})
 +SKIP_SYSTEM_SUBTYPES = frozenset({'api_metrics'})
-
+ 
  # Only <task-notification> of TS's INTERNAL_TEXT_TAGS is live in Python.
  INTERNAL_TEXT_TAGS = [TASK_NOTIFICATION_TAG]
 @@ -74,20 +74,18 @@
@@ -33,20 +33,20 @@ diff --git a/utils/export_renderer.py b/utils/export_renderer.py
 +        '[No response requested]',
      }
  )
-
+ 
 -_SYSTEM_REMINDER_RE = re.compile(
 -    r"<system-reminder\b[^>]*>.*?</system-reminder>", re.DOTALL
 -)
 +_SYSTEM_REMINDER_RE = re.compile(r'<system-reminder\b[^>]*>.*?</system-reminder>', re.DOTALL)
-
-
+ 
+ 
 -def _internal_tag_regex(tag: str) -> "re.Pattern[str]":
 +def _internal_tag_regex(tag: str) -> 're.Pattern[str]':
      escaped = re.escape(tag)
 -    return re.compile(rf"<{escaped}\b[^>]*>.*?</{escaped}>", re.DOTALL)
 +    return re.compile(rf'<{escaped}\b[^>]*>.*?</{escaped}>', re.DOTALL)
-
-
+ 
+ 
  _INTERNAL_TEXT_TAG_REGEXES = [_internal_tag_regex(tag) for tag in INTERNAL_TEXT_TAGS]
 @@ -101,17 +99,17 @@
  def _now_iso() -> str:
@@ -54,23 +54,23 @@ diff --git a/utils/export_renderer.py b/utils/export_renderer.py
      now = datetime.now(timezone.utc)
 -    return now.strftime("%Y-%m-%dT%H:%M:%S.") + f"{now.microsecond // 1000:03d}Z"
 +    return now.strftime('%Y-%m-%dT%H:%M:%S.') + f'{now.microsecond // 1000:03d}Z'
-
-
+ 
+ 
  def strip_system_reminder_blocks(text: str) -> str:
 -    return _SYSTEM_REMINDER_RE.sub("", text).strip()
 +    return _SYSTEM_REMINDER_RE.sub('', text).strip()
-
-
+ 
+ 
  def strip_top_level_internal_text(text: str) -> str:
      stripped = strip_system_reminder_blocks(text)
      for regex in _INTERNAL_TEXT_TAG_REGEXES:
 -        stripped = regex.sub("", stripped)
 +        stripped = regex.sub('', stripped)
      return stripped.strip()
-
-
+ 
+ 
 @@ -121,16 +119,16 @@
-
+ 
  def looks_like_json(s: str) -> bool:
      trimmed = s.strip()
 -    return (trimmed.startswith("{") and trimmed.endswith("}")) or (
@@ -78,8 +78,8 @@ diff --git a/utils/export_renderer.py b/utils/export_renderer.py
 +    return (trimmed.startswith('{') and trimmed.endswith('}')) or (
 +        trimmed.startswith('[') and trimmed.endswith(']')
      )
-
-
+ 
+ 
  def markdown_fence_for(content: str) -> str:
      longest = 0
 -    for match in re.finditer(r"`+", content):
@@ -87,11 +87,11 @@ diff --git a/utils/export_renderer.py b/utils/export_renderer.py
          longest = max(longest, len(match.group(0)))
 -    return "`" * max(3, longest + 1)
 +    return '`' * max(3, longest + 1)
-
-
+ 
+ 
  def safe_json_value(value: Any, seen: Optional[set] = None) -> Any:
 @@ -147,30 +145,30 @@
-
+ 
      if isinstance(value, (list, tuple)):
          if id(value) in seen:
 -            return "[Circular]"
@@ -104,7 +104,7 @@ diff --git a/utils/export_renderer.py b/utils/export_renderer.py
 +            return '[Unserializable]'
          finally:
              seen.discard(id(value))
-
+ 
      if isinstance(value, Mapping):
          if id(value) in seen:
 -            return "[Circular]"
@@ -136,34 +136,34 @@ diff --git a/utils/export_renderer.py b/utils/export_renderer.py
      except Exception:
          return str(value)
 @@ -213,20 +211,20 @@
-
+ 
  def _btype(block: Any) -> Any:
      if isinstance(block, Mapping):
 -        return block.get("type")
 -    return getattr(block, "type", None)
 +        return block.get('type')
 +    return getattr(block, 'type', None)
-
-
+ 
+ 
  def _btext(block: Any) -> Any:
      if isinstance(block, Mapping):
 -        return block.get("text")
 -    return getattr(block, "text", None)
 +        return block.get('text')
 +    return getattr(block, 'text', None)
-
-
+ 
+ 
  def _bcontent(block: Any) -> Any:
      if isinstance(block, Mapping):
 -        return block.get("content")
 -    return getattr(block, "content", None)
 +        return block.get('content')
 +    return getattr(block, 'content', None)
-
-
+ 
+ 
  def _normalize_block(block: Any) -> dict:
 @@ -235,16 +233,16 @@
-
+ 
  def extract_message_content(msg: Any) -> Any:
      if isinstance(msg, Mapping):
 -        nested = msg.get("message")
@@ -183,31 +183,31 @@ diff --git a/utils/export_renderer.py b/utils/export_renderer.py
 -    return getattr(msg, "content", None)
 +        return nested.get('content')
 +    return getattr(msg, 'content', None)
-
-
+ 
+ 
  # --------------------------------------------------------------------------- #
 @@ -253,11 +251,11 @@
-
-
+ 
+ 
  def is_text_block(block: Any) -> bool:
 -    return _is_obj(block) and _btype(block) == "text" and isinstance(_btext(block), str)
 +    return _is_obj(block) and _btype(block) == 'text' and isinstance(_btext(block), str)
-
-
+ 
+ 
  def is_tool_result_block(block: Any) -> bool:
 -    return _is_obj(block) and _btype(block) == "tool_result"
 +    return _is_obj(block) and _btype(block) == 'tool_result'
-
-
+ 
+ 
  def is_internal_text_block(block: Any) -> bool:
 @@ -299,7 +297,7 @@
-
-
+ 
+ 
  def is_known_message_type(message_type: str) -> bool:
 -    return message_type in ("user", "assistant", "system", "tool")
 +    return message_type in ('user', 'assistant', 'system', 'tool')
-
-
+ 
+ 
  def has_exportable_structured_content(content: Any) -> bool:
 @@ -320,7 +318,7 @@
                  return True
@@ -240,13 +240,13 @@ diff --git a/utils/export_renderer.py b/utils/export_renderer.py
 -        msg_type
 -    )
 +    return has_exportable_structured_content(content) or not is_known_message_type(msg_type)
-
-
+ 
+ 
  # --------------------------------------------------------------------------- #
 @@ -349,35 +345,37 @@
  # --------------------------------------------------------------------------- #
-
-
+ 
+ 
 -def message_heading(message_type: str) -> str:
 -    if message_type == "user":
 -        return "User"
@@ -268,13 +268,13 @@ diff --git a/utils/export_renderer.py b/utils/export_renderer.py
 +    if message_type == 'tool':
 +        return 'Tool Result'
      return (message_type[:1].upper() + message_type[1:]) if message_type else message_type
-
-
+ 
+ 
  def to_role(message_type: str) -> str:
 -    return message_type if message_type in ("user", "assistant", "system", "tool") else "unknown"
 +    return message_type if message_type in ('user', 'assistant', 'system', 'tool') else 'unknown'
-
-
+ 
+ 
  def to_exported_message_type(msg_type: str, content: Any) -> str:
      if is_tool_result_message_content(content):
 -        return "tool"
@@ -287,23 +287,23 @@ diff --git a/utils/export_renderer.py b/utils/export_renderer.py
 +    if msg_type != 'unknown':
 +        return 'unknown'
      return msg_type
-
-
+ 
+ 
  def to_role_for_content(msg_type: str, content: Any) -> str:
      if is_tool_result_message_content(content):
 -        return "tool"
 +        return 'tool'
      return to_role(msg_type)
-
-
+ 
+ 
 @@ -393,102 +391,102 @@
      if not stripped:
          return
      lines.append(stripped)
 -    lines.append("")
 +    lines.append('')
-
-
+ 
+ 
  def render_unknown_content_markdown(content: Any, lines: List[str]) -> None:
 -    lines.append("*[unknown content]*")
 -    lines.append("")
@@ -317,14 +317,14 @@ diff --git a/utils/export_renderer.py b/utils/export_renderer.py
      lines.append(marker)
 -    lines.append("")
 +    lines.append('')
-
-
+ 
+ 
  def render_content_block_markdown(
      block: dict, lines: List[str], skip_subheading: bool = False
  ) -> None:
 -    block_type = block.get("type")
 +    block_type = block.get('type')
-
+ 
 -    if block_type == "text":
 -        text = block.get("text")
 -        render_text_markdown(text if isinstance(text, str) else "", lines)
@@ -332,7 +332,7 @@ diff --git a/utils/export_renderer.py b/utils/export_renderer.py
 +        text = block.get('text')
 +        render_text_markdown(text if isinstance(text, str) else '', lines)
          return
-
+ 
 -    if block_type == "tool_use":
 -        name = block.get("name")
 -        name = name if isinstance(name, str) else "unknown"
@@ -355,7 +355,7 @@ diff --git a/utils/export_renderer.py b/utils/export_renderer.py
 -            lines.append("")
 +            lines.append('')
          return
-
+ 
 -    if block_type == "tool_result":
 +    if block_type == 'tool_result':
          if not skip_subheading:
@@ -387,7 +387,7 @@ diff --git a/utils/export_renderer.py b/utils/export_renderer.py
 +            lines.append('*(Error)*')
 +            lines.append('')
          return
-
+ 
 -    if block_type == "image":
 -        lines.append("[Image attachment]")
 -        lines.append("")
@@ -395,15 +395,15 @@ diff --git a/utils/export_renderer.py b/utils/export_renderer.py
 +        lines.append('[Image attachment]')
 +        lines.append('')
          return
-
+ 
 -    if block_type == "thinking":
 +    if block_type == 'thinking':
          return
-
+ 
 -    if block_type == "redacted_thinking":
 +    if block_type == 'redacted_thinking':
          return
-
+ 
 -    label = block_type if block_type is not None else "unknown"
 -    lines.append(f"*[{label} content block]*")
 -    lines.append("")
@@ -418,8 +418,8 @@ diff --git a/utils/export_renderer.py b/utils/export_renderer.py
      lines.append(marker)
 -    lines.append("")
 +    lines.append('')
-
-
+ 
+ 
  def render_messages_to_markdown(messages: Any) -> str:
      lines: List[str] = []
 -    lines.append("# Conversation Export")
@@ -432,7 +432,7 @@ diff --git a/utils/export_renderer.py b/utils/export_renderer.py
 +    lines.append(f'Exported: {_now_iso()}')
 +    lines.append('Format: Markdown')
 +    lines.append('')
-
+ 
      for msg in messages:
          if not _is_msg_obj(msg):
              continue
@@ -442,18 +442,18 @@ diff --git a/utils/export_renderer.py b/utils/export_renderer.py
 +        msg_type = 'unknown' if raw_type is None else str(raw_type)
          if not should_export_structured_message(msg, msg_type):
              continue
-
+ 
 @@ -496,10 +494,10 @@
          if content is None:
              continue
-
+ 
 -        is_tool_result_message = msg_type in ("user", "tool") and (
 +        is_tool_result_message = msg_type in ('user', 'tool') and (
              is_tool_result_message_content(content)
          )
 -        heading = "Tool Result" if is_tool_result_message else message_heading(msg_type)
 +        heading = 'Tool Result' if is_tool_result_message else message_heading(msg_type)
-
+ 
          content_lines: List[str] = []
          if isinstance(content, str):
 @@ -513,18 +511,18 @@
@@ -464,35 +464,35 @@ diff --git a/utils/export_renderer.py b/utils/export_renderer.py
 +                content_lines.append('')
          else:
              render_unknown_content_markdown(content, content_lines)
-
+ 
 -        if all(line == "" for line in content_lines):
 +        if all(line == '' for line in content_lines):
              continue
-
+ 
 -        lines.append(f"## {heading}")
 -        lines.append("")
 +        lines.append(f'## {heading}')
 +        lines.append('')
          lines.extend(content_lines)
-
+ 
 -    return "\n".join(lines)
 +    return '\n'.join(lines)
-
-
+ 
+ 
  # --------------------------------------------------------------------------- #
 @@ -534,63 +532,63 @@
-
+ 
  def serialize_content_block(block: Any) -> Any:
      if not _is_obj(block):
 -        return {"type": "unknown", "value": safe_json_value(block)}
 +        return {'type': 'unknown', 'value': safe_json_value(block)}
-
+ 
      b = _normalize_block(block)
 -    raw_type = b.get("type")
 -    block_type = raw_type if isinstance(raw_type, str) else "unknown"
 +    raw_type = b.get('type')
 +    block_type = raw_type if isinstance(raw_type, str) else 'unknown'
-
+ 
 -    if block_type == "text":
 -        text = b.get("text")
 +    if block_type == 'text':
@@ -502,7 +502,7 @@ diff --git a/utils/export_renderer.py b/utils/export_renderer.py
 -        return {"type": "text", "text": strip_top_level_internal_text(text)}
 +            return {'type': 'text', 'text': ''}
 +        return {'type': 'text', 'text': strip_top_level_internal_text(text)}
-
+ 
 -    if block_type == "tool_use":
 -        result: dict[str, Any] = {"type": "tool_use"}
 -        if b.get("id") is not None:
@@ -520,7 +520,7 @@ diff --git a/utils/export_renderer.py b/utils/export_renderer.py
 +        if b.get('input') is not None:
 +            result['input'] = safe_json_value(b.get('input'))
          return result
-
+ 
 -    if block_type == "tool_result":
 -        tool_use_id = b.get("tool_use_id")
 +    if block_type == 'tool_result':
@@ -546,7 +546,7 @@ diff --git a/utils/export_renderer.py b/utils/export_renderer.py
 -            result["isError"] = bool(is_error)
 +            result['isError'] = bool(is_error)
          return result
-
+ 
 -    if block_type == "image":
 -        result = {"type": "image"}
 -        if b.get("source") is not None:
@@ -556,15 +556,15 @@ diff --git a/utils/export_renderer.py b/utils/export_renderer.py
 +        if b.get('source') is not None:
 +            result['source'] = safe_json_value(b.get('source'))
          return result
-
+ 
 -    if block_type in ("thinking", "redacted_thinking"):
 +    if block_type in ('thinking', 'redacted_thinking'):
          return []
-
+ 
 -    return {"type": block_type, "value": safe_json_value(b)}
 +    return {'type': block_type, 'value': safe_json_value(b)}
-
-
+ 
+ 
  def serialize_content_blocks(content: Any) -> List[Any]:
      if content is None:
          return []
@@ -574,7 +574,7 @@ diff --git a/utils/export_renderer.py b/utils/export_renderer.py
      if not isinstance(content, list):
 -        return [{"type": "unknown", "value": safe_json_value(content)}]
 +        return [{'type': 'unknown', 'value': safe_json_value(content)}]
-
+ 
      out: List[Any] = []
      for block in content:
 @@ -609,42 +607,42 @@
@@ -587,7 +587,7 @@ diff --git a/utils/export_renderer.py b/utils/export_renderer.py
 +        msg_type_filter = '' if raw_type is None else str(raw_type)
          if should_export_structured_message(msg, msg_type_filter):
              filtered.append((msg, source_index))
-
+ 
      exported: List[dict] = []
      for index, (msg, source_index) in enumerate(filtered):
 -        raw_type = _field(msg, "type", None)
@@ -597,7 +597,7 @@ diff --git a/utils/export_renderer.py b/utils/export_renderer.py
          content = extract_message_content(msg)
          exported_type = to_exported_message_type(msg_type, content)
          role = to_role_for_content(msg_type, content)
-
+ 
          result: dict[str, Any] = {
 -            "index": index,
 -            "sourceIndex": source_index,
@@ -625,7 +625,7 @@ diff --git a/utils/export_renderer.py b/utils/export_renderer.py
 -            result["timestamp"] = timestamp
 +            result['timestamp'] = timestamp
          exported.append(result)
-
+ 
      output = {
 -        "version": 1,
 -        "format": "json",
@@ -639,14 +639,14 @@ diff --git a/utils/export_renderer.py b/utils/export_renderer.py
 +        'messages': exported,
      }
      return safe_stringify(output, 2)
-
+ 
 @@ -655,30 +653,30 @@
-
-
+ 
+ 
  def _plain_block_lines(block: dict, lines: List[str], skip_subheading: bool) -> None:
 -    block_type = block.get("type")
 +    block_type = block.get('type')
-
+ 
 -    if block_type == "text":
 -        text = block.get("text")
 -        stripped = strip_top_level_internal_text(text) if isinstance(text, str) else ""
@@ -658,7 +658,7 @@ diff --git a/utils/export_renderer.py b/utils/export_renderer.py
 -            lines.append("")
 +            lines.append('')
          return
-
+ 
 -    if block_type == "tool_use":
 -        name = block.get("name")
 -        name = name if isinstance(name, str) else "unknown"
@@ -674,7 +674,7 @@ diff --git a/utils/export_renderer.py b/utils/export_renderer.py
 -        lines.append("")
 +        lines.append('')
          return
-
+ 
 -    if block_type == "tool_result":
 +    if block_type == 'tool_result':
          if not skip_subheading:
@@ -696,7 +696,7 @@ diff --git a/utils/export_renderer.py b/utils/export_renderer.py
 +            lines.append('(Error)')
 +        lines.append('')
          return
-
+ 
 -    if block_type == "image":
 -        lines.append("[Image attachment]")
 -        lines.append("")
@@ -704,11 +704,11 @@ diff --git a/utils/export_renderer.py b/utils/export_renderer.py
 +        lines.append('[Image attachment]')
 +        lines.append('')
          return
-
+ 
 -    if block_type in ("thinking", "redacted_thinking"):
 +    if block_type in ('thinking', 'redacted_thinking'):
          return
-
+ 
 -    label = block_type if block_type is not None else "unknown"
 -    lines.append(f"[{label} content block]")
 +    label = block_type if block_type is not None else 'unknown'
@@ -716,8 +716,8 @@ diff --git a/utils/export_renderer.py b/utils/export_renderer.py
      lines.append(safe_stringify(block, 2))
 -    lines.append("")
 +    lines.append('')
-
-
+ 
+ 
  def render_messages_to_plain_text(messages: Any) -> str:
      lines: List[str] = []
 -    lines.append("Conversation Export")
@@ -730,7 +730,7 @@ diff --git a/utils/export_renderer.py b/utils/export_renderer.py
 +    lines.append(f'Exported: {_now_iso()}')
 +    lines.append('Format: Text')
 +    lines.append('')
-
+ 
      for msg in messages:
          if not _is_msg_obj(msg):
              continue
@@ -740,18 +740,18 @@ diff --git a/utils/export_renderer.py b/utils/export_renderer.py
 +        msg_type = 'unknown' if raw_type is None else str(raw_type)
          if not should_export_structured_message(msg, msg_type):
              continue
-
+ 
 @@ -726,38 +724,36 @@
          if content is None:
              continue
-
+ 
 -        is_tool_result_message = msg_type in ("user", "tool") and (
 +        is_tool_result_message = msg_type in ('user', 'tool') and (
              is_tool_result_message_content(content)
          )
 -        heading = "Tool Result" if is_tool_result_message else message_heading(msg_type)
 +        heading = 'Tool Result' if is_tool_result_message else message_heading(msg_type)
-
+ 
          content_lines: List[str] = []
          if isinstance(content, str):
              stripped = strip_top_level_internal_text(content)
@@ -774,24 +774,24 @@ diff --git a/utils/export_renderer.py b/utils/export_renderer.py
              content_lines.append(str(content))
 -            content_lines.append("")
 +            content_lines.append('')
-
+ 
 -        if all(line == "" for line in content_lines):
 +        if all(line == '' for line in content_lines):
              continue
-
+ 
          lines.append(heading)
 -        lines.append("")
 +        lines.append('')
          lines.extend(content_lines)
-
+ 
 -    return "\n".join(lines)
 +    return '\n'.join(lines)
-
-
+ 
+ 
  # --------------------------------------------------------------------------- #
 @@ -766,41 +762,41 @@
-
-
+ 
+ 
  def render_messages_for_export(messages: Any, *, format: ExportFormat) -> str:
 -    if format == "text":
 +    if format == 'text':
@@ -804,8 +804,8 @@ diff --git a/utils/export_renderer.py b/utils/export_renderer.py
          return render_messages_to_json(messages)
 -    raise ValueError(f"Unknown export format: {format!r}")
 +    raise ValueError(f'Unknown export format: {format!r}')
-
-
+ 
+ 
  __all__ = [
 -    "SKIP_MESSAGE_TYPES",
 -    "SKIP_SYSTEM_SUBTYPES",

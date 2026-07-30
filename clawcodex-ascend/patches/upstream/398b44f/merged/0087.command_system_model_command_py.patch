@@ -4,7 +4,7 @@ diff --git a/command_system/model_command.py b/command_system/model_command.py
 @@ -1,189 +1,18 @@
 -"""model — interactive ``/model`` command (port of TS local-jsx).
 +"""Facade — command_system/model_command.py has been moved to clawcodex_ext (lazy proxy)."""
-
+ 
 -Port of ``typescript/src/commands/model/`` (``model.tsx`` + ``index.ts``). Like
 -``/theme`` and ``/effort``, this is the **inverse** of ``/export`` at the TUI dispatch
 -layer: the TUI keeps intercepting ``/model`` (+ ``/models``) → ``open_dialog="model"`` to
@@ -47,7 +47,7 @@ diff --git a/command_system/model_command.py b/command_system/model_command.py
 -``get_settings`` are imported lazily (the ``app.py``/advisor discipline).
 -"""
  from __future__ import annotations
-
+ 
 -from dataclasses import dataclass
 -
 -from .types import (
@@ -193,8 +193,8 @@ diff --git a/command_system/model_command.py b/command_system/model_command.py
 +    'MODEL_COMMAND',
 +    'ModelCommand',
 +]
-
-
+ 
+ 
 -__all__ = ["MODEL_COMMAND", "ModelCommand"]
 +def __getattr__(name: str):
 +    import clawcodex_ext.command_system.model_command as _mod

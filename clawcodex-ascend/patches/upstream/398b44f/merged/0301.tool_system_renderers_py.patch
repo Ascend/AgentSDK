@@ -5,7 +5,7 @@ diff --git a/tool_system/renderers.py b/tool_system/renderers.py
 -"""Renderer/event types extracted from ``agent_loop.py`` (F.4 of the
 -ch05 consolidation, post-cutover).
 +"""Facade — tool_system/renderers.py moved to clawcodex_ext/tool_system/."""
-
+ 
 -These symbols are pure data + display helpers — no dependency on the
 -agent loop itself. They live here so the cutover paths (the agent-server
 -and the headless writer) can import them without dragging in the legacy

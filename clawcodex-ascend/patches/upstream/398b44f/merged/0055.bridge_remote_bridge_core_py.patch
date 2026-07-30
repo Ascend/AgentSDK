@@ -4,7 +4,7 @@ diff --git a/bridge/remote_bridge_core.py b/bridge/remote_bridge_core.py
 @@ -1,1176 +1,19 @@
 -"""Env-less Remote Control bridge core — Phase 5 MVP.
 +"""Facade — bridge/remote_bridge_core.py has been moved to extensions/ports/bridge/.
-
+ 
 -Ports ``typescript/src/bridge/remoteBridgeCore.ts``.
 -
 -"Env-less" means no Environments API layer — this connects directly to
@@ -59,7 +59,7 @@ diff --git a/bridge/remote_bridge_core.py b/bridge/remote_bridge_core.py
 +test suite references symbols (e.g. ``TokenRefreshScheduler``) that
 +are not in the module's ``__all__`` list.
  """
-
+ 
 -from __future__ import annotations
 -
 -import asyncio
@@ -1181,7 +1181,7 @@ diff --git a/bridge/remote_bridge_core.py b/bridge/remote_bridge_core.py
 -    return response.status_code
 -
 +import extensions.ports.bridge.remote_bridge_core as _mod
-
+ 
 -__all__ = [
 -    'BridgeState',
 -    'DEFAULT_ENV_LESS_BRIDGE_CONFIG',

@@ -4,16 +4,16 @@ diff --git a/services/tool_execution/tool_execution.py b/services/tool_execution
 @@ -1,729 +1,9 @@
 -"""Tool execution — mirrors TypeScript toolExecution.ts.
 +"""Compatibility facade — see :mod:`clawcodex_ext.services.tool_execution.tool_execution`."""
-
+ 
 -Core function: run_tool_use() — async generator yielding MessageUpdateLazy.
 -Handles tool lookup, input validation, permission checks, pre/post hooks,
 -tool execution with progress, error handling, and result mapping.
 -"""
 +from clawcodex_ext.services.tool_execution.tool_execution import *  # noqa: F401,F403
-
+ 
 -from __future__ import annotations
 +import sys
-
+ 
 -import json
 -import logging
 -import math
@@ -21,7 +21,7 @@ diff --git a/services/tool_execution/tool_execution.py b/services/tool_execution
 -from dataclasses import dataclass
 -from typing import TYPE_CHECKING, Any, AsyncGenerator, Callable
 +from clawcodex_ext.services.tool_execution import tool_execution as _implementation
-
+ 
 -from src.types.messages import (
 -    CANCEL_MESSAGE,
 -    INTERRUPT_MESSAGE_FOR_TOOL_USE,

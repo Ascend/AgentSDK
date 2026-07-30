@@ -4,7 +4,7 @@ diff --git a/bridge/bridge_main.py b/bridge/bridge_main.py
 @@ -1,1243 +1,9 @@
 -"""Multi-session bridge daemon — Phase 8 MVP slice.
 +"""Facade — bridge/bridge_main.py has been moved to extensions/ports/bridge/.
-
+ 
 -Ports ``typescript/src/bridge/bridgeMain.ts`` (2991 lines in TS).
 -
 -The TS file is the daemon/orchestrator entry point: parses CLI args,
@@ -64,7 +64,7 @@ diff --git a/bridge/bridge_main.py b/bridge/bridge_main.py
 +the public surface so existing ``from src.bridge.bridge_main import ...``
 +callers keep working without modification.
  """
-
+ 
 -from __future__ import annotations
 -
 -import asyncio

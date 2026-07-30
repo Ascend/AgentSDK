@@ -34,11 +34,11 @@ diff --git a/utils/store.py b/utils/store.py
 -single-purpose and location-agnostic.
 -"""
 +"""Compatibility facade — see :mod:`clawcodex_ext.utils.store`."""
-
+ 
  from __future__ import annotations
 +import sys
 +from clawcodex_ext.utils import store as _module
-
+ 
 -from typing import Callable, Generic, TypeVar
 -
 -T = TypeVar("T")

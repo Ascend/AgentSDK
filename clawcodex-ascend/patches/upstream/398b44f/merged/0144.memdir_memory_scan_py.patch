@@ -4,7 +4,7 @@ diff --git a/memdir/memory_scan.py b/memdir/memory_scan.py
 @@ -1,177 +1,3 @@
 -"""Memory directory scanning primitives.
 +"""Compatibility facade — see :mod:`clawcodex_ext.memdir.memory_scan`."""
-
+ 
 -Ports `typescript/src/memdir/memoryScan.ts`. The scan reads only the
 -first ``FRONTMATTER_MAX_LINES`` of each file (frontmatter only), enforces
 -a depth cap (DoS guard against symlinked/deep trees), caps the result at

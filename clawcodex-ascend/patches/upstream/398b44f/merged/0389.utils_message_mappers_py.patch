@@ -33,11 +33,11 @@ diff --git a/utils/message_mappers.py b/utils/message_mappers.py
 -synthesis paths).
 -"""
 +"""Compatibility facade — see :mod:`clawcodex_ext.utils.message_mappers`."""
-
+ 
  from __future__ import annotations
 +import sys
 +from clawcodex_ext.utils import message_mappers as _module
-
+ 
 -from typing import Any
 -
 -from src.bootstrap.state import get_session_id

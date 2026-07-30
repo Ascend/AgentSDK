@@ -2,9 +2,9 @@ diff --git a/transports/__init__.py b/transports/__init__.py
 --- a/transports/__init__.py	2026-07-23 08:42:36.000000 +0000
 +++ b/transports/__init__.py	2026-07-04 09:47:03.000000 +0800
 @@ -29,27 +29,27 @@
-
+ 
  from __future__ import annotations
-
+ 
 -from src.transports.ccr_client import CCRClient
 +from clawcodex_ext.transports.ccr_client import CCRClient
  from src.transports.hybrid_transport import HybridTransport
@@ -21,7 +21,7 @@ diff --git a/transports/__init__.py b/transports/__init__.py
      WorkerStateUploader,
      WorkerStateUploaderConfig,
  )
-
+ 
  __all__ = [
 -    "CCRClient",
 -    "HybridTransport",

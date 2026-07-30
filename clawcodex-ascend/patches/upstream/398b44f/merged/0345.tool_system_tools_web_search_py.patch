@@ -4,7 +4,7 @@ diff --git a/tool_system/tools/web_search.py b/tool_system/tools/web_search.py
 @@ -1,393 +1,9 @@
 -from __future__ import annotations
 +"""Facade — tool_system/tools/web_search.py moved to clawcodex_ext/tool_system/tools/."""
-
+ 
 -import json
 -import time
 -import urllib.error
@@ -14,15 +14,15 @@ diff --git a/tool_system/tools/web_search.py b/tool_system/tools/web_search.py
 -from typing import Any
 -from urllib.parse import urlparse
 +from clawcodex_ext.tool_system.tools.web_search import *  # noqa: F401,F403
-
+ 
 -from ..build_tool import Tool, ValidationResult, build_tool
 -from ..context import ToolContext
 -from ..errors import ToolInputError
 -from ..protocol import ToolResult
 +import sys
-
+ 
 +from clawcodex_ext.tool_system.tools import web_search as _implementation
-
+ 
 -# ---------------------------------------------------------------------------
 -# Domain filtering
 -# ---------------------------------------------------------------------------

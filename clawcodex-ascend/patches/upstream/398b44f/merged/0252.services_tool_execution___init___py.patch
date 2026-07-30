@@ -4,7 +4,7 @@ diff --git a/services/tool_execution/__init__.py b/services/tool_execution/__ini
 @@ -1,49 +1,3 @@
 -"""Tool execution services — streaming executor, orchestrator, and tool hooks."""
 +"""Compatibility facade — see :mod:`clawcodex_ext.services.tool_execution`."""
-
+ 
 -from __future__ import annotations
 -
 -from .tool_execution import (

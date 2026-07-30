@@ -63,11 +63,11 @@ diff --git a/utils/stream_watchdog.py b/utils/stream_watchdog.py
 -and verifies the fallback fires. Re-audit the SDK version when bumping.
 -"""
 +"""Compatibility facade — see :mod:`clawcodex_ext.utils.stream_watchdog`."""
-
+ 
  from __future__ import annotations
 +import sys
 +from clawcodex_ext.utils import stream_watchdog as _module
-
+ 
 -import logging
 -import os
 -import socket as _socket

@@ -4,7 +4,7 @@ diff --git a/tool_system/tools/bash/read_only_validation.py b/tool_system/tools/
 @@ -1,56 +1,3 @@
 -"""Lightweight read-only check for bash commands.
 +"""Facade — tool_system/tools/bash/read_only_validation.py moved to clawcodex_ext/tool_system/tools/bash/."""
-
+ 
 -Splits on pipes and checks each sub-command's leading token against
 -a known allowlist.  Rejects shell meta-characters that could bypass
 -the simple token check (back-ticks, $(), etc.).

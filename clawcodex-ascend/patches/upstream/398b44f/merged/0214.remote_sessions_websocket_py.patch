@@ -31,9 +31,9 @@ diff --git a/remote/sessions_websocket.py b/remote/sessions_websocket.py
 -``disconnect()``).
 -"""
 +"""Compatibility facade — see :mod:`clawcodex_ext.remote.sessions_websocket`."""
-
+ 
  from __future__ import annotations
-
+ 
 -import asyncio
 -import json
 -import logging
@@ -465,7 +465,7 @@ diff --git a/remote/sessions_websocket.py b/remote/sessions_websocket.py
 -
 -    # ─── Internal: callback helper ───────────────────────────────────
 +import sys
-
+ 
 -    @staticmethod
 -    async def _invoke(callback: Callable[..., object] | None, /, *args: object) -> None:
 -        if callback is None:
@@ -474,9 +474,9 @@ diff --git a/remote/sessions_websocket.py b/remote/sessions_websocket.py
 -        if asyncio.iscoroutine(result):
 -            await result
 +from clawcodex_ext.remote import sessions_websocket as _module
-
+ 
 +sys.modules[__name__] = _module
-
+ 
 -__all__ = [
 -    'ConnectionState',
 -    'GetAccessToken',

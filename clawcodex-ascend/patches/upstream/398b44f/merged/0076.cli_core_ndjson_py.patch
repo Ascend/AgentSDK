@@ -4,13 +4,13 @@ diff --git a/cli_core/ndjson.py b/cli_core/ndjson.py
 @@ -1,37 +1,15 @@
 -"""NDJSON helpers.
 +"""Facade — cli_core/ndjson.py has been moved to clawcodex_ext/cli_core/ndjson.
-
+ 
 -Port of ``typescript/src/cli/ndjsonSafeStringify.ts``.
 +The F-88 NDJSON helpers (``ndjson_safe_dumps``) now live in
 +:mod:`clawcodex_ext.cli_core.ndjson`. This module re-exports the public
 +surface so existing ``from src.cli_core.ndjson import ...`` callers
 +keep working without modification.
-
+ 
 -``json.dumps`` leaves U+2028 / U+2029 unescaped by default. Those code points
 -are valid in JSON but are treated as line terminators by a number of
 -line-oriented NDJSON receivers (most notably the JavaScript ``split`` family
@@ -20,10 +20,10 @@ diff --git a/cli_core/ndjson.py b/cli_core/ndjson.py
 +Uses ``globals().update()`` to preserve access to all public names
 +regardless of ``__all__`` — the source module has no ``__all__``.
  """
-
+ 
 -from __future__ import annotations
 +import clawcodex_ext.cli_core.ndjson as _mod
-
+ 
 -import json
 -from typing import Any
 -

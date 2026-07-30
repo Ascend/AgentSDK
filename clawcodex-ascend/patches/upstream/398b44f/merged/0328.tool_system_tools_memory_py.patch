@@ -4,7 +4,7 @@ diff --git a/tool_system/tools/memory.py b/tool_system/tools/memory.py
 @@ -1,286 +1,3 @@
 -"""The ``Memory`` tool — persistent curated memory (hermes-agent port).
 +"""Facade for the canonical Memory tool implementation."""
-
+ 
 -Single entry point over :class:`src.memory.MemoryStore` with two calling
 -shapes (donor: ``tools/memory_tool.py``):
 -

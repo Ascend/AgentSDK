@@ -30,9 +30,9 @@ diff --git a/memdir/team_mem_paths.py b/memdir/team_mem_paths.py
 -``load_memory_prompt()`` call site is sync.
 -"""
 +"""Module-identity facade for downstream team-memory path handling."""
-
+ 
  from __future__ import annotations
-
+ 
 -import errno
 -import os
 -import unicodedata
@@ -301,14 +301,14 @@ diff --git a/memdir/team_mem_paths.py b/memdir/team_mem_paths.py
 -    team_dir = get_team_mem_path()
 -    full_path = os.path.join(team_dir, relative_key)
 +import sys
-
+ 
 -    resolved = os.path.abspath(full_path)
 -    if not resolved.startswith(team_dir):
 -        raise PathTraversalError(
 -            f'Key escapes team memory directory: "{relative_key}"'
 -        )
 +from clawcodex_ext.memdir import team_mem_paths as _module
-
+ 
 -    real_path = _realpath_deepest_existing(resolved)
 -    if not _is_real_path_within_team_dir(real_path):
 -        raise PathTraversalError(

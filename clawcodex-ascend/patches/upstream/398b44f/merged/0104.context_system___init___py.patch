@@ -4,7 +4,7 @@ diff --git a/context_system/__init__.py b/context_system/__init__.py
 @@ -1,56 +1,37 @@
 -from __future__ import annotations
 +"""Facade — context_system/ has been moved to clawcodex_ext/context_system/."""
-
+ 
 -from .builder import build_context_prompt
 -from .prompt_assembly import (
 -    append_system_context,
@@ -33,7 +33,7 @@ diff --git a/context_system/__init__.py b/context_system/__init__.py
 -    SystemPromptParts,
 -)
 +from __future__ import annotations
-
+ 
  __all__ = [
 -    # Legacy (backward compat)
      "build_context_prompt",

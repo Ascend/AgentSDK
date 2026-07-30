@@ -4,7 +4,7 @@ diff --git a/query/transitions.py b/query/transitions.py
 @@ -1,116 +1,3 @@
 -from __future__ import annotations
 +"""Facade — query/transitions.py moved to clawcodex_ext/query/."""
-
+ 
 -from dataclasses import dataclass, field
 -from typing import Any, Literal
 -

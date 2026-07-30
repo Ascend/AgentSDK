@@ -4,7 +4,7 @@ diff --git a/command_system/shell_prompt.py b/command_system/shell_prompt.py
 @@ -1,122 +1,19 @@
 -"""Shell-exec-at-prompt-build for slash commands.
 +"""Facade — command_system/shell_prompt.py has been moved to clawcodex_ext (lazy proxy)."""
-
+ 
 -Python port of typescript/src/utils/promptShellExecution.ts (executeShellCommandsInPrompt)
 -plus the BashTool-backed executor pattern from src/tool_system/tools/skill.py
 -(_make_shell_executor). Reuses the public shell-block primitives already ported in
@@ -24,7 +24,7 @@ diff --git a/command_system/shell_prompt.py b/command_system/shell_prompt.py
 -    crashing). See src/skills/runtime_substitution.py:140-157.
 -"""
  from __future__ import annotations
-
+ 
 -import logging
 -from typing import Callable
 -
@@ -126,9 +126,9 @@ diff --git a/command_system/shell_prompt.py b/command_system/shell_prompt.py
 +    'execute_shell_commands_in_prompt',
 +    'make_bash_shell_executor',
 +]
-
+ 
 -        return format_shell_output(stdout, stderr, inline=inline)
-
+ 
 -    return _exec
 +def __getattr__(name: str):
 +    import clawcodex_ext.command_system.shell_prompt as _mod

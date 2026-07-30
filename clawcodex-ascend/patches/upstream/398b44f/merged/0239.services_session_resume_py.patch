@@ -4,7 +4,7 @@ diff --git a/services/session_resume.py b/services/session_resume.py
 @@ -1,205 +1,31 @@
 -"""Session resume — read JSONL, reconstruct typed Messages.
 +"""Facade — services/session_resume.py has been moved to clawcodex_ext (lazy proxy).
-
+ 
 -Matches TypeScript session/resume.ts. Handles:
 -- Malformed line recovery
 -- Orphaned permissions (tool_use without tool_result)
@@ -22,9 +22,9 @@ diff --git a/services/session_resume.py b/services/session_resume.py
 +``__dict__`` directly and would otherwise miss proxy-cached symbols
 +that haven't been imported yet.
  """
-
+ 
  from __future__ import annotations
-
+ 
 -import logging
 -from pathlib import Path
 -from typing import Any
@@ -221,7 +221,7 @@ diff --git a/services/session_resume.py b/services/session_resume.py
 +    'resume_session',
 +    'ResumeResult',
 +]
-
+ 
 -    return messages
 +
 +def __getattr__(name: str):

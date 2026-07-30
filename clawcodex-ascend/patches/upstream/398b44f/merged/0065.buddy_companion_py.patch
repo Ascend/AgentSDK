@@ -4,21 +4,21 @@ diff --git a/buddy/companion.py b/buddy/companion.py
 @@ -1,261 +1,9 @@
 -"""Companion rolls + identity. Port of ``typescript/src/buddy/companion.ts``.
 +"""Compatibility facade — see :mod:`clawcodex_ext.buddy.companion`."""
-
+ 
 -The "bones + soul" split is load-bearing (gap-analysis §2.1): bones are
 -regenerated on every read from ``hash(user_id + SALT)``; the soul is the
 -only thing that persists. This means species renames and edits to
 -``SPECIES`` never break stored companions, and editing
 -``config['companion']`` can't fake a rarity.
 +from clawcodex_ext.buddy.companion import *  # noqa: F401,F403
-
+ 
 -Divergence from TS: ``companion_user_id()`` reads
 -``config['user_id']`` only (skipping the TS ``oauthAccount.accountUuid``
 -fallback), because ``src/auth/claude_ai.py::OAuthAccountInfo`` does not
 -yet expose ``account_uuid``. Documented in gap-analysis §2.7. Future
 -auth-folder pass will add ``account_uuid`` to the fallback chain.
 +import sys
-
+ 
 -Performance: the one-entry ``_roll_cache`` keys on ``user_id + SALT``;
 -``companion_user_id()`` touches config (potentially file I/O), so
 -caching the rolled value is meaningful on the per-turn observer path.
@@ -26,7 +26,7 @@ diff --git a/buddy/companion.py b/buddy/companion.py
 -"""
 -from __future__ import annotations
 +from clawcodex_ext.buddy import companion as _implementation
-
+ 
 -import secrets
 -from dataclasses import dataclass
 -from typing import Callable, Sequence, TypeVar

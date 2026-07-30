@@ -4,7 +4,7 @@ diff --git a/command_system/statusline.py b/command_system/statusline.py
 @@ -1,58 +1,18 @@
 -"""statusline — Python port of TS commands/statusline.tsx (type: 'prompt').
 +"""Facade — command_system/statusline.py has been moved to clawcodex_ext (lazy proxy)."""
-
+ 
 -A dynamic ``prompt`` command: with no args it defaults the inner prompt to a
 -fixed phrase; otherwise it embeds the user's trimmed args. The single text block
 -instructs the model to spawn a ``statusline-setup`` subagent.
@@ -16,7 +16,7 @@ diff --git a/command_system/statusline.py b/command_system/statusline.py
 -statuslineSetup.ts`` is a deferred follow-up.
 -"""
  from __future__ import annotations
-
+ 
 -from dataclasses import dataclass
 -from typing import Any
 -
@@ -54,8 +54,8 @@ diff --git a/command_system/statusline.py b/command_system/statusline.py
 +    'STATUSLINE_COMMAND',
 +    'StatuslineCommand',
 +]
-
-
+ 
+ 
 -STATUSLINE_COMMAND = StatuslineCommand(
 -    name="statusline",
 -    description="Set up OpenClaude's status line UI",

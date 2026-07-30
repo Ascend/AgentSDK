@@ -21,11 +21,11 @@ diff --git a/utils/combined_abort_signal.py b/utils/combined_abort_signal.py
 -in the codebase.
 -"""
 +"""Compatibility facade — see :mod:`clawcodex_ext.utils.combined_abort_signal`."""
-
+ 
  from __future__ import annotations
 +import sys
 +from clawcodex_ext.utils import combined_abort_signal as _module
-
+ 
 -import asyncio
 -from dataclasses import dataclass
 -from typing import Callable

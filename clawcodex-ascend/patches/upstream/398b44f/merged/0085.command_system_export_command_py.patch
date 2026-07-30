@@ -4,7 +4,7 @@ diff --git a/command_system/export_command.py b/command_system/export_command.py
 @@ -1,269 +1,21 @@
 -"""export — interactive ``/export`` command (port of TS local-jsx).
 +"""Facade — command_system/export_command.py has been moved to clawcodex_ext (lazy proxy)."""
-
+ 
 -Port of ``typescript/src/commands/export/`` (``export.tsx`` + ``index.ts``). A
 -``local-jsx`` command becomes an :class:`InteractiveCommand` (blocked remotely by
 -type), with two paths mirroring the TS command:
@@ -33,7 +33,7 @@ diff --git a/command_system/export_command.py b/command_system/export_command.py
 -    silent. Acceptable — the steps are cheap to re-invoke.
 -"""
  from __future__ import annotations
-
+ 
 -import re
 -from collections.abc import Mapping
 -from dataclasses import dataclass
@@ -84,8 +84,8 @@ diff --git a/command_system/export_command.py b/command_system/export_command.py
 +    'format_timestamp',
 +    'sanitize_filename',
  ]
-
-
+ 
+ 
 -def format_timestamp(date: datetime) -> str:
 -    """``YYYY-MM-DD-HHMMSS`` in local time (port of export.tsx:11-19)."""
 -    return date.strftime("%Y-%m-%d-%H%M%S")
@@ -151,7 +151,7 @@ diff --git a/command_system/export_command.py b/command_system/export_command.py
 -
 +def __getattr__(name: str):
 +    import clawcodex_ext.command_system.export_command as _mod
-
+ 
 -def _default_filename(messages: Any) -> str:
 -    """``<ts>-<slug>.txt`` or ``conversation-<ts>.txt`` (export.tsx:85-91)."""
 -    first_prompt = extract_first_prompt(messages)

@@ -9,8 +9,8 @@ diff --git a/prefetch.py b/prefetch.py
 -        return f"in-flight subprocess pid={self.process.pid}"
 +            return f'skipped ({self.label}: platform/availability)'
 +        return f'in-flight subprocess pid={self.process.pid}'
-
-
+ 
+ 
  # Legacy compatibility — some callers may still construct PrefetchResult
 @@ -125,19 +125,19 @@
      (failure logs etc.). The keychain stdout payload is a short single
@@ -36,7 +36,7 @@ diff --git a/prefetch.py b/prefetch.py
 +    handle = PrefetchHandle(process=process, label='keychain_prefetch')
      _register_atexit_drain(handle)
      return handle
-
+ 
 @@ -153,17 +153,15 @@
      second subprocess.
      """
@@ -49,14 +49,14 @@ diff --git a/prefetch.py b/prefetch.py
 -        _singletons["keychain"] = handle
 +        _singletons['keychain'] = handle
          return handle
-
-
+ 
+ 
 -def wait_and_read_keychain(
 -    handle: PrefetchHandle, timeout: float = 5.0
 -) -> str | None:
 +def wait_and_read_keychain(handle: PrefetchHandle, timeout: float = 5.0) -> str | None:
      """Block until the prefetch child process exits; return stdout text.
-
+ 
      Returns ``None`` for the skipped-prefetch case (non-macOS or
 @@ -179,7 +177,7 @@
          return None
@@ -65,8 +65,8 @@ diff --git a/prefetch.py b/prefetch.py
 -    text = stdout.decode("utf-8", errors="replace").strip()
 +    text = stdout.decode('utf-8', errors='replace').strip()
      return text or None
-
-
+ 
+ 
 @@ -191,20 +189,20 @@
      sentinel handle. ``stderr`` is discarded — see the keychain note for
      rationale.
@@ -93,7 +93,7 @@ diff --git a/prefetch.py b/prefetch.py
 +    handle = PrefetchHandle(process=process, label='mdm_raw_read')
      _register_atexit_drain(handle)
      return handle
-
+ 
 @@ -212,11 +210,11 @@
  def get_or_start_mdm_raw_read() -> PrefetchHandle:
      """Process-wide singleton for ``start_mdm_raw_read``. See keychain getter."""
@@ -106,8 +106,8 @@ diff --git a/prefetch.py b/prefetch.py
 -        _singletons["mdm"] = handle
 +        _singletons['mdm'] = handle
          return handle
-
-
+ 
+ 
 @@ -231,7 +229,7 @@
          return None
      if handle.process.returncode != 0:
@@ -115,8 +115,8 @@ diff --git a/prefetch.py b/prefetch.py
 -    text = stdout.decode("utf-8", errors="replace").strip()
 +    text = stdout.decode('utf-8', errors='replace').strip()
      return text or None
-
-
+ 
+ 
 @@ -241,4 +239,4 @@
      Returns a sentinel handle so the call site is parity-stable. A future
      WI may wire a real walk if profiler data shows it would help cold-start.

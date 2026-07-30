@@ -4,7 +4,7 @@ diff --git a/agent/agent_tool_utils.py b/agent/agent_tool_utils.py
 @@ -1,362 +1,18 @@
 -"""Agent tool filtering and resolution utilities.
 +"""Facade — agent/agent_tool_utils.py moved to clawcodex_ext.agent.agent_tool_utils (sys.modules swap).
-
+ 
 -Mirrors typescript/src/tools/AgentTool/agentToolUtils.ts.
 +Some tests introspect private internals (functions whose names start
 +with ``_``) and rely on ``from src.agent.agent_tool_utils import _something``
@@ -158,7 +158,7 @@ diff --git a/agent/agent_tool_utils.py b/agent/agent_tool_utils.py
 -            invalid_tools=[],
 -            resolved_tools=allowed_available_tools,
 -        )
-
+ 
 -    # Build map of available tools
 -    available_map: dict[str, Tool] = {}
 -    for tool in allowed_available_tools:
@@ -365,10 +365,10 @@ diff --git a/agent/agent_tool_utils.py b/agent/agent_tool_utils.py
 -        return tool_spec[:paren_idx].strip()
 -    return tool_spec.strip()
 +from __future__ import annotations
-
+ 
 +import importlib
 +import sys
-
+ 
 -def _extract_rule_content(tool_spec: str) -> str | None:
 -    """Extract rule content from a spec like 'Tool(arg1, arg2)'."""
 -    paren_idx = tool_spec.find("(")

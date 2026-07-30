@@ -4,7 +4,7 @@ diff --git a/agent/agent_definitions.py b/agent/agent_definitions.py
 @@ -1,293 +1,12 @@
 -"""Agent definition types and built-in agents.
 +"""Facade — agent/agent_definitions.py moved to clawcodex_ext/agent/.
-
+ 
 -Mirrors typescript/src/tools/AgentTool/loadAgentsDir.ts and built-in/*.ts.
 +The full agent definition machinery (``AgentDefinition``,
 +``AgentSource``, ``BuiltInAgentDefinition``, ``EXPLORE_AGENT``,
@@ -15,7 +15,7 @@ diff --git a/agent/agent_definitions.py b/agent/agent_definitions.py
 +import ...`` callers keep working.
  """
 -from __future__ import annotations
-
+ 
 -from dataclasses import dataclass, field
 -from typing import Any, Callable, Literal
 -

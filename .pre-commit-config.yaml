@@ -12,6 +12,7 @@ repos:
     rev: v4.6.0
     hooks:
       - id: trailing-whitespace
+        exclude: ^clawcodex-ascend/patches/.*\.patch$
       - id: end-of-file-fixer
       - id: check-yaml
         args: ["--allow-multiple-documents"]
@@ -71,6 +72,7 @@ repos:
     rev: v1.32.0
     hooks:
       - id: typos
+        exclude: ^clawcodex-ascend/patches/.*\.patch$
         args: ["--force-exclude", "--config", "pre-commit/typos.toml"]
 
   # -------------------------- Gitleaks 本地离线二进制扫描 --------------------------

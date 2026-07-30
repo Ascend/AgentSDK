@@ -4,26 +4,26 @@ diff --git a/tool_system/tools/read.py b/tool_system/tools/read.py
 @@ -1,804 +1,9 @@
 -from __future__ import annotations
 +"""Facade — tool_system/tools/read.py moved to clawcodex_ext/tool_system/tools/."""
-
+ 
 -import base64 as _base64
 -import json as _json
 -import os
 -from pathlib import Path
 -from typing import Any
 +from clawcodex_ext.tool_system.tools.read import *  # noqa: F401,F403
-
+ 
 -from ..build_tool import SearchOrReadResult, Tool, build_tool
 -from ..context import ToolContext
 -from ..errors import ToolInputError
 -from ..protocol import ToolResult
 -from ..utils.path_utils import suggest_path_under_cwd
 +import sys
-
+ 
 -# ---------------------------------------------------------------------------
 -# Constants
 -# ---------------------------------------------------------------------------
 +from clawcodex_ext.tool_system.tools import read as _implementation
-
+ 
 -
 -def _backfill_read_edit_path(tool_input: dict[str, Any]) -> None:
 -    """ch06 round-4 PR-A GAP B — expand ``file_path`` in-place so hook

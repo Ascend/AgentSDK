@@ -4,7 +4,7 @@ diff --git a/providers/__init__.py b/providers/__init__.py
 @@ -206,6 +206,15 @@
  for _alias, _canonical in _spec_aliases().items():
      PROVIDER_ALIASES.setdefault(_alias, _canonical)
-
+ 
 +# ``glm`` intentionally remains an alias of the canonical upstream ``zai``
 +# provider.  The downstream extension keeps its historical native class
 +# addressable through ``get_provider_class("glm")`` without turning ``glm``
@@ -14,11 +14,11 @@ diff --git a/providers/__init__.py b/providers/__init__.py
 +# generic ``moonshot`` registry alias, so keep that historical id literal.
 +PROVIDER_ALIASES["kimi"] = "kimi"
 +
-
+ 
  def _canonical_provider_name(provider_name: str) -> str:
      """Resolve a legacy/alternate provider spelling to its canonical id."""
 @@ -225,15 +234,48 @@
-
+ 
  def get_provider_info(provider_name: str) -> ProviderInfo:
      """Get provider info by name (legacy aliases accepted)."""
 +    _ensure_downstream_providers()
@@ -28,8 +28,8 @@ diff --git a/providers/__init__.py b/providers/__init__.py
      if canonical not in PROVIDER_INFO:
          raise ValueError(f"Unknown provider: {provider_name}")
      return PROVIDER_INFO[canonical]
-
-
+ 
+ 
 +_EXTRA_PROVIDER_CLASSES: dict[str, type] = {}
 +
 +
@@ -65,11 +65,11 @@ diff --git a/providers/__init__.py b/providers/__init__.py
 +        return extra
      if provider_name == "anthropic":
          from .anthropic_provider import AnthropicProvider
-
+ 
 @@ -371,10 +413,27 @@
  AVAILABLE_PROVIDERS: dict[str, str] = {k: v["label"] for k, v in PROVIDER_INFO.items()}
-
-
+ 
+ 
 +def __getattr__(name: str):
 +    """Lazy re-export of the downstream construction/registration API."""
 +    if name not in {

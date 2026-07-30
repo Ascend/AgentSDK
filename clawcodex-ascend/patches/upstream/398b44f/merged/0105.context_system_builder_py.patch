@@ -5,7 +5,7 @@ diff --git a/context_system/builder.py b/context_system/builder.py
 -"""
 -Legacy build_context_prompt — backward compatibility bridge.
 +"""Facade — context_system/builder.py moved to clawcodex_ext/context_system/."""
-
+ 
 -This function is kept for callers that haven't migrated to the new
 -fetch_system_prompt_parts() API.  It runs the async WS-5 context
 -collection synchronously and returns a single prompt string.

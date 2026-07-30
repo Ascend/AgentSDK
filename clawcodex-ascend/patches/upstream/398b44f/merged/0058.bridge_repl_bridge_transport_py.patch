@@ -4,7 +4,7 @@ diff --git a/bridge/repl_bridge_transport.py b/bridge/repl_bridge_transport.py
 @@ -1,417 +1,8 @@
 -"""``ReplBridgeTransport`` — unified v1/v2 transport interface.
 +"""Thin forwarding seam — see :mod:`clawcodex_ext.bridge.repl_bridge_transport`.
-
+ 
 -Ports the consumer-facing surface of
 -``typescript/src/bridge/replBridgeTransport.ts:23-369``.
 -

@@ -4,29 +4,29 @@ diff --git a/plugins/validator.py b/plugins/validator.py
 @@ -4,10 +4,10 @@
  from dataclasses import dataclass
  from typing import Any
-
+ 
 -VALID_PLUGIN_NAME_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9_-]{0,63}$")
 -VALID_VERSION_RE = re.compile(r"^\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?$")
 +VALID_PLUGIN_NAME_RE = re.compile(r'^[a-zA-Z][a-zA-Z0-9_-]{0,63}$')
 +VALID_VERSION_RE = re.compile(r'^\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?$')
-
+ 
 -REQUIRED_MANIFEST_FIELDS = ("name",)
 +REQUIRED_MANIFEST_FIELDS = ('name',)
-
-
+ 
+ 
  @dataclass
-@@ -20,69 +20,75 @@
+@@ -20,70 +20,76 @@
      errors: list[ManifestValidationError] = []
-
+ 
      if not isinstance(manifest, dict):
 -        errors.append(ManifestValidationError("root", "Manifest must be a JSON object"))
 +        errors.append(ManifestValidationError('root', 'Manifest must be a JSON object'))
          return errors
-
+ 
      for f in REQUIRED_MANIFEST_FIELDS:
          if f not in manifest:
              errors.append(ManifestValidationError(f, f"Required field '{f}' is missing"))
-
+ 
 -    name = manifest.get("name")
 +    name = manifest.get('name')
      if isinstance(name, str):
@@ -46,7 +46,7 @@ diff --git a/plugins/validator.py b/plugins/validator.py
      elif name is not None:
 -        errors.append(ManifestValidationError("name", "Plugin name must be a string"))
 +        errors.append(ManifestValidationError('name', 'Plugin name must be a string'))
-
+ 
 -    version = manifest.get("version")
 +    version = manifest.get('version')
      if version is not None:
@@ -62,25 +62,25 @@ diff --git a/plugins/validator.py b/plugins/validator.py
 +                    'version', f"Version '{version}' is not valid semver (expected X.Y.Z)"
 +                )
 +            )
-
+ 
 -    description = manifest.get("description")
 +    description = manifest.get('description')
      if description is not None and not isinstance(description, str):
 -        errors.append(ManifestValidationError("description", "Description must be a string"))
 +        errors.append(ManifestValidationError('description', 'Description must be a string'))
-
+ 
 -    hooks = manifest.get("hooks")
 +    hooks = manifest.get('hooks')
      if hooks is not None and not isinstance(hooks, dict):
 -        errors.append(ManifestValidationError("hooks", "Hooks must be a JSON object"))
 +        errors.append(ManifestValidationError('hooks', 'Hooks must be a JSON object'))
-
+ 
 -    mcp_servers = manifest.get("mcp_servers")
 +    mcp_servers = manifest.get('mcp_servers')
      if mcp_servers is not None and not isinstance(mcp_servers, dict):
 -        errors.append(ManifestValidationError("mcp_servers", "mcp_servers must be a JSON object"))
 +        errors.append(ManifestValidationError('mcp_servers', 'mcp_servers must be a JSON object'))
-
+ 
 -    permissions = manifest.get("permissions")
 +    permissions = manifest.get('permissions')
      if permissions is not None:
@@ -98,7 +98,7 @@ diff --git a/plugins/validator.py b/plugins/validator.py
 +                    errors.append(
 +                        ManifestValidationError('permissions', f"Unknown permission '{perm}'")
 +                    )
-
+ 
 -    dependencies = manifest.get("dependencies")
 +    dependencies = manifest.get('dependencies')
      if dependencies is not None:
@@ -122,5 +122,6 @@ diff --git a/plugins/validator.py b/plugins/validator.py
 +                            f"Dependency '{dep_name}' must have string name and version",
 +                        )
 +                    )
-
+ 
      return errors
+ 

@@ -4,13 +4,13 @@ diff --git a/buddy/observer.py b/buddy/observer.py
 @@ -1,138 +1,9 @@
 -"""Per-turn companion observer.
 +"""Compatibility facade — see :mod:`clawcodex_ext.buddy.observer`."""
-
+ 
 -Port of ``typescript/src/buddy/observer.ts``. Headless in Python: the
 -function calls ``on_reaction(quip)`` and has no built-in UI side effect.
 -The REPL caller decides what to do with the quip (today: a no-op until
 -the Textual companion sprite lands; future: an AppState write).
 +from clawcodex_ext.buddy.observer import *  # noqa: F401,F403
-
+ 
 -Known divergence-from-intuition: by the time the observer reads the
 -most recent user message, the REPL has already prepended at-mention
 -reminders and may have appended the companion-intro system-reminder to
@@ -24,10 +24,10 @@ diff --git a/buddy/observer.py b/buddy/observer.py
 -"""
 -from __future__ import annotations
 +import sys
-
+ 
 -from typing import Any, Callable, Iterable, Sequence
 +from clawcodex_ext.buddy import observer as _implementation
-
+ 
 -from src.buddy.companion import get_companion
 -from src.config import load_config
 -

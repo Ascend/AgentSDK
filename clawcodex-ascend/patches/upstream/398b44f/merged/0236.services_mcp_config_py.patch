@@ -2,8 +2,8 @@ diff --git a/services/mcp/config.py b/services/mcp/config.py
 --- a/services/mcp/config.py	2026-07-23 08:42:36.000000 +0000
 +++ b/services/mcp/config.py	2026-07-21 04:56:27.000000 -0700
 @@ -50,7 +50,9 @@
-
-
+ 
+ 
  def _get_global_config_dir() -> Path:
 -    env_override = os.environ.get("CLAWCODEX_CONFIG_DIR")
 +    env_override = os.environ.get("CLAWCODEX_CONFIG_DIR") or os.environ.get(

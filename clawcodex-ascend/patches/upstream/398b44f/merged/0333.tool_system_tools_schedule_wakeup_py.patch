@@ -4,7 +4,7 @@ diff --git a/tool_system/tools/schedule_wakeup.py b/tool_system/tools/schedule_w
 @@ -1,121 +1,3 @@
 -"""ScheduleWakeup — the dynamic /loop pacing tool.
 +"""Facade for the canonical ScheduleWakeup tool implementation."""
-
+ 
 -In self-paced loop mode (a /loop with no fixed interval) the model calls
 -this after each iteration to schedule when the loop resumes: the prompt
 -fires once between turns after ``delaySeconds`` (clamped to [60, 3600]),

@@ -4,7 +4,7 @@ diff --git a/tool_system/tools/agent.py b/tool_system/tools/agent.py
 @@ -1,1016 +1,18 @@
 -"""Agent tool — launches subagents with context isolation.
 +"""Facade — tool_system/tools/agent.py moved to clawcodex_ext.tool_system.tools.agent (sys.modules swap).
-
+ 
 -Mirrors typescript/src/tools/AgentTool/AgentTool.tsx.
 -
 -Supports three modes:
@@ -22,7 +22,7 @@ diff --git a/tool_system/tools/agent.py b/tool_system/tools/agent.py
  """
 +
  from __future__ import annotations
-
+ 
 -import asyncio
 -import logging
 -import os
@@ -1008,7 +1008,7 @@ diff --git a/tool_system/tools/agent.py b/tool_system/tools/agent.py
 -    messages: list[Message] = []
 -    async for msg in run_agent(params):
 -        messages.append(msg)
-
+ 
 -        # Print intermediate progress to stderr for real-time feedback
 -        if isinstance(msg, AssistantMessage):
 -            content = msg.content

@@ -4,7 +4,7 @@ diff --git a/memdir/memory_types.py b/memdir/memory_types.py
 @@ -1,172 +1,3 @@
 -"""Memory type taxonomy and prompt-text constants.
 +"""Compatibility facade — see :mod:`clawcodex_ext.memdir.memory_types`."""
-
+ 
 -Ports `typescript/src/memdir/memoryTypes.ts`. The four-type taxonomy
 -(user / feedback / project / reference) is the chapter's filter against
 -saving derivable knowledge. The prompt-text constants are eval-tuned and

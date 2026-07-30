@@ -4,11 +4,11 @@ diff --git a/components/__init__.py b/components/__init__.py
 @@ -12,7 +12,9 @@
  import json
  from pathlib import Path
-
+ 
 -SNAPSHOT_PATH = Path(__file__).resolve().parent.parent / 'reference_data' / 'subsystems' / 'components.json'
 +SNAPSHOT_PATH = (
 +    Path(__file__).resolve().parent.parent / 'reference_data' / 'subsystems' / 'components.json'
 +)
  _SNAPSHOT = json.loads(SNAPSHOT_PATH.read_text())
-
+ 
  ARCHIVE_NAME = _SNAPSHOT['archive_name']

@@ -4,7 +4,7 @@ diff --git a/tool_system/__init__.py b/tool_system/__init__.py
 @@ -1,59 +1,3 @@
 -from __future__ import annotations
 +"""Facade — tool_system/ moved to clawcodex_ext/tool_system/."""
-
+ 
 -# WI-0.1 (ch17 Phase 0): mark the moment the tool-system package starts
 -# import work. Placed before the heavy re-exports so the checkpoint's
 -# delta-from-previous reflects the package's cost.

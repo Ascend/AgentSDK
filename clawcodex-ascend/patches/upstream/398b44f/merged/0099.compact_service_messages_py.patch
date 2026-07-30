@@ -10,9 +10,9 @@ diff --git a/compact_service/messages.py b/compact_service/messages.py
 -summarized and is filtered out when sending to the API.
 -"""
 +"""Module-identity facade for compact-service message helpers."""
-
+ 
  from __future__ import annotations
-
+ 
 -from dataclasses import dataclass, field
 -from datetime import datetime
 -from typing import Any, Optional
@@ -197,7 +197,7 @@ diff --git a/compact_service/messages.py b/compact_service/messages.py
 -    Return only the messages after the last compact boundary marker.
 +import importlib
 +import sys
-
+ 
 -    Used to exclude already-summarized messages from the next summarization.
 -    """
 -    boundary_indices = [

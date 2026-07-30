@@ -4,7 +4,7 @@ diff --git a/bridge/session_runner.py b/bridge/session_runner.py
 @@ -1,934 +1,9 @@
 -"""Child-CLI spawner for the bridge — Phase 4.
 +"""Facade — bridge/session_runner.py has been moved to extensions/ports/bridge/.
-
+ 
 -Ports ``typescript/src/bridge/sessionRunner.ts``.
 -
 -Used by env-based orchestrators (Phase 6 ``replBridge`` and Phase 8
@@ -94,7 +94,7 @@ diff --git a/bridge/session_runner.py b/bridge/session_runner.py
 +the public surface so existing ``from src.bridge.session_runner import ...``
 +callers keep working without modification.
  """
-
+ 
 -
 -@dataclass
 -class BuildChildEnvOpts:

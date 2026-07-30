@@ -65,5 +65,5 @@ diff --git a/tool_system/task_manager.py b/tool_system/task_manager.py
 -        with self._lock:
 -            return list(self._tasks.values())
 +"""Facade — tool_system/task_manager.py moved to clawcodex_ext/tool_system/."""
-
+ 
 +from clawcodex_ext.tool_system.task_manager import *  # noqa: F401,F403

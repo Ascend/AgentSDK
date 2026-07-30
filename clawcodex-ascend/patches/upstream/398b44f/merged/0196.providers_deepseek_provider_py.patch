@@ -4,10 +4,10 @@ diff --git a/providers/deepseek_provider.py b/providers/deepseek_provider.py
 @@ -22,7 +22,7 @@
  class DeepSeekProvider(OpenAICompatibleProvider):
      """DeepSeek provider using the OpenAI SDK against the DeepSeek base URL."""
-
+ 
 -    DEFAULT_BASE_URL = "https://api.deepseek.com"
 +    DEFAULT_BASE_URL = 'https://api.deepseek.com'
-
+ 
      #: Marks this provider as DeepSeek so the query layer relocates the
      #: per-request-volatile (REQUEST-scope) system sections to a trailing tail,
 @@ -43,23 +43,25 @@
@@ -17,7 +17,7 @@ diff --git a/providers/deepseek_provider.py b/providers/deepseek_provider.py
 -            model or "deepseek-v4-pro",
 +            model or 'deepseek-v4-pro',
          )
-
+ 
      def _create_client(self) -> Any:
          """Create OpenAI SDK client pointed at DeepSeek."""
          if OpenAI is None:  # pragma: no cover
@@ -40,7 +40,7 @@ diff --git a/providers/deepseek_provider.py b/providers/deepseek_provider.py
 +
 +            kwargs['http_client'] = httpx.Client(verify=False)
          return OpenAI(**kwargs)
-
+ 
      def _build_usage_dict(self, usage: Any) -> dict[str, Any]:
 @@ -146,9 +148,9 @@
          """

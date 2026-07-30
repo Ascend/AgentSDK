@@ -4,18 +4,18 @@ diff --git a/buddy/__init__.py b/buddy/__init__.py
 @@ -1,114 +1,30 @@
 -"""Python port of ``typescript/src/buddy/``.
 +"""Compatibility facade — see :mod:`clawcodex_ext.buddy`."""
-
+ 
 -Headless core ports are present here; the Ink/React widget
 -(``CompanionSprite``, ``useBuddyNotification``) is deferred per
 -``my-docs/get-parity-by-folder/buddy-gap-analysis.md`` §3.3.
 -"""
  from __future__ import annotations
-
+ 
 -import json
 -from pathlib import Path
 +import importlib
 +from typing import Any
-
+ 
 -from src.buddy.companion import (
 -    Roll,
 -    SALT,

@@ -4,7 +4,7 @@ diff --git a/types/messages.py b/types/messages.py
 @@ -1,823 +1,16 @@
 -"""Typed message hierarchy mirroring TypeScript src/types/message.ts and src/utils/messages.ts."""
 +"""Facade — types/messages.py moved to clawcodex_ext/types/.
-
+ 
 -from __future__ import annotations
 -
 -from dataclasses import dataclass, field

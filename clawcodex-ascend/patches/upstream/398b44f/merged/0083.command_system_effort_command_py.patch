@@ -4,7 +4,7 @@ diff --git a/command_system/effort_command.py b/command_system/effort_command.py
 @@ -1,269 +1,18 @@
 -"""effort — interactive ``/effort`` command (port of TS local-jsx).
 +"""Facade — command_system/effort_command.py has been moved to clawcodex_ext (lazy proxy)."""
-
+ 
 -Port of ``typescript/src/commands/effort/`` (``effort.tsx`` + ``index.ts``). A
 -``local-jsx`` command becomes an :class:`InteractiveCommand` (blocked remotely by
 -type). Like ``/theme`` (Phase 5) and **unlike** ``/export``, this is the *inverse* of
@@ -58,7 +58,7 @@ diff --git a/command_system/effort_command.py b/command_system/effort_command.py
 -    — a pre-existing divergence, not reconciled here.
 -"""
  from __future__ import annotations
-
+ 
 -from dataclasses import dataclass
 -
 -from src.config import set_effort
@@ -264,16 +264,16 @@ diff --git a/command_system/effort_command.py b/command_system/effort_command.py
 +    'EFFORT_COMMAND',
 +    'EffortCommand',
 +]
-
+ 
 -EFFORT_COMMAND = EffortCommand(
 -    name="effort",
 -    description="Set effort level for model usage",  # verbatim TS index.ts
 -    argument_hint="[low|medium|high|xhigh|max|auto]",  # TS index.ts
 -)
-
+ 
 +def __getattr__(name: str):
 +    import clawcodex_ext.command_system.effort_command as _mod
-
+ 
 -__all__ = [
 -    "EFFORT_COMMAND",
 -    "EffortCommand",

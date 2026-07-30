@@ -27,9 +27,9 @@ diff --git a/entrypoints/headless.py b/entrypoints/headless.py
 -  translate events to NDJSON on the fly.
 -"""
 +"""Module-identity facade for the canonical headless entrypoint."""
-
+ 
  from __future__ import annotations
-
+ 
 -import io
 -import os
 -import signal as _signal
@@ -997,7 +997,7 @@ diff --git a/entrypoints/headless.py b/entrypoints/headless.py
 -
 -def _jsonable(value):
 -    """Coerce arbitrary tool output into a JSON-safe shape."""
-
+ 
 -    if value is None or isinstance(value, (bool, int, float, str)):
 -        return value
 -    if isinstance(value, (list, tuple)):

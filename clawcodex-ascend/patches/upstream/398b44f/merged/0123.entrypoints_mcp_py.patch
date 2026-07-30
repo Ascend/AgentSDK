@@ -2,12 +2,12 @@ diff --git a/entrypoints/mcp.py b/entrypoints/mcp.py
 --- a/entrypoints/mcp.py	2026-07-23 08:42:36.000000 +0000
 +++ b/entrypoints/mcp.py	2026-07-21 04:56:27.000000 -0700
 @@ -2,25 +2,49 @@
-
+ 
  WI-4.3: invoked from ``src/cli.py``'s pre-argparse subcommand sieve so the
  MCP tooling path doesn't load the TUI/REPL/full tool registry. Imports
 -only what it needs (the ``src.services.mcp`` package) and exits.
 +only what it needs (the ``clawcodex_ext.services.mcp`` package) and exits.
-
+ 
  Mirrors the chapter's "fast-path dispatch" pattern (TS ``main.tsx:914+``):
  specialized subcommands get an early-return that skips the React REPL.
 +
@@ -29,13 +29,13 @@ diff --git a/entrypoints/mcp.py b/entrypoints/mcp.py
 +disk. It applies only for the lifetime of the current ``clawcodex-dev``
 +process — a fresh CLI invocation starts with no disabled servers.
  """
-
+ 
  from __future__ import annotations
-
+ 
 +import asyncio
 +import json
  import sys
-
+ 
 +_VALID_SCOPES = ("user", "project", "local", "enterprise", "managed", "dynamic", "claudeai")
 +_WRITABLE_SCOPES = ("user", "project")
 +_REMOTE_TYPES = ("http", "sse", "ws")
@@ -45,10 +45,10 @@ diff --git a/entrypoints/mcp.py b/entrypoints/mcp.py
 +# requires a value`` you've forgotten to add a flag here.
 +_BOOL_FLAGS = frozenset({"all", "quick", "json"})
 +
-
+ 
  def run_mcp_subcommand(rest: list[str]) -> int:
      """Handle ``clawcodex mcp <verb> [args...]``.
-
+ 
 -    Verbs (initial set):
 -      * ``list``   — list configured MCP servers (reads
 -        ``~/.clawcodex/settings.json``-style config and prints names).
@@ -58,7 +58,7 @@ diff --git a/entrypoints/mcp.py b/entrypoints/mcp.py
      """
      if not rest or rest[0] in ("--help", "-h"):
 @@ -29,18 +53,24 @@
-
+ 
      verb = rest[0]
      if verb == "list":
 -        return _list_servers()
@@ -83,14 +83,14 @@ diff --git a/entrypoints/mcp.py b/entrypoints/mcp.py
 +        # Keep the existing management CLI and add the upstream stdio-server
 +        # path that re-exposes ClawCodex tools to another MCP client.
          import os
-
+ 
 -        # OpenClaude default: experimental API betas off unless the user
 -        # opts in (mcp.ts:6 sets this in TS's separate mcp bundle; here the
 -        # value normally arrives inherited from cli.main(), and this covers
 -        # any direct invocation of the handler).
          os.environ.setdefault("CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS", "true")
          from src.entrypoints.mcp_serve import run_serve
-
+ 
 @@ -55,35 +85,602 @@
      print("Usage: clawcodex mcp <verb> [args...]")
      print("")
@@ -131,13 +131,13 @@ diff --git a/entrypoints/mcp.py b/entrypoints/mcp.py
 +# ---------------------------------------------------------------------------
 +# list / get
 +# ---------------------------------------------------------------------------
-
-
+ 
+ 
 -def _list_servers() -> int:
 -    """Print each configured MCP server's name on its own line.
 +def _list_servers(rest: list[str]) -> int:
 +    """List configured MCP servers.
-
+ 
 -    Avoids importing the interactive UI / full tool registry — only loads
 -    what the MCP config layer needs. The chapter's fast-path test (skip the
 -    interactive load on ``claude mcp``) is verified by ensuring this handler

@@ -4,7 +4,7 @@ diff --git a/skills/runtime_substitution.py b/skills/runtime_substitution.py
 @@ -1,260 +1,3 @@
 -"""Per-invocation transforms applied to a skill's markdown body.
 +"""Compatibility facade — see :mod:`clawcodex_ext.skills.runtime_substitution`."""
-
+ 
 -These mirror the four transforms TS performs inside
 -``createSkillCommand.getPromptForCommand`` (loadSkillsDir.ts:344-399):
 -

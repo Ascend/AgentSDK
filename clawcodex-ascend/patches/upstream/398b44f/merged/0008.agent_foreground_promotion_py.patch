@@ -4,7 +4,7 @@ diff --git a/agent/foreground_promotion.py b/agent/foreground_promotion.py
 @@ -1,219 +1,18 @@
 -"""Foreground → background agent promotion — Chunk H / WI-10.1.
 +"""Facade — agent/foreground_promotion.py has been moved to clawcodex_ext/agent/foreground_promotion.
-
+ 
 -Mirrors the ``Promise.race`` pattern in
 -``typescript/src/tasks/LocalAgentTask/LocalAgentTask.tsx:519-651``.
 -The TS sync agent loop races "next message from agent" against
@@ -224,9 +224,9 @@ diff --git a/agent/foreground_promotion.py b/agent/foreground_promotion.py
 -    """Helper — calls ``__anext__`` directly so the ensure_future
 -    target is one well-defined coroutine."""
 -    return await iterator.__anext__()
-
+ 
 +import clawcodex_ext.agent.foreground_promotion as _mod
-
+ 
 -__all__ = [
 -    "register_agent_foreground",
 -    "register_agent_background",

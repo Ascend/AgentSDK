@@ -5,7 +5,7 @@ diff --git a/tool_system/tool_search.py b/tool_system/tool_search.py
 -"""
 -Tool Search utilities — aligned with typescript/src/utils/toolSearch.ts.
 +"""Facade — tool_system/tool_search.py moved to clawcodex_ext.tool_system.tool_search (sys.modules swap).
-
+ 
 -When enabled, deferred tools (MCP and should_defer tools) are sent with
 -defer_loading=True and discovered via ToolSearchTool rather than being
 -loaded upfront.  This reduces initial context window usage.
@@ -17,9 +17,9 @@ diff --git a/tool_system/tool_search.py b/tool_system/tool_search.py
 +underlying ext module as the canonical object so attribute access,
 +``inspect.getsource()``, and AST walking keep working unchanged.
  """
-
+ 
  from __future__ import annotations
-
+ 
 -import logging
 -import os
 -from enum import Enum
@@ -367,7 +367,7 @@ diff --git a/tool_system/tool_search.py b/tool_system/tool_search.py
 -            result.append(tool)
 +import importlib
 +import sys
-
+ 
 -    return result
 +_ext_mod = importlib.import_module('clawcodex_ext.tool_system.tool_search')
 +sys.modules[__name__] = _ext_mod

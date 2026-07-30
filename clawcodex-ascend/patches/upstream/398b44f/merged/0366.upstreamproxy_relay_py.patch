@@ -19,9 +19,9 @@ diff --git a/upstreamproxy/relay.py b/upstreamproxy/relay.py
 -        f'\r\n'
 -    ).encode('ascii')
 +    head = (f'{parsed.raw_line}\r\nProxy-Authorization: {auth_header}\r\n\r\n').encode('ascii')
-
+ 
      established = False
-
+ 
 @@ -377,9 +374,8 @@
      ``Proxy-Authorization: Basic`` for the tunnel target. The two
      headers are different roles even though they share the same token.
@@ -33,7 +33,7 @@ diff --git a/upstreamproxy/relay.py b/upstreamproxy/relay.py
 +        'ascii'
      )
      ws_auth_header = f'Bearer {token}'
-
+ 
 @@ -393,9 +389,7 @@
      if not sockets:
          raise RuntimeError('upstreamproxy: server has no listening socket')
@@ -43,3 +43,5 @@ diff --git a/upstreamproxy/relay.py b/upstreamproxy/relay.py
 -    )
 +    logger.debug('[upstreamproxy] relay listening on %s:%d', host, bound_port)
      return UpstreamProxyRelay(port=bound_port, server=server)
+ 
+ 

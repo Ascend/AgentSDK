@@ -3,7 +3,7 @@ diff --git a/utils/api_preconnect.py b/utils/api_preconnect.py
 +++ b/utils/api_preconnect.py	2026-07-04 09:47:03.000000 +0800
 @@ -25,13 +25,13 @@
  import threading
-
+ 
  __all__ = [
 -    "PreconnectHandle",
 -    "should_skip_preconnect",
@@ -12,20 +12,20 @@ diff --git a/utils/api_preconnect.py b/utils/api_preconnect.py
 +    'should_skip_preconnect',
 +    'start_api_preconnect',
  ]
-
-
+ 
+ 
 -_DEFAULT_PRECONNECT_URL = "https://api.anthropic.com"
 +_DEFAULT_PRECONNECT_URL = 'https://api.anthropic.com'
  _PRECONNECT_TIMEOUT_S = 10.0
-
-
+ 
+ 
 @@ -43,7 +43,7 @@
      the handshake is fire-and-forget.
      """
-
+ 
 -    __slots__ = ("thread", "skipped")
 +    __slots__ = ('thread', 'skipped')
-
+ 
      def __init__(self, thread: threading.Thread | None, skipped: bool = False) -> None:
          self.thread = thread
 @@ -59,12 +59,14 @@
@@ -48,7 +48,7 @@ diff --git a/utils/api_preconnect.py b/utils/api_preconnect.py
          return True
      return False
 @@ -97,7 +99,7 @@
-
+ 
      thread = threading.Thread(
          target=_do_preconnect,
 -        name="api-preconnect",

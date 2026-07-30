@@ -19,17 +19,17 @@ diff --git a/plugins/dependency.py b/plugins/dependency.py
 +                        available_version=available.version,
 +                    )
 +                )
-
+ 
      order = topological_sort(plugins)
      if order is None:
 @@ -119,21 +121,21 @@
-
-
+ 
+ 
  def version_satisfies(available: str, required: str) -> bool:
 -    if required == "*" or required == "":
 +    if required == '*' or required == '':
          return True
-
+ 
 -    if required.startswith(">="):
 +    if required.startswith('>='):
          return _compare_versions(available, required[2:].strip()) >= 0
@@ -50,10 +50,10 @@ diff --git a/plugins/dependency.py b/plugins/dependency.py
 +    if required.startswith('~'):
          target = required[1:].strip()
          return _tilde_match(available, target)
-
+ 
 @@ -141,8 +143,8 @@
-
-
+ 
+ 
  def _parse_version(v: str) -> tuple[int, ...]:
 -    clean = re.sub(r"-.*$", "", v.strip())
 -    parts = clean.split(".")

@@ -3,7 +3,7 @@ diff --git a/settings/settings.py b/settings/settings.py
 +++ b/settings/settings.py	2026-07-21 04:15:00.000000 -0700
 @@ -38,9 +38,9 @@
      base = dataclasses.asdict(DEFAULT_SETTINGS)
-
+ 
      # Pull "settings" sub-key from each config level
 -    global_settings = config_manager.load_global().get("settings", {})
 -    project_settings = config_manager.load_project().get("settings", {})
@@ -11,7 +11,7 @@ diff --git a/settings/settings.py b/settings/settings.py
 +    global_settings = config_manager.load_global().get('settings', {})
 +    project_settings = config_manager.load_project().get('settings', {})
 +    local_settings = config_manager.load_local().get('settings', {})
-
+ 
      merged = base
      if global_settings:
 @@ -149,4 +149,3 @@

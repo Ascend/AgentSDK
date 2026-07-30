@@ -21,11 +21,11 @@ diff --git a/bridge/messaging_handlers.py b/bridge/messaging_handlers.py
 -              → transport.write(control_response)
 -"""
 +"""Compatibility facade — see :mod:`clawcodex_ext.bridge.messaging_handlers`."""
-
+ 
  from __future__ import annotations
 +import sys
 +from clawcodex_ext.bridge import messaging_handlers as _module
-
+ 
 -import asyncio
 -import inspect
 -import logging

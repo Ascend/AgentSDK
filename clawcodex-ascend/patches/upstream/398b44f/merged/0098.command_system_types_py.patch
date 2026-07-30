@@ -10,9 +10,9 @@ diff --git a/command_system/types.py b/command_system/types.py
 -- LocalCommand: Executes local code without rendering UI
 -"""
 +"""Facade — command_system/types.py has been moved to clawcodex_ext (lazy proxy)."""
-
+ 
  from __future__ import annotations
-
+ 
 -import asyncio
 -
 -from dataclasses import dataclass, field

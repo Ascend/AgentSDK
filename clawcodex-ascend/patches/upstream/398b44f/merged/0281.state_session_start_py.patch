@@ -4,7 +4,7 @@ diff --git a/state/session_start.py b/state/session_start.py
 @@ -1,93 +1,17 @@
 -"""Session-start wiring helpers.
 +"""Compatibility facade — see :mod:`clawcodex_ext.state.session_start`.
-
+ 
 -Phase 3.2 of the ch03 state refactor: wires the latching
 -``evaluate_prompt_cache_1h_eligibility`` writer from a session-start
 -entry point.
@@ -31,12 +31,12 @@ diff --git a/state/session_start.py b/state/session_start.py
 +``from src.state.session_start import ...`` resolve to the same module
 +object.
  """
-
+ 
  from __future__ import annotations
-
+ 
 -import os
 +import sys
-
+ 
 -from src.state.cache_state import (
 -    evaluate_prompt_cache_1h_eligibility,
 -    get_beta_header_latches,

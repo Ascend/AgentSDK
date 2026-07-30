@@ -7,6 +7,6 @@ diff --git a/cost_tracker.py b/cost_tracker.py
          self.total_units += units
 -        self.events.append(f"{label}:{units}")
 +        self.events.append(f'{label}:{units}')
-
+ 
      def record_usage(self, model: str, usage: dict[str, Any]) -> float:
          """Record a real API usage event into the bootstrap singleton.

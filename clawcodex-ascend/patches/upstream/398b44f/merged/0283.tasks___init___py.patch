@@ -8,14 +8,14 @@ diff --git a/tasks/__init__.py b/tasks/__init__.py
 +* ``dream`` — F-100.
  * ``progress`` — Chunk C / WI-2.4.
  * ``stop_task`` — Chunk E / WI-5.1.
-
+ 
 @@ -23,13 +24,15 @@
  effect. This sidesteps the prior "must remember to import the
  submodule before lookup" trap.
  """
 +
  from __future__ import annotations
-
+ 
  # Re-export the per-type ``Task`` adapters so ``from src.tasks import
  # LocalShellTask`` works. Submodule imports are listed individually
  # (rather than ``import *``) so removing a future task type is a
@@ -32,7 +32,7 @@ diff --git a/tasks/__init__.py b/tasks/__init__.py
  register_task(InProcessTeammateTask())
 +register_task(DreamTask())
  register_task(LocalWorkflowTask())
-
+ 
  __all__ = [
 -    "InProcessTeammateTask",
 -    "InProcessTeammateTaskState",

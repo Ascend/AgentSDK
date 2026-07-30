@@ -10,5 +10,5 @@ diff --git a/server/lockfile.py b/server/lockfile.py
 -            ) from exc
 +            raise LockfileBusyError(f'Another claude server instance holds {self._path}') from exc
          self._fd = fd
-
+ 
      def release(self) -> None:

@@ -45,11 +45,11 @@ diff --git a/utils/signal.py b/utils/signal.py
 -that depend on the current semantics.
 -"""
 +"""Compatibility facade — see :mod:`clawcodex_ext.utils.signal`."""
-
+ 
  from __future__ import annotations
 +import sys
 +from clawcodex_ext.utils import signal as _module
-
+ 
 -from dataclasses import dataclass, field
 -from typing import Any, Callable
 -

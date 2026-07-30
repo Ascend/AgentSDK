@@ -4,7 +4,7 @@ diff --git a/tool_system/build_tool.py b/tool_system/build_tool.py
 @@ -1,220 +1,3 @@
 -from __future__ import annotations
 +"""Facade — tool_system/build_tool.py moved to clawcodex_ext/tool_system/."""
-
+ 
 -import json
 -from dataclasses import dataclass, field
 -from typing import Any, Callable, Literal, Mapping

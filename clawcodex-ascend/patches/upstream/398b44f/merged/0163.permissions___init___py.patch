@@ -105,7 +105,7 @@ diff --git a/permissions/__init__.py b/permissions/__init__.py
 -    supports_persistence,
 -)
 +"""Facade — permissions/ moved to clawcodex_ext/permissions/."""
-
+ 
 -__all__ = [
 -    "CROSS_PLATFORM_CODE_EXEC",
 -    "DANGEROUS_BASH_PATTERNS",

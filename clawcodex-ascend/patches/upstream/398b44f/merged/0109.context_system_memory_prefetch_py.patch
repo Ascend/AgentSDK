@@ -4,7 +4,7 @@ diff --git a/context_system/memory_prefetch.py b/context_system/memory_prefetch.
 @@ -1,91 +1,3 @@
 -"""Backward-compatible re-export shim — superseded by ``src.memdir``.
 +"""Facade — context_system/memory_prefetch.py moved to clawcodex_ext/context_system/."""
-
+ 
 -Per the ch11 refactor plan (Slice B3), the recall pipeline moved into
 -``src/memdir/`` to live next to the rest of the auto-memory subsystem.
 -This module is preserved for one release as a thin shim so existing

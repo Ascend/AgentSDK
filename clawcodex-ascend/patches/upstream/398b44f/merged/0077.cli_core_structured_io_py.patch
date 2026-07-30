@@ -4,7 +4,7 @@ diff --git a/cli_core/structured_io.py b/cli_core/structured_io.py
 @@ -1,201 +1,17 @@
 -"""Structured NDJSON stdin/stdout for headless CLI mode.
 +"""Facade — cli_core/structured_io.py has been moved to clawcodex_ext/cli_core/structured_io.
-
+ 
 -This is a focused port of ``typescript/src/cli/structuredIO.ts``. The goal is
 -to give SDK clients a stable, framing-safe protocol:
 +The F-88 structured NDJSON I/O (``StreamJsonReader``,
@@ -13,7 +13,7 @@ diff --git a/cli_core/structured_io.py b/cli_core/structured_io.py
 +the public surface so existing
 +``from src.cli_core.structured_io import ...`` callers keep working
 +without modification.
-
+ 
 -- ``StreamJsonReader`` parses ``--input-format stream-json`` lines from stdin
 -  into :class:`UserInputMessage` objects.
 -- ``StreamJsonWriter`` emits ``--output-format stream-json`` events, one
@@ -27,7 +27,7 @@ diff --git a/cli_core/structured_io.py b/cli_core/structured_io.py
 +Uses ``globals().update()`` to preserve access to all public names
 +regardless of ``__all__`` — the source module has no ``__all__``.
  """
-
+ 
 -from __future__ import annotations
 -
 -import json
@@ -209,7 +209,7 @@ diff --git a/cli_core/structured_io.py b/cli_core/structured_io.py
 -        except Exception:
 -            pass
 +import clawcodex_ext.cli_core.structured_io as _mod
-
+ 
 -    def write_many(self, events: Iterable[HeadlessEvent | dict[str, Any]]) -> None:
 -        for event in events:
 -            self.write(event)

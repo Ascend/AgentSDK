@@ -3,7 +3,7 @@ diff --git a/utils/keychain_stash.py b/utils/keychain_stash.py
 +++ b/utils/keychain_stash.py	2026-07-04 09:47:03.000000 +0800
 @@ -21,9 +21,9 @@
  import os
-
+ 
  __all__ = [
 -    "stash_keychain_credentials",
 -    "read_stashed_keychain",
@@ -12,10 +12,10 @@ diff --git a/utils/keychain_stash.py b/utils/keychain_stash.py
 +    'read_stashed_keychain',
 +    'reset_stashed_keychain_for_test_only',
  ]
-
-
+ 
+ 
 @@ -49,9 +49,7 @@
-
+ 
  def reset_stashed_keychain_for_test_only() -> None:
      """Reset the stash. Test-only — gated by ``PYTEST_CURRENT_TEST``."""
 -    if os.environ.get("PYTEST_CURRENT_TEST") is None:

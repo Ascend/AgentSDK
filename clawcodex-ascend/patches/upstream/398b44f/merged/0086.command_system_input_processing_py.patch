@@ -13,9 +13,9 @@ diff --git a/command_system/input_processing.py b/command_system/input_processin
 -- Special escape sequences
 -"""
 +"""Facade — command_system/input_processing.py has been moved to clawcodex_ext (lazy proxy)."""
-
+ 
  from __future__ import annotations
-
+ 
 -import base64 as _base64
 -import os
 -import re

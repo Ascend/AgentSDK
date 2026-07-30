@@ -2,7 +2,7 @@ diff --git a/utils/markdown_config_loader.py b/utils/markdown_config_loader.py
 --- a/utils/markdown_config_loader.py	2026-07-23 08:42:36.000000 +0000
 +++ b/utils/markdown_config_loader.py	2026-07-21 04:56:27.000000 -0700
 @@ -45,15 +45,24 @@
-
+ 
  def _get_global_config_dir() -> Path:
      """Return ``$CLAWCODEX_CONFIG_DIR`` or ``~/.clawcodex`` (resolved)."""
 -    env_override = os.environ.get("CLAWCODEX_CONFIG_DIR")
@@ -12,8 +12,8 @@ diff --git a/utils/markdown_config_loader.py b/utils/markdown_config_loader.py
      if env_override:
          return Path(env_override).expanduser().resolve()
      return (Path.home() / ".clawcodex").resolve()
-
-
+ 
+ 
 +def _get_legacy_global_config_dir() -> Path:
 +    """Return the former Claude-named user directory for migration reads."""
 +    return (Path.home() / ".claude").resolve()
@@ -30,7 +30,7 @@ diff --git a/utils/markdown_config_loader.py b/utils/markdown_config_loader.py
      return Path("/etc/clawcodex")
 @@ -89,7 +98,7 @@
      dirs: list[str] = []
-
+ 
      while True:
 -        for config_dir_name in (".clawcodex", ".openclaude"):
 +        for config_dir_name in (".clawcodex", ".claude", ".openclaude"):
@@ -52,12 +52,12 @@ diff --git a/utils/markdown_config_loader.py b/utils/markdown_config_loader.py
 +        str(_get_global_config_dir() / subdir),
 +    ]
      project_dirs = _get_project_subdir_paths(cwd, subdir)
-
+ 
      seen: set[str] = set()
 @@ -171,8 +186,10 @@
                  )
              )
-
+ 
 -    _collect(managed_dir, SOURCE_MANAGED)
 -    _collect(user_dir, SOURCE_USER)
 +    for managed_dir in managed_dirs:
@@ -66,3 +66,4 @@ diff --git a/utils/markdown_config_loader.py b/utils/markdown_config_loader.py
 +        _collect(user_dir, SOURCE_USER)
      for project_dir in project_dirs:
          _collect(project_dir, SOURCE_PROJECT)
+ 

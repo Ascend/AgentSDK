@@ -8,9 +8,9 @@ diff --git a/command_system/skills_integration.py b/command_system/skills_integr
 -Bridges the existing skills system to the command system.
 -"""
 +"""Facade — command_system/skills_integration.py has been moved to clawcodex_ext (lazy proxy)."""
-
+ 
  from __future__ import annotations
-
+ 
 -from pathlib import Path
 -from typing import Any, Optional, Sequence
 -

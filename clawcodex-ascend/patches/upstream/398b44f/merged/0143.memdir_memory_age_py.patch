@@ -4,7 +4,7 @@ diff --git a/memdir/memory_age.py b/memdir/memory_age.py
 @@ -1,70 +1,3 @@
 -"""Memory staleness utilities.
 +"""Compatibility facade — see :mod:`clawcodex_ext.memdir.memory_age`."""
-
+ 
 -Ports `typescript/src/memdir/memoryAge.ts`. Human-readable age strings
 -("today" / "yesterday" / "N days ago") are intentional — eval-validated
 -as triggering the model's staleness reasoning where ISO timestamps

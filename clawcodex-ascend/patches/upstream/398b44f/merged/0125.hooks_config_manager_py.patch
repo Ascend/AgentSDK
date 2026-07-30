@@ -4,7 +4,7 @@ diff --git a/hooks/config_manager.py b/hooks/config_manager.py
 @@ -1,548 +1,9 @@
 -from __future__ import annotations
 +"""Facade — hooks/config_manager.py has been moved to clawcodex_ext/hooks/config_manager.py.
-
+ 
 -import json
 -import logging
 -import os
@@ -16,12 +16,12 @@ diff --git a/hooks/config_manager.py b/hooks/config_manager.py
 +Uses ``globals().update()`` so the test suite can still import private
 +helpers (e.g. ``from src.hooks.config_manager import _parse_hook_config``).
 +"""
-
+ 
 -from .hook_types import HookConfig, HookEvent, HookSource, ALL_HOOK_EVENTS
 -from .registry import AsyncHookRegistry
 -from .shell_invocation import SHELL_TYPES, ShellType
 +import clawcodex_ext.hooks.config_manager as _mod
-
+ 
 -logger = logging.getLogger(__name__)
 -
 -

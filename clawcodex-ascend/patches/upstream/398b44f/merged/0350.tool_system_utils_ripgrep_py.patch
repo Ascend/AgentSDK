@@ -4,9 +4,9 @@ diff --git a/tool_system/utils/ripgrep.py b/tool_system/utils/ripgrep.py
 @@ -1,262 +1,9 @@
 -"""Ripgrep subprocess wrapper shared by Grep and Glob tools."""
 +"""Facade — tool_system/utils/ripgrep.py moved to clawcodex_ext/tool_system/utils/ (sys.modules swap)."""
-
+ 
  from __future__ import annotations
-
+ 
 -import os
 -import platform
 -import shutil
@@ -17,7 +17,7 @@ diff --git a/tool_system/utils/ripgrep.py b/tool_system/utils/ripgrep.py
 -import threading as _threading
 -import time as _time_mod
 -from typing import Any
-
+ 
 -from src.utils.abort_controller import AbortSignal
 -
 -

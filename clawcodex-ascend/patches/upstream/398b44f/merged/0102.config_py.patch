@@ -3,7 +3,7 @@ diff --git a/config.py b/config.py
 +++ b/config.py	2026-07-21 04:56:27.000000 -0700
 @@ -6,6 +6,11 @@
    Local:   <git-root>/.clawcodex/config.local.json
-
+ 
  Inheritance: local > project > global (deep merge).
 +
 +The pydantic-settings backend lives in
@@ -11,12 +11,12 @@ diff --git a/config.py b/config.py
 +``CLAW_USE_PYDANTIC_SETTINGS``). This module only implements the
 +legacy JSON backend.
  """
-
+ 
  from __future__ import annotations
 @@ -26,13 +31,14 @@
  # Paths
  # ---------------------------------------------------------------------------
-
+ 
 -GLOBAL_CONFIG_DIR = Path.home() / ".clawcodex"
 -GLOBAL_CONFIG_FILE = GLOBAL_CONFIG_DIR / "config.json"
 -HISTORY_FILE = GLOBAL_CONFIG_DIR / "history.jsonl"
@@ -32,8 +32,8 @@ diff --git a/config.py b/config.py
 +LEGACY_PROJECT_CONFIG_DIR_NAME = '.claude'
 +PROJECT_CONFIG_FILE_NAME = 'config.json'
 +LOCAL_CONFIG_FILE_NAME = 'config.local.json'
-
-
+ 
+ 
  def _find_git_root(cwd: str | Path | None = None) -> Path | None:
 @@ -40,8 +46,13 @@
      start = Path(cwd) if cwd else Path.cwd()
@@ -54,7 +54,7 @@ diff --git a/config.py b/config.py
 @@ -72,6 +83,7 @@
  # Deep merge
  # ---------------------------------------------------------------------------
-
+ 
 +
  def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
      """Recursively merge *override* into *base*, returning a new dict."""
@@ -62,7 +62,7 @@ diff --git a/config.py b/config.py
 @@ -87,6 +99,7 @@
  # Atomic JSON I/O
  # ---------------------------------------------------------------------------
-
+ 
 +
  def _read_json(path: Path) -> dict[str, Any]:
      """Read a JSON file, returning empty dict on any error."""
@@ -97,7 +97,7 @@ diff --git a/config.py b/config.py
 @@ -129,15 +142,21 @@
  # Default config
  # ---------------------------------------------------------------------------
-
+ 
 +
  def get_default_config() -> dict[str, Any]:
      """Generate default global configuration."""
@@ -121,7 +121,7 @@ diff --git a/config.py b/config.py
          }
 @@ -145,9 +164,9 @@
          providers = {}
-
+ 
      return {
 -        "default_provider": "anthropic",
 -        "providers": providers,
@@ -130,15 +130,15 @@ diff --git a/config.py b/config.py
 +        'providers': providers,
 +        'session': {'auto_save': True, 'max_history': 100},
      }
-
-
+ 
+ 
 @@ -162,26 +181,10 @@
-
-
+ 
+ 
  def _session_trusted(cwd: str | Path | None = None) -> bool:
 -    """Is the workspace the given manager reads trusted?
 +    """Return the trust verdict for the workspace being loaded.
-
+ 
 -    ch02 round-4 WI-1 — cwd-scoped. The old body read only the
 -    process-global session flag, which the agent-server CHILD never sets
 -    (the parent's ``establish_session_trust`` runs in the parent process),
@@ -165,7 +165,7 @@ diff --git a/config.py b/config.py
 @@ -203,6 +206,7 @@
  # ConfigManager — three-level loading + merge
  # ---------------------------------------------------------------------------
-
+ 
 +
  @dataclass
  class ConfigManager:
@@ -184,7 +184,7 @@ diff --git a/config.py b/config.py
 +            )
 +            self._project_cache = _deep_merge(legacy, current)
          return dict(self._project_cache)
-
+ 
      def load_local(self) -> dict[str, Any]:
          if self._local_cache is None:
              path = get_local_config_path(self.cwd)
@@ -198,7 +198,7 @@ diff --git a/config.py b/config.py
 +            )
 +            self._local_cache = _deep_merge(legacy, current)
          return dict(self._local_cache)
-
+ 
      def get_merged(self) -> dict[str, Any]:
 @@ -254,8 +272,6 @@
          merged = self.load_global()
@@ -217,7 +217,7 @@ diff --git a/config.py b/config.py
 +            raise RuntimeError('No git root found — cannot save project config')
          _atomic_write_json(path, data)
          self._project_cache = None
-
+ 
      def save_local(self, data: dict[str, Any]) -> None:
          path = get_local_config_path(self.cwd)
          if path is None:
@@ -225,7 +225,7 @@ diff --git a/config.py b/config.py
 +            raise RuntimeError('No git root found — cannot save local config')
          _atomic_write_json(path, data)
          self._local_cache = None
-
+ 
 @@ -366,9 +382,6 @@
      except OSError:
          return False
@@ -235,11 +235,11 @@ diff --git a/config.py b/config.py
 -    # get_merged strip decision (ch02 round-4 WI-1).
      try:
          from src.services.startup_gates import _invalidate_trust_memo
-
+ 
 @@ -382,12 +395,13 @@
  # History (JSONL paste history)
  # ---------------------------------------------------------------------------
-
+ 
 -def append_history_entry(content: str, *, source: str = "paste") -> None:
 +
 +def append_history_entry(content: str, *, source: str = 'paste') -> None:
@@ -251,8 +251,8 @@ diff --git a/config.py b/config.py
 +    entry = {'timestamp': time.time(), 'source': source, 'content': content}
 +    with open(HISTORY_FILE, 'a', encoding='utf-8') as f:
 +        f.write(json.dumps(entry, ensure_ascii=False) + '\n')
-
-
+ 
+ 
  def read_history_entries(limit: int = 100) -> list[dict[str, Any]]:
 @@ -396,7 +410,7 @@
          return []
@@ -277,7 +277,7 @@ diff --git a/config.py b/config.py
 +    else:
 +        try:
 +            from src.providers import canonical_provider_name
-
+ 
 -        canonical = canonical_provider_name(provider)
 -    except Exception:
 -        canonical = provider
@@ -303,8 +303,8 @@ diff --git a/config.py b/config.py
 +    if not cfg.get('default_model') and env_model:
 +        cfg['default_model'] = env_model
 +    return cfg
-
-
+ 
+ 
  def set_api_key(
 @@ -471,15 +499,22 @@
      """Set API key for a provider."""
@@ -334,8 +334,8 @@ diff --git a/config.py b/config.py
 +            models.append(default_model)
 +        config['providers'][provider]['models'] = models
      mgr.save_global(config)
-
-
+ 
+ 
 @@ -487,13 +522,13 @@
      """Set the default provider."""
      mgr = _get_default_manager()
@@ -343,14 +343,14 @@ diff --git a/config.py b/config.py
 -    config["default_provider"] = provider
 +    config['default_provider'] = provider
      mgr.save_global(config)
-
-
+ 
+ 
  def get_default_provider() -> str:
      """Get the default provider."""
 -    return load_config().get("default_provider", "anthropic")
 +    return load_config().get('default_provider', 'anthropic')
-
-
+ 
+ 
  def set_theme(name: str) -> None:
 @@ -505,17 +540,16 @@
      serialize the *merged* (global+project+local) config back into the global file.
@@ -358,11 +358,11 @@ diff --git a/config.py b/config.py
      """
 -    _get_default_manager().set_global("theme", name)
 +    _get_default_manager().set_global('theme', name)
-
-
+ 
+ 
  def set_logo_color(name: str) -> None:
      """Persist the startup logo color palette to the global config.
-
+ 
      Mirrors TS ``/logo`` (``saveGlobalConfig(c => ({...c, logoColor: chosen}))``). A
 -    top-level config key (like :func:`set_theme`) — NOT a nested settings field.
 -    Read by the Ink TUI banner (synchronously at startup via
@@ -373,9 +373,9 @@ diff --git a/config.py b/config.py
 +    field.
      """
      _get_default_manager().set_global("logoColor", name)
-
+ 
 @@ -537,12 +571,202 @@
-
+ 
      mgr = _get_default_manager()
      cfg = mgr.load_global()
 -    section = cfg.get("settings")

@@ -4,7 +4,7 @@ diff --git a/providers/openai_compatible.py b/providers/openai_compatible.py
 @@ -1,1031 +1,11 @@
 -"""OpenAI-compatible provider base class.
 +"""Facade — providers/openai_compatible.py has been moved to clawcodex_ext/providers/openai_compatible.py.
-
+ 
 -This base class consolidates shared logic for providers that use the
 -OpenAI-style /chat/completions API (OpenAI, GLM, Minimax, etc.).
 +Uses ``globals().update()`` so the test suite can still import private
@@ -12,10 +12,10 @@ diff --git a/providers/openai_compatible.py b/providers/openai_compatible.py
 +_convert_anthropic_messages_to_openai``,
 +``_anthropic_image_block_to_openai``, etc.).
  """
-
+ 
 -from __future__ import annotations
 +import clawcodex_ext.providers.openai_compatible as _mod
-
+ 
 -import json
 -import logging
 -from abc import abstractmethod

@@ -4,7 +4,7 @@ diff --git a/command_system/security_review.py b/command_system/security_review.
 @@ -1,252 +1,17 @@
 -"""security-review command — Python port of TS commands/security-review.ts.
 +"""Facade — command_system/security_review.py has been moved to clawcodex_ext (lazy proxy)."""
-
+ 
 -A moved-to-plugin builtin: ant users get the static plugin-install message; everyone
 -else runs the real review prompt, which executes the four read-only ``git`` blocks at
 -prompt-build time (status / diff name-only / log / full diff against ``origin/HEAD...``)
@@ -15,7 +15,7 @@ diff --git a/command_system/security_review.py b/command_system/security_review.
 -(no base-dir header, no ``ARGUMENTS:`` append, no ``${…}`` substitution).
 -"""
  from __future__ import annotations
-
+ 
 -from typing import Any
 -
 -from src.skills.frontmatter import parse_frontmatter
@@ -248,8 +248,8 @@ diff --git a/command_system/security_review.py b/command_system/security_review.
 +__all__ = [
 +    'SECURITY_REVIEW_COMMAND',
 +]
-
-
+ 
+ 
 -SECURITY_REVIEW_COMMAND = create_moved_to_plugin_command(
 -    name="security-review",
 -    description="Complete a security review of the pending changes on the current branch",

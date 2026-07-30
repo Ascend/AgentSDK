@@ -4,7 +4,7 @@ diff --git a/services/tool_execution/tool_hooks.py b/services/tool_execution/too
 @@ -1,425 +1,3 @@
 -"""Tool hooks — mirrors TypeScript toolHooks.ts.
 +"""Compatibility facade — see :mod:`clawcodex_ext.services.tool_execution.tool_hooks`."""
-
+ 
 -Pre/Post tool use hooks and permission resolution.
 -Hooks are user-defined scripts that run before/after tool execution.
 -Key invariant: hook 'allow' does NOT bypass settings deny/ask rules.

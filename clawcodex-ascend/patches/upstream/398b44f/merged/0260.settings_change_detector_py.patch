@@ -19,7 +19,7 @@ diff --git a/settings/change_detector.py b/settings/change_detector.py
      """Recursively diff two flat/nested dicts."""
      changed: list[str] = []
 @@ -58,7 +59,7 @@
-
+ 
      all_keys = set(old.keys()) | set(new.keys())
      for key in sorted(all_keys):
 -        full_key = f"{prefix}.{key}" if prefix else key

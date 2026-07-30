@@ -1,7 +1,15 @@
 diff --git a/tasks/local_agent.py b/tasks/local_agent.py
 --- a/tasks/local_agent.py	2026-07-23 08:42:36.000000 +0000
-+++ b/tasks/local_agent.py	2026-07-21 04:56:27.000000 -0700
-@@ -92,6 +92,9 @@
++++ b/tasks/local_agent.py	2026-07-27 19:13:22.000000 +0800
+@@ -18,6 +18,7 @@
+ primitive — the A6/C5 contract (mutator must be sync; never await
+ under the registry lock) is honored throughout.
+ """
++
+ from __future__ import annotations
+ 
+ import asyncio
+@@ -92,6 +93,9 @@
      last_reported_token_count: int = 0
      result_text: str = ""
      error: str | None = None
@@ -11,7 +19,7 @@ diff --git a/tasks/local_agent.py b/tasks/local_agent.py
      # Chunk F / WI-7.4 race guard. Set True by the auto-resume claim
      # mutator when this terminal state is being re-spawned; concurrent
      # SendMessage callers see the flag and back off to queueing the
-@@ -123,6 +126,7 @@
+@@ -123,6 +127,7 @@
      selected_agent: Any = None,
      model: str | None = None,
      tool_use_id: str | None = None,
@@ -19,19 +27,19 @@ diff --git a/tasks/local_agent.py b/tasks/local_agent.py
      abort_controller: Any = None,
      registry: "RuntimeTaskRegistry",
  ) -> LocalAgentTaskState:
-@@ -147,7 +151,10 @@
+@@ -147,7 +152,10 @@
      # the cycle untangled.
      from src.agent.transcript import get_agent_transcript_path
-
+ 
 -    output_file = get_agent_transcript_path(agent_id)
 +    output_file = get_agent_transcript_path(
 +        agent_id,
 +        parent_session_id=parent_session_id,
 +    )
-
+ 
      state = LocalAgentTaskState(
          id=agent_id,
-@@ -162,6 +169,7 @@
+@@ -162,6 +170,7 @@
          selected_agent=selected_agent,
          model=model,
          tool_use_id=tool_use_id,
@@ -39,3 +47,54 @@ diff --git a/tasks/local_agent.py b/tasks/local_agent.py
          abort_controller=abort_controller,
          is_backgrounded=True,
      )
+@@ -235,6 +244,7 @@
+     if a background-summarization service has set one — the per-message
+     progress update should not clobber the summary text.
+     """
++
+     def _set(prev: TaskStateBase) -> TaskStateBase:
+         if not isinstance(prev, LocalAgentTaskState):
+             return prev
+@@ -290,6 +300,7 @@
+     registry: "RuntimeTaskRegistry",
+ ) -> None:
+     """Flip status to ``completed``, stash the final text, schedule eviction."""
++
+     def _complete(prev: TaskStateBase) -> TaskStateBase:
+         if not isinstance(prev, LocalAgentTaskState):
+             return prev
+@@ -307,6 +318,7 @@
+     registry: "RuntimeTaskRegistry",
+ ) -> None:
+     """Flip status to ``failed``, record error, schedule eviction."""
++
+     def _fail(prev: TaskStateBase) -> TaskStateBase:
+         if not isinstance(prev, LocalAgentTaskState):
+             return prev
+@@ -376,6 +388,7 @@
+             aborted_controller.abort("killed by user")
+         except Exception:
+             import logging
++
+             logging.getLogger(__name__).exception(
+                 "failed to abort run for killed agent %s", task_id
+             )
+@@ -386,6 +399,7 @@
+             aborted_event.set()
+         except Exception:
+             import logging
++
+             logging.getLogger(__name__).exception(
+                 "failed to set abort event for killed agent %s", task_id
+             )
+@@ -424,9 +438,7 @@
+     name: str = "LocalAgentTask"
+     type: Literal["local_agent"] = "local_agent"
+ 
+-    async def kill(
+-        self, task_id: str, registry: "RuntimeTaskRegistry"
+-    ) -> None:
++    async def kill(self, task_id: str, registry: "RuntimeTaskRegistry") -> None:
+         kill_async_agent(task_id, registry)
+ 
+ 
