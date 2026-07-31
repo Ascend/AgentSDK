@@ -27,9 +27,9 @@
 
 **表 1**  Agent SDK软件版本配套表
 
-| Agent SDK | CANN版本 | Ascend HDK版本      |
-|-----------|--------|-------------------|
-| 26.1.0    | 9.0.0  | Ascend HDK 26.0.RC1 |
+| Agent SDK | CANN版本 | Ascend HDK版本        |
+|-----------|--------|---------------------|
+| 26.1.0    | 9.1.0  | Ascend HDK 26.0.RC1 |
 
 ## 版本兼容性说明<a name="ZH-CN_TOPIC_0000002545284919"></a>
 
@@ -46,25 +46,17 @@
 <thead>
   <tr>
     <th rowspan="2">Agent SDK</th>
-    <th colspan="3">CANN版本</th>
+    <th colspan="2">CANN版本</th>
   </tr>
   <tr>
-    <th>8.5.0</th>
     <th>9.0.0</th>
     <th>9.1.0</th>
   </tr></thead>
 <tbody>
   <tr>
-    <td>26.0.0.beta.1</td>
-    <td>/</td>
-    <td>Y</td>
-    <td>/</td>
-  </tr>
-  <tr>
     <td>26.1.0</td>
-    <td>/</td>
-    <td>Y</td>
-    <td>/</td>
+    <td style="text-align: center;">Y</td>
+    <td style="text-align: center;">Y</td>
   </tr>
 </tbody>
 </table>
@@ -80,25 +72,17 @@
 <thead>
   <tr>
     <th rowspan="2">Agent SDK</th>
-    <th colspan="3">Ascend HDK版本</th>
+    <th colspan="2">Ascend HDK版本</th>
   </tr>
   <tr>
-    <th>25.5.0</th>
     <th>26.0.RC1</th>
     <th>26.1.0</th>
   </tr></thead>
 <tbody>
   <tr>
-    <td>26.0.0.beta.1</td>
-    <td>/</td>
-    <td>Y</td>
-    <td>/</td>
-  </tr>
-  <tr>
     <td>26.1.0</td>
-    <td>/</td>
-    <td>Y</td>
-    <td>/</td>
+    <td style="text-align: center;">Y</td>
+    <td style="text-align: center;">Y</td>
   </tr>
 </tbody>
 </table>
@@ -111,11 +95,11 @@
 
 ### 新增特性<a name="ZH-CN_TOPIC_0000002545284925"></a>
 
-| 组件名称 | 特性描述                                          | 配套产品型号                      |
-|------|-----------------------------------------------|-----------------------------|
-| Aura | 支持共卡模式训练                                      | Atlas 900 A3 SuperPoD 训练服务器 |
-| Aura | 支持分离模式训练                                      | Atlas 900 A3 SuperPoD 训练服务器 |
-| Aura | 支持qwen3-4b，qwen3-8b，qwen3-32b，qwen3-30b-a3b模型 | Atlas 900 A3 SuperPoD 训练服务器 |
+| 组件名称 | 特性描述                                           | 配套产品型号                      |
+|------|------------------------------------------------|-----------------------------|
+| Aura | 支持[共卡模式](./04_user_guide/02_hybrid.md)训练       | Atlas 900 A3 SuperPoD 训练服务器 |
+| Aura | 支持[分离模式](./04_user_guide/03_one_step_off.md)训练 | Atlas 900 A3 SuperPoD 训练服务器 |
+| Aura | 支持qwen3-4b，qwen3-8b，qwen3-32b，qwen3-30b-a3b模型  | Atlas 900 A3 SuperPoD 训练服务器 |
 
 ### 业务接口变更<a name="ZH-CN_TOPIC_0000002545204929"></a>
 
