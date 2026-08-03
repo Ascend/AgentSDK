@@ -1,0 +1,297 @@
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+#
+# AgentSDK is licensed under Mulan PSL v2.
+# You can use this software according to the terms and conditions of the Mulan PSL v2.
+# You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+#
+# Copyright (c) 2026 Clawd Codex Team
+# SPDX-License-Identifier: MIT
+# Source: https://github.com/agentforce314/clawcodex
+# ClawCodex-derived portions remain licensed under the MIT License.
+# See clawcodex-ascend/LICENSE.clawcodex.
+
+"""Tests for the post-exit transcript snapshot.
+
+The Textual TUI runs in the alt-screen by default, which would
+otherwise wipe the conversation the user saw as soon as it exits. To
+match the TS ink reference's non-fullscreen behaviour, the app
+captures the transcript into :attr:`ClawCodexTUI.exit_snapshot` on
+the way out so entry points can replay it into the host's scrollback
+buffer.
+"""
+
+from __future__ import annotations
+
+import pytest
+
+pytest.importorskip("textual")
+
+from textual.app import App, ComposeResult
+
+from src.tui.widgets.messages import (
+    AssistantTextMessage,
+    AssistantToolUseMessage,
+    SystemMessage,
+    ToolResultRow,
+    UserTextMessage,
+)
+from src.tui.widgets.transcript_view import Transcript
+
+
+def _flatten(pieces) -> str:
+    """Concatenate a snapshot into a plain string for assertion ease."""
+
+    from rich.console import Console
+    from io import StringIO
+
+    buf = StringIO()
+    console = Console(file=buf, force_terminal=False, width=120)
+    for piece in pieces:
+        console.print(piece)
+    return buf.getvalue()
+
+
+def test_user_row_snapshot_includes_prompt_marker():
+    row = UserTextMessage("hello world")
+    text = str(row.snapshot())
+    assert "❯" in text
+    assert "hello world" in text
+
+
+def test_assistant_streaming_snapshot_falls_back_to_plain():
+    row = AssistantTextMessage()
+    row.append_chunk("partial ")
+    row.append_chunk("reply")
+    snap = row.snapshot()
+    # Streaming (non-finalised) snapshots return the raw text so we
+    # don't try to parse a half-formed Markdown stream.
+    rendered = _flatten([snap] if not isinstance(snap, tuple) else list(snap))
+    assert "assistant" in rendered
+    assert "partial reply" in rendered
+
+
+def test_assistant_finalised_snapshot_uses_markdown():
+    row = AssistantTextMessage()
+    row.finalise("**done**")
+    snap = row.snapshot()
+    rendered = _flatten([snap] if not isinstance(snap, tuple) else list(snap))
+    # Markdown rendering bolds the text but the literal word should
+    # still appear — we just don't expect the ** markers.
+    assert "done" in rendered
+    assert "assistant" in rendered
+
+
+def test_tool_use_snapshot_reports_status():
+    row = AssistantToolUseMessage(
+        tool_use_id="t1",
+        tool_name="Bash",
+        tool_input={"command": "ls"},
+    )
+    before = str(row.snapshot())
+    assert "Bash" in before
+    row.status = "done"
+    after = str(row.snapshot())
+    assert "Bash" in after
+
+
+def test_tool_result_snapshot_includes_body():
+    row = ToolResultRow(
+        tool_name="Bash",
+        summary="ls",
+        body="file1\nfile2",
+    )
+    snap = row.snapshot()
+    rendered = str(snap)
+    assert "ls" in rendered
+    assert "file1" in rendered
+    assert "file2" in rendered
+
+
+def test_system_snapshot_emits_plain_text():
+    row = SystemMessage("boot completed", style="muted")
+    snap = row.snapshot()
+    assert "boot completed" in str(snap)
+
+
+@pytest.mark.asyncio
+async def test_transcript_snapshot_preserves_insertion_order():
+    transcript = Transcript()
+
+    class _App(App):
+        def compose(self) -> ComposeResult:
+            yield transcript
+
+    async with _App().run_test() as pilot:
+        await pilot.pause()
+        transcript.append_user("first prompt")
+        transcript.append_assistant("response one")
+        transcript.append_tool_event(
+            kind="tool_use",
+            tool_name="Bash",
+            tool_input={"command": "ls"},
+            tool_output=None,
+            is_error=False,
+            error=None,
+            tool_use_id="t1",
+        )
+        transcript.append_tool_event(
+            kind="tool_result",
+            tool_name="Bash",
+            tool_input=None,
+            tool_output="hi",
+            is_error=False,
+            error=None,
+            tool_use_id="t1",
+        )
+        transcript.append_user("second prompt")
+        transcript.append_system("bye", style="muted")
+        await pilot.pause()
+
+        pieces = transcript.snapshot()
+        rendered = _flatten(pieces)
+        # Order is preserved across the snapshot so scrollback reads
+        # like the live view.
+        assert rendered.find("first prompt") < rendered.find("response one")
+        assert rendered.find("response one") < rendered.find("Bash")
+        assert rendered.find("Bash") < rendered.find("second prompt")
+        assert rendered.find("second prompt") < rendered.find("bye")
+
+
+@pytest.mark.asyncio
+async def test_app_exit_captures_transcript_snapshot():
+    """``ClawCodexTUI.exit`` should populate ``exit_snapshot`` so the
+    host entry-point can reprint the conversation after the alt-screen
+    unwinds.
+    """
+
+    from src.tui.app import ClawCodexTUI
+
+    class _StubProvider:
+        model = "stub-model"
+        completions = []  # noqa: RUF012
+
+        def generate(self, *args, **kwargs):  # pragma: no cover - unused
+            raise RuntimeError("provider should not be called in UI test")
+
+    import tempfile
+    from pathlib import Path
+
+    with tempfile.TemporaryDirectory() as tmp:
+        app = ClawCodexTUI(
+            provider=_StubProvider(),
+            provider_name="stub",
+            workspace_root=Path(tmp),
+            max_turns=1,
+            stream=False,
+        )
+        await _drive_exit_snapshot(app)
+
+    rendered = _flatten(app.exit_snapshot)
+    assert "user-prompt-one" in rendered
+    assert "final answer" in rendered
+
+
+@pytest.mark.asyncio
+async def test_handoff_exit_snapshot_skips_replayed_history(tmp_path):
+    """REPL -> TUI -> REPL should not print pre-handoff history twice."""
+
+    from src.agent.conversation import Conversation
+    from src.tui.app import ClawCodexTUI
+    from src.tool_system.context import ToolContext
+    from src.tool_system.registry import ToolRegistry
+    from src.types.messages import Message
+
+    class _StubProvider:
+        model = "stub-model"
+        completions = []  # noqa: RUF012
+
+        def generate(self, *args, **kwargs):  # pragma: no cover - unused
+            raise RuntimeError("provider should not be called in UI test")
+
+    class _Session:
+        session_id = "s1"
+
+        def __init__(self) -> None:
+            self.conversation = Conversation()
+            self.conversation.messages = [
+                Message(role="user", content="old prompt"),
+                Message(role="assistant", content="old reply"),
+            ]
+
+        def save(self) -> None:
+            return None
+
+    app = ClawCodexTUI(
+        provider=_StubProvider(),
+        provider_name="stub",
+        workspace_root=tmp_path,
+        tool_registry=ToolRegistry(),
+        tool_context=ToolContext(workspace_root=tmp_path),
+        session=_Session(),
+        max_turns=1,
+        stream=False,
+        replay_exit_snapshot_from_start=False,
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.pause()
+        assert app._repl_screen is not None  # type: ignore[attr-defined]
+        transcript = app._repl_screen.transcript  # type: ignore[attr-defined]
+        transcript.append_user("new prompt")
+        transcript.append_assistant("new reply")
+        await pilot.pause()
+        app.exit()
+        await pilot.pause()
+
+    rendered = _flatten(app.exit_snapshot)
+    assert "new prompt" in rendered
+    assert "new reply" in rendered
+    assert "old prompt" not in rendered
+    assert "old reply" not in rendered
+
+
+async def _drive_exit_snapshot(app) -> None:
+    """Populate the transcript and trigger an app exit."""
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert app._repl_screen is not None  # type: ignore[attr-defined]
+        transcript = app._repl_screen.transcript  # type: ignore[attr-defined]
+        transcript.append_user("user-prompt-one")
+        transcript.append_assistant("final answer")
+        await pilot.pause()
+        app.exit()
+        await pilot.pause()
+
+
+@pytest.mark.asyncio
+async def test_transcript_snapshot_ignores_rows_without_snapshot():
+    transcript = Transcript()
+
+    class _Weird:
+        """A stand-in row without the snapshot protocol."""
+
+    class _App(App):
+        def compose(self) -> ComposeResult:
+            yield transcript
+
+    async with _App().run_test() as pilot:
+        await pilot.pause()
+        transcript.append_user("kept")
+        # Mutate internal state to slip a non-snapshot-aware row past
+        # the public API; :meth:`snapshot` must silently skip it.
+        transcript._mounted_rows.append(_Weird())  # type: ignore[arg-type]
+        await pilot.pause()
+        rendered = _flatten(transcript.snapshot())
+        assert "kept" in rendered
