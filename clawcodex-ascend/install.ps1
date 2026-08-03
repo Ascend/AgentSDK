@@ -57,6 +57,373 @@ param(
 )
 
 # ============================================================================
+#  Inspection and removal commands
+#  This block is intentionally isolated from the install/update implementation
+#  so the two staged PRs modify non-overlapping regions of this single-file
+#  installer. The core PR dispatches these functions when both parts are merged.
+# ============================================================================
+function script:Find-ExistingDirectory {
+    param([Parameter(Mandatory)][string]$Path)
+
+    $candidate = [System.IO.Path]::GetFullPath($Path)
+    while (-not (Test-Path -LiteralPath $candidate -PathType Container)) {
+        if (Test-Path -LiteralPath $candidate) { return $null }
+        $parent = Split-Path -Path $candidate -Parent
+        if (-not $parent -or $parent -eq $candidate) { return $null }
+        $candidate = $parent
+    }
+    return $candidate
+}
+
+function script:Test-WritableAncestor {
+    param([Parameter(Mandatory)][string]$Path)
+
+    $ancestor = Find-ExistingDirectory $Path
+    if (-not $ancestor) { return $null }
+    $probe = Join-Path $ancestor ".clawcodex-doctor-$([guid]::NewGuid().ToString('N')).tmp"
+    try {
+        New-Item -ItemType File -Path $probe -ErrorAction Stop | Out-Null
+        Remove-Item -LiteralPath $probe -Force -ErrorAction Stop
+        return $ancestor
+    } catch {
+        Remove-Item -LiteralPath $probe -Force -ErrorAction SilentlyContinue
+        return $null
+    }
+}
+
+function script:Get-InstallStatus {
+    Write-Host '=== clawcodex install status ==='
+    Write-Host "  Installer   : v$InstallerVersion"
+    Write-Host "  Git ref     : $RepoRef"
+    Write-Host "  Upstream ref: $UpstreamRef"
+    Write-Host "  Patch set   : $PatchSetId ($ExpectedPatchCount patches)"
+    Write-Host "  Install dir : $ClawCodexHome"
+    Write-Host "  Product dir : $ProductHome"
+    Write-Host "  Config dir  : $ConfigDir"
+    Write-Host ''
+
+    $gitDir = Join-Path $ClawCodexHome '.git'
+    if (Test-Path -LiteralPath $gitDir -PathType Container) {
+        $canonicalInstall = Get-CanonicalPath $ClawCodexHome
+        $sha = (& git -c "safe.directory=$canonicalInstall" -C $ClawCodexHome rev-parse --short HEAD 2>$null) -join ''
+        $branch = (& git -c "safe.directory=$canonicalInstall" -C $ClawCodexHome rev-parse --abbrev-ref HEAD 2>$null) -join ''
+        if (-not $sha) { $sha = 'unknown' }
+        if (-not $branch) { $branch = 'unknown' }
+        Write-Host "  Git state   : $branch at $sha"
+        Write-Host "  src/        : $(if (Test-Path -LiteralPath (Join-Path $ProductHome 'src') -PathType Container) { 'present' } else { 'MISSING' })"
+        Write-Host "  .venv       : $(if (Test-Path -LiteralPath (Join-Path $ProductHome '.venv') -PathType Container) { 'present' } else { 'not used or MISSING' })"
+    } else {
+        Write-Host "  Git state   : NOT INSTALLED (run '$SponsorScript install')"
+    }
+
+    Write-Host '  Commands    :'
+    foreach ($name in @('clawcodex-dev', 'clawcodex')) {
+        $wrapper = Join-Path $LocalBin "$name.cmd"
+        Write-Host "    $name : $(if (Test-Path -LiteralPath $wrapper -PathType Leaf) { $wrapper } else { 'MISSING' })"
+    }
+    Write-Host '=== end of status ==='
+}
+
+function script:Test-InstalledSourceIdentity {
+    $srcDir = Join-Path $ProductHome 'src'
+    $markerFile = Join-Path $ProductHome '.clawcodex-source.json'
+    $patchBase = Join-Path $ProductHome "patches/upstream/$PatchSetId"
+    $patchDir = Join-Path $patchBase 'merged'
+    $seriesFile = Join-Path $patchBase 'series'
+    if (-not (Test-Path -LiteralPath $srcDir -PathType Container) -or
+        -not (Test-Path -LiteralPath $markerFile -PathType Leaf) -or
+        -not (Test-Path -LiteralPath $seriesFile -PathType Leaf) -or
+        -not (Test-Path -LiteralPath $patchDir -PathType Container)) {
+        return $false
+    }
+
+    try {
+        $patches = [System.Collections.Generic.List[object]]::new()
+        $seen = @{}
+        foreach ($rawLine in Get-Content -LiteralPath $seriesFile -Encoding UTF8) {
+            $name = $rawLine.Trim()
+            if (-not $name -or $name.StartsWith('#')) { continue }
+            $expectedPrefix = '{0:D4}.' -f ($patches.Count + 1)
+            if ($name -notmatch '^[0-9]{4}\.[A-Za-z0-9_.-]+\.patch$' -or
+                [System.IO.Path]::GetFileName($name) -ne $name -or
+                -not $name.StartsWith($expectedPrefix) -or
+                $seen.ContainsKey($name)) {
+                return $false
+            }
+            $path = Join-Path $patchDir $name
+            if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { return $false }
+            $seen[$name] = $true
+            $patches.Add([pscustomobject]@{ Name = $name; Path = $path })
+        }
+        if ($patches.Count -ne $ExpectedPatchCount) { return $false }
+        $extra = @(Get-ChildItem -LiteralPath $patchDir -Filter '*.patch' -File |
+            Where-Object { -not $seen.ContainsKey($_.Name) })
+        if ($extra.Count -gt 0) { return $false }
+
+        # Verification hashes the declared payload directly. Syntax/applicability
+        # was already checked before the atomic source marker was published.
+        $marker = Get-Content -LiteralPath $markerFile -Raw -Encoding UTF8 -ErrorAction Stop | ConvertFrom-Json
+        $seriesHash = (Get-FileHash -LiteralPath $seriesFile -Algorithm SHA256 -ErrorAction Stop).Hash.ToLowerInvariant()
+        $payloadHash = Get-PatchPayloadDigest -Patches $patches.ToArray()
+        return (
+            $marker.upstream_commit -eq $UpstreamRef -and
+            $marker.patch_set -eq $PatchSetId -and
+            [int]$marker.patch_count -eq $ExpectedPatchCount -and
+            $marker.series_sha256 -eq $seriesHash -and
+            $marker.patch_payload_sha256 -eq $payloadHash
+        )
+    } catch {
+        return $false
+    }
+}
+
+function script:Invoke-Doctor {
+    $fail = 0
+    $warn = 0
+    Write-Host '=== clawcodex environment doctor ==='
+
+    Write-Host '[1/7] OS'
+    if ($OS -eq 'unknown') { Write-Host '      X unsupported or unknown OS'; $fail++ }
+    else { Write-Host "      OK $OS" }
+
+    Write-Host '[2/7] Git and repository access'
+    $git = Get-Command git -ErrorAction SilentlyContinue
+    if (-not $git) {
+        Write-Host '      X git not found'
+        $fail++
+    } else {
+        $remote = @(& git ls-remote --exit-code $RepoUrl $RepoRef 2>$null)
+        if ($LASTEXITCODE -eq 0 -and $remote.Count -gt 0) { Write-Host "      OK $(& git --version)" }
+        else {
+            Write-Host "      ! cannot reach $RepoUrl $RepoRef; install/update requires network access"
+            $warn++
+        }
+    }
+
+    Write-Host '[3/7] uv and Python'
+    $uv = Get-Command uv -ErrorAction SilentlyContinue
+    if ($uv) {
+        Write-Host "      OK $(& uv --version)"
+        $python = (& uv python find $PythonMinVersion 2>$null) -join ''
+        if ($python -and (Test-Path -LiteralPath $python -PathType Leaf)) { Write-Host "      OK $(& $python --version)" }
+        else { Write-Host "      ! Python $PythonMinVersion will be provisioned during install"; $warn++ }
+    } else {
+        Write-Host '      ! uv is not installed yet; the installer will provision it'
+        $warn++
+    }
+
+    Write-Host '[4/7] Install path'
+    $installAncestor = Test-WritableAncestor $ClawCodexParentDir
+    if ($installAncestor) { Write-Host "      OK writable: $installAncestor" }
+    else { Write-Host "      X no writable ancestor for $ClawCodexParentDir"; $fail++ }
+
+    Write-Host '[5/7] Config path'
+    $configAncestor = Test-WritableAncestor $ConfigDir
+    if ($configAncestor) { Write-Host "      OK writable: $configAncestor" }
+    else { Write-Host "      X no writable ancestor for $ConfigDir"; $fail++ }
+
+    Write-Host '[6/7] Disk space'
+    try {
+        $probeDir = Find-ExistingDirectory $ClawCodexParentDir
+        $drive = (Get-Item -LiteralPath $probeDir -ErrorAction Stop).PSDrive
+        if ($drive -and $drive.Free -gt 524288000) { Write-Host "      OK $([math]::Round($drive.Free / 1MB)) MB free" }
+        else { Write-Host '      X less than 500 MB free'; $fail++ }
+    } catch { Write-Host '      ! free space could not be determined'; $warn++ }
+
+    Write-Host '[7/7] User PATH'
+    $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
+    $hasLocalBin = @($userPath -split ';' | Where-Object {
+        $_ -and $_.Trim().TrimEnd([char[]]'\/') -ieq $LocalBin.TrimEnd([char[]]'\/')
+    }).Count -gt 0
+    if ($hasLocalBin) { Write-Host "      OK $LocalBin" }
+    else { Write-Host "      ! $LocalBin will be added during install"; $warn++ }
+
+    Write-Host "=== doctor summary: $fail critical, $warn warning(s) ==="
+    if ($fail -gt 0) { $script:rc = 3 }
+}
+
+function script:Invoke-Verify {
+    $fail = 0
+    $warn = 0
+    Write-Host '=== clawcodex install verification ==='
+
+    Write-Host '[1/5] Checkout and source identity'
+    if (-not (Test-InstallerOwnedCheckout)) {
+        Write-Host "      X installer-owned checkout not found at $ClawCodexHome"
+        $fail++
+    } elseif (Test-InstalledSourceIdentity) {
+        Write-Host "      OK checkout and $PatchSetId source marker"
+    } else {
+        Write-Host "      X source marker or patch payload identity mismatch"
+        $fail++
+    }
+
+    Write-Host '[2/5] Python environment and entry point'
+    $venvDir = Join-Path $ProductHome '.venv'
+    $venvPython = Find-Venv-Python -VenvDir $venvDir
+    $entry = $null
+    if ($venvPython) {
+        $entry = Find-Venv-Entry -VenvDir $venvDir -Name $EntryPoint
+        Write-Host "      OK venv: $(& $venvPython --version)"
+    } else {
+        $resolvedEntry = Get-Command $EntryPoint -ErrorAction SilentlyContinue
+        if ($resolvedEntry) {
+            $entry = $resolvedEntry.Path
+            Write-Host '      OK system-Python install detected (-NoVenv)'
+        } else {
+            Write-Host '      X neither a venv nor a system entry point was found'
+            $fail++
+        }
+    }
+    if (-not $entry) { Write-Host "      X $EntryPoint entry point missing"; $fail++ }
+
+    Write-Host '[3/5] Command wrappers'
+    foreach ($name in @('clawcodex-dev', 'clawcodex')) {
+        $wrapper = Join-Path $LocalBin "$name.cmd"
+        if (Test-Path -LiteralPath $wrapper -PathType Leaf) { Write-Host "      OK $wrapper" }
+        else { Write-Host "      X $wrapper missing"; $fail++ }
+    }
+
+    Write-Host '[4/5] PATH'
+    $resolved = Get-Command clawcodex-dev -ErrorAction SilentlyContinue
+    if ($resolved) { Write-Host "      OK $($resolved.Path)" }
+    else { Write-Host '      ! clawcodex-dev is not visible in the current shell'; $warn++ }
+
+    Write-Host '[5/5] Version smoke test'
+    if ($entry) {
+        $smoke = @(& $entry --version 2>&1)
+        if ($LASTEXITCODE -eq 0) { Write-Host "      OK $($smoke -join ' ')" }
+        else { Write-Host "      X version command failed with exit $LASTEXITCODE"; $fail++ }
+    } else { Write-Host '      X skipped because the entry point is missing' }
+
+    Write-Host "=== verify summary: $fail issue(s), $warn warning(s) ==="
+    if ($fail -gt 0) { $script:rc = 3 }
+}
+
+function script:Test-WrapperOwnedByInstall {
+    param([Parameter(Mandatory)][string]$Path)
+
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $false }
+    $expected = "REM CLAWCODEX_INSTALL_DIR=$(Get-CanonicalPath $ClawCodexHome)"
+    return @(
+        Get-Content -LiteralPath $Path -Encoding UTF8 -ErrorAction SilentlyContinue |
+            Where-Object { $_ -ieq $expected }
+    ).Count -eq 1
+}
+
+function script:Test-InstallerAddedUserPath {
+    $markerFile = Get-InstallOwnershipMarker
+    try {
+        $marker = Get-Content -LiteralPath $markerFile -Raw -Encoding UTF8 -ErrorAction Stop | ConvertFrom-Json
+        $pathProperty = $marker.PSObject.Properties['user_path_added']
+        return (
+            $pathProperty -and
+            [bool]$pathProperty.Value -and
+            $marker.created_by -eq 'clawcodex-ascend/install.ps1' -and
+            $marker.install_dir -ieq (Get-CanonicalPath $ClawCodexHome)
+        )
+    } catch {
+        return $false
+    }
+}
+
+function script:Get-PathWithoutEntry {
+    param(
+        [AllowEmptyString()][string]$Current,
+        [Parameter(Mandatory)][string]$Entry
+    )
+
+    if ([string]::IsNullOrEmpty($Current)) { return '' }
+    $normalizedEntry = $Entry.TrimEnd([char[]]'\/')
+    return (@(
+        $Current -split ';' |
+            Where-Object { $_ -and $_.Trim().TrimEnd([char[]]'\/') -ine $normalizedEntry }
+    ) -join ';')
+}
+
+function script:Remove-InstallerOwnedUserPath {
+    param([Parameter(Mandatory)][bool]$Owned)
+
+    if (-not $Owned) { return }
+    $current = [Environment]::GetEnvironmentVariable('Path', 'User')
+    if ([string]::IsNullOrEmpty($current)) { return }
+
+    $newPath = Get-PathWithoutEntry -Current $current -Entry $LocalBin
+    if ($newPath -eq $current) { return }
+
+    if ($DryRun) {
+        ScriptP1
+        Write-Host "[DRY-RUN] would remove installer-owned User PATH entry: $LocalBin"
+        return
+    }
+
+    try {
+        [Environment]::SetEnvironmentVariable('Path', $newPath, 'User')
+        Log-Ok "Removed installer-owned User PATH entry: $LocalBin"
+    } catch {
+        Log-Warn "Could not remove $LocalBin from User PATH: $_"
+    }
+}
+
+function script:Uninstall-Install {
+    Log-Info 'Uninstalling clawcodex ...'
+    Assert-SafeInstallTarget
+    if (-not (Test-Path -LiteralPath $ClawCodexHome)) {
+        Log-Warn "Install checkout not found; nothing was removed: $ClawCodexHome"
+        return
+    }
+    if (-not (Test-InstallerOwnedCheckout)) {
+        Die-With-Help "Refusing to remove a checkout without a valid installer ownership marker: $ClawCodexHome" `
+            "Expected marker: $(Get-InstallOwnershipMarker)"
+    }
+    $removeOwnedUserPath = Test-InstallerAddedUserPath
+
+    foreach ($name in @('clawcodex-dev', 'clawcodex')) {
+        $wrapper = Join-Path $LocalBin "$name.cmd"
+        if (-not (Test-Path -LiteralPath $wrapper -PathType Leaf)) { continue }
+        if (-not (Test-WrapperOwnedByInstall $wrapper)) {
+            Log-Warn "Skipped $wrapper because its exact installer marker does not match this checkout."
+            continue
+        }
+        if ($DryRun) {
+            ScriptP1
+            Write-Host "[DRY-RUN] would remove: $wrapper"
+        } else {
+            Remove-Item -LiteralPath $wrapper -Force -ErrorAction Stop
+            Log-Ok "Removed $wrapper"
+        }
+    }
+
+    if ($DryRun) {
+        ScriptP1
+        Write-Host "[DRY-RUN] would remove installer-owned checkout: $ClawCodexHome"
+    } else {
+        try {
+            Remove-Item -LiteralPath $ClawCodexHome -Recurse -Force -ErrorAction Stop
+        } catch {
+            Die-With-Help "Failed to remove installer-owned checkout: $ClawCodexHome" `
+                "Close processes using files under this directory." `
+                "Re-run: $SponsorScript uninstall" `
+                "If a partial removal deleted the ownership marker, reinstall to the same path before retrying uninstall."
+        }
+        Log-Ok "Removed installer-owned checkout: $ClawCodexHome"
+    }
+
+    Remove-InstallerOwnedUserPath -Owned $removeOwnedUserPath
+
+    if ((Test-Path -LiteralPath $ClawCodexParentDir -PathType Container) -and
+        (Get-CanonicalPath $ClawCodexParentDir) -ine (Get-CanonicalPath $ConfigDir) -and
+        -not (Get-ChildItem -LiteralPath $ClawCodexParentDir -Force -ErrorAction SilentlyContinue)) {
+        if ($DryRun) { Write-Host "[DRY-RUN] would remove empty directory: $ClawCodexParentDir" }
+        else { Remove-Item -LiteralPath $ClawCodexParentDir -Force -ErrorAction Stop }
+    }
+    if (Test-Path -LiteralPath $ConfigDir) {
+        Log-Warn "Preserved config directory: $ConfigDir"
+    }
+    Log-Ok 'Uninstall complete.'
+}
+
+# ============================================================================
 #  Strict mode + error preferences
 # ============================================================================
 Set-StrictMode -Version Latest
