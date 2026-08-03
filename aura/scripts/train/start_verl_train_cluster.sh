@@ -9,12 +9,14 @@ root_dir=$(realpath $(dirname ${scripts_dir}))
 source ${root_dir}/scripts/base/envs.sh
 source ${root_dir}/scripts/base/utils.sh
 
-export HCCL_BUFFSIZE="200" #默认大小
-export PYTORCH_NPU_ALLOC_CONF="expandable_segments:False"
+# HCCL_BUFFSIZE / PYTORCH_NPU_ALLOC_CONF / TRITON_DISABLE_AUTOTUNE / CONFIG_EXT 等已由
+# load_env.sh 从 env.conf 统一加载；此处仅保留与 WORK_MODE 相关的动态设置。
+# 训练侧使用 HCCL_BUFFSIZE_TRAIN 作为 HCCL_BUFFSIZE（兜底默认值 200）
+export HCCL_BUFFSIZE=${HCCL_BUFFSIZE_TRAIN:-200}
 if [[ "${WORK_MODE}" == "hybrid" ]]; then
   # export PYTORCH_NPU_ALLOC_CONF=max_split_size_mb:64
-  export HCCL_HOST_SOCKET_PORT_RANGE="auto"
-  export HCCL_NPU_SOCKET_PORT_RANGE="auto"
+  export HCCL_HOST_SOCKET_PORT_RANGE=${HCCL_HOST_SOCKET_PORT_RANGE:-"auto"}
+  export HCCL_NPU_SOCKET_PORT_RANGE=${HCCL_NPU_SOCKET_PORT_RANGE:-"auto"}
 fi
 
 while [[ "$#" -gt 0 ]]; do
@@ -43,12 +45,11 @@ if [[ ! -f "${TRAIN_CONFIG_FILE}" ]]; then
   exit 1
 fi
 
+# DEFAULT_SOCKET_IFNAME / TRITON_DISABLE_AUTOTUNE 已由 load_env.sh 从 env.conf 加载
 export GLOO_SOCKET_IFNAME=${DEFAULT_SOCKET_IFNAME:-"eth0"}
 export TP_SOCKET_IFNAME=${DEFAULT_SOCKET_IFNAME:-"eth0"}
 
 export PYTHONPATH=/MindSpeed:/Megatron-Bridge/src:${RLLM_PATH}:${PYTHONPATH}
-
-export TRITON_DISABLE_AUTOTUNE=1
 
 export VC_TASK_INDEX=${VC_TASK_INDEX:-$1}
 export USE_PD=0 # 训练端的推理是个假的推理, 默认不开PD分离
@@ -317,8 +318,10 @@ function start_rollout_and_train()
 
 function set_hccl_timeout()
 {
-  export HCCL_CONNECT_TIMEOUT=1800
-  export HCCL_EXEC_TIMEOUT=1800
+  # HCCL 超时配置由 env.conf 提供（HCCL_CONNECT_TIMEOUT_TRAIN / HCCL_EXEC_TIMEOUT_TRAIN），
+  # 此处映射为 HCCL 期望的变量名，兜底默认值 1800 秒
+  export HCCL_CONNECT_TIMEOUT=${HCCL_CONNECT_TIMEOUT_TRAIN:-1800}
+  export HCCL_EXEC_TIMEOUT=${HCCL_EXEC_TIMEOUT_TRAIN:-1800}
 }
 
 function patch_verl()

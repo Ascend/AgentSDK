@@ -13,13 +13,15 @@ elif [ -f "/usr/local/Ascend/nnae/set_env.sh" ]; then
     echo "已加载 nnae 环境"
 fi
 
-export HCCL_SOCKET_FAMILY=AF_INET
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/python3.11.14/lib/python3.11/site-packages/torch/lib/:/usr/local/python3.11.14/lib/python3.11/site-packages/torch_npu/lib/
+# ==========================================
+# 2. 统一加载 Aura 环境变量（HCCL_SOCKET_FAMILY / LD_LIBRARY_PATH /
+#    TORCH_DEVICE_BACKEND_AUTOLOAD 等已通过 env.conf 集中配置）
+# ==========================================
+base_dir=$(realpath $(dirname ${BASH_SOURCE[0]}))
+scripts_dir=$(realpath $(dirname ${base_dir}))
+source ${scripts_dir}/base/load_env.sh
 
-# ==========================================
-# 2. 允许加载 NPU 后端并屏蔽物理显卡
-# ==========================================
-export TORCH_DEVICE_BACKEND_AUTOLOAD=1
+# 允许加载 NPU 后端并屏蔽物理显卡（仅本脚本专用，不入 env.conf）
 export ASCEND_RT_VISIBLE_DEVICES=""
 
 # ==========================================

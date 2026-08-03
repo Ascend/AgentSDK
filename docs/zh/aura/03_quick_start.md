@@ -76,6 +76,12 @@ clean_old_ckpt=0
 
 ### 修改环境变量配置
 
+一键拉起脚本默认读取 `aura/configs/env/env.conf`。开发者按本机环境修改网卡、NPU 可见卡等配置时，建议在 `aura/configs/env/env.local` 中覆盖默认值；临时调试也可以先在 shell 中 `export`，其优先级最高。`env.local` 每行写一个 `KEY=VALUE`，无需添加 `export`。训练和推理业务参数仍在对应的 YAML 文件中配置；完整的加载优先级和 Python 路径配置请参见【[环境变量配置](02_installation_guide.md#环境变量配置)】。
+
+```shell
+touch aura/configs/env/env.local
+```
+
 #### 配置 DEFAULT_SOCKET_IFNAME
 
 包含正确本地 IP 的网络接口名称。
@@ -99,18 +105,18 @@ clean_old_ckpt=0
             inet 192.168.100.100  netmask 255.255.255.0  broadcast 192.168.100.255
     ```
 
-3. 假设本地 IP 为 192.168.0.1，那么指向本地 IP 对应网络接口的值即为 enp189s0f0 ，即需要执行：
+3. 假设本地 IP 为 192.168.0.1，那么指向本地 IP 对应虚拟网桥的值即为 enp189s0f0 ，即需要写入 `aura/configs/env/env.local`：
 
-    ```shell
-    export DEFAULT_SOCKET_IFNAME=enp189s0f0
+    ```text
+    DEFAULT_SOCKET_IFNAME=enp189s0f0
     ```
 
 #### 配置 ASCEND_RT_VISIBLE_DEVICES
 
 根据自己实际需要设置可用的 NPU 的卡数，例如需要指定 0-15 号 NPU：
 
-```shell
-export ASCEND_RT_VISIBLE_DEVICES=0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
+```text
+ASCEND_RT_VISIBLE_DEVICES=0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
 ```
 
 ### 启动方式
