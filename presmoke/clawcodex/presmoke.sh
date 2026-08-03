@@ -38,6 +38,26 @@ echo "[INFO] Project root  : $PROJECT_ROOT"
 > "$LOG_FILE"
 
 # ------------------------------------------------------------------------------
+# Utility: retry_command
+# ------------------------------------------------------------------------------
+# Retry a command up to max_attempts times, sleeping sleep_seconds between failures.
+retry_command() {
+    local max_attempts="$1" sleep_seconds="$2"
+    shift 2
+    local attempt
+    for attempt in $(seq 1 "$max_attempts"); do
+        if "$@" 2>&1 | tee -a "$LOG_FILE"; then
+            return 0
+        fi
+        if [ "$attempt" -lt "$max_attempts" ]; then
+            echo "[WARN] Command failed (attempt $attempt/$max_attempts): $* — retrying in ${sleep_seconds}s..." | tee -a "$LOG_FILE"
+            sleep "$sleep_seconds"
+        fi
+    done
+    return 1
+}
+
+# ------------------------------------------------------------------------------
 # 2. Run smoke tests
 # ------------------------------------------------------------------------------
 echo "[INFO] Starting smoke tests..." | tee -a "$LOG_FILE"
@@ -51,7 +71,10 @@ python3 --version
 echo "[INFO] Checking pytest..." | tee -a "$LOG_FILE"
 if ! python3 -m pytest --version &> /dev/null; then
     echo "[WARN] pytest not found, attempting to install..." | tee -a "$LOG_FILE"
-    pip3 install pytest --break-system-packages 2>&1 | tee -a "$LOG_FILE"
+    if ! retry_command 3 5 pip3 install pytest --break-system-packages; then
+        echo "[ERROR] Failed to install pytest after 3 attempts. Please install it manually: pip3 install pytest" | tee -a "$LOG_FILE"
+        exit 1
+    fi
     if ! python3 -m pytest --version &> /dev/null; then
         echo "[ERROR] Failed to install pytest. Please install it manually: pip3 install pytest" | tee -a "$LOG_FILE"
         exit 1
