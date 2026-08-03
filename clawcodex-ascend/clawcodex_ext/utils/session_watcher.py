@@ -1,0 +1,224 @@
+#!/usr/bin/env python3
+# coding=utf-8
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+#
+# AgentSDK is licensed under Mulan PSL v2.
+# You can use this software according to the terms and conditions of the Mulan PSL v2.
+# You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
+"""Session directory watcher for multi-terminal state synchronisation.
+
+Watches the session transcript directory (e.g. ``~/.clawcodex/transcripts/``)
+for changes so a new terminal launching ``--resume`` can be notified when
+the background agent writes new messages.
+
+Uses inotify on Linux, FSEvents on macOS, and a 500 ms polling fallback
+when no event-driven API is available.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+import threading
+from pathlib import Path
+
+logger = logging.getLogger(__name__)
+
+_POLL_INTERVAL = 0.5
+
+
+class SessionWatcher:
+    """Watch a directory for file changes with optional event-driven API."""
+
+    def __init__(self, watch_path: str | Path) -> None:
+        self._path = Path(watch_path)
+        self._stopping = False
+        self._changed_path: str | None = None
+        self._change_event = asyncio.Event()
+        self._watcher_lock = threading.Lock()
+        self._impl: _WatcherImpl | None = None
+
+    # ---- public API -------------------------------------------------------
+
+    async def start(self) -> None:
+        """Start watching. Idempotent."""
+        self._stopping = False
+        self._impl = _WatcherImpl(self._path, self._on_change)
+        await self._impl.start()
+
+    async def stop(self) -> None:
+        """Stop watching and release resources."""
+        self._stopping = True
+        self._change_event.set()
+        if self._impl is not None:
+            await self._impl.stop()
+            self._impl = None
+
+    async def wait_for_change(self, timeout: float | None = None) -> str | None:
+        """Block until a file in the directory is modified.
+
+        Returns the path of the changed file, or None on timeout.
+        """
+        self._change_event.clear()
+        try:
+            await asyncio.wait_for(self._change_event.wait(), timeout=timeout)
+            return self._changed_path
+        except asyncio.TimeoutError:
+            return None
+
+    @property
+    def changed_path(self) -> str | None:
+        return getattr(self, "_changed_path", None)
+
+    # ---- internals --------------------------------------------------------
+
+    def _on_change(self, path: str) -> None:
+        self._changed_path = path
+        self._change_event.set()
+
+
+class _WatcherImpl:
+    """Platform-specific watcher backed by inotify / FSEvents / polling."""
+
+    def __init__(
+        self,
+        path: Path,
+        on_change: callable,
+    ) -> None:
+        self._path = path
+        self._on_change = on_change
+        self._stopping = False
+        self._impl: _INotifyImpl | _PollingImpl | None = None
+
+    async def start(self) -> None:
+        self._impl = self._try_create_impl()
+        await self._impl.start()
+
+    async def stop(self) -> None:
+        if self._impl is not None:
+            await self._impl.stop()
+
+    def _try_create_impl(self) -> "_PollingImpl | _INotifyImpl":
+        # Linux inotify first.
+        try:
+            return _INotifyImpl(self._path, self._on_change)
+        except Exception as exc:  # noqa: BLE001 - optional watcher backend
+            logger.debug("Inotify watcher unavailable; falling back", exc_info=exc)
+
+        # macOS FSEvents — try only if on Darwin.
+        import sys
+
+        if sys.platform == "darwin":
+            try:
+                return _FSEventsImpl(self._path, self._on_change)
+            except Exception as exc:  # noqa: BLE001 - optional watcher backend
+                logger.debug("FSEvents watcher unavailable; falling back", exc_info=exc)
+
+        return _PollingImpl(self._path, self._on_change)
+
+
+class _INotifyImpl:
+    """Inotify-based watcher (Linux)."""
+
+    def __init__(self, path: Path, on_change: callable) -> None:
+        self._path = path
+        self._on_change = on_change
+        self._stopping = False
+        self._task: asyncio.Task | None = None
+
+    async def start(self) -> None:
+        import inotify.adapters
+
+        i = inotify.adapters.InotifyTree(str(self._path))
+        self._stopping = False
+
+        async def _loop() -> None:
+            for event in i.event_generator(yield_nonblocking=True):
+                if self._stopping:
+                    break
+                if event is not None:
+                    path = event.path
+                    if path is not None:
+                        self._on_change(str(path))
+
+        self._task = asyncio.create_task(_loop())
+
+    async def stop(self) -> None:
+        self._stopping = True
+        if self._task is not None:
+            self._task.cancel()
+            try:
+                await self._task
+            except asyncio.CancelledError:
+                pass
+
+
+class _FSEventsImpl:
+    """FSEvents-based watcher (macOS)."""
+
+    def __init__(self, path: Path, on_change: callable) -> None:
+        self._path = path
+        self._on_change = on_change
+
+    async def start(self) -> None:
+        import fsevents
+
+        observer = fsevents.Observer()
+        observer.schedule(fsevents.Watch(path=str(self._path)))
+        observer.start()
+
+    async def stop(self) -> None:
+        pass  # fsevents observer stopped by caller via context
+
+
+class _PollingImpl:
+    """500 ms polling fallback."""
+
+    def __init__(self, path: Path, on_change: callable) -> None:
+        self._path = path
+        self._on_change = on_change
+        self._stopping = False
+        self._task: asyncio.Task | None = None
+        self._last_mtimes: dict[str, float] = {}
+
+    async def start(self) -> None:
+        self._stopping = False
+        self._task = asyncio.create_task(self._poll_loop())
+
+    async def stop(self) -> None:
+        self._stopping = True
+        if self._task is not None:
+            self._task.cancel()
+            try:
+                await self._task
+            except asyncio.CancelledError:
+                pass
+
+    async def _poll_loop(self) -> None:
+        while not self._stopping:
+            try:
+                for fp in self._path.iterdir():
+                    mtime = fp.stat().st_mtime
+                    prev = self._last_mtimes.get(str(fp), 0)
+                    if mtime > prev:
+                        self._last_mtimes[str(fp)] = mtime
+                        if prev > 0:  # skip initial scan
+                            self._on_change(str(fp))
+            except Exception as exc:  # noqa: BLE001 - polling is best-effort
+                logger.debug("Unable to poll session directory", exc_info=exc)
+            await asyncio.sleep(_POLL_INTERVAL)
+
+
+__all__ = ["SessionWatcher"]
