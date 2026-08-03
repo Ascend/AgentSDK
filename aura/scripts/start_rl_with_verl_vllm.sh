@@ -8,6 +8,7 @@ root_dir=$(realpath $(dirname $scripts_dir))
 echo "=========set cann env================"
 source /usr/local/Ascend/ascend-toolkit/set_env.sh
 source /usr/local/Ascend/nnal/atb/set_env.sh
+source ${scripts_dir}/base/envs.sh
 source ${scripts_dir}/base/utils.sh
 
 parse_train_conf
@@ -17,8 +18,7 @@ if [[ "${WORK_MODE}" == "hybrid" ]]; then
   export MASTER_TRAIN_INDEX=0
 fi
 
-export RL_TRAIN_BACKEND="verl"
-export ACLNN_ALLOW_RUNTIME_CACHE=1
+# RL_TRAIN_BACKEND 与 ACLNN_ALLOW_RUNTIME_CACHE 由 load_env.sh 从 env.conf 统一加载
 
 # 配置使用的是VC_TASK_HOSTS
 # 云道配置使用的是VC_WORKER_HOSTS

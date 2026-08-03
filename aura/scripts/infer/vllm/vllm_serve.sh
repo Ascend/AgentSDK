@@ -52,7 +52,14 @@ else
 fi
 
 ########################################
-# 公共环境变量 (不允许外部覆盖，使用硬编码值)
+# 公共环境变量
+# 说明: 大部分变量(VLLM_USE_V1 / HCCL_OP_EXPANSION_MODE / VLLM_ASCEND_ENABLE_TOPK_OPTIMIZE
+#       / TASK_QUEUE_ENABLE / ASCEND_GLOBAL_LOG_LEVEL / OMP_PROC_BIND /
+#       ASCEND_LAUNCH_BLOCKING / VLLM_NIXL_ABORT_REQUEST_TIMEOUT / MC_TRANSFER_TIMEOUT /
+#       HCCL_INTRA_ROCE_ENABLE / KV_BACKEND / DP_RPC_PORT /
+#       VLLM_ASCEND_LLMDD_RPC_PORT / DISAGGREGATED_PREFILL_RANK_TABLE_PATH /
+#       USE_VLLM_OPT 等) 已由上游脚本的 load_env.sh 从 env.conf 统一加载并 export。
+#       此处仅保留与本次启动参数相关的动态映射，并保留兜底默认值。
 ########################################
 
 # 公共网络/HCCL/NPU 配置
@@ -60,30 +67,31 @@ export HCCL_IF_IP="$HOST"
 export GLOO_SOCKET_IFNAME="${DEFAULT_SOCKET_IFNAME}"
 export TP_SOCKET_IFNAME="${DEFAULT_SOCKET_IFNAME}"
 export HCCL_SOCKET_IFNAME="${DEFAULT_SOCKET_IFNAME}"
-export HCCL_BUFFSIZE="256"
+# 推理侧使用 HCCL_BUFFSIZE_INFER 作为 HCCL_BUFFSIZE（兜底默认值 256）
+export HCCL_BUFFSIZE=${HCCL_BUFFSIZE_INFER:-256}
 
-export HCCL_CONNECT_TIMEOUT=1200
-export HCCL_EXEC_TIMEOUT=1200
+# 推理侧超时配置（兜底默认值 1200 秒）
+export HCCL_CONNECT_TIMEOUT=${HCCL_CONNECT_TIMEOUT_INFER:-1200}
+export HCCL_EXEC_TIMEOUT=${HCCL_EXEC_TIMEOUT_INFER:-1200}
 
-# VLLM/NPU 内部标志/优化配置
-export USE_VLLM_OPT=${USE_VLLM_OPT:-0}
-
-export VLLM_USE_V1="1"
-export HCCL_OP_EXPANSION_MODE="AIV"
+# VLLM/NPU 内部标志/优化配置（已由 env.conf 加载，此处仅兜底）
+export USE_VLLM_OPT=${USE_VLLM_OPT:-"false"}
+export VLLM_USE_V1=${VLLM_USE_V1:-"1"}
+export HCCL_OP_EXPANSION_MODE=${HCCL_OP_EXPANSION_MODE:-"AIV"}
 # 追加 jemalloc 预加载
 #if [[ ":$LD_PRELOAD:" != *":/usr/lib/aarch64-linux-gnu/libjemalloc.so.2:"* ]]; then
 #    export LD_PRELOAD=/usr/lib/aarch64-linux-gnu/libjemalloc.so.2:$LD_PRELOAD
 #fi
 
-export VLLM_ASCEND_ENABLE_TOPK_OPTIMIZE="1"
-export TASK_QUEUE_ENABLE="1"
+export VLLM_ASCEND_ENABLE_TOPK_OPTIMIZE=${VLLM_ASCEND_ENABLE_TOPK_OPTIMIZE:-"1"}
+export TASK_QUEUE_ENABLE=${TASK_QUEUE_ENABLE:-"1"}
 #export PYTORCH_NPU_ALLOC_CONF="expandable_segments:True"
-export ASCEND_GLOBAL_LOG_LEVEL="3"
-export OMP_PROC_BIND="false"
-export ASCEND_LAUNCH_BLOCKING="0"
-export VLLM_NIXL_ABORT_REQUEST_TIMEOUT="600"
-export MC_TRANSFER_TIMEOUT=300
-export HCCL_INTRA_ROCE_ENABLE=1
+export ASCEND_GLOBAL_LOG_LEVEL=${ASCEND_GLOBAL_LOG_LEVEL:-"3"}
+export OMP_PROC_BIND=${OMP_PROC_BIND:-"false"}
+export ASCEND_LAUNCH_BLOCKING=${ASCEND_LAUNCH_BLOCKING:-"0"}
+export VLLM_NIXL_ABORT_REQUEST_TIMEOUT=${VLLM_NIXL_ABORT_REQUEST_TIMEOUT:-"600"}
+export MC_TRANSFER_TIMEOUT=${MC_TRANSFER_TIMEOUT:-300}
+export HCCL_INTRA_ROCE_ENABLE=${HCCL_INTRA_ROCE_ENABLE:-1}
 
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 export PYTHONPATH=${SCRIPT_DIR}/../../:$PYTHONPATH
@@ -274,7 +282,7 @@ function start_vllm_serve_separate()
 ########################################
 function start_vllm_serve_hybrid()
 {
-  export HCCL_BUFFSIZE=256
+  export HCCL_BUFFSIZE=${HCCL_BUFFSIZE_INFER:-256}
   vllm serve "$MODEL_PATH" \
           --served-model-name "$SERVED_MODEL_NAME" \
           --host "$HOST" \
@@ -303,7 +311,7 @@ function start_vllm_serve_hybrid()
 
 function start_vllm_serve_hybrid_opt()
 {
-  export HCCL_BUFFSIZE=512
+  export HCCL_BUFFSIZE=${HCCL_BUFFSIZE_INFER_OPT:-512}
   ENABLE_CPU_BINDING_ARGS='"enable_cpu_binding":true'
   CUDAGRAPH_FULL_DECODE_FULL_ARGS='"cudagraph_mode":"FULL_DECODE_ONLY"'
   ASYNC_SCHEDULING_ARGS="--async-scheduling"

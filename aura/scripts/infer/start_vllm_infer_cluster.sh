@@ -29,11 +29,8 @@ export PYTHONPATH=${WORKSPACE}:${PYTHONPATH}
 
 export VC_TASK_INDEX=${VC_TASK_INDEX:-$1}
 
-# 将超时从 60s 延长到 10 分钟
-export VLLM_RPC_TIMEOUT=600000
-export VLLM_ENGINE_ITERATION_TIMEOUT_S=600
-# 针对 v1 引擎的共享内存同步超时
-export VLLM_SHM_BROADCAST_TIMEOUT=600
+# VLLM_RPC_TIMEOUT / VLLM_ENGINE_ITERATION_TIMEOUT_S / VLLM_SHM_BROADCAST_TIMEOUT
+# 已由 load_env.sh 从 env.conf 统一加载
 
 function start_infer_instances()
 {

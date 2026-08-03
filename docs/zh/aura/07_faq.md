@@ -40,11 +40,13 @@ eth0: error fetching interface information: Device not found
             inet 192.168.100.100  netmask 255.255.255.0  broadcast 192.168.100.255
     ```
 
-3. 假设本地IP为 192.168.0.1，那么指向本地IP对应网络接口的值即为 enp189s0f0，即需要执行：
+3. 假设本地IP为 192.168.0.1，那么指向本地IP对应虚拟网桥的值即为 enp189s0f0。建议将配置写入 `aura/configs/env/env.local`，使后续启动持续生效：
 
     ```shell
-    export DEFAULT_SOCKET_IFNAME=enp189s0f0
+    echo 'DEFAULT_SOCKET_IFNAME=enp189s0f0' >> aura/configs/env/env.local
     ```
+
+    如仅需临时调试，也可以在当前 shell 中执行 `export DEFAULT_SOCKET_IFNAME=enp189s0f0`，外部环境变量的优先级高于 `env.local` 和 `env.conf`。
 
 ## 提示换行符不识别<a name="faq_002"></a>
 
