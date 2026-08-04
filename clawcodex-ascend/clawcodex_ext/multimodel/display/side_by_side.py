@@ -1,0 +1,45 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+# Copyright (c) 2026 Clawd Codex Team
+# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+#
+# AgentSDK is licensed under Mulan PSL v2.
+# You can use this software according to the terms and conditions of the Mulan PSL v2.
+# You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
+"""Wide-terminal layout decision and synchronized-scroll state."""
+
+from __future__ import annotations
+
+
+class SideBySideDisplay:
+    MIN_WIDTH = 180
+
+    def __init__(self, terminal_width: int = 0) -> None:
+        self.terminal_width = terminal_width
+        self.enabled = False
+        self.scroll_offset = 0
+
+    @property
+    def available(self) -> bool:
+        return self.terminal_width >= self.MIN_WIDTH
+
+    def toggle(self) -> bool:
+        if self.available:
+            self.enabled = not self.enabled
+        return self.enabled
+
+    def scroll(self, delta: int) -> int:
+        self.scroll_offset = max(0, self.scroll_offset + delta)
+        return self.scroll_offset
