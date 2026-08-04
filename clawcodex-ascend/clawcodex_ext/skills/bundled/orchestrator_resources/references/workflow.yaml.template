@@ -1,0 +1,160 @@
+# ── ClawCodex Declarative Workflow ──────────────────────────────────
+# 声明式工作流定义文件，由 DeclarativeWorkflowEngine 解释执行。
+#
+# 生成方式:
+#   clawcodex orchestrator workflow init --workflow-yaml
+#
+# 阶段类型:
+#   agent    - LLM agent 执行阶段，执行 prompt 中的任务
+#   gate     - 质量门禁，通过自定义命令或验证器检查前一阶段输出
+#   decision - 条件分支，根据结果跳转到不同阶段
+#
+# 提示:
+#   - Issue 上下文（标题、描述）会在每个 agent 阶段自动注入
+#   - 前序阶段输出会拼接到当前阶段 prompt 中
+#   - Git 约束（允许 commit，禁止 push/switch/checkout）自动注入
+# ────────────────────────────────────────────────────────────────────
+
+name: {{WORKFLOW_NAME}}
+version: "1.0"
+description: |
+  标准 Issue 修复工作流：
+  1. 分析需求，定位相关代码，输出分析文档
+  2. 实施代码修改并提交
+  3. 自动运行 lint + 测试门禁
+  4. 验证修改正确性并修复遗留问题
+  5. 生成变更摘要
+
+stages:
+  # Stage 1: 分析需求与代码
+  - id: 1
+    name: 分析需求与代码
+    kind: agent
+    phase: analyze
+    prompt: |
+      [语言要求] 所有分析和输出请使用中文。
+
+      根据 Issue Context 中的需求描述，分析项目代码，找到需要修改的文件和代码位置。
+
+      请执行以下步骤：
+      1. 阅读项目结构和相关源代码文件
+      2. 理解现有实现逻辑和需要修改的部分
+      3. 确定具体的修改方案（涉及哪些文件、如何修改）
+
+      将详细分析结果写入 analysis.md 文件（使用 Write 工具创建），
+      内容包括：
+      - 涉及的文件列表及各自修改方案
+      - 修改的原因和预期效果
+        - 潜在的副作用或风险
+
+      注意：工作区中可能残留前序运行的临时文件（如 stage-*/debug/*.json、*.log），
+      不要将这些文件纳入 analysis.md 的记录范围；分析完成后删除它们。
+    depends_on: []
+    on_error: fail
+    max_retries: 5
+
+  # Stage 2: 实施代码修改
+  - id: 2
+    name: 实施代码修改
+    kind: agent
+    phase: implement
+    prompt: |
+      [语言要求] 所有分析和输出请使用中文。
+      [Git 约束] 提交时使用 --no-verify 跳过 pre-commit hooks。
+      [防死循环约束] 不要过度探索代码。阅读关键文件后如果已有基本理解
+                     就可以开始修改——不必等到完全吃透所有细节。
+                     Stage 4 还有验证补救机会。如果反复阅读仍无法定位，
+                     直接基于已有理解改一版。
+
+      根据 analysis.md 中的分析结果，直接修改源代码文件来解决问题。
+
+      要求：
+      1. 修改所有 analysis.md 中列出的文件，不要遗漏
+      2. 确保代码风格与项目现有风格一致
+      3. 不引入新的问题或破坏现有功能
+      4. 直接使用 Write / Edit 工具修改文件，不要只输出计划
+
+      ## 提交要求
+
+      在提交之前，务必对照 analysis.md 确认所有列出的文件都已修改完毕。
+      如有文件遗漏，继续修改直到全部覆盖。
+      如果实现方案与 Issue 描述有差异（例如跳过某个文件或采用不同架构），
+      必须在 commit message 中说明理由。
+      全部完成后：
+      1. 删除临时文件（stage-*/debug/*.json、*.log 等）
+      2. git status 确认只有源代码变更
+      3. git add -A && git commit --no-verify -m "feat: ..."
+    depends_on: [1]
+    on_error: fail
+    max_retries: 5
+
+  # Stage 3: Lint & Test Gate
+  - id: 3
+    name: 代码质量门禁
+    kind: gate
+    gate_mode: auto
+    validators:
+      - type: custom
+        command: ruff check .
+        expected_exit: 0
+      - type: custom
+        command: pytest --tb=short -x
+        expected_exit: 0
+        timeout: 300
+    depends_on: [2]
+    on_error: skip
+    max_retries: 1
+
+  # Stage 4: 验证修改
+  - id: 4
+    name: 验证修改
+    kind: agent
+    phase: verify
+    prompt: |
+      [语言要求] 所有分析和输出请使用中文。
+      [防死循环约束] 如果经过反复检查没有发现新的问题，直接提交。
+                     微型风格调整不必反复修改。
+
+      ## 第一步：逐文件对照 analysis.md
+
+      先 Read analysis.md，提取其中列出的所有需修改文件列表。
+      然后用 git diff --stat 查看实际修改了哪些文件。
+      逐文件对比：analysis.md 列出的每个文件，都必须出现在 git diff 中。
+      如有遗漏，继续修改直到 analysis.md 中的所有文件都已覆盖。
+
+      ## 第二步：验证修改正确性
+
+      1. 逐条对照 Issue 描述的需求点，确认每项都已完整实现
+      2. 检查是否有遗漏的边界情况
+      3. 检查是否引入了新的错误或破坏了现有逻辑
+      4. 如有问题，直接使用 Write / Edit 工具修复
+      5. 如果实现方案与 Issue 描述不同，在最终提交中说明原因
+
+      修复后删除临时文件，确认只有源代码变更后重新 git add + git commit。
+    depends_on: [3]
+    on_error: fail
+    max_retries: 5
+
+  # Stage 5: 生成变更摘要
+  - id: 5
+    name: 生成变更摘要
+    kind: agent
+    phase: summary
+    prompt: |
+      [语言要求] 所有分析和输出请使用中文。
+
+      总结本次所有代码修改，将变更摘要写入 changes_summary.md 文件。
+
+      格式要求：
+      1. 修改的文件列表
+      2. 每个文件的主要变更内容和行数
+      3. 修改原因（对应 Issue 需求）
+
+      此文件内容将作为 PR 描述自动展示。
+    depends_on: [4]
+    on_error: skip
+
+# ── 运行时配置 ──────────────────────────────────────────────────────
+
+config:
+  workspace: "."

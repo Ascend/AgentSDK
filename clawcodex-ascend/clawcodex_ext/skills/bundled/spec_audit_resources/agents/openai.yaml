@@ -1,0 +1,4 @@
+interface:
+  display_name: "Spec Audit"
+  short_description: "Find evidence-backed specification gaps"
+  default_prompt: "Use $spec-audit to audit this implementation against the explicitly supplied specifications and publish a traceable Markdown report without asking follow-up questions."
