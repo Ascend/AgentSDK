@@ -100,6 +100,8 @@ disable = [
 
   # 重复代码（跨文件适配器实现同一接口属于正常设计）
   "duplicate-code",
+  # 循环导入（clawcodex_ext 各子模块懒加载互相引用，属设计惯例）
+  "cyclic-import",
 ]
 
 ignore-paths = ["aura", "presmoke", "pre-commit", "clawcodex-ascend/tests"]
