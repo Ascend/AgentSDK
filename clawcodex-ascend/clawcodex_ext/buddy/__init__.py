@@ -1,0 +1,48 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Copyright (c) 2026 Clawd Codex Team
+#
+# AgentSDK is licensed under Mulan PSL v2.
+# You can use this software according to the terms and conditions of the Mulan PSL v2.
+# You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
+"""Canonical public surface for :mod:`clawcodex_ext.buddy`."""
+
+from __future__ import annotations
+
+import importlib
+from typing import Any
+
+_SYMBOLS_BY_MODULE: dict[str, tuple[str, ...]] = {
+    "clawcodex_ext.buddy.feature": ("is_buddy_enabled",),
+    "clawcodex_ext.buddy.prompt": (
+        "build_companion_intro_attachment",
+        "companion_intro_text",
+        "format_companion_intro_attachments",
+    ),
+}
+_SYMBOL_MODULES = {symbol: module_name for module_name, symbols in _SYMBOLS_BY_MODULE.items() for symbol in symbols}
+
+__all__ = list(_SYMBOL_MODULES)
+
+
+def __getattr__(name: str) -> Any:
+    try:
+        module_name = _SYMBOL_MODULES[name]
+    except KeyError as exc:
+        raise AttributeError(name) from exc
+    value = getattr(importlib.import_module(module_name), name)
+    globals()[name] = value
+    return value
