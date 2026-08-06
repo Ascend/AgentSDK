@@ -34,8 +34,15 @@ cd /home/work/model_env/qwen3_moe
 source bin/activate
 ```
 
+如需运行其他dense模型，可以通过下面的方式退出该模型的虚拟环境：
+
+```shell
+deactivate
+```
+
 > [!NOTE]
 >
+>- 在运行moe模型的虚拟环境下要基于其他dense模型启动agent强化学习训练，需要执行deactivate命令退出虚拟环境后再执行一键拉起脚本
 >- 共卡模式使用verl后端默认使用parquet数据集
 >- 分离模式在verl后端时暂时仅支持megatron的bin格式数据集
 >- 分离多机器模式下请将代码、权重均保存在共享盘内，保证数据可以同时被所有机器获取
