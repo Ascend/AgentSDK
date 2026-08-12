@@ -34,17 +34,32 @@ cd /home/work/model_env/qwen3_moe
 source bin/activate
 ```
 
+并修改[env.conf](../../../../aura/configs/env/env.conf)中vllm的版本：
+
+```text
+# VLLM版本  【会被 infer yaml(vllm_version) 覆盖】
+VLLM_VERSION=0.11.0
+```
+
 如需运行其他dense模型，可以通过下面的方式退出该模型的虚拟环境：
 
 ```shell
 deactivate
 ```
 
+并修改vllm版本为原本值：
+
+```text
+# VLLM版本  【会被 infer yaml(vllm_version) 覆盖】
+VLLM_VERSION=0.16.0
+```
+
 > [!NOTE]
 >
 >- 在运行moe模型的虚拟环境下要基于其他dense模型启动agent强化学习训练，需要执行deactivate命令退出虚拟环境后再执行一键拉起脚本
+>- 在运行moe模型的环境中支持的vllm版本为0.11.0，由于在共卡模式下不会读取infer yaml中的vllm版本，所以需要在env.conf中修改vllm版本为0.11.0，在运行其他dense模型时也需要将vllm版本重新修改为0.16.0
 >- 共卡模式使用verl后端默认使用parquet数据集
 >- 分离模式在verl后端时暂时仅支持megatron的bin格式数据集
 >- 分离多机器模式下请将代码、权重均保存在共享盘内，保证数据可以同时被所有机器获取
 
-另需按照[快速开始指南](../03_quick_start.md)根据模式修改[base.conf](../../../../aura/configs/base.conf)和[hosts.conf](../../../../aura/configs/hosts.conf)，随后根据相应的命令一键拉起实验。
+另需按照[快速开始指南](../03_quick_start.md)根据模式修改[base.conf](../../../../aura/configs/base.conf)和[hosts.conf](../../../../aura/configs/hosts.conf)，并在 `aura/configs/env/env.conf` 路径下设置 `env.local`，随后根据相应的命令一键拉起实验。
