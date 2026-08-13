@@ -102,6 +102,11 @@ disable = [
   "duplicate-code",
   # 循环导入（clawcodex_ext 各子模块懒加载互相引用，属设计惯例）
   "cyclic-import",
+
+  # extensions/ 目录无 __init__.py，按 namespace 包加载，
+  # pylint 无法解析其中的 relative import（运行时正常）
+  "relative-beyond-top-level",
+  "deprecated-module",
 ]
 
 ignore-paths = ["aura", "presmoke", "pre-commit", "clawcodex-ascend/tests"]
