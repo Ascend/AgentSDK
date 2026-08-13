@@ -13,8 +13,8 @@
 
 <span style="font-size:14px;">
 
-🔹 **[2026.7.8]**：🚀 **Aura**新增支持 Qwen3-14B模型，并提供[快速拉起指南](./docs/zh/aura/models/qwen3-14b_quick_start/qwen3-14b-hybrid.md)<br>
-🔹 **[2026.06.12]**：🚀 **Aura**新增支持 Qwen3-4B, Qwen3-8B, Qwen3-32B, Qwen3-30B-A3B 模型，并提供[快速拉起指南](./docs/zh/aura/models)<br>
+🔹 **[2026.07.08]**：🚀 **Aura**新增支持 Qwen3-14B模型，并提供[快速入门指南](./docs/zh/aura/models/qwen3-14b_quick_start/qwen3-14b-hybrid.md)<br>
+🔹 **[2026.06.12]**：🚀 **Aura**新增支持 Qwen3-4B, Qwen3-8B, Qwen3-32B, Qwen3-30B-A3B 模型，并提供[快速入门指南](./docs/zh/aura/models)<br>
 🔹 **[2026.04.25]**：🚀 发布 Agent SDK 全新训推调框架 **Aura** ，支持训推共卡与训推分离模式<br>
 
 </span>
@@ -23,7 +23,7 @@
 
 Agent SDK是昇腾亲和的Agent生态仓库，旨在为昇腾NPU基础设施上的Agent应用提供开箱即用的生态工具与框架支持，帮助开发者快速构建和部署AI智能体。
 
-Agent SDK目前涵盖Agentic RL训推调框架、Agent应用开发等多个方向，后续将持续扩展更多Agent生态组件。
+Agent SDK目前涵盖Agentic RL训推调框架、Agent应用开发等多个方向，后续将持续扩展更多Agent生态组件。其中 **Aura** 聚焦 Agentic RL 训推调一体化能力，**OpenClaw** 面向多领域 Agent 应用开发与落地。
 
 ## ⚙️ 功能介绍
 
@@ -32,19 +32,19 @@ Agent SDK目前涵盖Agentic RL训推调框架、Agent应用开发等多个方�
 | 功能 | 描述 |
 | --- | --- |
 | [Aura](./aura/README.md) | Agentic RL 训推调一体化框架，支持训推共卡与训推分离模式，对接多种训练、推理、Agent 引擎 |
-| [Openclaw](./openclaw/README.md) | 基于 OpenClaw 构建的多领域 Agent 框架与服务，集成代码生成、研究分析等垂直领域能力 |
+| [OpenClaw](./openclaw/README.md) | 基于 OpenClaw 构建的多领域 Agent 框架与服务，集成代码生成、研究分析等垂直领域能力 |
 
 ## 🗺️ Roadmap
 
-[Roadmap （2026Q3）](https://gitcode.com/Ascend/AgentSDK/issues/85)
+[Roadmap (2026Q3)](https://gitcode.com/Ascend/AgentSDK/issues/85)
 
 ## 🔀 版本维护策略
 
 | 版本    | 维护策略 | 当前状态 | 发布日期 | 后续状态 | EOL日期 |
 |-------|----------|----------|----------|----------|---------|
 | master | 长期支持 | 开发 | 在研分支，不发布 | 持续开发 | - |
-| v26.0.0.beta.1 | 常规分支 | EOL | 2026-04-25 | 预计2026-07-25起进入无维护状态 | 2026-07-25 |
 | v26.1.0 | 常规分支 | 维护 | 2026-07-10 | 预计2027-01-10起进入无维护状态 | 2027-01-10 |
+| v26.0.0.beta.1 | 常规分支 | EOL | 2026-04-25 | 预计2026-07-25起进入无维护状态 | 2026-07-25 |
 
 ## 🛠️ 贡献指南
 
@@ -75,8 +75,8 @@ Agent SDK目前涵盖Agentic RL训推调框架、Agent应用开发等多个方�
 
 Agent SDK 由华为公司的以下部门联合贡献：
 
-🔹 昇腾应用使能开发部
-🔹 2012 系统工程实验室
-🔹 华为全球技术服务部-AI 计算实验室
+🔹 昇腾应用使能开发部<br>
+🔹 2012 系统工程实验室<br>
+🔹 华为全球技术服务部-AI 计算实验室<br>
 
 感谢来自社区的每一个 PR，欢迎贡献 Agent SDK!
