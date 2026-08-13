@@ -1,28 +1,34 @@
-# 为 AgentSDK 贡献
+# 为Ascend Agent SDK 贡献
 
-感谢您考虑为 AgentSDK 做出贡献！我们欢迎任何形式的贡献，包括缺陷修复、功能增强、测试补充、文档改进以及使用反馈。无论您是第一次参与开源项目，还是已经具备丰富经验，您的贡献都非常宝贵。
+感谢您考虑为Ascend Agent SDK 做出贡献！我们欢迎任何形式的贡献，包括缺陷修复、功能增强、测试补充、文档改进以及使用反馈。无论您是第一次参与开源项目，还是已经具备丰富经验，您的贡献都非常宝贵。
 
-在开始之前，请先阅读以下文档：
+您可以通过以下方式参与 Agent SDK 社区建设：
 
-* [AgentSDK 项目说明](aura/README.md)
-
-## 签署贡献者许可协议（CLA）
-
-贡献前，请先签署[开放项目贡献者许可协议（CLA）](https://clasign.osinfra.cn/sign/gitee_ascend-1611222220829317930)。完成签署后才能提交 Pull Request，未签署的 PR 将无法合入。
-
-## 贡献方式
-
-您可以通过以下方式参与 AgentSDK 社区建设：
-
+- 通过[Agent SDK新手任务池](https://gitcode.com/Ascend/AgentSDK/issues/59)参与贡献
 - 通过 [Issues](https://gitcode.com/Ascend/AgentSDK/issues) 反馈缺陷、提出建议或讨论需求
 - 提交代码，修复问题或实现新功能
 - 为已有功能补充测试用例，提升稳定性和可维护性
 - 改进用户文档、接口文档和示例内容
 - 参与 Pull Request 评审，帮助其他贡献者完善实现
+- 传播项目：在博客文章、社交媒体上分享Agent SDK，或给仓库点个⭐。
 
-## 贡献流程
+参与贡献前，请先签署[开放项目贡献者许可协议（CLA）](https://clasign.osinfra.cn/sign/gitee_ascend-1611222220829317930)，完成签署后才能提交 Pull Request，未签署的 PR 将无法合入。在开始之前，请先阅读 [Agent SDK 项目说明](./README.md)。
 
-### 开发与测试
+## 贡献方式
+
+### Pull Request
+
+提交 PR 前，请先了解[PR最佳实践](#pr最佳实践)，掌握从 Fork 到提交、从代码审查到合并的完整 PR 流程，包括 PR 评审要求与合并规范。
+
+### Issue
+
+通过 [Issues](https://gitcode.com/Ascend/AgentSDK/issues) 反馈缺陷、提出建议或讨论需求，我们会尽快回复。
+
+### SIG会议
+
+Agent SDK 社区通过 SIG 例会进行技术交流与议题评审，可提前在[会议日历](https://meeting.ascend.osinfra.cn/?sig=sig-AgentSDK)中查看例会安排，SIG 信息与成员列表参见 [SIG 成员列表](https://meeting.ascend.osinfra.cn/?sig=sig-AgentSDK)。
+
+## PR最佳实践
 
 1. **Fork 仓库到个人账号**
 
@@ -45,372 +51,52 @@
 
 4. **进行代码开发**
 
-   开发过程中请遵循本文档中的[代码规范](#代码规范)，并尽量保证改动聚焦、可审查、可回滚。
+   尽量保证改动聚焦、可审查、可回滚，并补充相应测试。
 
 5. **执行本地测试**
 
-   提交前请至少完成与改动相关的本地验证，具体请参见[代码测试](#代码测试)。
+   提交前请至少完成与改动相关的本地验证，确保本地相关测试通过。
 
-6. **更新相关文档**
+6. **执行 pre-commit 检查**
 
-   如果您的修改影响用户使用方式、配置方法、接口行为或输出结果，请同步更新文档，具体请参见[文档开发](#文档开发)。
+   本地提交代码前请先执行 pre-commit 检查，确保代码风格与安全检查通过。
 
 7. **提交 Pull Request**
 
-   完成开发后，请参见[Pull Request](#pullrequest)章节提交代码并参与评审流程。
-
-# 代码规范
-
-## Python 代码规范
-
-- 遵循 PEP 8 编码规范
-- 使用 4 个空格进行缩进
-- 类名使用大驼峰命名法，例如 `DataManager`
-- 函数、变量和模块使用小写加下划线命名法，例如 `parse_config`
-- 新增或修改公共接口时，优先补充必要的类型注解
-- 保持函数职责单一，避免在同一个提交中混入无关重构
-- 尽量复用现有工具函数、日志能力和目录结构，保持风格一致
-
-## Shell 脚本规范
-
-- 遵循仓库现有脚本风格，保持结构简洁、可重复执行
-- 对路径、变量和命令参数进行必要引用，降低环境差异带来的风险
-- 新增脚本时应明确输入、输出和失败行为，避免隐式副作用
-
-# 代码测试
-
-## 运行测试
-
-在提交代码前，请确保本地测试通过。若您需要在源码仓中启动 AgentSDK 或运行测试，建议先完成以下准备：
-
-- 按照 [docs/zh/installation_guide.md](docs/zh/aura/02_installation_guide.md) 完成 Python 依赖、CANN 依赖和第三方仓库依赖安装，并设置对应环境变量
-- 在仓库根目录执行 `pip3 install -e .` 安装本地开发版本。安装完成后会注册命令行入口 `agentic_rl`
-- 额外安装测试工具：`pytest`、`pytest-html`、`pytest-cov`
-- `script/aura_ut.sh`、`script/openclaw_ut.sh` 依赖 `bash` 和 `python3`，建议在 Linux 开发环境中执行
-
-源码启动命令示例：
-
-```bash
-agentic_rl --config-path /absolute/path/to/config.yaml
-```
-
-单元测试按模块拆分为两个独立脚本，CI 流水线可按需调用：
-
-```bash
-# aura 单元测试
-bash script/aura_ut.sh
-
-# openclaw 单元测试
-bash script/openclaw_ut.sh
-```
-
-预冒烟测试同样按模块拆分：
-
-```bash
-# aura 预冒烟
-bash run_presmoke_aura.sh
-
-# openclaw 预冒烟
-bash run_presmoke_openclaw.sh
-```
-
-说明：
-
-- 各模块的 UT 脚本会先安装该模块运行测试所需的 Python 依赖，再执行对应模块 `tests/` 目录下的 Python 单元测试。具体依赖请以仓库当前的依赖声明文件和测试脚本中的安装命令为准，例如 `setup.py` 与 `script/aura_ut.sh`、`script/openclaw_ut.sh`
-- `aura_ut.sh` 会补充第三方仓库到 `PYTHONPATH`。如果您的第三方仓库安装路径与脚本默认值不一致，请先调整 `script/aura_ut.sh` 中的路径配置或手动设置 `PYTHONPATH`
-- aura 测试过程中会生成覆盖率及测试报告，输出目录为 `script/coverage/`。其中 HTML 覆盖率报告位于 `script/coverage/html/index.html`，JUnit 报告位于 `script/coverage/final.xml`，HTML 测试报告位于 `script/coverage/final.html`
-- openclaw 测试报告输出目录为 `script/coverage/openclaw/`，HTML 覆盖率报告位于 `script/coverage/openclaw/html/index.html`，JUnit 报告位于 `script/coverage/openclaw/final.xml`，HTML 测试报告位于 `script/coverage/openclaw/final.html`
-- 如仅需验证局部改动，也可以使用 `python3 -m pytest -vs tests/<path>` 对指定测试进行快速验证
-
-## 添加测试
-
-- 新功能、缺陷修复和行为变更应尽量补充对应测试
-- 测试代码统一放在 `tests/` 目录下，并尽量与源码目录结构保持对应关系
-- 测试文件命名建议使用 `test_*.py`，测试函数命名建议使用 `test_*`
-- 测试应覆盖主要逻辑分支、边界条件和异常路径
-- 对外部服务、模型、分布式环境等依赖，优先通过 mock、桩对象或最小替身降低测试成本
-- 提交 PR 时，请确保满足项目既有覆盖率要求：分支覆盖率不低于 60%，行覆盖率不低于 80%
-
-# 文档开发
-
-## 文档路径
-
-如果您的变更影响用户使用方式、接口行为或部署配置，请同步更新相关文档：
-
-- 项目总览与快速入口：[README.md](aura/README.md)
-- 中文文档：[docs/zh/](docs/zh)
-- Python API 文档：[docs/zh/api_python.md](docs/zh/aura/05_api_python.md)
-
-## 文档规范
-
-- 使用准确、简洁、可执行的中文描述
-- 命令示例应尽量完整，避免缺失前置条件
-- 涉及接口、参数或配置变更时，建议补充输入输出说明
-- 涉及用户流程变化时，可补充截图、流程图或示例结果
-- 提交前请检查链接、文件路径和示例命令是否有效
-
-# 代码提交规范
-
-## Commit 消息格式
-
-所有提交必须遵循以下格式：
-
-```text
-<type>: <subject>
-
-<body>
-```
-
-## Type（类型）
-
-- `feat`: 新功能
-- `fix`: Bug 修复
-- `docs`: 文档更新
-- `style`: 代码格式调整，不影响功能逻辑
-- `refactor`: 重构，既不是 Bug 修复也不是新功能
-- `perf`: 性能优化
-- `test`: 测试相关
-- `chore`: 构建、工具或依赖变更
-- `ci`: CI/CD 相关变更
-
-## Subject（主题）
-
-- 使用祈使句，首字母小写
-- 不超过 50 个字符
-- 不以句号结尾
-- 描述“做了什么”，而不是“做了什么改动”
-
-## Body（正文，可选）
-
-- 详细说明变更原因、方案和影响范围
-- 说明与之前行为的差异
-- 可以多行编写，建议每行不超过 72 个字符
-
-# 分支管理
-
-## 分支命名规则
-
-| 分支类型       | 命名格式            | 示例                                | 说明                                        |
-|------------|-----------------|-----------------------------------|-------------------------------------------|
-| release 分支 | `branch_v<版本号>` | `branch_v26.0.0`、`branch_v26.1.0` | 正式版本发布分支                                  |
-| 预研分支       | `tech_v<版本号>`   | `tech_v26.0.0`、`tech_v26.1.0`     | OBP 时间内、无计划合入主干的特性研发分支                    |
-| fork社区分支   | `<社区版本>-<内部版本>` | `v2.7.1-26.0.0`、`v2.10.0-26.1.0`  | 基于社区上游版本 fork 并适配内部版本的分支，命名需同时体现社区版本与内部版本 |
-
-## Release Tag 命名规则
-
-| Tag 类型 | 命名格式 | 示例 | 说明 |
-|---------|---------|------|------|
-| 正式版本 | `v<主版本>.<次版本>.<修订号>` | `v26.0.1`、`v26.0.2`、`v26.0.3` | 正式发布的版本 |
-| 补丁版本 | `v<主版本>.<次版本>.<修订号>` | `v26.0.1`、`v26.0.2`、`v26.0.3` | 基于 release 分支的补丁修复版本，命名与正式版本一致 |
-| POC/beta 版本 | `v<主版本>.<次版本>.<修订号>-beta.<序号>` | `v26.0.0-beta.0`、`v26.0.0-beta.1` | 预发布测试版本 |
-| 预研版本 | `tech_v<主版本>.<次版本>.<修订号>-beta.<序号>` | `tech_v26.0.0-beta.0`、`tech_v26.0.0-beta.1` | 预研分支的测试版本 |
-
-## 分支维护策略
-
-版本分支遵循定义的维护阶段：
-
-| 状态 | 时间 | 说明 |
-|------|------|------|
-| 计划 | 1~3个月 | 特性规划 |
-| 开发 | 3个月 | 新特性开发和问题修复，定期发布 |
-| 维护 | 3~12个月 | 常规分支维护3个月，长期支持分支维护12个月。仅修复重大BUG，不加入新特性 |
-| 生命周期终止（EOL） | N/A | 分支不再接受任何修改 |
-
-## 版本维护策略
-
-| 版本    | 维护策略 | 当前状态 | 发布日期 | 后续状态 | EOL日期 |
-|-------|----------|----------|----------|----------|---------|
-| master | 长期支持 | 开发 | 在研分支，不发布 | 持续开发 | - |
-| 26.0.0.beta.1 | 常规分支 | 维护 | 2026-04-25 | 预计2026-7-25起进入无维护状态 | 2026-07-25 |
-| 26.1.0 | 常规分支 | 维护 | 2026-07-10 | 预计2026-10-10起进入无维护状态 | 2026-10-10 |
-
-# PullRequest
-
-## 提交前检查清单
-
-在提交 Pull Request 之前，请确认：
-
-- [ ] 代码符合项目编码规范
-- [ ] 已添加或更新必要测试
-- [ ] 本地相关测试已通过
-- [ ] 已更新相关文档、示例或说明
-- [ ] 已完成自我审查，删除无关改动
-- [ ] Commit 消息清晰且符合规范
-
-## PR 创建流程
-
-1. **创建特性分支**
-
-   ```bash
-   git checkout -b feature/<your-feature-name>
-   # 或
-   git checkout -b fix/<issue-number>
-   ```
-
-2. **进行开发**
-
-   - 编写代码
-   - 添加测试
-   - 更新文档
-   - 确保代码通过本地测试
-
-3. **提交代码**
-
-   ```bash
-   git add .
-   git commit -m "feat: add new feature"
-   ```
-
-4. **推送到 Fork 仓库**
-
-   ```bash
-   git push origin feature/your-feature-name
-   ```
-
-5. **创建 Pull Request**
-
-   - 访问 GitCode 仓库页面
-   - 点击“Pull Request”或“合并请求”
-   - 填写 PR 描述，建议包含问题背景、修改方案、测试方法和影响范围
-
-6. **响应评审意见**
-
-   - 及时回复 Reviewers 和 Committers 的反馈
-   - 根据评审意见更新代码并重新提交
-   - 保持与主分支同步，及时解决冲突
-
-## PR 最佳实践
-
-1. **保持 PR 小规模**
-
-   - 一次 PR 只解决一个问题或实现一个功能
-   - 便于评审和理解
-   - 提高合并效率
-   - 建议单个 PR 的代码变更量控制在 1000 行以内（含测试）
-
-2. **及时更新**
-
-   - 定期同步上游主分支
-   - 及时响应评审意见
-   - 保持 PR 活跃
-
-3. **清晰描述**
-
-   - 详细描述变更原因和方案
-   - 提供测试方法
-   - 如有必要，添加截图、示例或对比结果
-
-## PR 评审与合入规则
-
-### 评审要求
-
-1. **评审人员要求**
-
-   - 评审人员必须熟悉相关代码领域
-   - 评审人员不能是 PR 作者本人
-
-2. **评审检查项**
-
-   - ✅ 代码质量和风格
-   - ✅ 功能正确性
-   - ✅ 测试覆盖率（分支 60%，行 80%）
-   - ✅ 文档完整性
-   - ✅ 性能影响
-   - ✅ 安全性
-   - ✅ 向后兼容性
-
-3. **CI 检查要求**
-
-   - ✅ 所有 CI 检查必须通过
-
-4. **无 Block 评论**
-
-   - PR 不能存在未解决的阻塞性问题
-
-### 合入规则
-
-1. **Squash and Merge**
-
-   - 将 PR 的所有提交合并为一个提交
-   - 保持主分支历史清晰
-   - 提交消息使用 PR 标题
-
-2. **必须满足的条件**
-
-   - ✅ 至少获得 2 位 Maintainer 或 Committer 的 `/lgtm`，以及 1 个 `/approve`
-
-3. **禁止的操作**
-
-   - ❌ 禁止 Force Push 到主分支
-   - ❌ 禁止合并自己的 PR，必须经过他人评审
-
-### 合并权限
-
-- **Maintainer**：可以合并任何 PR
-- **Committer**：可以合并任何 PR
-- **Contributor**：无合并权限，需要等待 Maintainer 或 Committer 合并
-
-# CI 说明
-
-CI 检查项目包括：
-
-- `执行Shell`：CI 内部调用
-- `Build_arm`：构建集群管理组件二进制包
-- `Build_x86`：构建集群管理组件二进制包
-- `build_mindio_arm`：构建 mindio 软件包
-- `build_mindio_x86`：构建 mindio 软件包
-- `code_check`：编码风格、规范与安全检查
-- `anti_poison`：病毒扫描
-- `sca`：开源合规检查
-- `UT_python`：Python 单元测试
-
-任意一项失败，都可以通过详情链接查看具体问题。如果属于 CI 自身故障，请[联系 committer](https://gitcode.com/Ascend/community/blob/master/MindSDK/sigs/AgentSDK/sig-info.yaml)，或通过评论 `rebuild` 尝试重新构建。
-
-# 社区准则
-
-## 行为准则
-
-我们致力于为所有参与者提供友好、安全和包容的协作环境。参与本项目即表示您同意：
-
-- 尊重不同的观点和经验
-- 接受建设性的批评和建议
-- 聚焦对项目和社区真正有价值的改进
-- 以开放、专业和合作的方式进行沟通
-
-## 沟通渠道
-
-- **Issues**：用于反馈缺陷、提出功能建议和讨论技术问题
-- **Pull Requests**：用于代码审查和实现讨论
-- **SIG 例会与社区页面**：用于了解项目治理、路线和协作活动
-
-# 许可证
-
-通过向本项目贡献代码，您同意您的贡献将按照项目当前许可证进行授权。更多信息请参见 [LICENSE.md](LICENSE.md)。
-
-# 致谢
-
-感谢您为 AgentSDK 做出的贡献。您的参与有助于持续提升项目的可用性、稳定性和生态价值。
-
-# Special Interest Group
-
-## 工作目标和范围
-
-1. 技术聚焦
-
-   围绕基于 Agentic 的多训练后端支持、强化学习环境兼容接口等功能进行深入研究，推动技术发展并解决实际问题。
-
-2. 促进协作
-
-   通过组织会议、技术分享等方式，促进成员之间的协作和知识共享，提升整体技术水平。
-
-3. 最佳实践
-
-   在技术实现、接口设计和开发流程等方面推动最佳实践，降低协作成本，提升系统兼容性和可维护性。
-
-4. 社区建设
-
-   通过代码贡献、技术分享等方式，培养技术人才，推动社区生态建设。
-
-## 成员列表
-
-[SIG 成员列表](https://gitcode.com/Ascend/community/blob/master/MindSDK/sigs/AgentSDK/sig-info.yaml)。
+   - 保持 PR 小规模：一次 PR 只解决一个问题，建议单个 PR 的代码变更量控制在 1000 行以内（含测试）
+   - 及时更新：定期同步上游主分支，及时响应评审意见
+   - 清晰描述：详细描述变更原因和方案，提供测试方法，如有必要添加截图、示例或对比结果
+
+8. **社区评审与合入**
+
+   PR 需满足项目评审要求，至少获得 2 位 Maintainer 或 Committer 的 `/lgtm` 以及 1 个 `/approve` 后，由 Maintainer 或 Committer 合入；禁止合并自己的 PR。
+
+## 分支/Tag命名规则
+
+### 自研代码仓库
+
+| 分支类型 | 分支名规则 | 示例 | 说明 | tag名规则 | tag示例 |
+|---------|---------|------|------|------|------|
+| 主干&开发 | `master` | `-` | `-` |`-` |`-` |
+| release | `release/<版本号>` | `release/v26.1.0` | 正式版本 |`<版本号>[-beta.<序号>]` |`v26.1.0` ， `v26.1.0-beta.1`|
+| 预研 | `spike/<基线分支>/<描述>` | `spike/release-v26.1.0/auth-redesign` | 不合入主干，后续删除 |`-` |`-` |
+| poc | `poc/<基线分支>/<描述>` | `poc/release-v26.1.0/auth-redesign` | 后续合入主干 |`poc/<基线分支>/<描述>-v<序号>` |`poc/release-v26.1.0/auth-redesign-v1`|
+| 临时 | `tmp/<描述>` | `tmp/pre-commit` | 不合入主干，后续删除 |`-` |`-` |
+
+### Fork开源社区代码仓库
+
+| 分支类型 | 分支名规则 | 示例 | 说明 | tag名规则 | tag示例 |
+|---------|---------|------|------|------|------|
+| 社区分支 | `-` | `v2.1.0` | 不合入代码 |`-` |`-` |
+| release | `release/<社区分支>-<产品版本号>` | `release/v2.1.0-26.0.0` | 正式版本开发分支 |`v<产品版本号>-<社区分支>` |`v26.0.0-2.1.0`|
+| 预研 | `spike/<基线分支>/<描述>` | `spike/release-v26.1.0/auth-redesign` | 不合入release分支，后续删除 |`-` |`-` |
+| poc | `poc/<基线分支>/<描述>` | `poc/release-v26.1.0/auth-redesign` | 后续合入release分支 |`poc/<基线分支>/<描述>-v<序号>` |`poc/release-v26.1.0/auth-redesign-v1`|
+| 临时 | `tmp/<描述>` | `tmp/pre-commit` | 不合入release分支，后续删除 |`-` |`-` |
+
+## 参考
+
+- 开发规范
+  - [《Ascend Python 编码风格指南》](https://gitcode.com/Ascend/community/blob/master/docs/contributor/Ascend-python-coding-style-guide.md)
+- 安全编程指导
+  - [《Ascend Python 安全编程指南》](https://gitcode.com/Ascend/community/blob/master/docs/contributor/Ascend-python-secure-coding-guide.md)
+- 更多社区相关规范，请访问[Ascend社区community](https://gitcode.com/Ascend/community)

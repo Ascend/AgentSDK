@@ -9,12 +9,6 @@
 
 </div>
 
-# ✨ 最新消息
-
-- [2026.7.8]: 🚀 新增支持 Qwen3-14B模型，并提供[快速拉起指南](../docs/zh/aura/models/qwen3-14b_quick_start/qwen3-14b-hybrid.md)
-- [2026.06.12]: 🚀 新增支持 Qwen3-4B, Qwen3-8B, Qwen3-32B, Qwen3-30B-A3B 模型，并提供[快速拉起指南](../docs/zh/aura/models)
-- [2026.04.25]: 🚀 发布 AgentSDK 全新训推调框架 **Aura** ，支持训推共卡与训推分离模式
-
 # ℹ️ 简介
 
 **Aura(Agentic Ultra-fast Reinforcement Architecture)** 是一个面向基础模型的训推调一体化框架，能够基于任务轨迹和奖励信号持续优化基础模型，通过强化学习等优化方法，使模型通过后训练，逐步具备规划、工具使用和长程决策等 Agent 化能力。
@@ -74,38 +68,9 @@
 - 训推共卡模式（资源受限）：请参考[训推共卡使用指南](../docs/zh/aura/04_user_guide/02_hybrid.md)。
 - 定义 Agent 内容、接入自有数据与工具链：请参考[自定义 Agent 接入指南](../docs/zh/aura/04_user_guide/04_custom_agent.md)。
 
-# ❓ FAQ
-
-FAQ 包含环境部署或运行过程中可能需要的报错及解决方案，相关 FAQ 请参考：[FAQ](../docs/zh/aura/07_faq.md)。
-
-# 🛠️ 贡献指南
-
-- 贡献前，请先签署[开放项目贡献者许可协议（CLA）](https://clasign.osinfra.cn/sign/gitee_ascend-1611222220829317930)。
-- 如果您遇到 bug，请提交[issue](https://gitcode.com/Ascend/AgentSDK/issues)。
-- 如果您计划贡献 bug-fixes，请提交 Pull Requests，参见[具体要求](../contributing.md)。
-- 如果您计划贡献新特性、功能，请先创建 issue 与我们讨论。写明需求背景/目的，如何设计，对现有 API 等的影响。未经讨论提交 PR 可能会导致请求被拒绝，因为项目演进方向可能与您的想法存在偏差。
-- 更详细的贡献流程，请参考[贡献指南](../contributing.md)。
-
 # ⚖️ 相关说明
 
-🔹 《[版本说明](../docs/zh/aura/08_release_notes.md)》<br>
-🔹 《[许可证声明](../LICENSE.md)》<br>
-🔹 《[第三方开源软件声明](../Third_Party_Open_Source_Software_Notice.md)》<br>
-🔹 《[文档许可证声明](../docs/LICENSE)》<br>
+🔹 《[版本说明](../docs/zh/aura/08_release_notes_agent.md)》<br>
 🔹 《[免责声明](../docs/zh/aura/09_disclaimer.md)》<br>
 🔹 《[安全声明](../docs/zh/aura/06_security_hardening.md)》<br>
 🔹 《[附录](../docs/zh/aura/10_appendix.md)》<br>
-
-# 🤝 建议与交流
-
-欢迎大家为社区做贡献。如果有任何疑问或建议，请提交[issue](https://gitcode.com/Ascend/AgentSDK/issues)，我们会尽快回复。感谢您的支持。
-
-# 🙏 致谢
-
-Aura 由华为公司的以下部门联合贡献：
-
-- 昇腾应用使能开发部
-- 2012 系统工程实验室
-- 华为全球技术服务部-AI 计算实验室
-
-感谢来自社区的每一个 PR，欢迎贡献 Aura!
