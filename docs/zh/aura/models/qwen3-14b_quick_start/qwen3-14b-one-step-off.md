@@ -1,4 +1,4 @@
-# Qwen3-14B 分离模式快速拉起指南
+# Qwen3-14B 分离模式快速入门指南
 
 ## **容器环境部署**
 
@@ -158,7 +158,7 @@ python3 /path/to/AgentSDK/aura/cli/preprocess_data.py gsm8k
 
 ## **文件修改**
 
-在快速拉起 qwen3-14b math 场景前，需要您修改以下配置文件，需要进行修改的参数可以参照文件头的注释，请将其中的示例路径修改为您自己的实际路径。
+在快速入门 qwen3-14b math 场景前，需要您修改以下配置文件，需要进行修改的参数可以参照文件头的注释，请将其中的示例路径修改为您自己的实际路径。
 
 1. [分离训练配置文件](../../../../../aura/configs/train/verl_train_async_A3_t16_qwen3_14b_math_fsdp.yaml)
 2. [分离推理配置文件](../../../../../aura/configs/infer/vllm_infer_i16_qwen3_14b.yaml)
@@ -245,4 +245,4 @@ bash scripts/start_rl_with_verl_vllm.sh
 ```
 
 > [!NOTE] 说明
-> 本文档专门针对 Qwen3-14B 分离模式（one-step-off）的启动示例，提供该场景下的快速拉起步骤；通用且详细的完整启动流程请参考 [快速入门指南](../../03_quick_start.md)。
+> 本文档专门针对 Qwen3-14B 分离模式（one-step-off）的启动示例，提供该场景下的快速入门步骤；通用且详细的完整启动流程请参考 [快速入门指南](../../03_quick_start.md)。
