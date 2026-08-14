@@ -97,6 +97,7 @@ disable = [
   "wrong-import-order",
   "wrong-import-position",
   "import-error",
+  "no-name-in-module",
 
   # 重复代码（跨文件适配器实现同一接口属于正常设计）
   "duplicate-code",
