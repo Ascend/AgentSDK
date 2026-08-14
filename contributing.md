@@ -1,6 +1,6 @@
-# 为Ascend Agent SDK 贡献
+# 为Ascend Agent SDK贡献
 
-感谢您考虑为Ascend Agent SDK 做出贡献！我们欢迎任何形式的贡献，包括缺陷修复、功能增强、测试补充、文档改进以及使用反馈。无论您是第一次参与开源项目，还是已经具备丰富经验，您的贡献都非常宝贵。
+感谢您考虑为Ascend Agent SDK做出贡献！我们欢迎任何形式的贡献，包括缺陷修复、功能增强、测试补充、文档改进以及使用反馈。无论您是第一次参与开源项目，还是已经具备丰富经验，您的贡献都非常宝贵。
 
 您可以通过以下方式参与 Agent SDK 社区建设：
 
@@ -30,11 +30,13 @@ Agent SDK 社区通过 SIG 例会进行技术交流与议题评审，可提前�
 
 ## PR最佳实践
 
-1. **Fork 仓库到个人账号**
+1. **Fork仓库**
 
-   在 GitCode 上将官方仓库 Fork 到个人空间。
+   在GitCode平台代码仓库右上角点击"Fork"按钮，Fork一份源代码到个人仓。
 
-2. **克隆个人仓库到本地**
+2. **克隆到本地**
+
+   将Fork到个人仓的代码克隆到本地进行代码开发。
 
    ```bash
    git clone https://gitcode.com/<your-username>/AgentSDK.git
@@ -44,32 +46,70 @@ Agent SDK 社区通过 SIG 例会进行技术交流与议题评审，可提前�
 3. **创建开发分支**
 
    ```bash
-   git checkout -b feature/<your-feature-name>
-   # 或
-   git checkout -b fix/<issue-id>
+   git checkout -b {new_branch_name} origin/master
    ```
 
-4. **进行代码开发**
+4. **代码开发**
 
-   尽量保证改动聚焦、可审查、可回滚，并补充相应测试。
+   质量符合[开发规范](#dev-rule)和[安全编程指导](#sec-guide)。
 
-5. **执行本地测试**
+5. **运行测试**
 
-   提交前请至少完成与改动相关的本地验证，确保本地相关测试通过。
+    1. 拉取CI流水线镜像环境
+
+       该镜像已具备构建验证的所有基础环境，开发者无需安装任何额外模块，也无需执行 `pip install -e .`。
+
+       ```bash
+       docker pull swr.cn-north-4.myhuaweicloud.com/ascend-mindx/mindx_arm:SDK_20260112_1
+       ```
+
+    2. 下载项目运行所需的第三方仓库
+
+       CI 镜像仅提供基础环境，项目依赖的第三方源码仓库需通过脚本单独下载。
+
+       ```bash
+       cd AgentSDK/aura
+       bash download_third_party.sh
+       ```
+
+    3. 在提交代码前，请补充测试用例并确保所有测试通过，本地执行UT。
+
+       单元测试按模块拆分为两个独立脚本，CI 流水线可按需调用：
+
+       ```bash
+       cd AgentSDK
+       # aura 单元测试
+       bash script/aura_ut.sh
+
+       # openclaw 单元测试
+       bash script/openclaw_ut.sh
+       ```
+
+       预冒烟测试同样按模块拆分：
+
+       ```bash
+       cd AgentSDK
+       # aura 预冒烟
+       bash run_presmoke_aura.sh
+
+       # openclaw 预冒烟
+       bash run_presmoke_openclaw.sh
+       ```
 
 6. **执行 pre-commit 检查**
 
-   本地提交代码前请先执行 pre-commit 检查，确保代码风格与安全检查通过。
+   本地提交代码前请先执行pre-commit检查，检查指导参见[pre-commit本地运行指南](https://gitcode.com/Ascend/community/blob/master/docs/contributor/pre-commit-guide.md)。
 
 7. **提交 Pull Request**
 
-   - 保持 PR 小规模：一次 PR 只解决一个问题，建议单个 PR 的代码变更量控制在 1000 行以内（含测试）
-   - 及时更新：定期同步上游主分支，及时响应评审意见
-   - 清晰描述：详细描述变更原因和方案，提供测试方法，如有必要添加截图、示例或对比结果
+    - 保持 PR 小规模：一次 PR 只解决一个问题，建议单个 PR 的代码变更量控制在 1000 行以内（含测试）。
+    - 及时更新：定期同步上游主分支，及时响应评审意见。
+    - 清晰描述：详细描述变更原因和方案，提供测试方法，如有必要添加截图、示例或对比结果。
 
 8. **社区评审与合入**
 
-   PR 需满足项目评审要求，至少获得 2 位 Maintainer 或 Committer 的 `/lgtm` 以及 1 个 `/approve` 后，由 Maintainer 或 Committer 合入；禁止合并自己的 PR。
+    - PR 需满足项目评审要求，至少获得 2 位 Maintainer 或 Committer 的 `/lgtm` 以及 1 个 `/approve` 后，由 Maintainer 或 Committer 合入；禁止合并自己的 PR。
+    - 如果涉及patch、头文件宏、API接口等更新，需提交社区在SIG例会进行评审，社区定期例会与活动参见[会议日历](https://meeting.ascend.osinfra.cn/?sig=sig-AgentSDK)。
 
 ## 分支/Tag命名规则
 
@@ -95,8 +135,8 @@ Agent SDK 社区通过 SIG 例会进行技术交流与议题评审，可提前�
 
 ## 参考
 
-- 开发规范
-  - [《Ascend Python 编码风格指南》](https://gitcode.com/Ascend/community/blob/master/docs/contributor/Ascend-python-coding-style-guide.md)
-- 安全编程指导
-  - [《Ascend Python 安全编程指南》](https://gitcode.com/Ascend/community/blob/master/docs/contributor/Ascend-python-secure-coding-guide.md)
+- 开发规范<a id="dev-rule"></a>
+    - [《Ascend Python 编码风格指南》](https://gitcode.com/Ascend/community/blob/master/docs/contributor/Ascend-python-coding-style-guide.md)
+- 安全编程指导<a id="sec-guide"></a>
+    - [《Ascend Python 安全编程指南》](https://gitcode.com/Ascend/community/blob/master/docs/contributor/Ascend-python-secure-coding-guide.md)
 - 更多社区相关规范，请访问[Ascend社区community](https://gitcode.com/Ascend/community)
