@@ -19,6 +19,7 @@
 
 import aiohttp
 import asyncio
+import socket
 
 from aura.base.log.loggers import Loggers
 
@@ -35,40 +36,67 @@ class AgentProxyClient:
         params: dict,
         timeout: int = 3600,
         max_retries: int = 3,
+        **kwargs
     ):
         self.model_name = model_name
         self.agent_addr = agent_addr
         self.traj_addr = traj_addr
         self.run_id = run_id
         self.params = params
-        self.traj_timeout = timeout  # TODO: 也可以通过params参数读取
+        self.traj_timeout = timeout
         self.max_retries = max_retries
 
-    async def get_agent_response(self, prompt_messages, application_id, sample_id) -> tuple[int, str]:
+    async def get_agent_response(self, prompt_messages, task_id, **kwargs) -> tuple[int, str]:
+        if isinstance(prompt_messages, list):
+            default_message = prompt_messages
+        else:
+            default_message = [{"role": "system", "content": ""}, {"role": "user", "content": prompt_messages["problem"]}]
+        extra_params = {}
+        if "additional_keys" in kwargs:
+            extra_params["additional_keys"] = kwargs["additional_keys"]
         payload = {
             "model": self.model_name,
-            "messages": prompt_messages,
+            "messages": default_message,
             "infer_params": self.params.get("infer_params", {}),
-            "extra_params": self.params.get("extra_params", {}),
+            "extra_params": extra_params,
         }
 
         url = f"{self.agent_addr}/v1/chat/completions"
         logger.info(
-            f"get_agent_response: url={url}, application_id={application_id}, sample_id={sample_id}, body={payload}"
+            f"get_agent_response: url={url}, task_id={task_id}, body={payload}"
         )
 
+        def socket_factory(addr_info):
+            family, type_, proto, _, _ = addr_info
+            sock = socket.socket(family=family, type=type_, proto=proto)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+            try:
+                sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 180)
+                sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 15)
+                sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT, 5)
+            except AttributeError:
+                pass
+
+            return sock
+
         for attempt in range(1, self.max_retries + 1):
-            session_id = f"{application_id},{sample_id},{attempt}"
+            session_id = f"{task_id},{attempt}"
             if self.run_id:
                 payload["infer_url"] = f"{self.traj_addr}/s/{self.run_id}/{session_id}/v1/"
             else:
                 payload["infer_url"] = f"{self.traj_addr}/s/{session_id}/v1/"
 
             try:
+                connector = aiohttp.TCPConnector(
+                    force_close=True,
+                    enable_cleanup_closed=True,
+                    socket_factory=socket_factory
+                )
                 timeout_cfg = aiohttp.ClientTimeout(total=self.traj_timeout, connect=10)
-                async with aiohttp.ClientSession(timeout=timeout_cfg) as session:
+                async with aiohttp.ClientSession(connector=connector, timeout=timeout_cfg) as session:
                     async with session.post(url, json=payload, ssl=False) as resp:
                         if resp.status == 200:
+                            data = await resp.json()
                             logger.info(f"get_agent_response success: session_id={session_id}")
                             return 0, session_id
                         else:

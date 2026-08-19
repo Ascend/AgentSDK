@@ -46,6 +46,12 @@ rm -rf /tmp/ray/*
 
 function start_train()
 {
+  # Hybrid: Vaee starts the vllm load balance and registers it with the TrajProxy
+  if [[ ${MASTER_TRAIN_INDEX} -eq 0 ]] && [[ "${AGENT_ENGINE}" == "vaee" ]]; then
+    log_info "VAEE: start the vllm load balance and registers it with the TrajProxy"
+    start_load_balance_for_hybrid
+  fi
+
   # 训练节点启动训练集群, train进程, rollout进程
   # 如果是断点续训, 则使用RESUME_TRAIN_CONF_NAME配置文件名称
   if [[ -n "${RESUME_TRAIN_CONF_NAME}" ]]; then
