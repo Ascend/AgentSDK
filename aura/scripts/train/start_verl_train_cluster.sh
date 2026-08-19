@@ -150,7 +150,7 @@ function replace_infer_server_config()
 }
 
 
-function regitster_sandbox_infer_model() {
+function register_sandbox_infer_model() {
     if [[ $VC_TASK_INDEX -ne $MASTER_TRAIN_INDEX ]]; then
        return
     fi
@@ -169,17 +169,19 @@ try:
         config = yaml.safe_load(f)
 
     # 提取 agent 实例
-    agents = config.get('agent_instances', [])
+    agents = config.get('agent_instances', [{}])
     if not agents or len(agents) == 0:
         print("ERROR: agent_instances is empty", file=sys.stderr)
         sys.exit(0)
 
-    agent_kwargs = agents[0].get('executor_kwargs', {})
-    p_url = str(agent_kwargs.get('traj_proxy_url', '')).strip().rstrip('/')
-    r_id = str(agent_kwargs.get('traj_proxy_run_id', '')).strip()
+    agent_kwargs = agents[0].get('executor_kwargs', {}).get('agent_engine_kwargs', {}).get('agent_proxy_args', {})
+    p_url = str(agent_kwargs.get('traj_addr', '')).strip().rstrip('/')
+    r_id = str(agent_kwargs.get('run_id', '')).strip()
+    if not p_url:
+        sys.exit(0)
 
     # 如果 r_id 为空或 None
-    if not r_id or r_id.lower() == 'none' or r_id == '':
+    if not r_id or r_id.lower() == 'none':
         pid_hex = hex(os.getpid())[2:]
         r_id = f"{pid_hex}_{uuid.uuid4().hex[:12]}"
         print(f"NEED_UPDATE|{p_url}|{r_id}")
@@ -191,18 +193,18 @@ except Exception as e:
 EOF
 )
 
-    status=$(echo "$config_info" | cut -d'|' -f1)
-    p_url=$(echo "$config_info" | cut -d'|' -f2)
-    r_id=$(echo "$config_info" | cut -d'|' -f3)
-    if [ "${p_url}" == "" ]; then
-      return
+    if [[ -z "$config_info" ]]; then
+       return
     fi
+
+    local status=$(echo "$config_info" | cut -d'|' -f1)
+    local p_url=$(echo "$config_info" | cut -d'|' -f2)
+    local r_id=$(echo "$config_info" | cut -d'|' -f3)
 
     # 2. 如果需要更新，使用更强力的 sed 写入文件
     if [ "$status" == "NEED_UPDATE" ]; then
-        # 兼容 traj_proxy_run_id: 或 traj_proxy_run_id: ""
-        sed -i "/traj_proxy_run_id:/d" "$yaml_file"
-        sed -i "/traj_proxy_url:/a \      traj_proxy_run_id: $r_id" "$yaml_file"
+        sed -i "/run_id:/d" "$yaml_file"
+        sed -i "/traj_addr:/a \      run_id: $r_id" "$yaml_file"
     fi
 
     # 3. 再次调用 Python 获取完整的配置（此时文件已更新）
@@ -213,25 +215,31 @@ try:
     with open('$yaml_file', 'r') as f:
         config = yaml.safe_load(f)
 
-    agent_kwargs = config.get('agent_instances', [])[0].get('executor_kwargs', {})
-    proxy_url = str(agent_kwargs.get('traj_proxy_url', '')).strip().rstrip('/')
-    run_id = str(agent_kwargs.get('traj_proxy_run_id', '')).strip()
+    agent_kwargs = config.get('agent_instances', [])[0].get('executor_kwargs', {}).get('agent_engine_kwargs', {})
+    agent_proxy = agent_kwargs.get('agent_proxy_args', {})
+    proxy_url = str(agent_proxy.get('traj_addr', '')).strip().rstrip('/')
+    run_id = str(agent_proxy.get('run_id', '')).strip()
+    t_path = config.get('verl_conf', {}).get('actor_rollout_ref', {}).get('model', {}).get('path', '')
+    tool_parser = str(agent_kwargs.get('tool_parser', '')).strip()
+    reasoning_parser = str(agent_kwargs.get('reasoning_parser', '')).strip()
 
     for instance in config.get('infer_instances', []):
-        m_name = instance.get('executor_kwargs', {}).get('engine_kwargs', {}).get('model_name', '')
-        if m_name and proxy_url and run_id:
-            print(f"{m_name}|{proxy_url}|{run_id}")
+        m_name = t_path or instance.get('executor_kwargs', {}).get('engine_kwargs', {}).get('model_name', '')
+        if m_name and proxy_url and run_id and t_path and tool_parser and reasoning_parser:
+            print(f"{m_name}|{proxy_url}|{run_id}|{t_path}|{tool_parser}|{reasoning_parser}")
 except:
     sys.exit(1)
 EOF
 )
-    echo "$model_configs" | while IFS='|' read -r m_name p_url r_id; do
+    echo "$model_configs" | while IFS='|' read -r m_name p_url r_id t_path tool_parser reasoning_parser; do
         m_url="http://${MASTER_ROLLOUT_HOST}:8080/v1"
         curl -s -X DELETE "${p_url}/models?model_name=${m_name}&run_id=${r_id}"
         echo "register new model to TrajProxy:  ${p_url}/models/register model_name：${m_name} url:${m_url}"
         curl -s -X POST "${p_url}/models/register" \
           -H "Content-Type: application/json" \
-          -d "{\"model_name\": \"$m_name\", \"url\": \"$m_url\", \"run_id\": \"$r_id\", \"api_key\": \"sk-1234\", \"token_in_token_out\": false}"
+          -d "{\"model_name\": \"$m_name\", \"url\": \"$m_url\", \"run_id\": \"$r_id\", \"api_key\": \"sk-1234\", \
+\"token_in_token_out\": false, \"tokenizer_path\": \"$t_path\", \"tool_parser\": \"${tool_parser}\", \
+\"reasoning_parser\": \"${reasoning_parser}\"}"
         echo -e "\n--------------------------"
     done
 }
@@ -381,7 +389,7 @@ disable_compile
 
 log_info "[train] ASCEND_RT_VISIBLE_DEVICES: ${ASCEND_RT_VISIBLE_DEVICES}"
 
-regitster_sandbox_infer_model
+register_sandbox_infer_model
 
 if [[ "${WORK_MODE}" == "one_step_off" ]]; then
   # 训推全异步分离场景, 需要等待推理集群启动完成
