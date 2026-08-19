@@ -23,17 +23,76 @@ from datetime import datetime
 from email.utils import parsedate_to_datetime
 import asyncio
 import aiohttp
+import httpx
 
 from aura.controllers.utils.http_status import HTTP_OK_200
 from aura.base.log.loggers import Loggers
 
 logger = Loggers(__name__).get_logger()
 
+MICROSECONDS_PER_SECOND = 1_000_000.0  # 微秒转秒的换算系数
+SECONDS_PER_DAY = 24 * 60 * 60.0  # 每天秒数
+
+
+def parse_datetime(time_str: str) -> datetime | None:
+    """
+    Parses a time string into a datetime object. Multiple formats are supported
+
+    Args:
+        time_str: time string, which can be in ISO or RFC 2822 format
+
+    Returns:
+        datetime | None: parsing datetime object. If the parsing fails, None is returned
+    """
+    if not time_str:
+        return None
+
+    try:
+        return parsedate_to_datetime(time_str)
+    except (ValueError, TypeError, AttributeError):
+        pass
+
+    try:
+        return datetime.fromisoformat(time_str.replace('Z', '+00:00'))
+    except (ValueError, AttributeError):
+        return None
+
+def calculate_time_diff_seconds(start_time_str, end_time_str) -> float | None:
+    """
+    Calculates the difference (in seconds) between two time strings with microsecond precision
+
+    Args:
+        start_time_str: start time string
+        end_time_str: end time string
+
+    Returns:
+        float | None: time difference (in seconds). If the calculation fails, 0 is returned
+    """
+    if not start_time_str or not end_time_str:
+        return 0
+
+    try:
+        if isinstance(start_time_str, str):
+            start_time = parse_datetime(start_time_str)
+            end_time = parse_datetime(end_time_str)
+        else:
+            start_time = start_time_str
+            end_time = end_time_str
+
+        if start_time is None or end_time is None:
+            return 0
+
+        time_diff = end_time - start_time
+        return time_diff.microseconds / MICROSECONDS_PER_SECOND + time_diff.days * SECONDS_PER_DAY + time_diff.seconds
+    except Exception:
+        return 0
 
 class TrajProxyClient:
     def __init__(self, model_name: str, infer_url: str | list):
         self.model_name = model_name
         self.infer_url = infer_url
+        timeout = httpx.Timeout(300.0, connect=60.0, read=300.0)
+        self.client = httpx.AsyncClient(timeout=timeout, limits=httpx.Limits(max_connections=None, max_keepalive_connections=None))
 
     async def get_agent_trajectory(self, session_id: str) -> dict[str, Any] | None:
         """
@@ -50,97 +109,43 @@ class TrajProxyClient:
         else:
             base_url = self.infer_url
 
-        url = f"{base_url}/trajectory"
+        url = f"{base_url}/trajectory?session_id={session_id}&fields=-messages"
         logger.info(f"Getting trajectory, url: {url}, session_id: {session_id}")
 
         max_retries = 3
+        headers = {
+            "Accept-Encoding": "gzip, deflate"
+        }
         for attempt in range(max_retries):
             try:
-                # Force close Keep-Alive to release underlying TCP resources immediately after each request
-                connector = aiohttp.TCPConnector(force_close=True, enable_cleanup_closed=True)
-                timeout = aiohttp.ClientTimeout(total=30, connect=10)
-                async with aiohttp.ClientSession(connector=connector, timeout=timeout) as session:
-                    # Disconnect immediately after processing
-                    headers = {"Connection": "close"}
-                    async with session.get(url, params={"session_id": f"{session_id}"}, headers=headers) as response:
-                        if response.status == HTTP_OK_200:
-                            data = await response.json()
-                            records = data.get("records", [])
-                            count = data.get("count", len(records))
-                            logger.info(f"Get trajectory success, session_id: {session_id}, count: {count}")
+                response = await self.client.get(url, headers=headers)
+                if response.status_code == HTTP_OK_200:
+                    data = response.json()
+                    records = data.get("records", [])
+                    count = data.get("count", len(records))
+                    logger.info(f"Get trajectory success, session_id: {session_id}, count: {count}")
 
-                            step_infos = self._convert_step_info(records, session_id=session_id)
-                            if len(step_infos) == 0:
-                                logger.warning(f"Get trajectory, step_infos is empty, session_id: {session_id}")
-                                return None
+                    step_infos = self._convert_step_info(records, session_id=session_id)
+                    if len(step_infos) == 0:
+                        logger.warning(f"Get trajectory, step_infos is empty, session_id: {session_id}")
+                        return None
 
-                            return {"session_id": session_id, "step_info": step_infos}
-                        else:
-                            logger.warning(
-                                f"Failed to get trajectory, session_id: {session_id}, HTTP {response.status}. "
-                            )
+                    return {
+                        "session_id": session_id,
+                        "step_info": step_infos
+                    }
+                else:
+                    logger.warning(f"Failed to get trajectory, session_id: {session_id}, HTTP {response.status_code}.")
             except Exception as e:
-                logger.exception(f"Error getting trajectory, url: {url}, session_id: {session_id}, error: {e}")
+                logger.exception(f"Error getting trajectory, session_id: {session_id}, error: {repr(e)}")
 
             if attempt < max_retries - 1:
-                logger.warning(f"Failed to get trajectory, session_id: {session_id}, retry {attempt + 1}/{max_retries}")
-                await asyncio.sleep(2**attempt)
+                wait_time = 2 ** attempt + 3
+                logger.warning(f"Failed to get trajectory, session_id: {session_id}, retry {attempt + 1}/{max_retries} after {wait_time}s")
+                await asyncio.sleep(wait_time)
             else:
                 logger.error(f"Failed to get trajectory after {max_retries} retries, session_id: {session_id}")
-
         return None
-
-    def _parse_datetime(self, time_str: str) -> datetime | None:
-        """
-        Parse time string into a datetime object, supporting multiple formats.
-
-        Args:
-            time_str: Time string, supports ISO format and RFC 2822 format.
-
-        Returns:
-            datetime | None: Parsed datetime object, returns None on failure.
-        """
-        if not time_str:
-            return None
-
-        # Try parsing RFC 2822 format time string (e.g., "Thu, 26 Mar 2026 17:13:08 GMT")
-        try:
-            return parsedate_to_datetime(time_str)
-        except (ValueError, TypeError, AttributeError):
-            pass
-
-        # Try parsing ISO format time string (e.g., "2026-03-26T17:13:08")
-        try:
-            return datetime.fromisoformat(time_str.replace('Z', '+00:00'))
-        except (ValueError, AttributeError):
-            return None
-
-    def _calculate_time_diff_seconds(self, start_time_str: str, end_time_str: str) -> float | None:
-        """
-        Calculate the difference (in seconds) between two time strings with microsecond precision.
-
-        Args:
-            start_time_str: Start time string.
-            end_time_str: End time string.
-
-        Returns:
-            float | None: Time difference in seconds. Returns 0 if calculation fails.
-        """
-        if not start_time_str or not end_time_str:
-            return 0
-
-        try:
-            start_time = self._parse_datetime(start_time_str)
-            end_time = self._parse_datetime(end_time_str)
-
-            if start_time is None or end_time is None:
-                return 0
-
-            # Subtract with microsecond precision, then use float division to convert to seconds
-            time_diff = end_time - start_time
-            return time_diff.microseconds / 1_000_000.0 + time_diff.days * 86400.0 + time_diff.seconds
-        except Exception:
-            return 0
 
     def _get_system_prompt(self, messages: List[Dict[str, Any]]) -> str | None:
         for message in messages:
@@ -184,32 +189,19 @@ class TrajProxyClient:
     def _filter_invalid_records(self, records, session_id):
         # 1. Filter out records where response_text is "\n\nSAFE"
         filtered_safe_records = [record for record in records if record['response_text'] != "\n\nSAFE"]
-        logger.info(
-            f"{session_id=} filtered safe records count: {len(filtered_safe_records)}, remove rows:"
-            f" {len(records) - len(filtered_safe_records)}"
-        )
+        remove_safe = len(records) - len(filtered_safe_records)
 
         filtered_records = []
         for record in filtered_safe_records:
             raw = record.get('raw_response')
             # 2. Filter out records where raw_response is empty
             if raw is None:
+                logger.info(f"{session_id=} filter record.raw_response is None")
                 continue
-            try:
-                message = raw['choices'][0]['message']
-                content = message.get('content')
-                reasoning = message.get('reasoning')
-                # 3. todo Filter out cases where content is None and reasoning is not empty
-                if content is None and reasoning:
-                    continue
-                filtered_records.append(record)
-            except (KeyError, IndexError):
-                continue
+            filtered_records.append(record)
 
-        logger.info(
-            f"{session_id=} filtered special/no raw_response records count: {len(filtered_records)}, remove rows:"
-            f" {len(filtered_safe_records) - len(filtered_records)}"
-        )
+        logger.info(f"{session_id=} filtered special/no raw_response records count: {len(filtered_records)}, remove rows:"
+            f" {len(filtered_safe_records) - len(filtered_records)} remove_safe:{remove_safe}")
         return filtered_records
 
     def _convert_step_info(self, records: List[Dict[str, Any]], session_id: str) -> List[Dict[str, Any]]:
@@ -241,37 +233,33 @@ class TrajProxyClient:
             # Add llm_time: end_time of current row - start_time of current row
             start_time = record.get('start_time')
             end_time = record.get('end_time')
-            step_info['llm_time'] = self._calculate_time_diff_seconds(start_time, end_time)
+            step_info['llm_time'] = calculate_time_diff_seconds(start_time, end_time)
+
+            raw_request = step_info['raw_request']
 
             # Add system_prompt field, value is the content where role is system in messages
-            system_prompt = self._get_system_prompt(record.get('messages'))
+            system_prompt = self._get_system_prompt(raw_request.get('messages'))
             if system_prompt is not None:
                 step_info['system_prompt'] = system_prompt
                 truncated_prompt = system_prompt if len(system_prompt) <= 50 else system_prompt[:50] + "......"
-                logger.info(f"Get system_prompt: session_id={session_id}, step_id={i}: {truncated_prompt}")
+                logger.debug(f"Get system_prompt: session_id={session_id}, step_id={i}: {truncated_prompt}")
 
             # Add model_response field, filled with raw_response of the current round
             step_info['model_response'] = step_info['raw_response']['choices'][0]['message']
-
-            if 'raw_request' in step_info and step_info['raw_request'] is not None:
-                tools = step_info['raw_request'].get('tools', [])
-                step_info['tools'] = tools
-                logger.info(
-                    f"Get tools: session_id={session_id}, step_id={i}, tools count={len(tools)}: {[tool['function']['name'] for tool in tools]}"
-                )
-            else:
-                logger.warning(f"raw_request not found in step_info: session_id={session_id}, step_id={i}")
+            tools = step_info['raw_request'].get('tools', [])
+            step_info['tools'] = tools
+            logger.debug(f"Get tools: session_id={session_id}, step_id={i}, tools count={len(tools)}: {[tool['function']['name'] for tool in tools]}")
 
             if i > 0:
                 # Add env_time: start_time of current row - end_time of previous row
                 prev_end_time = sorted_records[i - 1].get('end_time')
                 curr_start_time = record.get('start_time')
-                result[i - 1]['env_time'] = self._calculate_time_diff_seconds(prev_end_time, curr_start_time)
+                result[i - 1]['env_time'] = calculate_time_diff_seconds(prev_end_time, curr_start_time)
 
                 # Add env_response
-                env_responses = self._get_env_response(record.get('messages'))
+                env_responses = self._get_env_response(raw_request.get('messages'))
                 if env_responses is not None:
-                    logger.info(f"tool call counts: session_id={session_id}, call numbers={len(env_responses)}")
+                    logger.debug(f"tool call counts: session_id={session_id}, call numbers={len(env_responses)}")
                     result[i - 1]['env_response'] = env_responses
 
             result.append(step_info)
@@ -279,45 +267,42 @@ class TrajProxyClient:
         return result
 
     async def get_records_by_session(self, session_id):
-        url = f"{self.infer_url}/trajectories/{session_id}"
+        url = f"{self.infer_url}/trajectory?session_id={session_id}"
         logger.info(f"Getting trajectory, url: {url}, session_id: {session_id}")
 
         max_retries = 3
+        headers = {
+            "Accept-Encoding": "gzip, deflate"
+        }
         for attempt in range(max_retries):
-            async with aiohttp.ClientSession() as session:
-                try:
-                    async with session.get(url) as response:
-                        if response.status == HTTP_OK_200:
-                            data = await response.json()
-                            records = data.get("records", [])
-                            count = data.get("count", len(records))
-                            logger.info(f"Get trajectory success, session_id: {session_id}, count: {count}")
-                            return records
-                        else:
-                            if attempt < max_retries - 1:
-                                wait_time = attempt + 1
-                                logger.warning(
-                                    f"Failed to get trajectory, session_id: {session_id}, HTTP {response.status}. "
-                                    f"Retry {attempt + 1}/{max_retries} after {wait_time}s"
-                                )
-                                await asyncio.sleep(wait_time)
-                            else:
-                                logger.error(
-                                    f"Failed to get trajectory after {max_retries} retries, session_id: {session_id}, HTTP {response.status}"
-                                )
-                                return []
-                except Exception as e:
+            try:
+                response = await self.client.get(url, headers=headers)
+                if response.status_code == HTTP_OK_200:
+                    data = response.json()
+                    records = data.get("records", [])
+                    count = data.get("count", len(records))
+                    logger.info(f"Get trajectory success, session_id: {session_id}, count: {count}")
+                    return records
+                else:
                     if attempt < max_retries - 1:
                         wait_time = attempt + 1
                         logger.warning(
-                            f"Error getting trajectory, url: {url}, session_id: {session_id}, error: {e}. "
-                            f"Retry {attempt + 1}/{max_retries} after {wait_time}s"
-                        )
+                            f"Failed to get trajectory, session_id: {session_id}, HTTP {response.status_code}. "
+                            f"Retry {attempt + 1}/{max_retries} after {wait_time}s")
                         await asyncio.sleep(wait_time)
                     else:
                         logger.error(
-                            f"Error getting trajectory after {max_retries} retries, url: {url}, session_id: {session_id}, error: {e}",
-                            exc_info=True,
-                        )
+                            f"Failed to get trajectory after {max_retries} retries, session_id: {session_id}, HTTP {response.status_code}")
                         return []
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    wait_time = attempt + 1
+                    logger.warning(f"Error getting trajectory, url: {url}, session_id: {session_id}, error: {e}. "
+                                   f"Retry {attempt + 1}/{max_retries} after {wait_time}s")
+                    await asyncio.sleep(wait_time)
+                else:
+                    logger.error(
+                        f"Error getting trajectory after {max_retries} retries, url: {url}, session_id: {session_id}, error: {e}",
+                        exc_info=True)
+                    return []
         return []
