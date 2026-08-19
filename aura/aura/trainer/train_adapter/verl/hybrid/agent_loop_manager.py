@@ -20,18 +20,21 @@ import time
 import json
 import os
 from typing import Any, List
+from urllib.parse import urlparse
 
+import httpx
 import numpy as np
 import torch
 from omegaconf import DictConfig
 
 from aura.base.log.loggers import Loggers
 from aura.runner.agent_engine_wrapper.base_engine_wrapper import AgentTask
-from aura.runner.agent_engine_wrapper.vaee_v2.vaee_types import Trajectory, Episode
+from aura.runner.agent_engine_wrapper.vaee.vaee_types import Trajectory, Episode
 from aura.runner.infer_router import InferRouter
 from verl import DataProto
 from verl.experimental.agent_loop import AgentLoopManager
 from verl.utils import hf_tokenizer
+from verl.protocol import pad_dataproto_to_divisor
 
 logger = Loggers(__name__).get_logger()
 
@@ -51,6 +54,53 @@ async def launch_server(infer_service: str, model_name: str, chat_server_list: l
     await infer_router.launch_server(
         model_name=infer_service, kwargs_list=[{"model_name": model_name, "chat_server": chat_server_list}]
     )
+
+
+async def register_infer_instances_to_lb(instance_urls: List[str]):
+    """
+    VAEE: VLLM built in the Verl is registered with the load-balance, and the load-balance is registered with the TrajProxy.
+    """
+    # 1. Clean instance URLs and extract potential LB host IPs (port 8080)
+    cleaned_instances = [
+        urlparse(u).netloc if urlparse(u).netloc else u.replace("http://", "").replace("https://", "")
+        for u in instance_urls
+    ]
+    possible_lbs = {f"http://{netloc.rsplit(':', 1)[0]}:8080" for netloc in cleaned_instances}
+
+    async def probe(url: str, client: httpx.AsyncClient) -> str | None:
+        try:
+            res = await client.post(f"{url}/register_prefillers", json=[])
+            if res.status_code in [200, 400, 422]:
+                return url
+        except (httpx.ConnectError, httpx.ConnectTimeout):
+            pass
+        return None
+
+    # 2. Discover active LB and send final registration using a single client session
+    lb_url = None
+    async with httpx.AsyncClient(timeout=2.0) as client:
+        probe_tasks = [probe(url, client) for url in possible_lbs]
+        # asyncio.as_completed yields futures as they finish. First valid URL wins.
+        for future in asyncio.as_completed(probe_tasks):
+            result = await future
+            if result:
+                lb_url = result
+                break
+
+        if not lb_url:
+            logger.error(f"Load balancer on port 8080 not found. Attempted: {possible_lbs}")
+            return None
+
+        # 3. Formally register all instances to the discovered LB
+        try:
+            response = await client.post(f"{lb_url}/register_prefillers", json=cleaned_instances)
+            if response.status_code == 200:
+                logger.info(f"Registration successful: {response.json()}")
+                return response.json()
+            logger.error(f"Registration failed ({response.status_code}): {response.text}")
+        except Exception as e:
+            logger.error(f"Exception occurred during final registration: {e}")
+            return None
 
 
 async def create_tasks(agent_service: str, prompts: DataProto, n_samples_per_prompt: int) -> list[AgentTask]:
@@ -230,9 +280,10 @@ async def transform_trajectories_to_batch(config: Any, tokenizer: Any, trajector
     return batch
 
 
-async def transform_episodes_to_batch(tokenizer, trajectories: List[Trajectory], task_id_list) -> DataProto:
-    combined = sorted(zip(task_id_list, trajectories))
-    task_id_list, trajectories = map(list, zip(*combined))
+async def transform_episodes_to_batch(config, tokenizer, trajectories: List, task_id_list) -> DataProto:
+    sorted_indices = sorted(range(len(task_id_list)), key=lambda i: task_id_list[i])
+    task_id_list = [task_id_list[i] for i in sorted_indices]
+    trajectories = [trajectories[i] for i in sorted_indices]
 
     all_prompt_ids = []
     all_prompt_tokens_list = []
@@ -241,57 +292,41 @@ async def transform_episodes_to_batch(tokenizer, trajectories: List[Trajectory],
     all_logprobs_list = []
     traj_scores = []
     step_nums = []
-    is_last_step = []  # steps中的最后一个step是否是 整个trajectory中的最后一个step
-    cancel_logprobs = False
+    is_last_step = []  # Whether the last step in steps is the last step of the entire trajectory
+    has_logprobs = any(
+                any(step.logprobs is not None and len(step.logprobs) > 1 for step in traj.steps)
+                for traj in trajectories
+            )
 
     for i in range(0, len(trajectories)):
-        task_id = task_id_list[i]  # TODO: 调整不确定待调整，目标是保证每个prompt的唯一性
+        prompt_id = task_id_list[i]
         traj = trajectories[i]
         steps = traj.steps
 
-        # step mode
-        if False:  # TODO: 这里先写成False强制token模式，待后续完善可改为traj.is_cumulative
-            for step in steps:
-                all_prompt_ids.append(task_id)
-                all_prompt_tokens_list.append(torch.tensor(step.prompt_ids, dtype=torch.long))
-                all_response_tokens_list.append(torch.tensor(step.response_ids, dtype=torch.long))
-                all_masks_list.append(torch.tensor([1] * len(step.response_ids), dtype=torch.long))
-                if step.logprobs is not None and len(step.logprobs) != 0 and not cancel_logprobs:
-                    all_logprobs_list.append(torch.tensor(step.logprobs))
-                else:
-                    cancel_logprobs = True
-            step_nums.append(len(steps))
-            all_prompt_ids.extend([task_id for _ in range(len(steps))])
-            is_last_step.extend([False for _ in range(len(steps))])
-            is_last_step[-1] = True
-        # token mode
-        else:
-            all_prompt_ids.append(task_id)
-            all_prompt_tokens_list.append(torch.tensor(steps[0].prompt_ids, dtype=torch.long))
+        all_prompt_ids.append(prompt_id)
+        all_prompt_tokens_list.append(torch.tensor(steps[0].prompt_ids, dtype=torch.long))
 
-            # 计算response_masks: response部分填充1，tool部分填充0，tool由本轮prompt减上一轮的（prompt+response)形成
-            # 计算logprobs: response部分保持原有logprobs，tool部分填充0，如果有logprobs值为None的就放弃计算，直接返回[]
-            response_tokens = []
-            response_masks = []
-            logprobs = []
-            for j in range(len(steps)):
-                response_tokens.extend(steps[j].response_ids)
-                response_masks.extend([1] * len(steps[j].response_ids))
-                if steps[j].logprobs is not None and len(steps[j].logprobs) != 0 and not cancel_logprobs:
-                    logprobs.extend(steps[j].logprobs)
-                else:
-                    cancel_logprobs = True
-                if j < len(steps) - 1:
-                    prefix_len = len(steps[j].prompt_ids) + len(steps[j].response_ids)
-                    tool_tokens = steps[j + 1].prompt_ids[prefix_len:]
-                    response_tokens.extend(tool_tokens)
-                    response_masks.extend([0] * len(tool_tokens))
-                    if not cancel_logprobs:
-                        logprobs.extend([0] * len(tool_tokens))
-            all_response_tokens_list.append(torch.tensor(response_tokens, dtype=torch.long))
-            all_masks_list.append(torch.tensor(response_masks, dtype=torch.long))
-            if not cancel_logprobs:
-                all_logprobs_list.append(torch.tensor(logprobs))
+        # Calculate response_masks. The value of response is 1, and the value of tool is 0
+        # Calculate logprobs. The response retains the original logprobs, and the tool is filled with 0
+        response_tokens = []
+        response_masks = []
+        logprobs = []
+        for j in range(len(steps)):
+            response_tokens.extend(steps[j].response_ids)
+            response_masks.extend([1] * len(steps[j].response_ids))
+            if steps[j].logprobs is not None and len(steps[j].logprobs) != 0 and has_logprobs:
+                logprobs.extend(steps[j].logprobs)
+            if j < len(steps) - 1:
+                prefix_len = len(steps[j].prompt_ids) + len(steps[j].response_ids)
+                tool_tokens = steps[j + 1].prompt_ids[prefix_len:]
+                response_tokens.extend(tool_tokens)
+                response_masks.extend([0] * len(tool_tokens))
+                if has_logprobs:
+                    logprobs.extend([0] * len(tool_tokens))
+        all_response_tokens_list.append(torch.tensor(response_tokens, dtype=torch.long))
+        all_masks_list.append(torch.tensor(response_masks, dtype=torch.long))
+        if has_logprobs:
+            all_logprobs_list.append(torch.tensor(logprobs))
 
         traj_scores.append(traj.reward)
 
@@ -327,20 +362,10 @@ async def transform_episodes_to_batch(tokenizer, trajectories: List[Trajectory],
     prompt_length = prompts_batch.shape[1]
     valid_response_length_sequences = attention_mask[:, prompt_length:].sum(dim=-1)
 
-    if False:  # TODO: 这里先写成False强制token模式，待后续完善可改为traj.is_cumulative或者其它
-        step_index = 0
-        for i, traj_score in enumerate(traj_scores):
-            step_num = step_nums[i]
-            for _ in range(step_num):
-                last_valid_idx = valid_response_length_sequences[step_index] - 1
-                if 0 <= last_valid_idx < score_batch.shape[1]:
-                    score_batch[step_index, last_valid_idx] = traj_score
-                step_index += 1
-    else:
-        for i, traj_score in enumerate(traj_scores):
-            last_valid_idx = valid_response_length_sequences[i] - 1
-            if 0 <= last_valid_idx < score_batch.shape[1]:
-                score_batch[i, last_valid_idx] = traj_score
+    for i, traj_score in enumerate(traj_scores):
+        last_valid_idx = valid_response_length_sequences[i] - 1
+        if 0 <= last_valid_idx < score_batch.shape[1]:
+            score_batch[i, last_valid_idx] = traj_score
     if all_logprobs_list:
         rollout_log_probs_batch = torch.nn.utils.rnn.pad_sequence(
             all_logprobs_list,
@@ -349,25 +374,29 @@ async def transform_episodes_to_batch(tokenizer, trajectories: List[Trajectory],
         )
 
     batch_tensors = {
-        "input_ids": input_ids_list,  # 无pad，长短不一
+        "input_ids": input_ids_list,  # No padding, variable lengths
         "attention_mask": attention_mask,
         "position_ids": position_ids,
-        "responses": response_batch,  # 右pad
-        "prompts": prompts_batch,  # 左pad
-        "token_level_rewards": score_batch,  # 右pad，只有在长度那一位有值为score其余为0
-        "response_mask": traj_mask,  # 形状与responses一样，右pad 0
+        "responses": response_batch,  # Right-padded
+        "prompts": prompts_batch,  # Left-padded
+        "token_level_rewards": score_batch,  # Right-padded, only the length position has the score, rest are 0
+        "response_mask": traj_mask,  # Same shape as responses, right-padded with 0
         "rm_scores": score_batch,
     }
-    if not cancel_logprobs:
+    if has_logprobs:
         batch_tensors["rollout_log_probs"] = rollout_log_probs_batch
 
     batch = DataProto.from_dict(tensors=batch_tensors)
-    batch.non_tensor_batch["uid"] = np.array(all_prompt_ids)  # idxs
-    if False:  # TODO: 这里先写成False强制token模式，待后续完善可改为traj.is_cumulative或者其它
-        batch.non_tensor_batch["is_last_step"] = np.array(is_last_step)
+    batch.non_tensor_batch["uid"] = np.array(all_prompt_ids)
+
+    original_batch_size = batch.batch["prompts"].shape[0]
+    batch, pad_size = pad_dataproto_to_divisor(batch, config.actor_rollout_ref.rollout.n * config.actor_rollout_ref.actor.ppo_mini_batch_size)
+    for i in range(pad_size):
+        idx = original_batch_size + i
+        if "is_last_step" in batch.non_tensor_batch:
+            batch.non_tensor_batch["is_last_step"][idx] = False
 
     batch.meta_info["timing"] = {}
-    logger.info(f"transform_episodes_to_batch: {batch=}")
     return batch
 
 
@@ -380,10 +409,10 @@ class HybridAgentLoopManager(AgentLoopManager):
         self.tokenizer = hf_tokenizer(config.actor_rollout_ref.model.path, trust_remote_code=True)
 
     async def _initialize_llm_servers(self) -> None:
-        """重写此方法，在父类设置 server_addresses 后执行 hybrid 初始化"""
-        await super()._initialize_llm_servers()  # 先让父类设置 server_addresses
+        """Override to perform hybrid initialization after parent sets server_addresses"""
+        await super()._initialize_llm_servers()  # Let parent set server_addresses first
 
-        # hybrid 特有初始化
+        # Hybrid-specific initialization
         self.chat_server_list = self.server_addresses
         self.tokenizer = hf_tokenizer(self.config.actor_rollout_ref.model.path, trust_remote_code=True)
         self.iteration = 0
@@ -395,6 +424,10 @@ class HybridAgentLoopManager(AgentLoopManager):
             model_name=self.config.actor_rollout_ref.model.path,
             chat_server_list=self.chat_server_list,
         )
+
+        if hasattr(self.config.extras, "agent_engine") and self.config.extras.agent_engine == "vaee":
+            logger.info(f"VAEE: VLLM is registered with the load-balance, and the load-balance is registered with the TrajProxy.")
+            await register_infer_instances_to_lb(self.chat_server_list)
 
     async def _init_agent_loop_workers(self) -> None:
         """Override: no separate agent loop workers needed in hybrid mode."""
@@ -433,12 +466,13 @@ class HybridAgentLoopManager(AgentLoopManager):
             episode_list.append(await f)
 
         if isinstance(episode_list[0], Episode):
-            for episode in episode_list:
-                task_id_list.append(int(episode.task_id.split("-")[0]))
-                trajectory_list.extend(episode.trajectories)  # FIXME: 假设每个episode只有一个trajectories
+            for ep_idx, episode in enumerate(episode_list):
+                num_trajs = len(episode.trajectories)
+                task_id_list.extend([episode.prompt_id] * num_trajs)
+                trajectory_list.extend(episode.trajectories)
             if self.traj_output_path is not None:
-                self.write_file(trajectory_list, prefix="trajectories")
-            result = await transform_episodes_to_batch(tokenizer, trajectory_list, task_id_list)
+                self.write_file(episode_list, prefix="trajectories")
+            result = await transform_episodes_to_batch(config, tokenizer, trajectory_list, task_id_list)
         else:
             if self.traj_output_path is not None:
                 self.write_file(episode_list, prefix="trajectories")
@@ -482,6 +516,9 @@ class HybridAgentLoopManager(AgentLoopManager):
         def convert_to_string(value: Any) -> Any:
             if isinstance(value, torch.Tensor):
                 return str(value.tolist())
+            elif isinstance(value, Episode):
+                value = value.to_dict()
+                return {key: convert_to_string(v) for key, v in value.items()}
             elif isinstance(value, list):
                 return [convert_to_string(v) for v in value]
             elif isinstance(value, dict):
