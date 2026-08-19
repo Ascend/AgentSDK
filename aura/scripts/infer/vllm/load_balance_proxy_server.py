@@ -95,10 +95,10 @@ import sys
 import uuid
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from typing import Any, List
+from typing import Any, List, Tuple
 
 import httpx
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Body
 from fastapi.responses import StreamingResponse
 import logging
 
@@ -143,7 +143,7 @@ class ProxyState:
         self.is_mixed_mode = len(decoder_instances) == 0
         if self.is_mixed_mode:
             logger.info("Decoder hosts is empty. Operating in Mixed PD Mode.")
-            # 混部模式下，decoders 指向与 prefillers 相同的对象实例
+            # In mixed mode, decoders point to the same object instances as prefillers
             self.decoders = []
         else:
             self.decoders: List[ServerState] = [ServerState(h, p) for h, p in decoder_instances]
@@ -160,6 +160,29 @@ class ProxyState:
             self.decoder_heap = [(0, i, server) for i, server in enumerate(self.decoders)]
             heapq.heapify(self.decoder_heap)
         heapq.heapify(self.prefiller_heap)
+
+    async def register_prefiller_instances(self, instances: List[Tuple[str, int]]):
+        async with self.selection_lock:
+            added_count = 0
+            for host, port in instances:
+                if any(p.host == host and p.port == port for p in self.prefillers):
+                    logger.info(f"Prefiller {host}:{port} already registered. Skipping.")
+                    continue
+
+                new_server = ServerState(host, port)
+                self.prefillers.append(new_server)
+                new_index = len(self.prefillers) - 1
+                self.prefiller_heap.append((0, new_index, new_server))
+                added_count += 1
+
+                if self.is_mixed_mode:
+                    pass
+
+            if added_count > 0:
+                heapq.heapify(self.prefiller_heap)
+                logger.info(f"Successfully registered {added_count} prefillers={self.prefillers} new prefiller instances.")
+                return True
+            return False
 
     def _update_prefiller_priority(self, server_idx: int):
         """Update the priority of a prefiller server in the heap."""
@@ -202,15 +225,15 @@ class ProxyState:
 
     def select_mixed_instance(self, token_count):
         """
-        在混部模式下调用，仅从 prefiller 列表中选出一个节点处理全流程
+        Called in mixed mode, selects a single node from prefiller list to handle the full pipeline
         """
         if not self.prefiller_heap:
             raise RuntimeError("No mixed instances available")
 
-        # 直接借用 prefiller 的堆管理逻辑
+        # Directly borrow prefiller's heap management logic
         priority, chosen_idx, server = heapq.heappop(self.prefiller_heap)
         server.active_tokens += token_count
-        # 在混部单阶段模式下，我们简单地将 active_requests 作为负载参考
+        # In mixed single-phase mode, we simply use active_requests as load reference
         server.active_requests += 1
 
         self._update_prefiller_priority(chosen_idx)
@@ -218,7 +241,7 @@ class ProxyState:
 
     def release_mixed_instance(self, server_idx, token_count):
         """
-        全流程结束后释放资源
+        Release resources after the full pipeline completes
         """
         server = self.prefillers[server_idx]
         server.active_tokens -= token_count
@@ -286,24 +309,25 @@ class ProxyState:
 
     async def select_decoder_atomic(self, token_estimate: int = 1):
         """
-        通过加锁保障 heappop 和 heappush 的原子性，
-        防止高并发下多个请求同时分配到同一个最闲实例。
+        Ensure atomicity of heappop and heappush via locking,
+        preventing multiple requests from being assigned to the
+        same least-loaded instance under high concurrency.
         """
         async with self.selection_lock:
             if not self.decoder_heap:
                 raise RuntimeError("No decoder servers available")
 
-            # 1. 原子化弹出当前负载最小的实例
+            # 1. Atomically pop the instance with the smallest current load
             priority, chosen_idx, server = heapq.heappop(self.decoder_heap)
 
-            # 2. 更新该实例的状态
-            # 增加 active_requests 用于更稳健的负载计数（比 tokens 在瞬间并发下更敏感）
+            # 2. Update the instance's state
+            # Increment active_requests for more robust load counting (more sensitive than tokens under instant concurrency)
             server.active_requests += 1
-            # 模拟原逻辑增加 active_tokens (假设传入或给定默认值)
+            # Simulate original logic by incrementing active_tokens (assuming passed or given default value)
             server.active_tokens += token_estimate
 
-            # 3. 计算新优先级并压回堆
-            # 优先级算法保持与原逻辑一致：主要看 active_tokens
+            # 3. Calculate new priority and push back to heap
+            # Priority algorithm remains consistent with original logic: primarily based on active_tokens
             new_priority = server.active_tokens
             heapq.heappush(self.decoder_heap, (new_priority, chosen_idx, server))
 
@@ -311,15 +335,15 @@ class ProxyState:
 
     async def release_decoder_atomic(self, server_idx: int, tokens_processed: int):
         """
-        请求结束时，原子化地减少负载并更新堆
+        Atomically reduce load and update heap when request completes
         """
         async with self.selection_lock:
             server = self.decoders[server_idx]
             server.active_requests = max(0, server.active_requests - 1)
             server.active_tokens = max(0, server.active_tokens - tokens_processed)
 
-            # 更新堆中对应的记录（需要重新构建堆或更新特定项）
-            # 为了性能，这里简单的更新方式是重建受影响的项
+            # Update the corresponding record in the heap (need to rebuild heap or update specific item)
+            # For performance, the simple update approach here is to rebuild affected items
             self.decoder_heap = [(s.active_tokens, i, s) for i, s in enumerate(self.decoders)]
             heapq.heapify(self.decoder_heap)
 
@@ -331,8 +355,8 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--host", type=str, default="localhost")
-    parser.add_argument("--prefiller-hosts", type=str, nargs="+", default=["localhost"])
-    parser.add_argument("--prefiller-ports", type=int, nargs="+", default=[8001])
+    parser.add_argument("--prefiller-hosts", type=str, nargs="+", default=[])
+    parser.add_argument("--prefiller-ports", type=int, nargs="+", default=[])
     parser.add_argument("--decoder-hosts", type=str, nargs="+", default=[])
     parser.add_argument("--decoder-ports", type=int, nargs="+", default=[])
     parser.add_argument("--max-retries", type=int, default=3, help="Maximum number of retries for HTTP requests")
@@ -386,6 +410,32 @@ def with_cancellation(handler_func):
 
 
 app = FastAPI(lifespan=lifespan)
+
+
+@app.post("/register_prefillers")
+async def register_prefillers(instances: List[str] = Body(...)):
+    global proxy_state
+    if proxy_state is None:
+        return {"status": "error", "message": "Proxy state not initialized"}
+
+    if not instances:
+        return {"status": "error", "message": "Empty instance list"}
+
+    # Parse "IP:port" string to Tuple[str, int]
+    instance_tuples = []
+    for item in instances:
+        try:
+            host, port_str = item.rsplit(":", 1)  # rsplit is compatible with IPv6
+            instance_tuples.append((host, int(port_str)))
+        except ValueError:
+            return {"status": "error", "message": f"Invalid format: {item}. Expected 'host:port'"}
+
+    success = await proxy_state.register_prefiller_instances(instance_tuples)
+
+    if success:
+        return {"status": "success", "message": f"Processed {len(instance_tuples)} instances."}
+    else:
+        return {"status": "ignored", "message": "All instances already existed or no new instances added."}
 
 
 async def send_request_to_service(
@@ -525,24 +575,24 @@ class InstanceInfo:
 
 async def _handle_completions_pd_mix(api: str, request: Request):
     body = await request.json()
-    # 模拟估算 token 负载
+    # Simulate token load estimation
     prompt = body.get("prompt", "") or str(body.get("messages", ""))
     token_count = 20
     if isinstance(prompt, list):
         if len(prompt) > 0:
-            # 数字列表 [151644, 8948, ...]
+            # Numeric list [151644, 8948, ...]
             if isinstance(prompt[0], int):
                 token_count += len(prompt)
-            # Message 字典列表 [{'role': '...', 'content': '...'}, ...]
+            # Message dict list [{'role': '...', 'content': '...'}, ...]
             else:
                 for msg in prompt:
-                    # 兼容不同字段名，确保 content 不为 None
+                    # Compatible with different field names, ensure content is not None
                     content = msg.get("content") or ""
                     token_count += len(str(content))
     else:
-        # 注意：split() 是按空格估算，若包含中文
+        # Note: split() estimates by spaces, may be inaccurate for Chinese
         token_count += len(str(prompt).split())
-    # --- PD 混部：单阶段调度 ---
+    # --- PD Mixed: Single-phase scheduling ---
     idx, server = proxy_state.select_mixed_instance(token_count)
 
     headers = {
@@ -552,13 +602,13 @@ async def _handle_completions_pd_mix(api: str, request: Request):
 
     async def stream_results():
         try:
-            # 使用 AsyncClient 转发请求
+            # Use AsyncClient to forward the request
             async with server.client.stream(
                 "POST",
                 api,
                 json=body,
                 headers=headers,
-                timeout=None,  # 避免推理时间过长导致超时
+                timeout=None,  # Avoid timeout due to long inference time
             ) as response:
                 if response.status_code != 200:
                     error_text = await response.aread()
@@ -575,7 +625,7 @@ async def _handle_completions_pd_mix(api: str, request: Request):
             logger.error(f"_handle_completions_pd_mix Streaming error from {server.url}: {e}")
             yield json.dumps({"error": str(e)}).encode("utf-8")
         finally:
-            # 3. 无论成功还是异常，必须释放负载
+            # 3. Regardless of success or exception, must release the load
             proxy_state.release_mixed_instance(idx, token_count)
             logger.info(f"Released instance {idx}, active_tokens: {server.active_tokens}")
 
