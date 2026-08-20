@@ -617,6 +617,51 @@ python aura/start.py --config-name=${CONFIG_NAME} 2>&1 | tee ${LOG_PATH}/train_u
 | executor_kwargs.trajectory_save_dir                        | str  | 轨迹保存目录               | 应为有效的文件路径                             |
 | resource_info                                              | list | 整个agent服务的资源描述       | 默认为空列表                                |
 
+#### 黑盒 Agent 模式（vaee）配置
+
+当 `agent_engine` 设置为 `vaee` 时，表示使用黑盒虚拟引擎模式，Agent 运行在外部独立服务中，通过 HTTP 通信。除上述通用参数外，还需配置以下参数：
+
+| 参数名 | 类型 | 说明 | 约束 |
+|--------|------|------|------|
+| executor_kwargs.agent_engine | str | Agent 引擎 | 必须为 vaee |
+| executor_kwargs.agent_engine_kwargs.agent_name | str | Agent 场景名称   | 对应agents_mapping.py中的 proxy 配置 |
+| executor_kwargs.agent_engine_kwargs.agent_proxy_args.agent_addr | str | 外部 Agent 服务的 HTTP 地址 | 应为有效的通信地址 |
+| executor_kwargs.agent_engine_kwargs.agent_proxy_args.traj_addr | str | TrajProxy 服务地址 | 应与traj_proxy_args.infer_url一致 |
+| executor_kwargs.agent_engine_kwargs.agent_proxy_args.run_id | str | 运行标识，TrajProxy 按此分组管理轨迹 | 应为唯一标识 |
+| executor_kwargs.agent_engine_kwargs.traj_proxy_args.infer_url | str | TrajProxy 服务地址，用于拉取轨迹 | 应为有效的通信地址 |
+| executor_kwargs.agent_engine_kwargs.res_reward_func | str | 步骤级奖励函数路径（可选） | 应为有效的函数路径 |
+| executor_kwargs.agent_engine_kwargs.traj_refine_func | str | 轨迹聚合函数路径（可选），不配置则使用默认实现 | 应为有效的函数路径 |
+
+**黑盒 Agent 配置示例**：
+
+```yaml
+agent_instances:
+  - name: proxy_agent
+    executor_num: 1
+    executor_kwargs:
+      agent_engine: vaee
+      agent_engine_kwargs:
+        agent_name: proxy
+        env_args:
+          max_steps: 5
+        traj_proxy_args:
+          infer_url: "http://0.0.0.0:12300"
+        agent_proxy_args:
+          agent_addr: "http://0.0.0.0:28124"
+          traj_addr: "http://0.0.0.0:12300"
+          run_id: app_math_blackbox
+        res_reward_func: "agents.proxy_agent.math.ozy_math_reward.math_res_reward_fn"
+        traj_refine_func: "agents.proxy_agent.math.ozy_traj_refine_reward.ozy_token_traj_refine_func"
+        tokenizer: ${verl_conf.actor_rollout_ref.model.path}
+      infer_service_params:
+        temperature: 1.0
+        top_p: 1.0
+        max_tokens: 8192
+        model: ${infer_instances.0.name}
+      trajectory_save_dir: ${hydra:runtime.cwd}/outputs
+    resource_info: []
+```
+
 ---
 
 ### 推理实例配置
@@ -790,3 +835,263 @@ infer_instances:
         model_name: Qwen2.5-7B-Instruct
     resource_info: [ ]
 ```
+
+---
+
+## 五、黑盒 Agent 训练接口说明
+
+### 概述
+
+VAEE（Virtual Agent Engine Execution Wrapper）是黑盒 Agent 模式的虚拟引擎，负责通过 HTTP 与外部 Agent 服务通信，并完成轨迹聚合与奖励计算。VAEE 模式将 Agent 视为"黑盒"，不关心其内部实现，只通过标准化接口交互。
+
+### 对外暴露的接口
+
+#### 5.1 AgentProxyClient — 发送 prompt 到外部 Agent
+
+**功能描述**
+
+向外部 Agent 服务发送 prompt，触发 agent loop 执行。
+
+**HTTP 请求**
+
+| 项目 | 说明 |
+|------|------|
+| 方法 | `POST` |
+| 路径 | 由配置 `agent_proxy_args.agent_addr` 指定，外部 Agent 服务需暴露 `POST /v1/chat/completions` |
+| Content-Type | `application/json` |
+
+**请求体（发送给外部 Agent 服务）**
+
+```json
+{
+  "model": "Qwen3-8B",
+  "messages": [
+    {"role": "system", "content": "You are a math assistant..."},
+    {"role": "user", "content": "Solve: 1+2+...+100 = ?"}
+  ],
+  "infer_params": {
+    "temperature": 1.0,
+    "top_p": 1.0,
+    "max_tokens": 8192,
+    "model": "/path/to/model"
+  },
+  "extra_params": {},
+  "infer_url": "http://trajproxy:12300/s/run_id/session_id/v1/"
+}
+```
+
+**参数说明**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `model` | str | 模型名称，供 Agent 服务识别使用哪个模型 |
+| `messages` | list | 对话历史，包含 system 和 user 消息 |
+| `infer_params` | dict | 推理采样参数（temperature、top_p、max_tokens 等） |
+| `extra_params` | dict | 扩展参数，预留字段 |
+| `infer_url` | str | **TrajProxy 地址**，Agent**必须**将请求发到此地址：`http://{traj_addr}/s/{run_id}/{session_id}/v1/` |
+
+**文件位置**: `aura/runner/agent_engine_wrapper/proxy_client/agent_proxy_client.py`
+
+#### 5.2 TrajProxyClient — 拉取轨迹记录
+
+**功能描述**
+
+从 TrajProxy 服务拉取指定 session 的所有 LLM 调用记录，用于后续轨迹聚合与奖励计算。
+
+**HTTP 请求**
+
+| 项目 | 说明 |
+|------|------|
+| 方法 | `GET` |
+| 路径 | `/trajectory?session_id={session_id}` |
+| 服务地址 | 由配置 `traj_proxy_args.infer_url` 指定 |
+
+**响应体**
+
+```json
+{
+  "records": [
+    {
+      "unique_id": "7f3d8a2e...",
+      "session_id": "session_xxx",
+      "messages": [
+        {"role": "system", "content": "..."},
+        {"role": "user", "content": "..."}
+      ],
+      "raw_request": {
+        "model": "Qwen3-8B",
+        "messages": [...],
+        "stream": false
+      },
+      "raw_response": {
+        "choices": [{"message": {"role": "assistant", "content": "..."}, "logprobs": {...}}]
+      },
+      "start_time": 1700000000.123,
+      "end_time": 1700000002.456,
+      "error_traceback": null
+    }
+  ]
+}
+```
+
+**参数说明**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `records` | list | LLM 调用记录列表，按 `start_time` 排序 |
+| `unique_id` | str | 记录唯一标识 |
+| `session_id` | str | 会话 ID，关联同一次 agent loop 的所有 LLM 调用 |
+| `messages` | list | 该次 LLM 调用时发送的完整对话历史 |
+| `raw_request` | dict | 原始 LLM 请求体 |
+| `raw_response` | dict | 原始 LLM 响应体（含 logprobs） |
+| `start_time` | float | 请求发起时间戳 |
+| `end_time` | float | 响应返回时间戳 |
+| `error_traceback` | str/null | 错误堆栈，为 null 表示正常 |
+
+**文件位置**: `aura/runner/agent_engine_wrapper/proxy_client/traj_proxy_client.py`
+
+### 5.3 黑盒 Agent 接入约束
+
+#### 约束 1：必须实现 HTTP 接口 `POST /v1/chat/completions`
+
+外部 Agent 服务必须暴露 `POST /v1/chat/completions` 接口，接收训练框架发送的 prompt。该接口的请求体由 `AgentProxyClient` 构造，包含 `messages`、`infer_params`、`infer_url` 等字段。
+
+**Agent loop 中的 LLM 调用必须走 `infer_url`**，Agent 服务的每一步 LLM 调用，**必须将请求发送到 `infer_url`**（即 TrajProxy），而非直接调用 vLLM，确保每一步 LLM 调用都经过 TrajProxy。
+
+```python
+# 正确：走 infer_url → TrajProxy 记录轨迹
+url = f"{self.infer_url}/chat/completions"
+response = await httpx.post(url, json=body)
+
+# 错误：直连 vLLM，TrajProxy 收不到任何记录，轨迹为空
+response = await httpx.post("http://vllm:8000/v1/chat/completions", json=body)
+```
+
+**最小参考实现**：
+
+```python
+from fastapi import FastAPI
+from pydantic import BaseModel
+import httpx
+
+app = FastAPI()
+
+class ChatCompletionRequest(BaseModel):
+    model: str
+    messages: list
+    infer_params: dict = {}
+    extra_params: dict = {}
+    infer_url: str = ""
+
+class LLMClient:
+    """LLM 调用客户端，必须将请求发到 infer_url"""
+    def __init__(self, infer_url: str, model: str, infer_params: dict):
+        self.infer_url = infer_url.rstrip("/")
+        self.model = model
+        self.infer_params = infer_params
+        self.client = httpx.AsyncClient(timeout=300.0)
+
+    async def chat_completion(self, messages: list) -> dict:
+        body = {
+            "model": self.model,
+            "messages": messages,
+            "stream": False,
+            **{k: v for k, v in self.infer_params.items() if k != "model"},
+        }
+        # 关键：请求发到 infer_url，而非直连 vLLM
+        url = f"{self.infer_url}/chat/completions"
+        resp = await self.client.post(url, json=body)
+        resp.raise_for_status()
+        return resp.json()
+
+class MyAgentSession:
+    """用户自定义的 agent loop 逻辑"""
+    def __init__(self, infer_url, model, infer_params, max_steps=5):
+        self.llm_client = LLMClient(infer_url, model, infer_params)
+        self.messages = []
+        self.max_steps = max_steps
+
+    def initialize(self, system_prompt: str, problem: str):
+        self.messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": problem},
+        ]
+
+    async def run(self):
+        for step in range(self.max_steps):
+            # 1. 调用 LLM（经 infer_url → TrajProxy）
+            resp = await self.llm_client.chat_completion(self.messages)
+            content = resp["choices"][0]["message"]["content"]
+            self.messages.append({"role": "assistant", "content": content})
+
+            # 2. 解析 tool calls 并执行（用户自定义逻辑）
+            # tool_calls = parse_tool_calls(content)
+            # obs = execute_tools(tool_calls)
+            # self.messages.extend(obs)
+            pass
+
+@app.post("/v1/chat/completions")
+async def handle(body: ChatCompletionRequest):
+    session = MyAgentSession(
+        infer_url=body.infer_url,
+        model=body.model,
+        infer_params=body.infer_params,
+    )
+    # 从 body.messages 中提取 system prompt 和 user problem
+    system_prompt = "You are a helpful assistant."
+    problem = ""
+    for msg in body.messages:
+        if msg["role"] == "user":
+            problem = msg.get("content", "")
+            break
+    session.initialize(system_prompt, problem)
+    await session.run()
+    return {"code": 0}
+```
+
+#### 约束 2：轨迹聚合与奖励函数需符合签名
+
+如果自定义 `traj_refine_func`、`res_reward_func`，其函数签名必须符合下述接口定义，否则训练流程会因类型错误而中断。如果不配置，框架使用默认实现。
+
+##### traj_refine_func — 轨迹聚合函数
+
+**功能描述**: 将从 TrajProxy 拉取的原始请求/响应记录（`List[RequestRecord]`）聚合为轨迹级轨迹（`Episode`）。
+
+**函数示例**
+
+```python
+def traj_refine_func(
+    task_id: str,
+    task: dict,
+    records: List[RequestRecord],
+    tokenizer=None,
+    *args, **kwargs
+) -> Episode:
+```
+
+**核心类型**
+
+| 类型 | 说明 |
+|------|------|
+| `RequestRecord` | 原始 LLM 调用记录，包含 messages、raw_response、start_time、error_traceback 等 |
+| `Step` | 单步数据，包含 prompt_ids、response_ids、logprobs、reward、action、tool_outputs 等 |
+| `Trajectory` | 轨迹数据，包含多个 Step 和整体奖励 |
+| `Episode` | 包含一个或多个 `Trajectory`，每个 `Trajectory` 包含多个 `Step` |
+
+**参考实现**: aura/agents/proxy_agent/math/ozy_traj_refine_reward.py
+
+##### traj_reward_func — 轨迹级奖励函数
+
+**功能描述**: 为整个轨迹计算最终奖励。
+
+**函数示例**
+
+```python
+def traj_reward_func(
+    episode: Episode,
+    answer: Optional[str] = None,
+    *args, **kwargs
+) -> Episode:
+```
+
+**参考实现**: aura/agents/proxy_agent/math/ozy_math_reward.py

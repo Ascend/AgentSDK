@@ -117,6 +117,7 @@ class VirtualAgentEngineExecutionWrapper(BaseEngineWrapper):
         self.tokenizer_name_or_path = tokenizer
         self.tokenizer = AutoTokenizer.from_pretrained(self.tokenizer_name_or_path)
 
+        self.set_noop_signal()
         self.traj_refine_func = (
             load_object_by_path(traj_refine_func) if traj_refine_func else default_token_traj_refine_func
         )
