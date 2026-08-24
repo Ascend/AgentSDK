@@ -1,4 +1,4 @@
-"""Fire-and-forget task lifecycle tests for ``WebSocketTransport`` (P1-B).
+"""Fire-and-forget task lifecycle tests for ``WebSocketTransport``.
 
 The transport schedules ``ws.send`` / ``ws.close`` coroutines without
 awaiting them. Without a strong reference the event loop only weakly
