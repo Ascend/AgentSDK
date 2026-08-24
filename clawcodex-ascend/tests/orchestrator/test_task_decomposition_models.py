@@ -51,6 +51,7 @@ def test_valid_plan_serializes_runtime_fields() -> None:
 
     payload = plan.to_dict()
     assert payload["waves"] == [["discover"], ["implement"]]
+    assert payload["fallback_reason"] is None
     assert payload["subtasks"][0]["status"] == "pending"
     assert payload["subtasks"][1]["affected_files"] == ["src/app.py"]
 
@@ -80,3 +81,15 @@ def test_plan_rejects_parallel_file_conflict() -> None:
 
     with pytest.raises(ValueError, match="file conflict"):
         plan.validate(max_subtasks=3, max_waves=2)
+
+
+def test_plan_rejects_path_like_subtask_id() -> None:
+    plan = TaskPlan(
+        goal="unsafe",
+        subtasks=(Subtask("../../config", "Unsafe", ""),),
+        waves=(("../../config",),),
+        max_parallel=1,
+    )
+
+    with pytest.raises(ValueError, match="unsafe subtask ids"):
+        plan.validate(max_subtasks=2, max_waves=2)

@@ -24,7 +24,10 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+import re
 from typing import Any
+
+_SAFE_SUBTASK_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
 
 
 @dataclass(frozen=True)
@@ -60,6 +63,7 @@ class TaskPlan:
     waves: tuple[tuple[str, ...], ...]
     max_parallel: int
     version: int = 1
+    fallback_reason: str | None = None
 
     def validate(self, *, max_subtasks: int, max_waves: int) -> None:
         if not self.subtasks:
@@ -69,6 +73,9 @@ class TaskPlan:
         ids = [task.id for task in self.subtasks]
         if len(ids) != len(set(ids)):
             raise ValueError("task plan contains duplicate subtask ids")
+        invalid_ids = [task_id for task_id in ids if not _SAFE_SUBTASK_ID.fullmatch(task_id)]
+        if invalid_ids:
+            raise ValueError(f"task plan contains unsafe subtask ids: {invalid_ids}")
         known = set(ids)
         for task in self.subtasks:
             unknown = set(task.depends_on) - known
@@ -117,6 +124,7 @@ class TaskPlan:
             "version": self.version,
             "goal": self.goal,
             "max_parallel": self.max_parallel,
+            "fallback_reason": self.fallback_reason,
             "subtasks": [task.to_dict() for task in self.subtasks],
             "waves": [list(wave) for wave in self.waves],
         }
