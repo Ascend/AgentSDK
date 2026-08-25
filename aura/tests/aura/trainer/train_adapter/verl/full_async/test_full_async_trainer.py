@@ -406,12 +406,12 @@ class TestFullyAsyncTrainer(unittest.TestCase):
         self.trainer.progress_bar.update.assert_called_once_with(1)
 
     def test_fit_postprocess_step_no_progress_update(self):
-        """Test _fit_postprocess_step doesn't update progress bar when local_trigger_step != 1."""
+        """``_fit_postprocess_step`` always updates the progress bar (regardless of local_trigger_step)."""
         self.trainer.local_trigger_step = 2
 
         self.trainer._fit_postprocess_step()
 
-        self.trainer.progress_bar.update.assert_not_called()
+        self.trainer.progress_bar.update.assert_called_once_with(1)
 
     def test_collect_metrics_from_samples(self):
         """Test _collect_metrics_from_samples method."""
@@ -608,12 +608,12 @@ class TestFullyAsyncTrainer(unittest.TestCase):
         self.trainer.progress_bar.update.assert_called_once_with(1)
 
     def test_fit_postprocess_step_without_local_trigger(self):
-        """Test _fit_postprocess_step when local_trigger_step != 1."""
+        """``_fit_postprocess_step`` always updates the progress bar (regardless of local_trigger_step)."""
         self.trainer.local_trigger_step = 2
 
         self.trainer._fit_postprocess_step()
 
-        self.trainer.progress_bar.update.assert_not_called()
+        self.trainer.progress_bar.update.assert_called_once_with(1)
 
     def test_fit_update_local_step_increment(self):
         """Test _fit_update_local_step increment logic."""
@@ -786,6 +786,457 @@ class TestFullyAsyncTrainer(unittest.TestCase):
             mock_load_checkpoint.assert_called_once()
 
 
+class TestFullyAsyncTrainerRefactoredHelpers(unittest.TestCase):
+    """Unit tests for the helper methods extracted during refactoring.
+
+    These helpers do not depend on NPU/GPU and reuse the same mock setup
+    as ``TestFullyAsyncTrainer``.
+    """
+
+    def setUp(self):
+        self.mock_ray = MagicMock()
+        self.mock_verl = MagicMock()
+        self.mock_omegaconf = MagicMock()
+        self.mock_torch = MagicMock()
+        # ``isinstance`` requires a real type, not a MagicMock attribute
+        self.mock_torch.Tensor = type('Tensor', (), {})
+        self.mock_np = MagicMock()
+
+        self.mock_verl.DataProto = MagicMock()
+        self.mock_verl.Role = MagicMock()
+        self.mock_verl.trainer.ppo.utils.Role = self.mock_verl.Role
+        self.mock_verl.trainer.ppo.utils.Role.Actor = MagicMock()
+        self.mock_verl.trainer.ppo.utils.Role.ActorRollout = MagicMock()
+        self.mock_verl.trainer.ppo.utils.Role.Critic = MagicMock()
+        self.mock_verl.trainer.ppo.utils.Role.RefPolicy = MagicMock()
+        self.mock_verl.trainer.ppo.utils.Role.RewardModel = MagicMock()
+        self.mock_verl.WorkerType = MagicMock()
+        self.mock_verl.trainer.ppo.utils.WorkerType = MagicMock()
+
+        self.mock_verl.utils.checkpoint.checkpoint_manager.find_latest_ckpt_path = MagicMock()
+        self.mock_verl.utils.checkpoint.checkpoint_manager.should_save_ckpt_esi = MagicMock(return_value=False)
+        self.mock_verl.utils.debug.marked_timer = MagicMock(return_value=MagicMock())
+        self.mock_verl.trainer.ppo.core_algos.get_kl_controller = MagicMock()
+        self.mock_verl.trainer.ppo.utils.need_critic = MagicMock(return_value=False)
+        self.mock_verl.trainer.ppo.utils.need_reference_policy = MagicMock(return_value=False)
+        self.mock_verl.trainer.ppo.utils.need_reward_model = MagicMock(return_value=False)
+
+        self.mock_verl.experimental.fully_async_policy.detach_utils.MetricsAggregator = MagicMock()
+
+        class MockSeparateRayPPOTrainer:
+            def __init__(self, *args, **kwargs):
+                self.resource_pool_to_cls = {}
+                self.all_wg = {}
+
+        self.mock_verl.experimental.separation.ray_trainer.SeparateRayPPOTrainer = MockSeparateRayPPOTrainer
+        self.mock_verl.single_controller.ray.RayClassWithInitArgs = MagicMock()
+        self.mock_verl.single_controller.ray.RayWorkerGroup = MagicMock()
+        self.mock_verl.utils.tracking.Tracking = MagicMock()
+
+        self.mock_ray.remote = lambda *a, **k: (lambda cls: cls)
+
+        with patch.dict('sys.modules', {
+            'ray': self.mock_ray,
+            'ray.util': MagicMock(),
+            'ray.util.scheduling_strategies': MagicMock(),
+            'omegaconf': self.mock_omegaconf,
+            'tqdm': MagicMock(),
+            'numpy': self.mock_np,
+            'torch': self.mock_torch,
+            'verl': self.mock_verl,
+            'verl.experimental': self.mock_verl.experimental,
+            'verl.experimental.fully_async_policy': self.mock_verl.experimental.fully_async_policy,
+            'verl.experimental.fully_async_policy.detach_utils': self.mock_verl.experimental.fully_async_policy.detach_utils,
+            'verl.experimental.separation': self.mock_verl.experimental.separation,
+            'verl.experimental.separation.ray_trainer': self.mock_verl.experimental.separation.ray_trainer,
+            'verl.single_controller.ray': self.mock_verl.single_controller.ray,
+            'verl.trainer.ppo': self.mock_verl.trainer.ppo,
+            'verl.trainer.ppo.core_algos': self.mock_verl.trainer.ppo.core_algos,
+            'verl.trainer.ppo.ray_trainer': self.mock_verl.trainer.ppo.ray_trainer,
+            'verl.trainer.ppo.utils': self.mock_verl.trainer.ppo.utils,
+            'verl.utils.checkpoint.checkpoint_manager': self.mock_verl.utils.checkpoint.checkpoint_manager,
+            'verl.utils.debug': self.mock_verl.utils.debug,
+            'verl.utils.tracking': MagicMock(),
+            'aura.base.log.loggers': MagicMock(),
+        }):
+            from aura.trainer.train_adapter.verl.full_async.full_async_trainer import (
+                FullyAsyncTrainer,
+                TrainingStopException,
+                _left_pad,
+                _right_pad,
+                _extract_scalar,
+            )
+            self.FullyAsyncTrainer = FullyAsyncTrainer
+            self.TrainingStopException = TrainingStopException
+            self._left_pad = _left_pad
+            self._right_pad = _right_pad
+            self._extract_scalar = _extract_scalar
+
+        self.mock_config = MagicMock()
+        self.mock_config.actor_rollout_ref.hybrid_engine = False
+
+        def model_get(k, default=None):
+            if k == 'lora':
+                return {'rank': 0}
+            if k == 'lora_adapter_path':
+                return None
+            return default if default is not None else 0
+
+        mock_model = MagicMock()
+        mock_model.get = MagicMock(side_effect=model_get)
+        self.mock_config.actor_rollout_ref.model = mock_model
+        self.mock_config.algorithm.use_kl_in_reward = False
+        self.mock_config.async_training.trigger_parameter_sync_step = 1
+        self.mock_config.async_training.require_batches = 1
+        self.mock_config.async_training.use_trainer_do_validate = False
+        self.mock_config.actor_rollout_ref.actor.ppo_mini_batch_size = 4
+        self.mock_config.trainer.device = 'cpu'
+        self.mock_config.trainer.project_name = 'p'
+        self.mock_config.trainer.experiment_name = 'e'
+        self.mock_config.trainer.logger = 'tracking'
+        self.mock_config.trainer.default_local_dir = '/tmp/test_ckpt'
+        self.mock_config.trainer.default_hdfs_dir = None
+        self.mock_config.trainer.save_freq = 10
+        self.mock_config.trainer.esi_redundant_time = 300
+        self.mock_config.trainer.resume_mode = 'disable'
+        self.mock_config.trainer.nnodes = 1
+        self.mock_config.trainer.n_gpus_per_node = 1
+        self.mock_config.rollout.nnodes = 1
+        self.mock_config.rollout.n_gpus_per_node = 1
+        self.mock_config.rollout.test_freq = 10
+        self.mock_config.reward_model = {}
+        self.mock_config.actor_rollout_ref.actor = MagicMock()
+        self.mock_config.actor_rollout_ref.actor.get = MagicMock(return_value=False)
+        self.mock_config.trainer.get = MagicMock(return_value='auto')
+
+        self.trainer = self.FullyAsyncTrainer(
+            config=self.mock_config,
+            tokenizer=MagicMock(),
+            role_worker_mapping={self.mock_verl.Role.Actor: MagicMock()},
+            resource_pool_manager=MagicMock(),
+        )
+        self.trainer.logger = MagicMock()
+        self.trainer.progress_bar = MagicMock()
+        self.trainer.metrics_aggregator = MagicMock()
+
+    # ---------------- Static / side-effect-free helpers ----------------
+
+    def test_extract_scalar_unwraps_single_element_list(self):
+        self.assertEqual(self._extract_scalar([42]), 42)
+
+    def test_extract_scalar_passthrough_non_list(self):
+        self.assertEqual(self._extract_scalar("hello"), "hello")
+
+    def test_extract_scalar_keeps_multi_element_list(self):
+        self.assertEqual(self._extract_scalar([1, 2, 3]), [1, 2, 3])
+
+    def test_compute_ref_in_actor_no_lora(self):
+        cfg = MagicMock()
+        cfg.actor_rollout_ref.model.get = MagicMock(side_effect=lambda k, default=None: {'rank': 0} if k == 'lora' else default)
+        # lora_adapter_path lookup returns None
+        self.assertFalse(self.FullyAsyncTrainer._compute_ref_in_actor(cfg))
+
+    def test_compute_ref_in_actor_with_lora_rank(self):
+        cfg = MagicMock()
+
+        def model_get(k, default=None):
+            if k == 'lora':
+                return {'rank': 8}
+            return None
+
+        cfg.actor_rollout_ref.model.get = MagicMock(side_effect=model_get)
+        self.assertTrue(self.FullyAsyncTrainer._compute_ref_in_actor(cfg))
+
+    def test_compute_ref_in_actor_with_lora_adapter_path(self):
+        cfg = MagicMock()
+
+        def model_get(k, default=None):
+            if k == 'lora_adapter_path':
+                return '/some/path'
+            if k == 'lora':
+                return {'rank': 0}
+            # Honor the provided default so source ``lora_rank > 0`` guard works
+            return default
+
+        cfg.actor_rollout_ref.model.get = MagicMock(side_effect=model_get)
+        self.assertTrue(self.FullyAsyncTrainer._compute_ref_in_actor(cfg))
+
+    def test_compute_train_role_no_validate(self):
+        cfg = MagicMock()
+        cfg.async_training.use_trainer_do_validate = False
+        self.assertEqual(self.FullyAsyncTrainer._compute_train_role(cfg), self.mock_verl.Role.Actor)
+
+    def test_compute_train_role_with_validate(self):
+        cfg = MagicMock()
+        cfg.async_training.use_trainer_do_validate = True
+        self.assertEqual(self.FullyAsyncTrainer._compute_train_role(cfg), self.mock_verl.Role.ActorRollout)
+
+    # ---------------- _should_save_now ----------------
+
+    def test_should_save_now_returns_false_when_save_freq_zero(self):
+        self.mock_config.trainer.save_freq = 0
+        self.assertFalse(self.trainer._should_save_now(force=True, esi_close_to_expiration=False))
+
+    def test_should_save_now_returns_true_on_esi_expiration(self):
+        self.mock_config.trainer.save_freq = 5
+        self.assertTrue(self.trainer._should_save_now(force=False, esi_close_to_expiration=True))
+
+    def test_should_save_now_returns_false_without_force(self):
+        self.mock_config.trainer.save_freq = 5
+        self.trainer.current_param_version = 5
+        self.assertFalse(self.trainer._should_save_now(force=False, esi_close_to_expiration=False))
+
+    def test_should_save_now_returns_true_on_freq_boundary_with_force(self):
+        self.mock_config.trainer.save_freq = 5
+        self.trainer.current_param_version = 10
+        self.assertTrue(self.trainer._should_save_now(force=True, esi_close_to_expiration=False))
+
+    def test_should_save_now_returns_false_off_freq_boundary_with_force(self):
+        self.mock_config.trainer.save_freq = 5
+        self.trainer.current_param_version = 7
+        self.assertFalse(self.trainer._should_save_now(force=True, esi_close_to_expiration=False))
+
+    # ---------------- _build_remote_path / _build_critic_remote_path ----------------
+
+    def test_build_remote_path_returns_none_when_hdfs_disabled(self):
+        self.mock_config.trainer.default_hdfs_dir = None
+        self.assertIsNone(self.trainer._build_remote_path("actor"))
+
+    def test_build_remote_path_joins_hdfs_dir(self):
+        self.mock_config.trainer.default_hdfs_dir = '/hdfs/ckpt'
+        self.trainer.current_param_version = 3
+        path = self.trainer._build_remote_path("actor")
+        self.assertIn("global_step_3", path)
+        self.assertIn("actor", path)
+
+    def test_build_critic_remote_path_returns_none_when_hdfs_disabled(self):
+        self.mock_config.trainer.default_hdfs_dir = None
+        self.assertIsNone(self.trainer._build_critic_remote_path())
+
+    def test_build_critic_remote_path_joins_hdfs_dir(self):
+        self.mock_config.trainer.default_hdfs_dir = '/hdfs/ckpt'
+        self.trainer.current_param_version = 5
+        path = self.trainer._build_critic_remote_path()
+        self.assertIn("global_step_5", path)
+
+    # ---------------- _resolve_ckpt_keep_counts ----------------
+
+    def test_resolve_ckpt_keep_counts_with_deprecated_flag(self):
+        self.mock_config.trainer.get = MagicMock(return_value=True)  # remove_previous_ckpt_in_save
+        actor, critic = self.trainer._resolve_ckpt_keep_counts()
+        self.assertEqual((actor, critic), (1, 1))
+
+    def test_resolve_ckpt_keep_counts_default(self):
+        self.mock_config.trainer.get = MagicMock(return_value=None)
+        actor, critic = self.trainer._resolve_ckpt_keep_counts()
+        self.assertIsNone(actor)
+        self.assertIsNone(critic)
+
+    def test_resolve_ckpt_keep_counts_explicit_values(self):
+        def fake_get(key, default=None):
+            mapping = {
+                'remove_previous_ckpt_in_save': False,
+                'max_actor_ckpt_to_keep': 3,
+                'max_critic_ckpt_to_keep': 5,
+            }
+            return mapping.get(key, default)
+
+        self.mock_config.trainer.get = MagicMock(side_effect=fake_get)
+        actor, critic = self.trainer._resolve_ckpt_keep_counts()
+        self.assertEqual((actor, critic), (3, 5))
+
+    # ---------------- _resolve_local_checkpoint_folder / _resolve_resume_path ----------------
+
+    def test_resolve_local_checkpoint_folder_absolute(self):
+        self.mock_config.trainer.default_local_dir = '/abs/path'
+        self.assertEqual(self.trainer._resolve_local_checkpoint_folder(), '/abs/path')
+
+    def test_resolve_local_checkpoint_folder_relative_uses_cwd(self):
+        self.mock_config.trainer.default_local_dir = 'rel/path'
+        with patch('os.getcwd', return_value='/workdir'):
+            self.assertEqual(self.trainer._resolve_local_checkpoint_folder(), '/workdir/rel/path')
+
+    def test_resolve_resume_path_not_resume_mode(self):
+        self.mock_config.trainer.resume_mode = 'auto'
+        original = '/some/global_step_5'
+        self.assertEqual(self.trainer._resolve_resume_path(original), original)
+
+    def test_resolve_resume_path_not_string(self):
+        self.mock_config.trainer.resume_mode = 'resume_path'
+        self.mock_config.trainer.resume_from_path = 12345
+        with self.assertRaises(ValueError) as ctx:
+            self.trainer._resolve_resume_path(None)
+        self.assertIn("str type", str(ctx.exception))
+
+    def test_resolve_resume_path_missing_global_step(self):
+        self.mock_config.trainer.resume_mode = 'resume_path'
+        self.mock_config.trainer.resume_from_path = '/no/global_step/here'
+        with self.assertRaises(ValueError) as ctx:
+            self.trainer._resolve_resume_path(None)
+        self.assertIn("global_steps", str(ctx.exception))
+
+    def test_resolve_resume_path_absolute(self):
+        self.mock_config.trainer.resume_mode = 'resume_path'
+        self.mock_config.trainer.resume_from_path = '/abs/ckpt/global_step_10'
+        self.assertEqual(self.trainer._resolve_resume_path(None), '/abs/ckpt/global_step_10')
+
+    def test_resolve_resume_path_relative(self):
+        self.mock_config.trainer.resume_mode = 'resume_path'
+        self.mock_config.trainer.resume_from_path = 'rel/global_step_3'
+        with patch('os.getcwd', return_value='/workdir'):
+            self.assertEqual(self.trainer._resolve_resume_path(None), '/workdir/rel/global_step_3')
+
+    # ---------------- _resolve_checkpoint_folder ----------------
+
+    def test_resolve_checkpoint_folder_raises_on_hdfs(self):
+        self.mock_config.trainer.default_hdfs_dir = '/hdfs'
+        with self.assertRaises(NotImplementedError):
+            self.trainer._resolve_checkpoint_folder()
+
+    def test_resolve_checkpoint_folder_auto_mode(self):
+        self.mock_config.trainer.default_hdfs_dir = None
+        self.mock_config.trainer.resume_mode = 'auto'
+        self.mock_config.trainer.default_local_dir = '/abs/ckpt'
+        self.mock_verl.utils.checkpoint.checkpoint_manager.find_latest_ckpt_path.return_value = '/abs/ckpt/global_step_5'
+        result = self.trainer._resolve_checkpoint_folder()
+        self.assertEqual(result, '/abs/ckpt/global_step_5')
+
+    # ---------------- _has_sample_meta_info / _is_async_metric_key / _count_stale_trajectories ----
+
+    def test_has_sample_meta_info_true(self):
+        batch = MagicMock()
+        batch.meta_info = {"some": "value"}
+        self.assertTrue(self.FullyAsyncTrainer._has_sample_meta_info(batch))
+
+    def test_has_sample_meta_info_false_empty(self):
+        batch = MagicMock()
+        batch.meta_info = {}
+        self.assertFalse(self.FullyAsyncTrainer._has_sample_meta_info(batch))
+
+    def test_has_sample_meta_info_false_no_attr(self):
+        batch = MagicMock(spec=[])  # No meta_info attribute
+        self.assertFalse(self.FullyAsyncTrainer._has_sample_meta_info(batch))
+
+    def test_is_async_metric_key_fully_async_prefix(self):
+        self.assertTrue(self.FullyAsyncTrainer._is_async_metric_key("fully_async/foo"))
+
+    def test_is_async_metric_key_timing_prefix(self):
+        self.assertTrue(self.FullyAsyncTrainer._is_async_metric_key("timing_s/bar"))
+
+    def test_is_async_metric_key_other(self):
+        self.assertFalse(self.FullyAsyncTrainer._is_async_metric_key("other/baz"))
+
+    def test_count_stale_trajectories(self):
+        self.trainer.current_param_version = 5
+        versions = [4, 5, 5, 3, 6]
+        # stale: 4 (5-4=1), 3 (5-3=2). 5 and 5 are current. 6 is newer.
+        # condition: current_param_version - v >= 1 -> 4 and 3 are stale
+        self.assertEqual(self.trainer._count_stale_trajectories(versions), 2)
+
+    def test_count_stale_trajectories_empty(self):
+        self.trainer.current_param_version = 5
+        self.assertEqual(self.trainer._count_stale_trajectories([]), 0)
+
+    # ---------------- _shutdown_sample_queue ----------------
+
+    def test_shutdown_sample_queue_noop_when_unset(self):
+        # sample_queue attribute not set -> getattr returns None -> no-op
+        self.trainer.sample_queue = None
+        self.trainer._shutdown_sample_queue("success")  # Should not raise
+
+    def test_shutdown_sample_queue_calls_remote(self):
+        mock_queue = MagicMock()
+        self.trainer.sample_queue = mock_queue
+        self.trainer._shutdown_sample_queue("success msg")
+        mock_queue.shutdown.remote.assert_called_once()
+
+    def test_shutdown_sample_queue_swallows_exceptions(self):
+        mock_queue = MagicMock()
+        mock_queue.shutdown.remote.side_effect = RuntimeError("already closed")
+        self.trainer.sample_queue = mock_queue
+        # Should not raise
+        self.trainer._shutdown_sample_queue("ignored")
+
+    # ---------------- _maybe_sync_final_weights ----------------
+
+    def test_maybe_sync_final_weights_skips_when_aligned(self):
+        # current_param_version % test_freq == 0 and local_trigger_step <= 1 -> skip
+        self.mock_config.trainer.test_freq = 10
+        self.trainer.current_param_version = 20
+        self.trainer.local_trigger_step = 1
+        self.trainer.controller = MagicMock()
+
+        import asyncio
+        asyncio.run(self.trainer._maybe_sync_final_weights())
+
+        self.trainer.controller.update_rollout_weights.assert_not_called()
+
+    def test_maybe_sync_final_weights_triggers_when_off_boundary(self):
+        self.mock_config.trainer.test_freq = 10
+        self.trainer.current_param_version = 25  # 25 % 10 != 0
+        self.trainer.local_trigger_step = 1
+        self.trainer.controller = MagicMock()
+        self.trainer.timing_raw = {'timing_s/param_sync': 0.0}
+        self.trainer.timing_s = {'param_sync': 0.0}
+
+        import asyncio
+        asyncio.run(self.trainer._maybe_sync_final_weights())
+
+        self.trainer.controller.update_rollout_weights.assert_called_once_with(25)
+
+    def test_maybe_sync_final_weights_skips_update_when_local_trigger_not_one(self):
+        # ``_maybe_sync_final_weights`` enters the else branch when
+        # ``local_trigger_step > 1``, but ``_fit_update_weights`` short-circuits
+        # on ``local_trigger_step != 1`` so ``update_rollout_weights`` is NOT called.
+        self.mock_config.trainer.test_freq = 10
+        self.trainer.current_param_version = 20  # divisible
+        self.trainer.local_trigger_step = 3  # > 1 -> _fit_update_weights returns early
+        self.trainer.controller = MagicMock()
+        self.trainer.timing_raw = {'timing_s/param_sync': 0.0}
+        self.trainer.timing_s = {'param_sync': 0.0}
+
+        import asyncio
+        asyncio.run(self.trainer._maybe_sync_final_weights())
+
+        self.trainer.controller.update_rollout_weights.assert_not_called()
+
+    # ---------------- _log_sample_batch ----------------
+
+    def test_log_sample_batch_empty(self):
+        self.trainer._log_sample_batch([])  # Should not raise
+
+    def test_log_sample_batch_with_versions(self):
+        self.trainer.current_param_version = 5
+        self.trainer._log_sample_batch([3, 4, 5, 5])  # Should not raise
+
+    # ---------------- _save_critic_checkpoint ----------------
+
+    def test_save_critic_checkpoint_skips_when_no_critic(self):
+        self.trainer.use_critic = False
+        self.trainer._save_critic_checkpoint("/tmp/ckpt", None)  # Should not raise
+
+    def test_save_critic_checkpoint_calls_wg(self):
+        self.trainer.use_critic = True
+        mock_critic_wg = MagicMock()
+        self.trainer.critic_wg = mock_critic_wg
+        self.trainer.current_param_version = 7
+        self.trainer._save_critic_checkpoint("/tmp/ckpt/global_step_7", max_critic_ckpt_to_keep=3)
+        mock_critic_wg.save_checkpoint.assert_called_once()
+        args, kwargs = mock_critic_wg.save_checkpoint.call_args
+        self.assertEqual(kwargs.get('max_ckpt_to_keep'), 3)
+
+    # ---------------- _write_latest_iteration ----------------
+
+    def test_write_latest_iteration(self):
+        import os
+        with tempfile.TemporaryDirectory() as tmpdir:
+            self.mock_config.trainer.default_local_dir = tmpdir
+            self.trainer.current_param_version = 42
+            self.trainer._write_latest_iteration()
+            target = os.path.join(tmpdir, 'latest_checkpointed_iteration.txt')
+            self.assertTrue(os.path.exists(target))
+            with open(target) as f:
+                self.assertEqual(f.read(), "42")
 
 
 if __name__ == '__main__':
