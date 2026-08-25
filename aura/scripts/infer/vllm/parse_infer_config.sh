@@ -43,6 +43,8 @@ export MAX_NUM_BATCHED_TOKENS=$(python3 ${scripts_dir}/base/get_yaml.py ${CONFIG
 export GPU_MEMORY_UTILIZATION=$(python3 ${scripts_dir}/base/get_yaml.py ${CONFIG_FILE} gpu_memory_utilization)
 export MAX_NUM_SEQS=$(python3 ${scripts_dir}/base/get_yaml.py ${CONFIG_FILE} max_num_seqs)
 export CUDAGRAPH_CAPTURE_SIZES=$(python3 ${scripts_dir}/base/get_yaml.py ${CONFIG_FILE} cudagraph_capture_sizes)
+export CUDAGRAPH_MODE=$(python3 ${scripts_dir}/base/get_yaml.py ${CONFIG_FILE} cudagraph_mode)
+export ENABLE_SP=$(python3 ${scripts_dir}/base/get_yaml.py ${CONFIG_FILE} enable_sp)
 
 export KV_BACKEND=$(python3 ${scripts_dir}/base/get_yaml.py ${CONFIG_FILE} kv_backend)
 
@@ -71,6 +73,8 @@ log_info "MAX_NUM_BATCHED_TOKENS: ${MAX_NUM_BATCHED_TOKENS}"
 log_info "GPU_MEMORY_UTILIZATION: ${GPU_MEMORY_UTILIZATION}"
 log_info "MAX_NUM_SEQS: ${MAX_NUM_SEQS}"
 log_info "CUDAGRAPH_CAPTURE_SIZES: ${CUDAGRAPH_CAPTURE_SIZES}"
+log_info "CUDAGRAPH_MODE: ${CUDAGRAPH_MODE}"
+log_info "ENABLE_SP: ${ENABLE_SP}"
 log_info "KV_BACKEND: ${KV_BACKEND}"
 log_info "ENABLE_VLLM_STAT: ${ENABLE_VLLM_STAT}"
 log_info "ENABLE_TENSOR_SIMILARITY_CHECK: ${ENABLE_TENSOR_SIMILARITY_CHECK}"

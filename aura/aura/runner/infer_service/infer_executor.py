@@ -117,7 +117,7 @@ class InferExecutor(Executor):
     @public_api(name="update_weights")
     async def update_weights(self, *args, **kwargs):
         path = kwargs["path"]
-        return await self.engine.collective_rpc("update_weights", args=path)
+        return await self.engine.collective_rpc("update_weights_with_disk", args=path)
 
     @public_api(name="vllm_statistics")
     async def vllm_statistics(self, *args, **kwargs):
