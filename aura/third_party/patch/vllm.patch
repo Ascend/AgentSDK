@@ -1,0 +1,37 @@
+diff --git a/vllm_ascend/patch/worker/__init__.py b/vllm_ascend/patch/worker/__init__.py
+index 1746dc8a4..be59171e6 100644
+--- a/vllm_ascend/patch/worker/__init__.py
++++ b/vllm_ascend/patch/worker/__init__.py
+@@ -36,8 +36,8 @@ if HAS_TRITON:
+
+ import vllm_ascend.patch.worker.patch_weight_utils  # noqa
+ import vllm_ascend.patch.worker.patch_distributed  # noqa
+-import vllm_ascend.patch.worker.patch_minimax_m2  # noqa
+-import vllm_ascend.patch.worker.patch_minimax_m2_linear_attn  # noqa
++#import vllm_ascend.patch.worker.patch_minimax_m2  # noqa
++#import vllm_ascend.patch.worker.patch_minimax_m2_linear_attn  # noqa
+ import vllm_ascend.patch.worker.patch_mamba_utils  # noqa
+ import vllm_ascend.patch.worker.patch_qwen3_next_mtp  # noqa
+
+diff --git a/vllm_ascend/utils.py b/vllm_ascend/utils.py
+index f0ef65006..628042c6a 100644
+--- a/vllm_ascend/utils.py
++++ b/vllm_ascend/utils.py
+@@ -651,7 +651,7 @@ def register_ascend_customop(vllm_config: VllmConfig | None = None):
+         AscendSiluAndMul,
+         AscendSiluAndMulWithClamp,
+     )
+-    from vllm_ascend.ops.bailing_moe_linear_attn import AscendBailingMoELinearAttention
++    #from vllm_ascend.ops.bailing_moe_linear_attn import AscendBailingMoELinearAttention
+     from vllm_ascend.ops.conv import AscendConv3dLayer
+     from vllm_ascend.ops.fused_moe.fused_moe import AscendFusedMoE
+     from vllm_ascend.ops.gdn import AscendGatedDeltaNetAttention
+@@ -708,7 +708,7 @@ def register_ascend_customop(vllm_config: VllmConfig | None = None):
+         "RelPosAttention": AscendRelPosAttention,
+         "CustomQwen2Decoder": AscendCustomQwen2Decoder,
+         "GatedDeltaNetAttention": AscendGatedDeltaNetAttention,
+-        "BailingMoELinearAttention": AscendBailingMoELinearAttention,
++        #"BailingMoELinearAttention": AscendBailingMoELinearAttention,
+     }
+
+     if vllm_config is None:

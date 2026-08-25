@@ -187,10 +187,12 @@ class TestInferExecutor:
         executor = self.InferExecutor("vllm_ray", {}, resource_set=MagicMock())
 
         await executor.update_weights(path="/path/to/weights")
-        mock_dependencies["mock_engine"].collective_rpc.assert_awaited_once_with("update_weights", args="/path/to/weights")
+        mock_dependencies["mock_engine"].collective_rpc.assert_awaited_once_with(
+            "update_weights_with_disk", args="/path/to/weights"
+        )
 
         await executor.update_weights(path=None)
-        mock_dependencies["mock_engine"].collective_rpc.assert_awaited_with("update_weights", args=None)
+        mock_dependencies["mock_engine"].collective_rpc.assert_awaited_with("update_weights_with_disk", args=None)
 
     def test_init_unsupported_engine(self, mock_dependencies):
         """Test InferExecutor initialization with unsupported engine."""
@@ -231,4 +233,3 @@ class TestInferExecutor:
         assert chunks[0] == {"chunk": "first"}
         mock_dependencies["logger"].error.assert_called_once()
         assert "Stream error" in str(excinfo.value)
-

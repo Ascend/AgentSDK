@@ -368,7 +368,7 @@ class AsyncServerManager:
 
     async def update_weights(self, path):
         for server in self.async_servers:
-            await server.collective_rpc.remote("update_weights", args=path)
+            await server.collective_rpc.remote("update_weights_with_disk", args=path)
 
     async def reset_prefix_cache(self):
         ray.get([server.reset_prefix_cache.remote() for server in self.async_servers])

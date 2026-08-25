@@ -339,7 +339,6 @@ function patch_verl()
     export WEIGHT_SAVE_STRATEGY="megatron"
   else
     sed -i 's/\${model_engine}/dp/g' /verl/verl/trainer/config/ppo_trainer.yaml
-    sed -i 's/logits_rmpad\.div_/logits_rmpad = logits_rmpad.div/g' /verl/verl/workers/engine/fsdp/transformer_impl.py
     export WEIGHT_SAVE_STRATEGY="fsdp"
   fi
 }

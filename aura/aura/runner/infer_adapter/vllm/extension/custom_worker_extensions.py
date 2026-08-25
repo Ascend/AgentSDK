@@ -472,7 +472,7 @@ class CustomWorkerExtensions:
         return 0
 
     @torch.no_grad()
-    def update_weights(self, *args, **kwargs):
+    def update_weights_with_disk(self, *args, **kwargs):
         dir_path = ''.join(args)
         train_backend = os.getenv("RL_TRAIN_BACKEND", "mindspeed_rl")
         logger.info(f"dir_path: {dir_path}, train_backend: {train_backend}")

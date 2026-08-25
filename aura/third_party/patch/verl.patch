@@ -1,0 +1,77 @@
+diff --git a/verl/models/transformers/monkey_patch.py b/verl/models/transformers/monkey_patch.py
+index a5117d73..d0cb5a0b 100644
+--- a/verl/models/transformers/monkey_patch.py
++++ b/verl/models/transformers/monkey_patch.py
+@@ -489,11 +489,13 @@ def apply_monkey_patch(
+         from transformers.models.qwen3_5.modeling_qwen3_5 import (
+             Qwen3_5ForConditionalGeneration,
+             Qwen3_5Model,
++            Qwen3_5TextModel,
+             Qwen3_5VisionModel,
+         )
+         from transformers.models.qwen3_5_moe.modeling_qwen3_5_moe import (
+             Qwen3_5MoeForConditionalGeneration,
+             Qwen3_5MoeModel,
++            Qwen3_5MoeTextModel,
+             Qwen3_5MoeVisionModel,
+         )
+
+@@ -512,6 +514,11 @@ def apply_monkey_patch(
+         # Step 2: patch vision model to fix fsdp2 cpu_offload bug.
+         Qwen3_5VisionModel.fast_pos_embed_interpolate = fast_pos_embed_interpolate
+         Qwen3_5MoeVisionModel.fast_pos_embed_interpolate = fast_pos_embed_interpolate
++
++        # Step 3: patch input for multimodal sequence parallelism
++        if ulysses_sp_size > 1:
++            patch_vlm_for_ulysses_input_slicing(Qwen3_5TextModel)
++            patch_vlm_for_ulysses_input_slicing(Qwen3_5MoeTextModel)
+
+     if use_remove_padding or ulysses_sp_size > 1:
+         if hasattr(module, "_flash_attention_forward"):  # transformers <= 4.47.1 or legacy models
+diff --git a/verl/workers/engine/fsdp/transformer_impl.py b/verl/workers/engine/fsdp/transformer_impl.py
+index f8506206..c7bfe285 100644
+--- a/verl/workers/engine/fsdp/transformer_impl.py
++++ b/verl/workers/engine/fsdp/transformer_impl.py
+@@ -70,6 +70,7 @@ from verl.utils.ulysses import (
+     ulysses_pad_and_slice_inputs,
+ )
+ from verl.workers.config import FSDPEngineConfig, FSDPOptimizerConfig, HFModelConfig
++from verl.workers.utils.padding import build_attention_mask_from_nested
+
+ from ..base import BaseEngine, BaseEngineCtx, EngineRegistry
+ from ..utils import enable_full_determinism, postprocess_batch_func, prepare_micro_batches
+@@ -985,10 +986,8 @@ class FSDPEngineWithLMHead(FSDPEngine):
+                         position_ids, padding=0, output_size=(batch_size, max_seq_len)
+                     )
+
+-                attention_mask_list = [torch.ones_like(t, dtype=torch.int32) for t in loss_mask]
+-                attention_mask = torch.nested.as_nested_tensor(attention_mask_list, layout=torch.jagged)
+-                attention_mask = torch.nested.to_padded_tensor(
+-                    attention_mask, padding=0, output_size=(batch_size, max_seq_len)
++                attention_mask = build_attention_mask_from_nested(
++                    input_ids=micro_batch["input_ids"], max_seq_len=max_seq_len
+                 )
+
+                 model_inputs = {
+diff --git a/verl/workers/utils/padding.py b/verl/workers/utils/padding.py
+index c7137d05..f1456d05 100644
+--- a/verl/workers/utils/padding.py
++++ b/verl/workers/utils/padding.py
+@@ -143,6 +143,17 @@ def no_padding_2_padding(tensor: torch.Tensor, data: TensorDict) -> torch.Tensor
+     return output
+
+
++def build_attention_mask_from_nested(input_ids: torch.Tensor, max_seq_len: int | None = None) -> torch.Tensor:
++    """Build a padded full-sequence attention mask from nested input ids."""
++    assert input_ids.is_nested, "input_ids must be a nested tensor"
++    device = input_ids.values().device
++    seq_lens = input_ids.offsets().diff().to(device=device)
++    if max_seq_len is None:
++        max_seq_len = int(seq_lens.max().item())
++    positions = torch.arange(max_seq_len, device=device).unsqueeze(0)
++    return (positions < seq_lens.unsqueeze(1)).to(torch.int32)
++
++
+ def embeds_padding_2_no_padding(data: TensorDict) -> TensorDict:
+     """
+     Convert TensorDict from prompt embeds with padding to no-padding format.

@@ -621,7 +621,7 @@ class TestCustomWorkerExtensions(unittest.TestCase):
 
         fake_stat_obj.write_stats_tofile.assert_called_once()
 
-    def test_custom_worker_extensions_update_weights_use_hf_true_no_files(self):
+    def test_custom_worker_extensions_update_weights_with_disk_use_hf_true_no_files(self):
         """When use_hf=True but no files found, should return zero moved bytes."""
         obj = self.target_mod.CustomWorkerExtensions()
         obj.rank = 0
@@ -629,11 +629,11 @@ class TestCustomWorkerExtensions(unittest.TestCase):
         with patch.dict("os.environ", {"RL_TRAIN_BACKEND": "verl"}):
             with patch("os.scandir") as mock_scandir:
                 mock_scandir.return_value.__enter__.return_value = []
-                moved = obj.update_weights("tmp", "dir")
+                moved = obj.update_weights_with_disk("tmp", "dir")
 
         self.assertEqual(moved, 0)
 
-    def test_custom_worker_extensions_update_weights_use_hf_true(self):
+    def test_custom_worker_extensions_update_weights_with_disk_use_hf_true(self):
         """Update weights using HuggingFace format (load_weights on model)."""
         torch = sys.modules["torch"]
 
@@ -661,13 +661,13 @@ class TestCustomWorkerExtensions(unittest.TestCase):
 
                 patch_loader = sys.modules["verl.utils.vllm.patch"].patch_vllm_moe_model_weight_loader
 
-                moved = obj.update_weights("tmp", "dir")
+                moved = obj.update_weights_with_disk("tmp", "dir")
                 self.assertEqual(moved, 0)
 
                 patch_loader.assert_called_once_with(fake_model)
                 fake_model.load_weights.assert_called_once()
 
-    def test_custom_worker_extensions_update_weights_use_hf_false(self):
+    def test_custom_worker_extensions_update_weights_with_disk_use_hf_false(self):
         """Update weights using threaded NPU loading."""
         torch = sys.modules["torch"]
 
@@ -683,7 +683,7 @@ class TestCustomWorkerExtensions(unittest.TestCase):
             with patch.object(self.target_mod, "load_rank_to_npu_threaded") as mock_load:
                 mock_load.return_value = {"bytes_total": 123}
 
-                moved = obj.update_weights("tmpdir")
+                moved = obj.update_weights_with_disk("tmpdir")
                 self.assertEqual(moved, 123)
                 mock_load.assert_called_once()
 

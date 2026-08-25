@@ -122,6 +122,23 @@ export VLLM_ASCEND_LLMDD_RPC_PORT=${VLLM_ASCEND_LLMDD_RPC_PORT:-7778}
 export ASCEND_RT_VISIBLE_DEVICES=${ASCEND_RT_VISIBLE_DEVICES:-0,1,2,3,4,5,6,7}
 export TOOL_CALL_ENABLE=${TOOL_CALL_ENABLE:-false}
 
+if [[ -n "$CUDAGRAPH_MODE" ]]; then
+  case "$CUDAGRAPH_MODE" in
+    NONE|PIECEWISE|FULL|FULL_DECODE_ONLY|FULL_AND_PIECEWISE) ;;
+    *)
+      echo "Invalid CUDAGRAPH_MODE: $CUDAGRAPH_MODE"
+      echo "Supported values: NONE, PIECEWISE, FULL, FULL_DECODE_ONLY, FULL_AND_PIECEWISE"
+      exit 1
+      ;;
+  esac
+fi
+
+if [[ -n "$ENABLE_SP" && "$ENABLE_SP" != "true" && "$ENABLE_SP" != "false" ]]; then
+  echo "Invalid ENABLE_SP: $ENABLE_SP"
+  echo "Supported values: true, false"
+  exit 1
+fi
+
 # DP_START_RANK 计算: DP_START_RANK = local_node_rank * DATA_PARALLEL_SIZE_LOCAL
 DP_START_RANK=$(( LOCAL_NODE_RANK * DATA_PARALLEL_SIZE_LOCAL ))
 
@@ -166,6 +183,8 @@ echo " DP Size             : $DATA_PARALLEL_SIZE"
 echo " DP Size Local       : $DATA_PARALLEL_SIZE_LOCAL"
 echo " Expert Parallel     : $ENABLE_EXPERT_PARALLEL"
 echo " tool call           : $TOOL_CALL_ARGS"
+echo " CUDAGraph Override  : ${CUDAGRAPH_MODE:-not set}"
+echo " Enable SP Override  : ${ENABLE_SP:-not set}"
 echo "============================================"
 
 ########################################
@@ -250,6 +269,9 @@ function start_vllm_serve_separate()
           --additional-config '{"ascend_scheduler_config":{"enabled":true,"enable_chunked_prefill":true}}' \
           --kv-transfer-config "$KV_TRANSFER_CONFIG"
   else
+      # YAML 配置优先；未配置时保留 PD 分离 Decode 的原有默认值。
+      local cudagraph_mode="${CUDAGRAPH_MODE:-FULL_DECODE_ONLY}"
+      local enable_sp="${ENABLE_SP:-false}"
       vllm serve "$MODEL_PATH" \
           --served-model-name "$SERVED_MODEL_NAME" \
           --host "$HOST" \
@@ -272,7 +294,13 @@ function start_vllm_serve_separate()
           --enable-prefix-caching \
           --worker_extension_cls "aura.runner.infer_adapter.vllm.extension.custom_worker_extensions.CustomWorkerExtensions" \
           --additional-config '{"ascend_scheduler_config":{"enabled":true,"enable_chunked_prefill":true}}' \
-          --compilation_config '{"cudagraph_capture_sizes":'"$CUDAGRAPH_CAPTURE_SIZES"',"cudagraph_mode":"FULL_DECODE_ONLY"}' \
+          --compilation_config '{
+            "cudagraph_capture_sizes": '"$CUDAGRAPH_CAPTURE_SIZES"',
+            "cudagraph_mode": "'"$cudagraph_mode"'",
+            "pass_config": {
+              "enable_sp": '"$enable_sp"'
+            }
+          }' \
           --kv-transfer-config "$KV_TRANSFER_CONFIG"
   fi
 }
@@ -283,6 +311,9 @@ function start_vllm_serve_separate()
 function start_vllm_serve_hybrid()
 {
   export HCCL_BUFFSIZE=${HCCL_BUFFSIZE_INFER:-256}
+  # YAML 配置优先；未配置时保留普通PD混合部署的原有默认值。
+  local cudagraph_mode="${CUDAGRAPH_MODE:-FULL_AND_PIECEWISE}"
+  local enable_sp="${ENABLE_SP:-true}"
   vllm serve "$MODEL_PATH" \
           --served-model-name "$SERVED_MODEL_NAME" \
           --host "$HOST" \
@@ -306,14 +337,22 @@ function start_vllm_serve_hybrid()
           --enable-prefix-caching \
           --worker_extension_cls "aura.runner.infer_adapter.vllm.extension.custom_worker_extensions.CustomWorkerExtensions" \
           --additional-config '{"ascend_scheduler_config":{"enabled":true,"enable_chunked_prefill":true}}' \
-          --compilation_config '{"cudagraph_capture_sizes":'"$CUDAGRAPH_CAPTURE_SIZES"', "pass_config": {"enable_sp": true}}'
+          --compilation_config '{
+            "cudagraph_capture_sizes": '"$CUDAGRAPH_CAPTURE_SIZES"',
+            "cudagraph_mode": "'"$cudagraph_mode"'",
+            "pass_config": {
+              "enable_sp": '"$enable_sp"'
+            }
+          }'
 }
 
 function start_vllm_serve_hybrid_opt()
 {
   export HCCL_BUFFSIZE=${HCCL_BUFFSIZE_INFER_OPT:-512}
+  # YAML 配置优先；未配置时保留优化PD混合部署的原有默认值。
+  local cudagraph_mode="${CUDAGRAPH_MODE:-FULL_DECODE_ONLY}"
+  local enable_sp="${ENABLE_SP:-false}"
   ENABLE_CPU_BINDING_ARGS='"enable_cpu_binding":true'
-  CUDAGRAPH_FULL_DECODE_FULL_ARGS='"cudagraph_mode":"FULL_DECODE_ONLY"'
   ASYNC_SCHEDULING_ARGS="--async-scheduling"
   export PYTORCH_NPU_ALLOC_CONF=expandable_segments:False
   export VLLM_ASCEND_ENABLE_NZ=2
@@ -323,7 +362,8 @@ function start_vllm_serve_hybrid_opt()
   echo " VLLM OPT Setting"
   echo "--------------------------------------------"
   echo " Cpu Binding            : $ENABLE_CPU_BINDING_ARGS"
-  echo " Cuda Graph             : $CUDAGRAPH_FULL_DECODE_FULL_ARGS"
+  echo " CUDAGraph Mode         : $cudagraph_mode"
+  echo " Enable SP              : $enable_sp"
   echo " Async Scheduling       : $ASYNC_SCHEDULING_ARGS"
   echo " Hccl Buffsize          : $HCCL_BUFFSIZE"
   echo " Gpu Memory utilization : $GPU_MEMORY_UTILIZATION"
@@ -353,7 +393,13 @@ function start_vllm_serve_hybrid_opt()
           --async-scheduling \
           --worker_extension_cls "aura.runner.infer_adapter.vllm.extension.custom_worker_extensions.CustomWorkerExtensions" \
           --additional-config '{"ascend_scheduler_config":{"enabled":true,"enable_chunked_prefill":true},"enable_cpu_binding":true}' \
-          --compilation_config '{"cudagraph_capture_sizes":'"$CUDAGRAPH_CAPTURE_SIZES"',"cudagraph_mode":"FULL_DECODE_ONLY"}'
+          --compilation_config '{
+            "cudagraph_capture_sizes": '"$CUDAGRAPH_CAPTURE_SIZES"',
+            "cudagraph_mode": "'"$cudagraph_mode"'",
+            "pass_config": {
+              "enable_sp": '"$enable_sp"'
+            }
+          }'
 }
 
 ########################################
