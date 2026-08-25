@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} — ClawCodex Visualizer{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Agent Dashboard</h1>
+    <p class="subtitle">Cross-system task progress</p>
+</div>
+
+<div class="dashboard-controls">
+    <label>
+        Status
+        <select id="status-filter">
+            <option value="">all</option>
+            <option value="pending">pending</option>
+            <option value="in_progress">in progress</option>
+            <option value="completed">completed</option>
+            <option value="failed">failed</option>
+            <option value="blocked">blocked</option>
+        </select>
+    </label>
+    <label>
+        Search
+        <input id="search-input" type="text" placeholder="title / id / owner" />
+    </label>
+    <span id="last-updated" class="meta">—</span>
+</div>
+
+<div class="dashboard-stats" id="stats-row">
+    <div class="stat-card"><span class="stat-value" id="stat-total">0</span><span class="stat-label">entries</span></div>
+    <div class="stat-card"><span class="stat-value" id="stat-in_progress">0</span><span class="stat-label">in progress</span></div>
+    <div class="stat-card"><span class="stat-value" id="stat-pending">0</span><span class="stat-value" id="stat-completed">0</span><span class="stat-label">pending / done</span></div>
+    <div class="stat-card"><span class="stat-value" id="stat-failed">0</span><span class="stat-value" id="stat-blocked">0</span><span class="stat-label">failed / blocked</span></div>
+</div>
+
+<div id="dashboard-accordion" class="dashboard-accordion"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    const statusFilter = document.getElementById('status-filter');
+    const searchInput = document.getElementById('search-input');
+    const accordion = document.getElementById('dashboard-accordion');
+    const lastUpdated = document.getElementById('last-updated');
+
+    let allEntries = [];
+    let pollTimer = null;
+
+    function statusIcon(status) {
+        const map = {
+            pending: '◻',
+            in_progress: '◼',
+            completed: '✓',
+            failed: '✕',
+            blocked: '◆',
+        };
+        return map[status] || '?';
+    }
+
+    function render() {
+        const status = statusFilter.value;
+        const needle = searchInput.value.trim().toLowerCase();
+        const filtered = allEntries.filter(e => {
+            if (status && e.status !== status) return false;
+            if (needle) {
+                const hay = [e.id, e.title, e.detail, e.owner, e.source, ...(e.tags || [])].join(' ').toLowerCase();
+                if (!hay.includes(needle)) return false;
+            }
+            return true;
+        });
+
+        const bySource = {};
+        filtered.forEach(e => {
+            bySource[e.source] = bySource[e.source] || [];
+            bySource[e.source].push(e);
+        });
+
+        accordion.innerHTML = '';
+        Object.keys(bySource).sort().forEach(source => {
+            const entries = bySource[source].sort((a, b) => (a.order - b.order) || a.id.localeCompare(b.id));
+            const section = document.createElement('details');
+            section.className = 'dashboard-section';
+            section.open = true;
+            const summary = document.createElement('summary');
+            summary.innerHTML = `<strong>${escapeHtml(source)}</strong> <span class="meta">(${entries.length})</span>`;
+            section.appendChild(summary);
+            const ul = document.createElement('ul');
+            ul.className = 'dashboard-list';
+            entries.forEach(e => {
+                const li = document.createElement('li');
+                li.className = `dashboard-item status-${e.status}`;
+                const pct = e.progress_pct != null ? `${Math.round(e.progress_pct * 100)}%` : '';
+                li.innerHTML = `
+                    <span class="status-icon">${statusIcon(e.status)}</span>
+                    <span class="title">${escapeHtml(e.title || '(untitled)')}</span>
+                    <span class="meta">[${escapeHtml(e.id)}]</span>
+                    ${pct ? `<span class="meta">(${pct})</span>` : ''}
+                    ${e.owner ? `<span class="meta">@${escapeHtml(e.owner)}</span>` : ''}
+                    ${e.detail ? `<div class="detail">${escapeHtml(e.detail)}</div>` : ''}
+                `;
+                ul.appendChild(li);
+            });
+            section.appendChild(ul);
+            accordion.appendChild(section);
+        });
+
+        if (!Object.keys(bySource).length) {
+            accordion.innerHTML = '<p class="meta">No entries match the current filter.</p>';
+        }
+
+        updateStats(allEntries);
+        lastUpdated.textContent = 'updated ' + new Date().toLocaleTimeString();
+    }
+
+    function updateStats(entries) {
+        document.getElementById('stat-total').textContent = entries.length;
+        const counts = { pending: 0, in_progress: 0, completed: 0, failed: 0, blocked: 0 };
+        entries.forEach(e => { counts[e.status] = (counts[e.status] || 0) + 1; });
+        document.getElementById('stat-in_progress').textContent = counts.in_progress;
+        document.getElementById('stat-pending').textContent = counts.pending;
+        document.getElementById('stat-completed').textContent = counts.completed;
+        document.getElementById('stat-failed').textContent = counts.failed;
+        document.getElementById('stat-blocked').textContent = counts.blocked;
+    }
+
+    function escapeHtml(text) {
+        return (text || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
+    }
+
+    function applySnapshot(entries) {
+        allEntries = entries || [];
+        render();
+    }
+
+    async function poll() {
+        try {
+            const res = await fetch('/api/dashboard/snapshot');
+            if (!res.ok) throw new Error(res.statusText);
+            applySnapshot(await res.json());
+        } catch (err) {
+            console.warn('Dashboard poll failed', err);
+        }
+    }
+
+    function startPolling() {
+        if (!pollTimer) pollTimer = setInterval(poll, 3000);
+    }
+
+    function stopPolling() {
+        if (pollTimer) clearInterval(pollTimer);
+        pollTimer = null;
+    }
+
+    function connectWs() {
+        const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const ws = new WebSocket(`${proto}//${location.host}/api/viz/ws/dashboard/live`);
+        ws.onopen = () => {
+            stopPolling();
+            console.log('Dashboard WS connected');
+        };
+        ws.onmessage = ev => {
+            let msg;
+            try { msg = JSON.parse(ev.data); } catch (e) { return; }
+            if (msg.type === 'dashboard_snapshot') {
+                applySnapshot(msg.entries);
+            }
+        };
+        ws.onclose = () => {
+            console.log('Dashboard WS closed; polling until reconnect');
+            startPolling();
+            setTimeout(connectWs, 3000);
+        };
+        ws.onerror = err => { console.warn('Dashboard WS error', err); };
+    }
+
+    statusFilter.addEventListener('change', render);
+    searchInput.addEventListener('input', render);
+
+    poll();
+    startPolling();
+    connectWs();
+})();
+</script>
+{% endblock %}

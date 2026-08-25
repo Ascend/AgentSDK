@@ -1,0 +1,418 @@
+{% extends "base.html" %}
+{% block title %}ClawCodex — Orchestrator Dashboard{% endblock %}
+
+{% block head %}
+<style>
+    /* Orchestrator Dashboard-specific styles */
+    .orch-header {
+        display: flex; justify-content: space-between; align-items: center;
+        margin-bottom: 20px;
+    }
+    .orch-header h2 { font-size: 20px; }
+    .run-selector {
+        background: var(--bg-secondary); border: 1px solid var(--border-color);
+        color: var(--text-primary); padding: 6px 12px; border-radius: var(--radius);
+        font-size: 13px;
+    }
+    .orch-summary {
+        display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 12px; margin-bottom: 20px;
+    }
+    .orch-stat-card {
+        background: var(--bg-secondary); border: 1px solid var(--border-color);
+        border-radius: var(--radius); padding: 14px; text-align: center;
+    }
+    .orch-stat-card .stat-num {
+        font-size: 28px; font-weight: 700; line-height: 1.2;
+    }
+    .orch-stat-card .stat-label {
+        font-size: 12px; color: var(--text-secondary); margin-top: 4px;
+    }
+    .stat-completed .stat-num { color: var(--success); }
+    .stat-running .stat-num { color: var(--info); }
+    .stat-failed .stat-num { color: var(--error); }
+    .stat-pending .stat-num { color: var(--warning); }
+    .stat-total .stat-num { color: var(--text-primary); }
+
+    /* Issue table */
+    .issue-table {
+        width: 100%; border-collapse: collapse;
+        background: var(--bg-secondary); border: 1px solid var(--border-color);
+        border-radius: var(--radius); overflow: hidden;
+    }
+    .issue-table th {
+        text-align: left; padding: 10px 14px; font-size: 12px;
+        color: var(--text-secondary); border-bottom: 1px solid var(--border-color);
+        background: var(--bg-card);
+    }
+    .issue-table td {
+        padding: 10px 14px; font-size: 13px;
+        border-bottom: 1px solid var(--border-color);
+    }
+    .issue-table tr:last-child td { border-bottom: none; }
+    .issue-table tr:hover { background: var(--bg-hover); }
+
+    /* Status badges */
+    .badge {
+        display: inline-block; padding: 2px 10px; border-radius: 10px;
+        font-size: 11px; font-weight: 600; white-space: nowrap;
+    }
+    .badge-claimed { background: rgba(115,194,222,0.2); color: var(--info); }
+    .badge-running { background: rgba(115,194,222,0.2); color: var(--info); }
+    .badge-completed { background: rgba(145,204,117,0.2); color: var(--success); }
+    .badge-failed { background: rgba(238,102,102,0.2); color: var(--error); }
+    .badge-error { background: rgba(238,102,102,0.2); color: var(--error); }
+    .badge-pending_review { background: rgba(250,200,88,0.2); color: var(--warning); }
+    .badge-verification_failed { background: rgba(238,102,102,0.2); color: var(--error); }
+    .badge-unknown { background: rgba(160,160,176,0.2); color: var(--text-secondary); }
+
+    /* Progress bar */
+    .progress-bar-wrap {
+        width: 80px; height: 6px; background: var(--bg-primary);
+        border-radius: 3px; overflow: hidden; display: inline-block;
+        vertical-align: middle;
+    }
+    .progress-bar-fill {
+        height: 100%; border-radius: 3px; transition: width 0.3s;
+    }
+    .progress-label { font-size: 11px; color: var(--text-secondary); margin-left: 6px; }
+
+    /* PR link */
+    .pr-link { color: var(--text-accent); text-decoration: none; font-size: 12px; }
+    .pr-link:hover { text-decoration: underline; }
+
+    /* Phase tag */
+    .phase-tag {
+        font-size: 11px; color: var(--text-secondary);
+        background: var(--bg-primary); padding: 2px 8px; border-radius: 4px;
+    }
+
+    /* Error message */
+    .error-msg { color: var(--error); font-size: 12px; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    /* Empty state */
+    .orch-empty { text-align: center; padding: 60px 20px; color: var(--text-secondary); }
+    .orch-empty .emoji { font-size: 48px; margin-bottom: 12px; }
+
+    /* Timeline panel */
+    .timeline-panel {
+        margin-top: 20px; background: var(--bg-secondary);
+        border: 1px solid var(--border-color); border-radius: var(--radius);
+        padding: 16px;
+    }
+    .timeline-panel h3 { font-size: 14px; color: var(--text-accent); margin-bottom: 12px; }
+    .timeline-event {
+        display: flex; gap: 12px; padding: 6px 0; font-size: 12px;
+        border-bottom: 1px solid var(--border-color);
+    }
+    .timeline-event:last-child { border-bottom: none; }
+    .timeline-ts { color: var(--text-secondary); white-space: nowrap; min-width: 80px; }
+    .timeline-type { font-weight: 600; min-width: 120px; }
+    .timeline-detail { color: var(--text-secondary); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="orch-header">
+    <h2>🎛 Orchestrator Dashboard</h2>
+    <div style="display:flex;gap:8px;align-items:center;">
+        <select id="run-selector" class="run-selector" onchange="onRunChange()">
+            <option value="">Select a run...</option>
+        </select>
+        <span id="live-indicator" class="live-indicator" title="Auto-refresh every 3s">
+            <span class="live-dot"></span>
+            <span class="live-label">Live</span>
+        </span>
+        <button onclick="refreshDashboard()" class="btn btn-primary">🔄 Refresh</button>
+    </div>
+</div>
+
+<!-- Summary cards -->
+<div class="orch-summary" id="orch-summary">
+    <div class="orch-stat-card stat-total">
+        <div class="stat-num" id="stat-total">0</div>
+        <div class="stat-label">Total Issues</div>
+    </div>
+    <div class="orch-stat-card stat-running">
+        <div class="stat-num" id="stat-running">0</div>
+        <div class="stat-label">Running</div>
+    </div>
+    <div class="orch-stat-card stat-completed">
+        <div class="stat-num" id="stat-completed">0</div>
+        <div class="stat-label">Completed</div>
+    </div>
+    <div class="orch-stat-card stat-failed">
+        <div class="stat-num" id="stat-failed">0</div>
+        <div class="stat-label">Failed</div>
+    </div>
+    <div class="orch-stat-card stat-pending">
+        <div class="stat-num" id="stat-pending">0</div>
+        <div class="stat-label">Pending Review</div>
+    </div>
+</div>
+
+<!-- Issue table -->
+<div id="issue-table-wrap">
+    <table class="issue-table" id="issue-table" style="display:none;">
+        <thead>
+            <tr>
+                <th>Issue</th>
+                <th>Status</th>
+                <th>Phase</th>
+                <th>Progress</th>
+                <th>Verification</th>
+                <th>PR</th>
+                <th>Error</th>
+                <th>Updated</th>
+            </tr>
+        </thead>
+        <tbody id="issue-tbody"></tbody>
+    </table>
+</div>
+
+<!-- Empty state -->
+<div class="orch-empty" id="orch-empty">
+    <div class="emoji">🎛</div>
+    <p>No orchestrator runs found.</p>
+    <p style="font-size:12px;margin-top:8px;">Start an orchestrator run with <code>clawcodex-dev orchestrator server start</code></p>
+</div>
+
+<!-- Timeline panel for selected issue -->
+<div class="timeline-panel" id="timeline-panel" style="display:none;">
+    <h3>📋 Issue Timeline — <span id="timeline-issue-id"></span></h3>
+    <div id="timeline-events"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let _pollTimer = null;
+    let _selectedRunId = null;
+    let _selectedIssueId = null;
+
+    // ----- Run selector -----
+    async function loadRuns() {
+        try {
+            const resp = await fetch('/api/viz/orchestrator/runs');
+            const runs = await resp.json();
+            const sel = document.getElementById('run-selector');
+            sel.innerHTML = '<option value="">Select a run...</option>';
+            runs.forEach(r => {
+                const opt = document.createElement('option');
+                opt.value = r.run_id;
+                opt.textContent = `${r.run_id} (${r.event_count} events)`;
+                sel.appendChild(opt);
+            });
+            // Auto-select latest
+            if (runs.length > 0 && !_selectedRunId) {
+                _selectedRunId = runs[runs.length - 1].run_id;
+                sel.value = _selectedRunId;
+            }
+        } catch (e) {
+            console.error('Failed to load runs:', e);
+        }
+    }
+
+    function onRunChange() {
+        _selectedRunId = document.getElementById('run-selector').value;
+        refreshDashboard();
+    }
+
+    // ----- Dashboard refresh -----
+    async function refreshDashboard() {
+        if (!_selectedRunId) {
+            // Try the /state shortcut
+            try {
+                const resp = await fetch('/api/viz/orchestrator/state');
+                const data = await resp.json();
+                if (data.run_id) {
+                    _selectedRunId = data.run_id;
+                    document.getElementById('run-selector').value = _selectedRunId;
+                }
+                renderDashboard(data);
+            } catch (e) {
+                console.error('State fetch failed:', e);
+                showEmpty();
+            }
+            return;
+        }
+        try {
+            const resp = await fetch(`/api/viz/orchestrator/runs/${encodeURIComponent(_selectedRunId)}`);
+            const data = await resp.json();
+            renderRunDetail(data);
+        } catch (e) {
+            console.error('Run fetch failed:', e);
+            showEmpty();
+        }
+    }
+
+    function renderDashboard(data) {
+        if (!data || data.status === 'no_runs') { showEmpty(); return; }
+        const issues = data.issues || [];
+        renderSummary(issues);
+        renderIssueTable(issues);
+        document.getElementById('orch-empty').style.display = 'none';
+        document.getElementById('issue-table').style.display = '';
+    }
+
+    function renderRunDetail(data) {
+        if (!data) { showEmpty(); return; }
+        const issues = Object.values(data.issues || {});
+        renderSummary(issues);
+        renderIssueTable(issues);
+        document.getElementById('orch-empty').style.display = 'none';
+        document.getElementById('issue-table').style.display = '';
+    }
+
+    function renderSummary(issues) {
+        let total = issues.length, running = 0, completed = 0, failed = 0, pending = 0;
+        issues.forEach(i => {
+            const s = i.status || 'unknown';
+            if (s === 'completed') completed++;
+            else if (s === 'claimed' || s === 'running') running++;
+            else if (s === 'failed' || s === 'error' || s === 'verification_failed') failed++;
+            else if (s === 'pending_review') pending++;
+        });
+        document.getElementById('stat-total').textContent = total;
+        document.getElementById('stat-running').textContent = running;
+        document.getElementById('stat-completed').textContent = completed;
+        document.getElementById('stat-failed').textContent = failed;
+        document.getElementById('stat-pending').textContent = pending;
+    }
+
+    function renderIssueTable(issues) {
+        const tbody = document.getElementById('issue-tbody');
+        tbody.innerHTML = '';
+        issues.sort((a, b) => (a.last_updated || '').localeCompare(b.last_updated || '')).reverse();
+        issues.forEach(i => {
+            const tr = document.createElement('tr');
+            tr.style.cursor = 'pointer';
+            tr.onclick = () => loadIssueTimeline(i.issue_id);
+            const status = i.status || 'unknown';
+            const prUrl = safeHttpUrl(i.pr_url);
+            tr.innerHTML = `
+                <td><strong>${esc(i.issue_id)}</strong>${i.session_id ? `<a href="/session/${encodeURIComponent(i.session_id)}" class="session-link" title="View session" onclick="event.stopPropagation();">Session</a>` : ''}</td>
+                <td><span class="badge badge-${safeClassPart(status)}">${esc(status)}</span></td>
+                <td>${i.current_phase ? `<span class="phase-tag">${esc(i.current_phase)}</span>` : '-'}</td>
+                <td>${progressCell(i.progress)}</td>
+                <td>${esc(i.verification_status || '-')}</td>
+                <td>${prUrl ? `<a class="pr-link" href="${attr(prUrl)}" target="_blank" rel="noopener noreferrer">#${esc(i.pr_number || 'PR')}</a>` : '-'}</td>
+                <td>${i.error ? `<span class="error-msg" title="${attr(i.error)}">${esc(i.error)}</span>` : '-'}</td>
+                <td style="font-size:11px;color:var(--text-secondary)">${esc(i.last_updated || '')}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function clampPercent(value) {
+        const number = Number(value);
+        if (!Number.isFinite(number)) return 0;
+        return Math.max(0, Math.min(100, number));
+    }
+
+    function progressPercent(value) {
+        return clampPercent(Math.round(Number(value) * 100));
+    }
+
+    function progressCell(val) {
+        if (val == null) return '-';
+        const pct = progressPercent(val);
+        const color = pct >= 100 ? 'var(--success)' : pct >= 50 ? 'var(--info)' : 'var(--warning)';
+        return `<span class="progress-bar-wrap"><span class="progress-bar-fill" style="width:${pct}%;background:${color}"></span></span><span class="progress-label">${pct}%</span>`;
+    }
+
+    function showEmpty() {
+        document.getElementById('orch-empty').style.display = '';
+        document.getElementById('issue-table').style.display = 'none';
+    }
+
+    // ----- Issue timeline -----
+    async function loadIssueTimeline(issueId) {
+        _selectedIssueId = issueId;
+        document.getElementById('timeline-issue-id').textContent = issueId;
+        const panel = document.getElementById('timeline-panel');
+        panel.style.display = '';
+        try {
+            const resp = await fetch(`/api/viz/orchestrator/runs/${encodeURIComponent(_selectedRunId)}/issues/${encodeURIComponent(issueId)}/timeline`);
+            const events = await resp.json();
+            renderTimeline(events);
+        } catch (e) {
+            document.getElementById('timeline-events').innerHTML = '<p style="color:var(--error)">Failed to load timeline</p>';
+        }
+    }
+
+    function renderTimeline(events) {
+        const container = document.getElementById('timeline-events');
+        if (!events || events.length === 0) {
+            container.innerHTML = '<p style="color:var(--text-secondary)">No events recorded</p>';
+            return;
+        }
+        container.innerHTML = events.map(ev => {
+            const ts = ev.timestamp || '—';
+            const type = ev.type || 'unknown';
+            let detail = '';
+            if (ev.status) detail += `status=${ev.status} `;
+            if (ev.phase) detail += `phase=${ev.phase} `;
+            if (ev.progress != null) detail += `progress=${progressPercent(ev.progress)}% `;
+            if (ev.verification_status) detail += `verify=${ev.verification_status} `;
+            if (ev.pr_url) detail += `pr=${ev.pr_url} `;
+            if (ev.error) detail += ev.error;
+            if (ev.message) detail += ev.message;
+            return `<div class="timeline-event">
+                <span class="timeline-ts">${esc(ts)}</span>
+                <span class="timeline-type">${esc(type)}</span>
+                <span class="timeline-detail">${esc(detail.trim())}</span>
+            </div>`;
+        }).join('');
+    }
+
+    // ----- Polling -----
+    function startLivePolling() {
+        if (_pollTimer) return;
+        _pollTimer = setInterval(refreshDashboard, 3000);
+        const ind = document.getElementById('live-indicator');
+        ind.classList.add('live');
+    }
+
+    function stopLivePolling() {
+        if (_pollTimer) { clearInterval(_pollTimer); _pollTimer = null; }
+        const ind = document.getElementById('live-indicator');
+        ind.classList.remove('live');
+    }
+
+    // ----- Utility -----
+    function esc(s) {
+        const d = document.createElement('div');
+        d.textContent = String(s ?? '');
+        return d.innerHTML;
+    }
+
+    function attr(s) {
+        return esc(s).replace(/"/g, '&quot;');
+    }
+
+    function safeClassPart(s) {
+        return String(s || 'unknown').replace(/[^a-zA-Z0-9_-]/g, '_') || 'unknown';
+    }
+
+    function safeHttpUrl(url) {
+        if (!url) return '';
+        try {
+            const parsed = new URL(String(url), window.location.origin);
+            if (parsed.protocol === 'http:' || parsed.protocol === 'https:') return parsed.href;
+        } catch (_) { /* ignore invalid URLs */ }
+        return '';
+    }
+
+    // ----- Init -----
+    document.addEventListener('DOMContentLoaded', async () => {
+        await loadRuns();
+        await refreshDashboard();
+        startLivePolling();
+    });
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) stopLivePolling();
+        else startLivePolling();
+    });
+</script>
+{% endblock %}
