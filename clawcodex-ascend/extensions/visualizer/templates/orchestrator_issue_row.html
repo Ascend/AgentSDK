@@ -1,0 +1,36 @@
+{% if issue %}
+{% set sid = issue.get('session_id', '') %}
+{% set iid = issue.get('issue_id', '') %}
+{% set status = issue.status or 'unknown' %}
+{% set safe_statuses = ['claimed', 'running', 'completed', 'failed', 'error', 'pending_review', 'verification_failed', 'unknown'] %}
+{% set badge_status = status if status in safe_statuses else 'unknown' %}
+<tr class="orch-issue-row"
+    {% if sid %}data-session-id="{{ sid | e }}"{% endif %}
+    data-issue-id="{{ iid | e }}"
+    onclick="loadIssueTimeline(this.dataset.issueId)">
+    <td>
+        <strong>{{ iid }}</strong>
+        {% if sid %}
+        <a href="/session/{{ sid | urlencode }}" class="session-link" title="View session detail"
+           onclick="event.stopPropagation();">Session</a>
+        {% endif %}
+    </td>
+    <td><span class="badge badge-{{ badge_status }}">{{ status }}</span></td>
+    <td>{% if issue.current_phase %}<span class="phase-tag">{{ issue.current_phase }}</span>{% else %}-{% endif %}</td>
+    <td>
+        {% if issue.progress is not none %}
+        {% set pct_raw = (issue.progress * 100) | round | int %}
+        {% set pct = 0 if pct_raw < 0 else 100 if pct_raw > 100 else pct_raw %}
+        {% set color = '#22c55e' if pct >= 100 else '#3b82f6' if pct >= 50 else '#f59e0b' %}
+        <span class="progress-bar-wrap"><span class="progress-bar-fill" style="width:{{ pct }}%;background:{{ color }}"></span></span>
+        <span class="progress-label">{{ pct }}%</span>
+        {% else %}-{% endif %}
+    </td>
+    <td>{{ issue.verification_status or '-' }}</td>
+    {% set pr_url = issue.pr_url or '' %}
+    {% set has_safe_pr = pr_url.startswith('http://') or pr_url.startswith('https://') %}
+    <td>{% if has_safe_pr %}<a class="pr-link" href="{{ pr_url | e }}" target="_blank" rel="noopener noreferrer">#{{ issue.pr_number or 'PR' }}</a>{% else %}-{% endif %}</td>
+    <td>{% if issue.error %}<span class="error-msg" title="{{ issue.error | e }}">{{ issue.error[:60] }}{% if issue.error|length > 60 %}...{% endif %}</span>{% else %}-{% endif %}</td>
+    <td style="font-size:11px;color:var(--text-secondary)">{{ issue.last_updated or '' }}</td>
+</tr>
+{% endif %}
