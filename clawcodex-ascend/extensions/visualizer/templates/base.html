@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}ClawCodex Visualizer{% endblock %}</title>
+    <link rel="stylesheet" href="/static/css/style.css?v=20260623-clean-base-1">
+    {% block head %}{% endblock %}
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-brand"><a href="/">ClawCodex Visualizer</a></div>
+        <div class="nav-links">
+            <a href="/">Sessions</a>
+            <a href="/viz/dashboard">Dashboard</a>
+            <a href="/viz/orchestrator">Orchestrator</a>
+        </div>
+    </nav>
+    <main class="container">{% block content %}{% endblock %}</main>
+    <footer class="footer">
+        <span>ClawCodex Visualizer</span>
+        <span id="ws-status" class="idle">Live idle</span>
+    </footer>
+    <script src="/static/js/websocket.js?v=20260623-ws-encode-1"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

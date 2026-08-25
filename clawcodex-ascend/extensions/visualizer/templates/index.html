@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Sessions - ClawCodex Visualizer{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+    <div>
+        <h1>Sessions</h1>
+        <p>Automatically scans local session records and sorts by most recent activity.</p>
+    </div>
+    <span id="session-count" class="quiet-pill">0 sessions</span>
+</section>
+
+<div class="toolbar">
+    <div class="toolbar-left">
+        <div class="search-box">
+            <input type="search" id="search-input" placeholder="Search ID, title, model, provider, or workspace" autocomplete="off">
+        </div>
+        <div class="status-filter">
+            <label for="status-filter-select" class="status-filter-label">Status</label>
+            <select id="status-filter-select" class="status-filter-select">
+                <option value="all" selected>All statuses</option>
+                <option value="running">running</option>
+                <option value="completed">completed</option>
+                <option value="success">success</option>
+                <option value="failed">failed</option>
+                <option value="error">error</option>
+                <option value="unknown">unknown</option>
+                <option value="aborted">aborted</option>
+                <option value="cancelled">cancelled</option>
+            </select>
+        </div>
+        <div class="layout-toggle" role="group" aria-label="Layout mode">
+            <button type="button" id="layout-toggle-grid" class="layout-toggle-btn active" aria-pressed="true">Grid</button>
+            <button type="button" id="layout-toggle-list" class="layout-toggle-btn" aria-pressed="false">List</button>
+        </div>
+    </div>
+    <div class="toolbar-actions">
+        <span id="live-indicator" class="live-indicator live"><span class="live-dot"></span>Auto refresh</span>
+        <button type="button" id="refresh-button" class="btn btn-primary">Refresh</button>
+    </div>
+</div>
+
+<div class="workspace-tabs" id="workspace-tabs" aria-label="Workspaces"></div>
+<div class="sessions-grid" id="sessions-grid"><div class="loading">Loading sessions...</div></div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/app.js?v=20260623-clean-copy-1"></script>
+{% endblock %}

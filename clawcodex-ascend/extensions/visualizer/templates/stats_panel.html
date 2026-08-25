@@ -1,0 +1,51 @@
+{# Tool and skill statistics dashboard #}
+{% macro stats_panel(summary) %}
+<div class="stats-panel" id="stats-panel">
+    <h3>📊 工具/Skill 调用统计</h3>
+
+    <div class="stats-grid">
+        <div class="stat-card">
+            <span class="stat-label">总调用</span>
+            <span class="stat-value" id="sp-total">{{ summary.total_calls | default(0) }}</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-label">平均耗时</span>
+            <span class="stat-value" id="sp-avg-dur">{{ (summary.avg_duration_ms | default(0)) | round(0) | int }}ms</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-label">错误率</span>
+            <span class="stat-value" id="sp-err-rate">{{ "%.1f" | format((summary.error_rate | default(0)) * 100) }}%</span>
+        </div>
+    </div>
+
+    {% if summary.by_kind %}
+    <div class="stats-section">
+        <h4>按类型</h4>
+        <table class="stats-table">
+            <tr><th>类型</th><th>调用次数</th></tr>
+            {% for kind, count in summary.by_kind.items() %}
+            <tr><td>{{ kind }}</td><td>{{ count }}</td></tr>
+            {% endfor %}
+        </table>
+    </div>
+    {% endif %}
+
+    {% if summary.by_name %}
+    <div class="stats-section">
+        <h4>按名称 Top 10</h4>
+        <table class="stats-table">
+            <tr><th>名称</th><th>调用</th><th>成功</th><th>成功率</th></tr>
+            {% for name, count in summary.by_name.items() | list | sort(attribute='1', reverse=True) | slice(10) | first %}
+            {% set ok_count = summary.by_name_ok.get(name, 0) %}
+            <tr>
+                <td>{{ name }}</td>
+                <td>{{ count }}</td>
+                <td>{{ ok_count }}</td>
+                <td>{{ "%.0f" | format((ok_count / count * 100) if count > 0 else 0) }}%</td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+    {% endif %}
+</div>
+{% endmacro %}
