@@ -520,7 +520,10 @@ class HybridAgentLoopManager(AgentLoopManager):
                 value = value.to_dict()
                 return {key: convert_to_string(v) for key, v in value.items()}
             elif isinstance(value, list):
-                return [convert_to_string(v) for v in value]
+                if all(isinstance(v, (int, float, str)) for v in value):
+                    return json.dumps(value, ensure_ascii=False)
+                else:
+                    return [convert_to_string(v) for v in value]
             elif isinstance(value, dict):
                 return {key: convert_to_string(v) for key, v in value.items()}
             else:
