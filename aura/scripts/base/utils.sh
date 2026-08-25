@@ -187,10 +187,10 @@ function parse_train_conf()
   fi
 
   case "${WORK_MODE}" in
-    hybrid|one_step_off)
+    hybrid|one_step_off|fully_async)
       ;;
     *)
-      log_error "invalid WORK_MODE '${WORK_MODE}' in ${BASE_CONF}, supported values: hybrid, one_step_off"
+      log_error "invalid WORK_MODE '${WORK_MODE}' in ${BASE_CONF}, supported values: hybrid, one_step_off, fully_async"
       exit 1
       ;;
   esac

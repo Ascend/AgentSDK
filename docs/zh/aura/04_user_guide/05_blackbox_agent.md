@@ -77,7 +77,7 @@
     bash download_traj_proxy.sh
     ```
 
-    TrajProxy 代码位于 `app` 目录下，将 `traj_proxy/app/dockers/allinone/configs/config.yaml` 中的 `model_name` 和 `tokenizer_path` 修改为本地模型路径。
+    TrajProxy 代码位于 `app` 目录下，将 `app/dockers/allinone/configs/config.yaml` 中的 `model_name` 和 `tokenizer_path` 修改为本地模型路径。
 
 3. 安装依赖：
 
@@ -97,7 +97,7 @@
     bash traj_proxy_start.sh
     ```
 
-6. 发送请求到 TrajProxy 服务：
+6. 发送请求到 TrajProxy 验证服务：
 
     ```shell
     curl -s http://0.0.0.0:12300/models | python3 -m json.tool
@@ -142,7 +142,7 @@
     uvicorn path.to.math_agent.server:app --host 0.0.0.0 --port 28124
     ```
 
-3. 发送请求到 Agent 服务：
+3. 发送请求到 Agent 验证服务：
 
     ```shell
     curl -s http://0.0.0.0:28124/models | python3 -m json.tool
@@ -155,7 +155,7 @@
 
 > [!NOTE]
 > 完整实现可参考内置轨迹聚合函数：[ozy_token_traj_refine_func](../../../../aura/agents/proxy_agent/math/ozy_traj_refine_reward.py)
-> 自定义函数实现后需要同步修改训练配置 [verl_train_hybrid_A3_t16_qwen3_8b_blackbox_math_fsdp.yaml](../../../../aura/configs/train/verl_train_hybrid_A3_t16_qwen3_8b_blackbox_math_fsdp.yaml) 中 `traj_refine_func` 为 对应函数路径
+> 自定义函数实现后需要同步修改训练配置 [共卡训练配置文件](../../../../aura/configs/train/verl_train_hybrid_A3_t16_qwen3_8b_blackbox_math_fsdp.yaml) 中 `traj_refine_func` 为 对应函数路径
 
 ### （可选）步骤：实现奖励函数（可选）
 
@@ -167,7 +167,7 @@
 
 ### 步骤三：启动训练
 
-参考[Qwen3-8B快速入门指南](../../../../docs/zh/aura/models/qwen3_8b.md)，启动训练。
+参考[Qwen3-8B快速入门指南](../../../../docs/zh/aura/models/qwen3_8b.md)，将配置文件修改为**支持黑盒 Agent 接入**的[共卡训练配置文件](../../../../aura/configs/train/verl_train_hybrid_A3_t16_qwen3_8b_blackbox_math_fsdp.yaml)，启动共卡模式训练。
 
 ## 源码实现原理
 
@@ -208,3 +208,11 @@ Agent 服务内部异常应在服务侧自行处理，并确保返回 HTTP 200�
 **Q4：多条轨迹与 session_id 的关系？**
 
 每次 `POST /v1/chat/completions` 请求对应一个 `session_id`，一个 session 内的所有 LLM 调用通过 `infer_url` 中的 session_id 关联。TrajProxy 按 session_id 分组存储轨迹记录，训练框架通过 `GET /trajectory?session_id=xxx` 拉取完整轨迹。
+
+**Q5：部署过程中出现通信问题，显示网络无法连通。**
+
+请确认各服务是否配置了网络代理，单机部署不需要访问外部网络，删除网络代理配置。
+
+```shell
+unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY all_proxy ALL_PROXY
+```

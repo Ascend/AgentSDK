@@ -76,6 +76,7 @@ class TestTrainRegistry:
             "aura.trainer.train_adapter.mindspeed_rl.one_step_off_policy.train.train_service": MagicMock(),
             "aura.trainer.train_adapter.mindspeed_rl.one_step_off_policy.train_service": MagicMock(),
             "aura.trainer.train_adapter.verl.full_async.train_main": MagicMock(),
+            "aura.trainer.train_adapter.verl.fully_async.train_main": MagicMock(),
             "aura.trainer.train_adapter.verl.hybrid.train_main": MagicMock(),
             "aura.trainer.train_adapter.omni_rl.hybrid.train_main": MagicMock(),
             "ray": self.mock_ray,

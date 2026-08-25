@@ -50,7 +50,7 @@ export GLOO_SOCKET_IFNAME=${DEFAULT_SOCKET_IFNAME:-"eth0"}
 export TP_SOCKET_IFNAME=${DEFAULT_SOCKET_IFNAME:-"eth0"}
 
 export PYTHONPATH=/MindSpeed:/Megatron-Bridge/src:${RLLM_PATH}:${PYTHONPATH}
-
+[[ "${WORK_MODE}" == "fully_async" ]] && export TRITON_DISABLE_AUTOTUNE=1
 export VC_TASK_INDEX=${VC_TASK_INDEX:-$1}
 export USE_PD=0 # 训练端的推理是个假的推理, 默认不开PD分离
 
@@ -390,7 +390,7 @@ log_info "[train] ASCEND_RT_VISIBLE_DEVICES: ${ASCEND_RT_VISIBLE_DEVICES}"
 
 register_sandbox_infer_model
 
-if [[ "${WORK_MODE}" == "one_step_off" ]]; then
+if [[ "${WORK_MODE}" != "hybrid" ]]; then
   # 训推全异步分离场景, 需要等待推理集群启动完成
   wait_for_infer_cluster_ready
 fi

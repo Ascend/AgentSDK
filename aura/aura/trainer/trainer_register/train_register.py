@@ -53,10 +53,12 @@ class TrainRegister:
         from aura.trainer.train_adapter.verl.full_async.train_main import start_train as verl_async_train
         from aura.trainer.train_adapter.verl.hybrid.train_main import start_train as verl_hybrid_train
         from aura.trainer.train_adapter.verl.full_async.train_main import start_dummy_train as verl_async_dummy_train
+        from aura.trainer.train_adapter.verl.fully_async.train_main import start_train as verl_fully_async_train
 
         self.registry.register("verl", "hybrid", verl_hybrid_train)
         self.registry.register("verl", "one_step_off", verl_async_train)
         self.registry.register("verl", "dummy_train", verl_async_dummy_train)
+        self.registry.register("verl", "fully_async", verl_fully_async_train)
 
     def get_method(self, train_engine, work_mode):
         return self.registry.get_method(train_engine, work_mode)
