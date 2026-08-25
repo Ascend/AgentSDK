@@ -29,7 +29,10 @@ class TestRolloutWorkerUtils(unittest.TestCase):
     def setUp(self):
         """Set up test environment"""
         self.original_modules = {}
-        for module_name in ['mindspeed_rl', 'mindspeed_rl.utils', 'mindspeed_rl.utils.utils', 'verl', 'uvicorn', 'ray']:
+        for module_name in ['mindspeed_rl', 'mindspeed_rl.utils', 'mindspeed_rl.utils.utils', 'verl', 'uvicorn', 'ray',
+                            'fastapi', 'starlette', 'starlette.requests', 'tensordict',
+                            'aura.base.exceptions.exceptions', 'aura.data_manager.data_transform',
+                            'aura.trainer.rollout.rollout_worker']:
             if module_name in sys.modules:
                 self.original_modules[module_name] = sys.modules[module_name]
 
@@ -40,6 +43,14 @@ class TestRolloutWorkerUtils(unittest.TestCase):
         self.mock_verl = mock.MagicMock()
         self.mock_uvicorn = mock.MagicMock()
         self.mock_ray = mock.MagicMock()
+
+        # Mock fastapi/starlette/tensordict to avoid version-incompatible imports
+        # (fastapi 0.x imports `IncEx` from pydantic.main which is missing in pydantic 2.x)
+        self.mock_fastapi = mock.MagicMock()
+        self.mock_starlette = mock.MagicMock()
+        self.mock_starlette_requests = mock.MagicMock()
+        self.mock_tensordict = mock.MagicMock()
+        self.mock_tensordict.TensorDict = mock.MagicMock
 
         class MockRayRemote:
             def __init__(self, *args, **kwargs):
@@ -68,6 +79,27 @@ class TestRolloutWorkerUtils(unittest.TestCase):
         sys.modules['verl'] = self.mock_verl
         sys.modules['uvicorn'] = self.mock_uvicorn
         sys.modules['ray'] = self.mock_ray
+        sys.modules['fastapi'] = self.mock_fastapi
+        sys.modules['starlette'] = self.mock_starlette
+        sys.modules['starlette.requests'] = self.mock_starlette_requests
+        sys.modules['tensordict'] = self.mock_tensordict
+
+        # Mock aura.base.exceptions.exceptions to avoid fastapi.HTTPException import
+        mock_exceptions_module = mock.MagicMock()
+
+        class RolloutShutdownException(Exception):
+            """Raised when SampleQueue is shut down, signaling rollout to stop generation."""
+            pass
+
+        mock_exceptions_module.RolloutShutdownException = RolloutShutdownException
+        sys.modules['aura.base.exceptions.exceptions'] = mock_exceptions_module
+
+        # Mock aura.data_manager.data_transform to avoid tensordict.TensorDict import
+        mock_data_transform_module = mock.MagicMock()
+        sys.modules['aura.data_manager.data_transform'] = mock_data_transform_module
+
+        # Ensure a fresh module import for each test case
+        sys.modules.pop('aura.trainer.rollout.rollout_worker', None)
 
         # Import test objects
         global get_least_common_multiple, generate_dummy_trajectory, parse_messages
@@ -88,7 +120,10 @@ class TestRolloutWorkerUtils(unittest.TestCase):
         for module_name, module in self.original_modules.items():
             sys.modules[module_name] = module
         # Delete mock modules
-        mock_modules = ['mindspeed_rl', 'mindspeed_rl.utils', 'mindspeed_rl.utils.utils', 'verl', 'uvicorn', 'ray']
+        mock_modules = ['mindspeed_rl', 'mindspeed_rl.utils', 'mindspeed_rl.utils.utils', 'verl', 'uvicorn', 'ray',
+                        'fastapi', 'starlette', 'starlette.requests', 'tensordict',
+                        'aura.base.exceptions.exceptions', 'aura.data_manager.data_transform',
+                        'aura.trainer.rollout.rollout_worker']
         for module_name in mock_modules:
             if module_name in sys.modules and module_name not in self.original_modules:
                 del sys.modules[module_name]
