@@ -21,6 +21,11 @@ import functools
 from fastapi import HTTPException
 
 
+class RolloutShutdownException(Exception):
+    """Raised when SampleQueue is shut down, signaling rollout to stop generation."""
+    pass
+
+
 def async_raise_http_exception(func):
     @functools.wraps(func)
     async def wrapper(*args, **kwargs):
