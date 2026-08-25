@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Session {{ session_id }} - ClawCodex Visualizer{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/css/session_view.css?v=20260624-inline-1">{% endblock %}
+
+{% block content %}
+{% set sid_url = session_id | urlencode %}
+<div id="session-app" data-session-id="{{ session_id }}">
+    <a class="back-link" href="/">Back to all sessions</a>
+    <header class="session-page-header">
+        <div>
+            <div class="eyebrow">Agent session timeline</div>
+            <h1 id="session-title">Session {{ session_id }}</h1>
+            <p id="session-subtitle">Loading local session records...</p>
+        </div>
+        <div class="session-page-actions" aria-label="Session actions">
+            <a class="btn" href="/api/viz/sessions/{{ sid_url }}/report">Report</a>
+        </div>
+    </header>
+
+    <div id="session-warning" class="session-warning" hidden></div>
+    <div id="category-legend" class="category-legend" aria-label="Event category filters"></div>
+
+    <section class="timeline-shell" id="timeline-shell" aria-busy="true">
+        <div class="timeline-toolbar">
+            <div class="zoom-controls" role="group" aria-label="Timeline zoom">
+                <button type="button" id="zoom-out" aria-label="Zoom out">-</button>
+                <output id="zoom-value">100%</output>
+                <button type="button" id="zoom-in" aria-label="Zoom in">+</button>
+                <button type="button" id="zoom-reset" aria-label="Reset zoom" hidden>Reset</button>
+            </div>
+            <div class="timeline-hint">Mouse wheel zooms; drag pans; Alt + wheel pans horizontally</div>
+        </div>
+        <div id="timeline-state" class="timeline-state"><span class="spinner"></span>Loading session...</div>
+        <div id="timeline-scroll" class="timeline-scroll" hidden>
+            <div id="timeline-canvas" class="timeline-canvas">
+                <div id="time-axis" class="time-axis"></div>
+                <div id="main-lane"></div>
+                <div id="subagent-section"></div>
+                <svg id="agent-connectors" class="agent-connectors" aria-hidden="true"></svg>
+            </div>
+        </div>
+        <div id="timeline-footer" class="timeline-footer" hidden></div>
+    </section>
+</div>
+
+<div id="event-tooltip" class="event-tooltip" role="tooltip" hidden></div>
+<aside id="event-drawer" class="event-drawer" role="dialog" aria-modal="false" aria-hidden="true" aria-labelledby="drawer-title" tabindex="-1">
+    <div class="event-drawer-header">
+        <div><span id="drawer-dot" class="drawer-dot"></span><h2 id="drawer-title">Event details</h2></div>
+        <button type="button" id="drawer-close" aria-label="Close details">x</button>
+    </div>
+    <div id="drawer-body" class="event-drawer-body"></div>
+</aside>
+{% endblock %}
+
+{% block scripts %}
+<script>window.SESSION_ID = {{ session_id | tojson }};</script>
+<script src="/static/js/session_view.js?v=20260702-liveguard-1"></script>
+{% endblock %}
