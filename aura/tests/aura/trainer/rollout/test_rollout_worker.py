@@ -30,6 +30,8 @@ class TestRolloutWorkerUtils(unittest.TestCase):
         """Set up test environment"""
         self.original_modules = {}
         module_names = ['mindspeed_rl', 'mindspeed_rl.utils', 'mindspeed_rl.utils.utils', 'verl', 'uvicorn', 'ray',
+                        'fastapi', 'starlette', 'starlette.requests', 'tensordict',
+                        'aura.base.exceptions.exceptions', 'aura.data_manager.data_transform',
                         'aura.trainer.rollout.rollout_worker']
         for module_name in module_names:
             if module_name in sys.modules:
@@ -42,6 +44,14 @@ class TestRolloutWorkerUtils(unittest.TestCase):
         self.mock_verl = mock.MagicMock()
         self.mock_uvicorn = mock.MagicMock()
         self.mock_ray = mock.MagicMock()
+
+        # Mock fastapi/starlette/tensordict to avoid version-incompatible imports
+        # (fastapi 0.x imports `IncEx` from pydantic.main which is missing in pydantic 2.x)
+        self.mock_fastapi = mock.MagicMock()
+        self.mock_starlette = mock.MagicMock()
+        self.mock_starlette_requests = mock.MagicMock()
+        self.mock_tensordict = mock.MagicMock()
+        self.mock_tensordict.TensorDict = mock.MagicMock
 
         class MockRayRemote:
             def __init__(self, *args, **kwargs):
@@ -65,13 +75,32 @@ class TestRolloutWorkerUtils(unittest.TestCase):
 
         # Replace modules with mocks to avoid import errors
         self.mock_modules = ['mindspeed_rl', 'mindspeed_rl.utils', 'mindspeed_rl.utils.utils',
-                            'verl', 'uvicorn', 'ray']
+                            'verl', 'uvicorn', 'ray', 'fastapi', 'starlette', 'starlette.requests',
+                            'tensordict']
         sys.modules['mindspeed_rl'] = self.mock_mindspeed_rl
         sys.modules['mindspeed_rl.utils'] = self.mock_mindspeed_rl_utils
         sys.modules['mindspeed_rl.utils.utils'] = self.mock_mindspeed_rl_utils.utils
         sys.modules['verl'] = self.mock_verl
         sys.modules['uvicorn'] = self.mock_uvicorn
         sys.modules['ray'] = self.mock_ray
+        sys.modules['fastapi'] = self.mock_fastapi
+        sys.modules['starlette'] = self.mock_starlette
+        sys.modules['starlette.requests'] = self.mock_starlette_requests
+        sys.modules['tensordict'] = self.mock_tensordict
+
+        # Mock aura.base.exceptions.exceptions to avoid fastapi.HTTPException import
+        mock_exceptions_module = mock.MagicMock()
+
+        class RolloutShutdownException(Exception):
+            """Raised when SampleQueue is shut down, signaling rollout to stop generation."""
+            pass
+
+        mock_exceptions_module.RolloutShutdownException = RolloutShutdownException
+        sys.modules['aura.base.exceptions.exceptions'] = mock_exceptions_module
+
+        # Mock aura.data_manager.data_transform to avoid tensordict.TensorDict import
+        mock_data_transform_module = mock.MagicMock()
+        sys.modules['aura.data_manager.data_transform'] = mock_data_transform_module
 
         # Ensure a fresh module import for each test case
         sys.modules.pop('aura.trainer.rollout.rollout_worker', None)
@@ -96,6 +125,11 @@ class TestRolloutWorkerUtils(unittest.TestCase):
             sys.modules[module_name] = module
         # Delete mock modules added in setUp
         for module_name in self.mock_modules:
+            if module_name in sys.modules and module_name not in self.original_modules:
+                del sys.modules[module_name]
+        # Delete aura mock modules added in setUp
+        aura_mock_modules = ['aura.base.exceptions.exceptions', 'aura.data_manager.data_transform']
+        for module_name in aura_mock_modules:
             if module_name in sys.modules and module_name not in self.original_modules:
                 del sys.modules[module_name]
         # Delete aura modules that were imported
@@ -1468,6 +1502,173 @@ class TestRolloutWorker(TestRolloutWorkerUtils):
                 tensor_batch, metrics = self.rollout_worker._transform_agent_trajectories(trajectories)
 
                 self.assertIsInstance(tensor_batch, dict)
+
+    def test_weights_path_for_version(self):
+        """Test _weights_path_for_version builds the expected directory path."""
+        self.rollout_worker.weight_save_dir = "/save"
+        path = self.rollout_worker._weights_path_for_version(42)
+        self.assertIn("/save", path)
+        self.assertIn("weights_42", path)
+
+    def test_remove_padding_for_responses_no_remover(self):
+        """When no padding-removal function is set, responses are returned unchanged."""
+        self.rollout_worker.remove_padding_and_split_to_list = None
+        responses = torch.tensor([[1, 2, 3]])
+        out = self.rollout_worker._remove_padding_for_responses(responses)
+        self.assertIs(out, responses)
+
+    def test_remove_padding_for_responses_with_remover(self):
+        """When a padding-removal function is set, it is invoked with pad token ids.
+
+        Note: the rollout_worker implementation always passes the chosen pad
+        token id as both the ``pad_id`` and ``eos_id`` arguments of the remover
+        (mirroring the legacy synchronous path on line 583). This test pins
+        that contract so any future change to the signature is caught.
+        """
+        captured = {}
+
+        def fake_remove(resp, pad_id, eos_id):
+            captured["resp"] = resp
+            captured["pad_id"] = pad_id
+            captured["eos_id"] = eos_id
+            return ["stripped"]
+
+        self.rollout_worker.remove_padding_and_split_to_list = fake_remove
+        self.rollout_worker.tokenizer = MagicMock(pad_token_id=7, eos_token_id=9)
+        out = self.rollout_worker._remove_padding_for_responses("raw_responses")
+        self.assertEqual(out, ["stripped"])
+        self.assertEqual(captured["pad_id"], 7)
+        self.assertEqual(captured["eos_id"], 7)
+
+    def test_remove_padding_for_responses_falls_back_to_eos(self):
+        """When pad_token_id is falsy, eos_token_id is used as the pad id."""
+        captured = {}
+
+        def fake_remove(resp, pad_id, eos_id):
+            captured["pad_id"] = pad_id
+            return "ok"
+
+        self.rollout_worker.remove_padding_and_split_to_list = fake_remove
+        self.rollout_worker.tokenizer = MagicMock(pad_token_id=0, eos_token_id=11)
+        self.rollout_worker._remove_padding_for_responses("resp")
+        self.assertEqual(captured["pad_id"], 11)
+
+    def test_build_outputs_assembles_expected_keys(self):
+        """Test _build_outputs populates base keys and delegates to add_output helpers."""
+        self.rollout_worker.add_output_for_verl = MagicMock()
+        self.rollout_worker.add_output_for_msrl = MagicMock()
+        final_gen_batch_output = {
+            "prompt_length": [10],
+            "token_level_scores": torch.tensor([[0.5]]),
+            "traj_mask": torch.tensor([[1]]),
+            "input_ids": torch.tensor([[1, 2]]),
+        }
+        outputs = self.rollout_worker._build_outputs(final_gen_batch_output, torch.tensor([[3]]))
+        self.assertEqual(outputs["prompt_length"], [10])
+        self.assertIn("rm_scores", outputs)
+        self.assertIn("token_level_rewards", outputs)
+        self.assertIn("response_mask", outputs)
+        self.rollout_worker.add_output_for_verl.assert_called_once()
+        self.rollout_worker.add_output_for_msrl.assert_called_once()
+
+    def test_pad_trajectories_to_concurrency_already_enough(self):
+        """When trajectories count already meets concurrency, no padding is added."""
+        trajs = [{"id": i} for i in range(4)]
+        self.rollout_worker.n_samples_per_prompt = 2
+        self.rollout_worker._pad_trajectories_to_concurrency(trajs, {1, 2}, 4)
+        self.assertEqual(len(trajs), 4)
+
+    def test_pad_trajectories_to_concurrency_pads_up(self):
+        """When trajectories count is below concurrency, dummy trajectories are appended."""
+        trajs = [{"id": 0}]
+        self.rollout_worker.n_samples_per_prompt = 2
+        all_prompt_ids = {1}
+        self.rollout_worker._pad_trajectories_to_concurrency(trajs, all_prompt_ids, 3)
+        # Start with 1, need 2 more for prompt_id=1 (n_samples_per_prompt=2), reaching 3.
+        self.assertEqual(len(trajs), 3)
+        # The padded entries should be dummy trajectories carrying the prompt_id.
+        self.assertEqual(trajs[1]["prompt_id"], "1")
+        self.assertEqual(trajs[2]["prompt_id"], "1")
+
+    def test_outputs_gen_count_with_input_ids_list(self):
+        """Test _outputs_gen_count returns list length when input_ids is a list."""
+        outputs = {"input_ids": [1, 2, 3], "responses": torch.zeros(3, 4)}
+        self.assertEqual(self.rollout_worker._outputs_gen_count(outputs), 3)
+
+    def test_outputs_gen_count_with_tensor_responses(self):
+        """Test _outputs_gen_count falls back to responses shape when no input_ids."""
+        outputs = {"responses": torch.zeros(5, 4)}
+        self.assertEqual(self.rollout_worker._outputs_gen_count(outputs), 5)
+
+    def test_outputs_gen_count_with_list_responses(self):
+        """Test _outputs_gen_count falls back to len(responses) for plain lists."""
+        outputs = {"responses": [1, 2, 3, 4]}
+        self.assertEqual(self.rollout_worker._outputs_gen_count(outputs), 4)
+
+    def test_slice_outputs_for_prompt_slices_tensors(self):
+        """Test _slice_outputs_for_prompt slices tensor values and passes scalars through."""
+        outputs = {
+            "input_ids": torch.tensor([[1, 2], [3, 4], [5, 6]]),
+            "prompts": [10, 20, 30],
+            "version": 99,
+        }
+        sliced = self.rollout_worker._slice_outputs_for_prompt(outputs, 1, 3)
+        self.assertTrue(torch.equal(sliced["input_ids"], torch.tensor([[3, 4], [5, 6]])))
+        self.assertEqual(sliced["prompts"], [20, 30])
+        self.assertEqual(sliced["version"], 99)
+
+    def test_apply_backpressure_skips_when_under_limit(self):
+        """Test _apply_backpressure returns immediately when staleness is under limit."""
+        import asyncio
+
+        self.rollout_worker.max_required_samples = 10
+        self.rollout_worker.staleness_samples = 1
+        self.rollout_worker.sample_queue = MagicMock()
+        self.rollout_worker.sample_queue.get_queue_size.remote = AsyncMock(return_value=1)
+
+        async def run():
+            return await self.rollout_worker._apply_backpressure(0, 0)
+
+        backpressure_count, weight_reload_count = asyncio.run(run())
+        self.assertEqual(backpressure_count, 0)
+        self.assertEqual(weight_reload_count, 0)
+
+    def test_apply_backpressure_reloads_weights_then_releases(self):
+        """Test _apply_backpressure reloads weights and exits once both limits drop."""
+        import asyncio
+
+        self.rollout_worker.max_required_samples = 5
+        # Start at the limit so the first iteration blocks.
+        self.rollout_worker.staleness_samples = 5
+        self.rollout_worker.current_weights_version = 1
+        self.rollout_weight_manager = MagicMock()
+        self.rollout_weight_manager.get_weights_version.remote = AsyncMock(return_value=2)
+        self.rollout_worker.rollout_weight_manager = self.rollout_weight_manager
+
+        queue_size_values = [5]
+
+        async def fake_get_queue_size():
+            return queue_size_values[0]
+
+        self.rollout_worker.sample_queue = MagicMock()
+        self.rollout_worker.sample_queue.get_queue_size.remote = AsyncMock(side_effect=fake_get_queue_size)
+
+        reload_calls = []
+
+        async def fake_reload(version):
+            reload_calls.append(version)
+            # After reload, both staleness and queue drop under the limit so the loop exits.
+            self.rollout_worker.staleness_samples = 1
+            queue_size_values[0] = 1
+
+        self.rollout_worker._load_weights_fully_async = fake_reload
+
+        async def run():
+            return await self.rollout_worker._apply_backpressure(0, 0)
+
+        backpressure_count, weight_reload_count = asyncio.run(run())
+        self.assertEqual(weight_reload_count, 1)
+        self.assertEqual(reload_calls, [2])
 
 
 if __name__ == '__main__':
