@@ -3,8 +3,8 @@
 
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Clawd Codex Team
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Copyright (c) 2026 Clawd Codex Team
 #
 # AgentSDK is licensed under Mulan PSL v2.
 # You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -18,8 +18,4 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""Compatibility shim — delegate to lkb.audit."""
-
-# Deliberately mirror the upstream public surface for import compatibility.
-from lkb.audit import *  # noqa: F401, F403  # pylint: disable=wildcard-import
-from lkb.audit import _new_event_id  # noqa: F401 — private name used by test_audit.py
+"""Unit tests for the standalone LKB package."""
