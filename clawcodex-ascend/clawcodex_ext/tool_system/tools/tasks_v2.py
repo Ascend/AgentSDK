@@ -1,3 +1,26 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Copyright (c) 2026 Clawd Codex Team
+#
+# AgentSDK is licensed under Mulan PSL v2.
+# You can use this software according to the terms and conditions of the Mulan PSL v2.
+# You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
+# AgentSDK migration Parts do not contain every host facade during incremental validation.
+# pylint: disable=E0611
+
 from __future__ import annotations
 
 import uuid
@@ -159,6 +182,8 @@ def _task_create_call(tool_input: dict[str, Any], context: ToolContext) -> ToolR
         "metadata": dict(metadata),
         "output": "",
     }
+    if context._lkb_task_cutover_initialized:
+        context.lkb_native_task_ids.add(task_id)
     return ToolResult(
         name="TaskCreate",
         output={"task": {"id": task_id, "subject": subject}},
