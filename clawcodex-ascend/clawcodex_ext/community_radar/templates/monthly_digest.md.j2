@@ -1,0 +1,125 @@
+{# Monthly Community Digest — SR-5.1 / SR-5.3 — rendered via Jinja2 #}
+# {{ title }} ({{ period_label }})
+
+> {{ labels.generated_at }}: {{ generated_at }}
+> {{ labels.coverage_label }}: {{ sources_count }} {{ labels.coverage_projects }} · {{ total_versions }} {{ labels.coverage_versions }} · {{ total_features }} {{ labels.coverage_features }}
+{%- if filtered_count > 0 %}
+> {{ labels.filtered_info }}: {{ filtered_count }} {{ labels.counter_filtered }}
+{%- endif %}
+{%- if llm_assisted %}
+> {{ labels.llm_assisted }}
+{%- endif %}
+
+{% if comparison.get('has_comparison') %}
+## {{ labels.section_comparison }}
+
+> {{ labels.comparison_baseline }}: {{ comparison.previous_generated_at }}
+
+### {{ labels.comparison_new.format(n=comparison.new_count) }}
+
+{% if comparison.show_new_features -%}
+{% for rec in comparison.new_features %}
+- **{{ rec.title }}** — {{ rec.desc }}（{{ rec.category }}，{{ labels.source_from }}: {{ rec.source }}）
+{% endfor %}
+{% else -%}
+{{ labels.no_new_features }}
+{% endif %}
+
+### {{ labels.comparison_disappeared.format(n=comparison.disappeared_count) }}
+
+{% if comparison.show_disappeared -%}
+{% for rec in comparison.disappeared_features %}
+- ~~**{{ rec.title }}**~~ — {{ rec.desc }}（{{ rec.category }}，{{ labels.source_from }}: {{ rec.source }}）
+{% endfor %}
+{% else -%}
+{{ labels.no_disappeared }}
+{% endif %}
+
+### {{ labels.comparison_score.format(n=comparison.score_changed|length) }}
+
+{% if comparison.show_score_changes -%}
+| {{ labels.th_feature }} | {{ labels.th_old_score }} | {{ labels.th_new_score }} | {{ labels.th_change }} |
+|------|:-:|:-:|:-:|
+{% for item in comparison.score_changed %}
+| {{ item.title }} | {{ "%.1f"|format(item.old_score) }} | {{ "%.1f"|format(item.new_score) }} | {% if item.delta > 0 %}↑{% else %}↓{% endif %} {{ "%.1f"|format(item.delta|abs) }} |
+{% endfor %}
+{% else -%}
+{{ labels.no_score_changes }}
+{% endif %}
+
+{% endif %}
+
+{% if highlights %}
+## {{ labels.section_highlights }}
+
+> {{ labels.highlights_desc }}
+
+{% for item in highlights %}
+{{ loop.index }}. **{{ item.title }}** — {{ item.desc }}（{{ labels.highlight_score }} {{ "%.1f"|format(item.score) }} · {{ labels.highlight_source }}: {{ item.sources }} · {{ labels.highlight_category }}: {{ item.category }}）{% if item.url %} — [{{ labels.view_detail_link }}]({{ item.url }}){% endif %}
+
+{% endfor %}
+{% else %}
+## {{ labels.section_highlights }}
+
+{{ labels.no_activity }}
+{% endif %}
+
+{% if trending %}
+## {{ labels.section_detail_table }}
+
+| {{ labels.th_feature }} | {{ labels.th_source }} | {{ labels.th_score }} | {{ labels.th_category }} | {{ labels.th_type }} | {{ labels.th_new }} | {{ labels.th_desc }} |
+|------|------|:----:|------|:----:|------|------|
+{% for item in trending %}
+| {% if item.url %}[{{ item.title }}]({{ item.url }}){% else %}{{ item.title }}{% endif %} | {{ item.sources }} | {{ "%.1f"|format(item.score) }} | {{ item.category }} | {{ item.feature_type }} | {{ item.new_marker }} | {{ item.desc }} |
+{% endfor %}
+{% else %}
+## {{ labels.section_detail_table }}
+
+{{ labels.none }}
+{% endif %}
+
+## {{ labels.section_summary }}
+
+{{ summary }}
+
+{% if breaking_changes %}
+## {{ labels.section_breaking }}
+
+| {{ labels.th_project }} | {{ labels.th_feature }} | {{ labels.th_impact }} |
+|------|------|---------|
+{% for record in breaking_changes %}
+| {{ record.source }} | {% if record.url %}[{{ record.title }}]({{ record.url }}){% else %}{{ record.title }}{% endif %} | {{ record.impact }} |
+{% endfor %}
+{% else %}
+## {{ labels.section_breaking }}
+
+{{ labels.none }}
+{% endif %}
+
+## {{ labels.section_distribution }}
+
+{% if by_root_category %}
+### {{ labels.section_by_domain }}
+
+{% for root_name, count in by_root_category %}
+- {{ root_name }}: {{ count }}
+{% endfor %}
+
+{% endif %}
+### {{ labels.section_by_subcategory }}
+
+{% if by_category %}
+{% for cat, count in by_category %}
+- {{ cat }}: {{ count }}
+{% endfor %}
+{% else %}
+{{ labels.none }}
+{% endif %}
+
+{% if errors %}
+## {{ labels.section_errors }}
+
+{% for err in errors %}
+- {{ err }}
+{% endfor %}
+{% endif %}
