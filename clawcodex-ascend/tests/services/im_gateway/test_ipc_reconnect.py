@@ -37,6 +37,8 @@ Plus the basic backoff-escalation happy path.
 
 from __future__ import annotations
 
+import asyncio
+import logging
 
 import pytest
 
@@ -44,6 +46,7 @@ from clawcodex_ext.services.im_gateway.binding import BindingPolicy
 from clawcodex_ext.services.im_gateway.config import GatewayConfig
 from clawcodex_ext.services.im_gateway.gateway import MessageGateway
 from clawcodex_ext.services.im_gateway.ipc_client import GatewayIpcClient
+from clawcodex_ext.services.im_gateway.ipc_protocol import GatewayFrame
 from clawcodex_ext.services.im_gateway.ipc_server import GatewayIpcServer
 from clawcodex_ext.services.im_gateway.models import (
     AckLayer,
@@ -62,6 +65,56 @@ class _RecordingHandler:
     async def __call__(self, message: InboundMessage):
         self.received.append(message)
         return AckReceipt(message.message_id or "d1", AckLayer.ENQUEUED, "enqueued")
+
+
+@pytest.mark.asyncio
+async def test_reconnect_logs_safe_exception_category(tmp_path, monkeypatch, caplog) -> None:
+    client = GatewayIpcClient(tmp_path / "gateway.sock", instance_id="repl_main")
+
+    async def denied_connect() -> None:
+        raise PermissionError("token=exception-secret")
+
+    monkeypatch.setattr(client, "connect", denied_connect)
+    with caplog.at_level(logging.DEBUG, logger="clawcodex_ext.services.im_gateway.ipc_client"):
+        response = await client.reconnect_until_registered(
+            session_id="repl_main",
+            origin="o1",
+            base_delay=0,
+            max_delay=0,
+            max_attempts=1,
+        )
+
+    assert response is None
+    assert "exception_type=PermissionError" in caplog.text
+    assert "error_fingerprint=" in caplog.text
+    assert "exception-secret" not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_reconnect_logs_safe_registration_nack(tmp_path, monkeypatch, caplog) -> None:
+    client = GatewayIpcClient(tmp_path / "gateway.sock", instance_id="repl_main")
+
+    async def connected() -> None:
+        return None
+
+    async def rejected(**_kwargs) -> GatewayFrame:
+        return GatewayFrame.nack(delivery_id="register", reason="password=nack-secret")
+
+    monkeypatch.setattr(client, "connect", connected)
+    monkeypatch.setattr(client, "register", rejected)
+    with caplog.at_level(logging.WARNING, logger="clawcodex_ext.services.im_gateway.ipc_client"):
+        response = await client.reconnect_until_registered(
+            session_id="repl_main",
+            origin="o1",
+            base_delay=0,
+            max_delay=0,
+            max_attempts=1,
+        )
+
+    assert response is None
+    assert "response_type=nack ack_layer=none" in caplog.text
+    assert "reason_fingerprint=" in caplog.text
+    assert "nack-secret" not in caplog.text
 
 
 class _FakeGateway:
@@ -117,6 +170,49 @@ async def test_reconnect_redeliver_hits_server_dedup(tmp_path) -> None:
         assert len(handler.received) == 1
     finally:
         await server.close()
+
+
+@pytest.mark.asyncio
+async def test_client_delivery_cache_is_bounded_and_evicted_ids_can_retry(tmp_path) -> None:
+    client = GatewayIpcClient(tmp_path / "gw.sock", delivery_cache_size=2)
+    calls: list[str] = []
+
+    async def accepted(frame):
+        calls.append(frame.delivery_id)
+        return GatewayFrame.ack(delivery_id=frame.delivery_id, layer="accepted")
+
+    client._send = accepted  # type: ignore[method-assign]
+    for delivery_id in ("d1", "d2", "d3", "d1"):
+        await client.deliver(
+            delivery_id=delivery_id,
+            session_id="repl-1",
+            origin="wechat:direct:a:u",
+            text="hello",
+        )
+
+    assert calls == ["d1", "d2", "d3", "d1"]
+    assert list(client._seen_delivery_ids) == ["d3", "d1"]
+
+
+@pytest.mark.asyncio
+async def test_server_deliver_id_collision_does_not_consume_pending_request(tmp_path) -> None:
+    delivered: list[GatewayFrame] = []
+    client = GatewayIpcClient(tmp_path / "gw.sock", on_deliver=delivered.append)
+    pending = asyncio.get_running_loop().create_future()
+    client._pending["same-id"] = pending
+
+    client._dispatch_incoming(
+        GatewayFrame.deliver(
+            delivery_id="same-id",
+            session_id="repl-1",
+            origin="wechat:direct:a:u",
+            text="hello",
+        )
+    )
+
+    assert [frame.delivery_id for frame in delivered] == ["same-id"]
+    assert client._pending["same-id"] is pending
+    assert not pending.done()
 
 
 @pytest.mark.asyncio
@@ -197,3 +293,44 @@ async def test_no_offline_replay_during_disconnect_gap(tmp_path) -> None:
         await client.close()
     finally:
         await server.close()
+
+
+@pytest.mark.asyncio
+async def test_backoff_escalates_on_repeated_connect_failures(monkeypatch, tmp_path) -> None:
+    """Happy path: repeated connect failures escalate backoff (1s→...→capped)
+    and the loop keeps trying up to max attempts without raising into caller.
+    """
+    client = GatewayIpcClient(tmp_path / "nope.sock", instance_id="repl_main")
+
+    sleeps: list[float] = []
+    connect_calls = [0]
+
+    async def _fake_connect():
+        connect_calls[0] += 1
+        raise ConnectionRefusedError("no server")
+
+    def _fake_sleep(seconds):
+        sleeps.append(seconds)
+
+        async def _noop():
+            return None
+
+        return _noop()
+
+    monkeypatch.setattr(client, "connect", _fake_connect)
+    monkeypatch.setattr(asyncio, "sleep", _fake_sleep)
+
+    await client.reconnect_until_registered(
+        session_id="repl_main",
+        origin="o1",
+        capabilities=["outbound_text"],
+        base_delay=1.0,
+        max_delay=30.0,
+        max_attempts=4,
+    )
+
+    # tried max_attempts times, each with escalating (≥ base, ≤ max) backoff
+    assert connect_calls[0] == 4
+    assert all(1.0 <= s <= 30.0 for s in sleeps)
+    # strictly non-decreasing (exponential growth, never shrinks)
+    assert sleeps == sorted(sleeps)
