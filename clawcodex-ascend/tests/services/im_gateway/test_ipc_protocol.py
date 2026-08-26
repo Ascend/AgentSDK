@@ -25,10 +25,29 @@ from __future__ import annotations
 import pytest
 
 from clawcodex_ext.services.im_gateway.ipc_protocol import (
+    PROTOCOL_VERSION,
     FrameType,
     GatewayFrame,
     constant_time_eq,
 )
+
+
+def test_register_frame_roundtrip() -> None:
+    f = GatewayFrame.register(
+        session_id="repl_main",
+        origin="wechat:direct:default:user_gz",
+        capabilities=["outbound_text"],
+        token="t0",
+    )
+    raw = f.encode()
+    assert raw.endswith(b"\n")
+    back = GatewayFrame.decode(raw)
+    assert back.type is FrameType.REGISTER
+    assert back.session_id == "repl_main"
+    assert back.origin == "wechat:direct:default:user_gz"
+    assert back.capabilities == ["outbound_text"]
+    assert back.token == "t0"
+    assert back.protocol_version == PROTOCOL_VERSION
 
 
 def test_deliver_and_ack_frames() -> None:
@@ -48,6 +67,14 @@ def test_deliver_and_ack_frames() -> None:
     n = GatewayFrame.nack(delivery_id="d1", reason="target_offline")
     assert n.type is FrameType.NACK
     assert n.reason == "target_offline"
+
+
+def test_heartbeat_and_event_and_unregister() -> None:
+    assert GatewayFrame.heartbeat(session_id="s").type is FrameType.HEARTBEAT
+    e = GatewayFrame.event(event_type="issue.failed", payload={"id": "AGENTSDK-15"})
+    assert e.type is FrameType.EVENT
+    assert e.payload == {"id": "AGENTSDK-15"}
+    assert GatewayFrame(type=FrameType.UNREGISTER, session_id="s").type is FrameType.UNREGISTER
 
 
 def test_outbound_frame_roundtrip() -> None:
@@ -73,6 +100,24 @@ def test_outbound_frame_roundtrip() -> None:
     assert back.metadata == f.metadata
     assert back.semantic_tags == f.semantic_tags
     assert back.in_reply_to == "om_inbound"
+
+
+def test_processing_complete_event_roundtrip() -> None:
+    frame = GatewayFrame.processing_complete(
+        message_id="om_inbound",
+        outcome="cancelled",
+        reason="user stopped",
+    )
+
+    back = GatewayFrame.decode(frame.encode())
+    assert back.type is FrameType.EVENT
+    assert back.event_type == "processing.complete"
+    assert back.payload == {
+        "message_id": "om_inbound",
+        "outcome": "cancelled",
+        "reason": "user stopped",
+    }
+    assert back.protocol_version == PROTOCOL_VERSION
 
 
 def test_decode_rejects_bad_type() -> None:
