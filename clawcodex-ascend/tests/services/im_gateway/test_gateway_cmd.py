@@ -21,23 +21,36 @@
 """Tests for the Gateway daemon lifecycle (PID/lock/stale socket/health)
 and CLI routing for the flattened `gateway` command.
 """
-# pylint: disable=no-name-in-module, use-implicit-booleaness-not-comparison
+# pylint: disable=use-implicit-booleaness-not-comparison
 
 from __future__ import annotations
 
+import os
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
+from clawcodex_ext.cli.gateway_cmd.commands import run_gateway_command
 from extensions.im_gateway.server import (
     DaemonPaths,
     GatewayDaemon,
+    _channel_status_ready,
+    acquire_lock,
     cleanup_stale,
     is_pid_alive,
+    read_health,
     read_pid,
-    acquire_lock,
+    write_health,
+    write_pid,
 )
-from clawcodex_ext.cli.gateway_cmd.commands import run_gateway_command
+
+
+def test_historical_default_state_dir_import_is_preserved() -> None:
+    from clawcodex_ext.services.im_gateway.config import DEFAULT_STATE_DIR as canonical
+    from extensions.im_gateway.server import DEFAULT_STATE_DIR as historical
+
+    assert historical == canonical
 
 
 def test_status_not_running(tmp_path) -> None:
@@ -71,17 +84,105 @@ def test_acquire_lock_single_instance(tmp_path) -> None:
     assert fd1 is not None
     fd2 = acquire_lock(paths)
     assert fd2 is None  # already locked
-    import os
-
     os.close(fd1)
 
 
 def test_is_pid_alive() -> None:
-    import os
-
     assert is_pid_alive(os.getpid()) is True
     assert is_pid_alive(999999) is False
     assert is_pid_alive(0) is False
+
+
+@pytest.mark.parametrize(
+    ("status", "expected"),
+    [
+        ("connected", True),
+        ("logged_in", True),
+        ("websocket:connected", True),
+        ("websocket:disconnected", False),
+        ("websocket:reconnecting", False),
+        ("websocket:retrying", False),
+    ],
+)
+def test_channel_status_ready_uses_exact_allowlist(status, expected) -> None:
+    assert _channel_status_ready(status) is expected
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        "null",
+        "[]",
+        '"invalid"',
+        '{"started_at": "invalid"}',
+        '{"channels": ["wechat", 1]}',
+        '{"channel_status": {"wechat": 1}}',
+    ],
+)
+def test_read_health_rejects_invalid_schema(tmp_path, payload: str) -> None:
+    paths = DaemonPaths.for_state_dir(tmp_path)
+    paths.health_file.write_text(payload, encoding="utf-8")
+    assert read_health(paths) is None
+
+
+def test_write_health_is_atomic_and_cleans_temp_after_replace_failure(tmp_path, monkeypatch) -> None:
+    from extensions.im_gateway import server as srv
+
+    paths = DaemonPaths.for_state_dir(tmp_path)
+    write_health(paths)
+    initial = paths.health_file.read_text(encoding="utf-8")
+
+    def fail_replace(_source, _target) -> None:
+        raise OSError("replace failed")
+
+    monkeypatch.setattr(srv.os, "replace", fail_replace)
+    with pytest.raises(OSError, match="replace failed"):
+        write_health(paths, channels=["next"])
+
+    assert paths.health_file.read_text(encoding="utf-8") == initial
+    assert not list(paths.state_dir.glob(".health.json.*.tmp"))
+
+
+def test_concurrent_health_writers_publish_one_complete_document(tmp_path) -> None:
+    paths = DaemonPaths.for_state_dir(tmp_path)
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        list(executor.map(lambda index: write_health(paths, channels=[str(index)]), range(20)))
+
+    health = read_health(paths)
+    assert health is not None
+    assert health["channels"] in ([str(index)] for index in range(20))
+    assert not list(paths.state_dir.glob(".health.json.*.tmp"))
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX mode bits are not available on Windows")
+def test_daemon_state_artifacts_are_private(tmp_path) -> None:
+    from extensions.im_gateway import server as srv
+
+    paths = DaemonPaths.for_state_dir(tmp_path / "state")
+    write_pid(paths, 123)
+    write_health(paths)
+    handler = srv._PrivateRotatingFileHandler(paths.log_file, maxBytes=1024, backupCount=1)
+    handler.close()
+    fd = acquire_lock(paths)
+    assert fd is not None
+    os.close(fd)
+
+    assert paths.state_dir.stat().st_mode & 0o777 == 0o700
+    for path in (paths.pid_file, paths.health_file, paths.log_file, paths.lock_file):
+        assert path.stat().st_mode & 0o777 == 0o600
+
+
+def test_daemon_fails_closed_without_posix_flock(tmp_path, monkeypatch, capsys) -> None:
+    import asyncio
+
+    from extensions.im_gateway import server as srv
+
+    paths = DaemonPaths.for_state_dir(tmp_path)
+    monkeypatch.setattr(srv, "HAS_FLOCK", False)
+
+    assert acquire_lock(paths) is None
+    assert asyncio.run(srv.serve(paths)) == 1
+    assert "requires POSIX flock support" in capsys.readouterr().err
 
 
 @pytest.mark.integration
@@ -103,7 +204,8 @@ def test_daemon_start_status_stop_smoke(tmp_path) -> None:
     finally:
         daemon.stop()
     # after stop, cleaned up
-    assert read_pid(daemon.paths) is None or not is_pid_alive(read_pid(daemon.paths))
+    remaining_pid = read_pid(daemon.paths)
+    assert remaining_pid is None or not is_pid_alive(remaining_pid)
 
 
 # -- flattened gateway routing ------------------------------------------------
