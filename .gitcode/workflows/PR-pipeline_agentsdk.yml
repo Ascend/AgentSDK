@@ -1,0 +1,188 @@
+name: PR-pipeline_agentsdk
+
+on:
+  pull_request_comment:
+    types: [ created ]
+    branches: [ 'master', '26.1.0', '26.0.0', '7.3.0' ]
+    comments: [ '^compile$' ]
+  workflow_dispatch:
+
+env:
+  REPO_NAME: ${{ atomgit.event.repository.name }}
+  REMOTE_URL: ${{ atomgit.repositoryurl }}
+  PR_ID: ${{ atomgit.event.pull_request.number }}
+
+stages:
+  stage_0:
+    name: CodeCheck
+    select: selected_by_default
+    jobs:
+      Detect_file_changes:
+        name: Detect_file_changes
+        runs-on: [ self-hosted, x86, cpu=32 ]
+        container:
+          image: swr.cn-north-4.myhuaweicloud.com/pytorch_images_x86/pytorchx86:v_03
+        outputs:
+          need_build: ${{ steps.set-skip.outputs.need_build }}
+        steps:
+          - name: checkout
+            uses: checkout
+            with:
+              ref: refs/merge-requests/${{ env.PR_ID }}/merge
+              fetch-depth: 0
+          - name: Only_doc_commit
+            id: filter
+            uses: paths-changes-filter
+            with:
+              event-name: 'pull_request'
+              base: ${{ atomgit.event.pull_request.base.ref }}
+              repo: ${{ atomgit.repository }}
+              number: ${{ env.PR_ID }}
+              token: ${{ atomgit.ATOMGIT_TOKEN }}
+              list-files: json
+              predicate-quantifier: every
+              filters: |
+                changed:
+                  - '**'
+                non-doc:
+                  - '!**.md'
+                  - '!**.rst'
+                  - '!**.log'
+                  - '!**.png'
+                  - '!**.jpg'
+                  - '!**.doc'
+                  - '!**.eddx'
+                  - '!**.svg'
+          - name: set build skip flag
+            id: set-skip
+            run: |
+              echo "changed: ${{ steps.filter.outputs.changed_files }}"
+              echo "non-doc: ${{ steps.filter.outputs.non-doc }}"
+              if [ "${{ steps.filter.outputs.non-doc }}" = "true" ]; then
+                echo "need_build=yes" >> "$ATOMGIT_OUTPUT"
+              else
+                echo "need_build=no" >> "$ATOMGIT_OUTPUT"
+              fi
+
+  stage_1:
+    name: CodeCheck_Build_Test
+    select: selected_by_default
+    jobs:
+      pre-commit:
+        name: pre-commit
+        runs-on: [ self-hosted, x86, cpu=32 ]
+        container:
+          image: swr.cn-north-4.myhuaweicloud.com/mindspore/mindspore_python3.11:v0.1
+          options: --user root
+        steps:
+          - name: checkout
+            uses: checkout
+            with:
+              ref: ${{ atomgit.event.pull_request.merge_commit_sha || '' }}
+          - name: gitleaks install
+            run: |
+              wget -q --no-host-directories -c --no-check-certificate https://pytorch-package.obs.cn-north-4.myhuaweicloud.com/pta-codecheck/gitleaks
+              chmod +x gitleaks
+          - name: setup-python311
+            run: |
+              ln -sf /usr/local/bin/python3.11 /usr/bin/python
+              python --version
+          - name: run pre-commit
+            uses: openlibing-pre-commit-action
+
+      SAST:
+        name: PR-SAST-check
+        runs-on: [ self-hosted, x86, cpu=32 ]
+        container:
+          image: swr.cn-north-4.myhuaweicloud.com/ascend-mindx/mindx_x86:mindxdl_go1207_20251203
+          options: --user root
+        steps:
+          - name: git upgrade
+            run: |
+              apt-get update
+              apt-get install -y software-properties-common
+              add-apt-repository ppa:git-core/ppa -y
+              apt-get update
+              apt-get install -y git
+              git --version
+          - name: checkout
+            uses: checkout
+            with:
+              ref: ${{ atomgit.event.pull_request.merge_commit_sha || '' }}
+          - name: checkout AI-Check
+            run: |
+              set -x
+              git clone -b main https://gitcode.com/TuBee/AI-Check.git AI-Check
+          - name: run check
+            run: |
+              set -x
+              export ACCESS_TOKEN="${{ secrets.ACCESS_QK }}"
+              export __repository__="${{ env.REMOTE_URL }}"
+              cd ${ATOMGIT_WORKSPACE}/AI-Check
+              bash check.sh
+
+      Build_arm:
+        name: Build_arm
+        if: ${{ jobs.Detect_file_changes.outputs.need_build == 'yes' }}
+        uses: .gitcode/workflows/.build_job.yml
+        with:
+          IMAGE_FLAG: "swr.cn-north-4.myhuaweicloud.com/ascend-mindx/mindx_arm:SDK_20251230_1"
+          runs_on_arch: "arm64"
+
+      UT_python_aura:
+        name: UT_python_aura
+        if: ${{ jobs.Detect_file_changes.outputs.need_build == 'yes' }}
+        uses: .gitcode/workflows/.ut_python.yml
+        with:
+          IMAGE_FLAG: "swr.cn-north-4.myhuaweicloud.com/ascend-mindx/mindx_x86:mindxdl_go1207_20251225_sdk1"
+          runs_on_arch: "x64"
+          UT_SCRIPT: "script/aura_ut.sh"
+          CHANGE_PATTERN: "aura/|presmoke/aura/"
+
+      UT_python_openclaw:
+        name: UT_python_openclaw
+        if: ${{ jobs.Detect_file_changes.outputs.need_build == 'yes' }}
+        uses: .gitcode/workflows/.ut_python.yml
+        with:
+          IMAGE_FLAG: "swr.cn-north-4.myhuaweicloud.com/ascend-mindx/mindx_x86:mindxdl_go1207_20251225_sdk1"
+          runs_on_arch: "x64"
+          UT_SCRIPT: "script/openclaw_ut.sh"
+          CHANGE_PATTERN: "openclaw/|presmoke/openclaw/"
+
+  stage_2:
+    name: Test
+    select: selected_by_default
+    jobs:
+      PreSmoke_aura:
+        name: PreSmoke_aura
+        if: ${{ jobs.Detect_file_changes.outputs.need_build == 'yes' }}
+        uses: .gitcode/workflows/.presmoke.yml
+        with:
+          IMAGE_FLAG: "swr.cn-north-4.myhuaweicloud.com/ascend-mindx/mindx_arm:AgentSDK_26.0.0"
+          runs_on_arch: "arm64"
+          SMOKE_SCRIPT: "run_presmoke_aura.sh"
+          SMOKE_COMPONENT: "AgentSDK"
+          CHANGE_PATTERN: "aura/|presmoke/aura/"
+
+      PreSmoke_openclaw:
+        name: PreSmoke_openclaw
+        if: ${{ jobs.Detect_file_changes.outputs.need_build == 'yes' }}
+        uses: .gitcode/workflows/.presmoke.yml
+        with:
+          IMAGE_FLAG: "swr.cn-south-1.myhuaweicloud.com/ascendhub/openclaw:2026.5.22"
+          runs_on_arch: "arm64"
+          SMOKE_SCRIPT: "run_presmoke_openclaw.sh"
+          SMOKE_COMPONENT: "AgentSDK"
+          CHANGE_PATTERN: "openclaw/|presmoke/openclaw/"
+          EXTRA_SETUP: true
+
+      PreSmoke_clawcodex:
+        name: PreSmoke_clawcodex
+        if: ${{ jobs.Detect_file_changes.outputs.need_build == 'yes' && atomgit.event.pull_request.base.ref == 'tech_v26.2.0' }}
+        uses: .gitcode/workflows/.presmoke.yml
+        with:
+          IMAGE_FLAG: "swr.cn-south-1.myhuaweicloud.com/ascendhub/openclaw:2026.5.22"
+          runs_on_arch: "arm64"
+          SMOKE_SCRIPT: "run_presmoke_clawcodex.sh"
+          SMOKE_COMPONENT: "AgentSDK"
+          CHANGE_PATTERN: "clawcodex-ascend/|presmoke/clawcodex/"
