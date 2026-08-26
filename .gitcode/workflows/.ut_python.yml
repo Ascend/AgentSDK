@@ -1,0 +1,117 @@
+name: UT Python
+
+on:
+  workflow_call:
+    inputs:
+      REMOTE_URL:
+        required: false
+        type: string
+        default: ${{ atomgit.repositoryurl }}
+      pr_id:
+        required: false
+        type: string
+        default: ${{ atomgit.event.pull_request.number }}
+      IMAGE_FLAG:
+        required: true
+        type: string
+        description: "Full SWR image URL"
+      TARGET_BRANCH:
+        required: false
+        type: string
+        default: ${{ atomgit.event.pull_request.base.ref }}
+      runs_on_arch:
+        required: false
+        type: string
+        default: "x64"
+      DEFAULT_BRANCH:
+        required: false
+        type: string
+        default: "master"
+      UT_SCRIPT:
+        required: true
+        type: string
+        description: "Path to UT script relative to repo root, e.g. script/aura_ut.sh"
+      CHANGE_PATTERN:
+        required: true
+        type: string
+        description: "grep -E pattern for changed files that trigger this UT"
+    secrets:
+      OBS_AK:
+        required: false
+      OBS_SK:
+        required: false
+
+jobs:
+  JOB_UT:
+    name: JOB_UT
+    select: selected_by_default
+    runs-on: [ self-hosted, x86, cpu=32 ]
+    container:
+      image: ${{ inputs.IMAGE_FLAG }}
+      options: --user root
+    steps:
+      - name: clone repo and merge PR
+        run: |
+          set -x
+          umask 022
+          servicename_1=$(echo "${{ atomgit.repository }}" | cut -d '/' -f 2)
+          git clone --no-tags --single-branch -b ${{ inputs.TARGET_BRANCH }} ${{ inputs.REMOTE_URL }} ${servicename_1}
+          cd ${servicename_1}
+
+          git fetch --no-tags origin refs/merge-requests/${{ inputs.pr_id }}/head:pr_${{ inputs.pr_id }}
+          git reset --hard "origin/${{ inputs.TARGET_BRANCH }}"
+          git checkout -b new_${{ inputs.TARGET_BRANCH }}
+          git config --global user.name AtlasAccount
+          git config --global user.email AtlasAccount@noreply.gitcode.com
+          git merge --no-edit pr_${{ inputs.pr_id }}
+          git diff-tree -r --name-only --no-commit-id origin/${{ inputs.TARGET_BRANCH }} HEAD > ${ATOMGIT_WORKSPACE}/change.txt
+          cat ${ATOMGIT_WORKSPACE}/change.txt
+
+          if [ "${{ inputs.TARGET_BRANCH }}" != "${{ inputs.DEFAULT_BRANCH }}" ]; then
+              mkdir -p .gitcode/workflows
+              git clone --no-tags --single-branch --depth 1 -b ${{ inputs.DEFAULT_BRANCH }} ${{ inputs.REMOTE_URL }} ${ATOMGIT_WORKSPACE}/tempdir
+              cp -fr ${ATOMGIT_WORKSPACE}/tempdir/.gitcode/workflows/scripts .gitcode/workflows/ 2>/dev/null || true
+              rm -fr ${ATOMGIT_WORKSPACE}/tempdir
+          fi
+
+      - name: setup third-party dependencies
+        run: |
+          set -ex
+          servicename_1=$(echo "${{ atomgit.repository }}" | cut -d '/' -f 2)
+          # CWD starts at ATOMGIT_WORKSPACE; cd into dev repo first
+          cd ${ATOMGIT_WORKSPACE}/${servicename_1}
+          mkdir -p AgenticRL/third-party/
+          cd AgenticRL/third-party/
+          python3 --version
+          git clone -b core_r0.8.0 https://gitcode.com/GitHub_Trending/me/Megatron-LM.git Megatron-LM-core_r0.8.0
+          git clone -b 2.1.0_core_r0.8.0 https://gitcode.com/Ascend/MindSpeed.git MindSpeed-2.1.0_core_r0.8.0
+          git clone -b 2.1.0 https://gitcode.com/Ascend/MindSpeed-LLM.git MindSpeed-LLM-2.1.0
+          git clone -b v2.2.0 https://gitcode.com/Ascend/MindSpeed-RL.git MindSpeed-RL-master
+          git clone -b v0.9.1 https://gitcode.com/GitHub_Trending/vl/vllm.git vllm-releases-v0.9.1
+          git clone -b v0.9.1-dev https://gitcode.com/gh_mirrors/vl/vllm-ascend.git vllm-ascend-0.9.1-dev
+          cd -
+          pip3 install pytest pytest-cov pytest-html pytest-metadata pytest-mock coverage
+          export PATH=/opt/buildtools/python-3.11.4/bin:$PATH
+
+      - name: run UT
+        run: |
+          set -ex
+          servicename_1=$(echo "${{ atomgit.repository }}" | cut -d '/' -f 2)
+          cd ${ATOMGIT_WORKSPACE}/${servicename_1}
+          export PATH=/opt/buildtools/python-3.11.4/bin:$PATH
+
+          CHANGE_FILE="${ATOMGIT_WORKSPACE}/change.txt"
+          RUN_UT=false
+          mapfile -t CHANGED_FILES < <(grep -vE "^[[:space:]]*$" "$CHANGE_FILE" || true)
+          for line in "${CHANGED_FILES[@]}"; do
+              if echo "$line" | grep -qE '${{ inputs.CHANGE_PATTERN }}'; then
+                  RUN_UT=true
+                  break
+              fi
+          done
+
+          if [[ "${RUN_UT}" == "true" ]]; then
+              bash ${{ inputs.UT_SCRIPT }}
+          else
+              echo "UT skipped: no files matching '${{ inputs.CHANGE_PATTERN }}' changed in this PR."
+          fi

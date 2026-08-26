@@ -1,0 +1,99 @@
+﻿on:
+  workflow_call:
+    inputs:
+      REMOTE_URL:
+        required: false
+        type: string
+        default: ${{ atomgit.repositoryurl }}
+      pr_id:
+        required: false
+        type: string
+        default: ${{ atomgit.event.pull_request.number }}
+      IMAGE_FLAG:
+        required: true
+        type: string
+        description: "Full SWR image URL, e.g. swr.<region>.<org>/mindx_arm:tag"
+      TARGET_BRANCH:
+        required: false
+        type: string
+        default: ${{ atomgit.event.pull_request.base.ref }}
+      runs_on_arch:
+        required: true
+        type: string
+        description: "x64 or arm64"
+      DEFAULT_BRANCH:
+        required: false
+        type: string
+        default: "master"
+
+jobs:
+  JOB_compile:
+    name: JOB_compile
+    select: selected_by_default
+    runs-on: [ self-hosted, arm, cpu=32 ]
+    container:
+      image: ${{ inputs.IMAGE_FLAG }}
+      options: --user root
+    steps:
+      - name: clone repo and merge PR
+        run: |
+          set -x
+          artifact_directory="${ATOMGIT_WORKSPACE}/artifacts"
+          mkdir -p "${artifact_directory}"
+          touch "${artifact_directory}/empty.run"
+
+          servicename_1=$(echo "${{ atomgit.repository }}" | cut -d '/' -f 2)
+          git clone --no-tags --single-branch -b ${{ inputs.TARGET_BRANCH }} ${{ inputs.REMOTE_URL }} ${servicename_1}
+          cd ${servicename_1}
+
+          git fetch --no-tags origin refs/merge-requests/${{ inputs.pr_id }}/head:pr_${{ inputs.pr_id }}
+          git reset --hard "origin/${{ inputs.TARGET_BRANCH }}"
+          git checkout -b new_${{ inputs.TARGET_BRANCH }}
+          git config --global user.name AtlasAccount
+          git config --global user.email AtlasAccount@noreply.gitcode.com
+          git merge --no-edit pr_${{ inputs.pr_id }}
+          git diff-tree -r --name-only --no-commit-id origin/${{ inputs.TARGET_BRANCH }} HEAD > ${ATOMGIT_WORKSPACE}/change.txt
+          cat ${ATOMGIT_WORKSPACE}/change.txt
+
+          if [ "${{ inputs.TARGET_BRANCH }}" != "${{ inputs.DEFAULT_BRANCH }}" ]; then
+              mkdir -p .gitcode/workflows
+              git clone --no-tags --single-branch --depth 1 -b ${{ inputs.DEFAULT_BRANCH }} ${{ inputs.REMOTE_URL }} ${ATOMGIT_WORKSPACE}/tempdir
+              cp -fr ${ATOMGIT_WORKSPACE}/tempdir/.gitcode/workflows/scripts .gitcode/workflows/ 2>/dev/null || true
+              cp -fr ${ATOMGIT_WORKSPACE}/tempdir/.gitcode/workflows/config .gitcode/workflows/ 2>/dev/null || true
+              rm -fr ${ATOMGIT_WORKSPACE}/tempdir
+          fi
+
+      - name: setup makeself patch
+        run: |
+          set -ex
+          echo "ATOMGIT_WORKSPACE=${ATOMGIT_WORKSPACE}"
+          servicename_1=$(echo "${{ atomgit.repository }}" | cut -d '/' -f 2)
+          cd ${ATOMGIT_WORKSPACE}/${servicename_1}
+          mkdir -p opensource
+          cd opensource
+          git clone https://gitcode.com/cann-src-third-party/makeself.git
+          cp makeself/makeself-2.5.0.patch ./
+          rm -rf makeself
+          git clone -b release-2.5.0 https://gitcode.com/gh_mirrors/ma/makeself.git
+          cd makeself
+          patch -p1 < ../makeself-2.5.0.patch
+
+      - name: compile
+        run: |
+          set -ex
+          servicename_1=$(echo "${{ atomgit.repository }}" | cut -d '/' -f 2)
+          cd ${ATOMGIT_WORKSPACE}/${servicename_1}/script
+          bash compile.sh
+          bash build_run.sh
+          ls -al ../output/target/
+          mkdir -p ${ATOMGIT_WORKSPACE}/artifacts
+          cp -p -f -r ../output/target/Ascend-*.run "${ATOMGIT_WORKSPACE}/artifacts/"
+          ls -al "${ATOMGIT_WORKSPACE}/artifacts"
+
+      - name: Upload artifact
+        uses: upload-artifact
+        with:
+          name: ${{ atomgit.repository }}-${{ inputs.runs_on_arch }}
+          path: |
+            artifacts/*.run
+          overwrite: true

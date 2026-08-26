@@ -1,0 +1,112 @@
+name: PreSmoke
+
+on:
+  workflow_call:
+    inputs:
+      REMOTE_URL:
+        required: false
+        type: string
+        default: ${{ atomgit.repositoryurl }}
+      pr_id:
+        required: false
+        type: string
+        default: ${{ atomgit.event.pull_request.number }}
+      IMAGE_FLAG:
+        required: true
+        type: string
+        description: "Full SWR image URL"
+      TARGET_BRANCH:
+        required: false
+        type: string
+        default: ${{ atomgit.event.pull_request.base.ref }}
+      runs_on_arch:
+        required: false
+        type: string
+        default: "arm64"
+      DEFAULT_BRANCH:
+        required: false
+        type: string
+        default: "master"
+      SMOKE_SCRIPT:
+        required: true
+        type: string
+        description: "Smoke script filename, e.g. run_presmoke_aura.sh"
+      SMOKE_COMPONENT:
+        required: false
+        type: string
+        default: "AgentSDK"
+        description: "Repo name used for SMOKE_SCRIPT_PATH resolution"
+      CHANGE_PATTERN:
+        required: true
+        type: string
+        description: "grep -E pattern for changed files that trigger this smoke test"
+      EXTRA_SETUP:
+        required: false
+        type: boolean
+        default: false
+        description: "If true, install gettext-base and openssl (needed by openclaw smoke)"
+
+jobs:
+  JOB_smoke:
+    name: JOB_smoke
+    select: selected_by_default
+    runs-on: [ self-hosted, npu=1 ]
+    container:
+      image: ${{ inputs.IMAGE_FLAG }}
+      options: --user root
+    steps:
+      - name: clone repo and merge PR
+        run: |
+          set -x
+          cd ${ATOMGIT_WORKSPACE}
+          ls -l
+          rm -rf ./* .git
+          servicename_1=$(echo "${{ atomgit.repository }}" | cut -d '/' -f 2)
+          git clone --no-tags --single-branch -b ${{ inputs.TARGET_BRANCH }} ${{ inputs.REMOTE_URL }} ${servicename_1}
+          cd ${servicename_1}
+
+          git fetch --no-tags origin refs/merge-requests/${{ inputs.pr_id }}/head:pr_${{ inputs.pr_id }}
+          git reset --hard "origin/${{ inputs.TARGET_BRANCH }}"
+          git checkout -b new_${{ inputs.TARGET_BRANCH }}
+          git config --global user.name AtlasAccount
+          git config --global user.email AtlasAccount@noreply.gitcode.com
+          git merge --no-edit pr_${{ inputs.pr_id }}
+          git diff-tree -r --name-only --no-commit-id origin/${{ inputs.TARGET_BRANCH }} HEAD > ${ATOMGIT_WORKSPACE}/change.txt
+          cat ${ATOMGIT_WORKSPACE}/change.txt
+
+      - name: extra setup (openclaw)
+        if: ${{ inputs.EXTRA_SETUP == true }}
+        run: |
+          set -ex
+          apt-get update
+          apt-get install -y gettext-base openssl
+
+      - name: Download build artifact
+        uses: download-artifact
+        with:
+          name: ${{ atomgit.repository }}-${{ inputs.runs_on_arch }}
+          path: ./
+
+      - name: run smoke test
+        run: |
+          set -ex
+          servicename_1=$(echo "${{ atomgit.repository }}" | cut -d '/' -f 2)
+          SMOKE_SCRIPT_PATH="${ATOMGIT_WORKSPACE}/${servicename_1}"
+          echo "Smoke script directory: ${SMOKE_SCRIPT_PATH}"
+
+          CHANGE_FILE="${ATOMGIT_WORKSPACE}/change.txt"
+          RUN_SMOKE=false
+          mapfile -t CHANGED_FILES < <(grep -vE "^[[:space:]]*$" "$CHANGE_FILE" || true)
+          for line in "${CHANGED_FILES[@]}"; do
+              if echo "$line" | grep -qE '${{ inputs.CHANGE_PATTERN }}'; then
+                  RUN_SMOKE=true
+                  break
+              fi
+          done
+
+          if [[ "${RUN_SMOKE}" == "true" ]]; then
+              cd ${SMOKE_SCRIPT_PATH}
+              bash ${{ inputs.SMOKE_SCRIPT }}
+          else
+              echo "Smoke test skipped: no files matching '${{ inputs.CHANGE_PATTERN }}' changed in this PR."
+          fi
