@@ -3,8 +3,8 @@
 
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Clawd Codex Team
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Copyright (c) 2026 Clawd Codex Team
 #
 # AgentSDK is licensed under Mulan PSL v2.
 # You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -18,7 +18,11 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""Compatibility shim — delegate to lkb.ambiguity_detector."""
+"""Persistent Plan Graph extension for ClawCodex.
 
-# Deliberately mirror the upstream public surface for import compatibility.
-from lkb.ambiguity_detector import *  # noqa: F401, F403  # pylint: disable=wildcard-import
+Runtime integrations import the focused submodules directly.  Keeping the
+package root intentionally empty prevents importing retired sidecar, solver,
+and decomposition implementations as a side effect of ``import lkb``.
+"""
+
+__all__: list[str] = []
