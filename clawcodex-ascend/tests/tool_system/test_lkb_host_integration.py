@@ -1,3 +1,23 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Copyright (c) 2026 Clawd Codex Team
+#
+# AgentSDK is licensed under Mulan PSL v2.
+# You can use this software according to the terms and conditions of the Mulan PSL v2.
+# You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 """Integration tests for the LKB host adapter against the real Graph Store.
 
 Issue #13: the existing host-adapter tests monkeypatch the board to a fixed
@@ -16,7 +36,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from lkb.clawcodex_task_adapter import try_handle
+from lkb.clawcodex_task_adapter import TaskProjectionRefreshError, try_handle
 
 
 @pytest.fixture
@@ -60,6 +80,55 @@ def _ctx(
         session_id=session_id,
         lkb_plan_id=None,
     )
+
+
+@pytest.mark.parametrize(("tool_name", "tool_input"), [("TaskGet", {"taskId": "T-1"}), ("TaskList", {})])
+def test_authoritative_reads_return_stable_projection_error(
+    tool_name: str,
+    tool_input: dict[str, str],
+    tmp_home: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _enable(monkeypatch)
+    repo, _board_id = _install(monkeypatch, tmp_home, "projection-read-failure")
+
+    def fail_load(_board_id: str):
+        raise OSError("sensitive projection path")
+
+    monkeypatch.setattr(repo, "load_snapshot", fail_load)
+
+    handled, result = try_handle(tool_name, tool_input, _ctx())
+
+    assert handled is True
+    assert result is not None and result.is_error is True
+    assert result.output["reason"]["code"] == "projection_refresh_failed"
+    assert "sensitive" not in str(result.output)
+
+
+def test_committed_write_reports_projection_refresh_failure(
+    tmp_home: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import lkb.clawcodex_task_adapter as adapter
+
+    _enable(monkeypatch)
+    _install(monkeypatch, tmp_home, "projection-write-failure")
+
+    def fail_refresh(*_args: object, **_kwargs: object):
+        raise TaskProjectionRefreshError("sensitive projection path")
+
+    monkeypatch.setattr(adapter, "_hydrate", fail_refresh)
+
+    handled, result = try_handle("TaskCreate", {"subject": "Committed task"}, _ctx())
+
+    assert handled is True
+    assert result is not None and result.is_error is False
+    assert result.output["lkb"] == {
+        "decision": "committed",
+        "projectionRefresh": "failed",
+        "refreshError": "projection_refresh_failed",
+    }
+    assert "sensitive" not in str(result.output)
 
 
 def test_tasklist_projection_has_blocks_lkb_and_board_summary(tmp_home: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -298,19 +367,16 @@ def test_self_owner_sentinel_claims_and_starts_as_trusted_actor(
     assert claim["owner_ref"] == f"{ctx.lkb_plan_id}:agent:opaque-agent-id"
 
 
-def test_divergence_detected_when_context_has_unimported_tasks(tmp_home: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Issue #7: when the context already holds tasks the Store does not
-    know about, TaskList must NOT silently drop them; it reports
-    divergence and preserves the in-memory tasks.
-    """
+def test_first_enable_keeps_existing_tasks_native(tmp_home: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Existing Task-v2 tasks stay native when LKB is enabled for the first time."""
     _enable(monkeypatch)
     _install(monkeypatch, tmp_home, "divergence")
     ctx = _ctx(tasks={"T-legacy": {"id": "T-legacy", "subject": "old", "status": "pending"}})
     _, result = try_handle("TaskList", {}, ctx)
     # The legacy task is preserved (not wiped).
     assert "T-legacy" in ctx.tasks
-    assert result.output.get("divergence")
-    assert "T-legacy" in result.output["divergence"]["unimported"]
+    assert ctx.lkb_native_task_ids == {"T-legacy"}
+    assert "divergence" not in result.output
 
 
 def test_idempotent_retry_does_not_duplicate_create(tmp_home: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -447,8 +513,8 @@ def test_status_explain_audit_read_from_store(tmp_home: Path, monkeypatch: pytes
         lkb_plan_id=ctx.lkb_plan_id,
     )
     explain = _explain_from_store(tool_ctx, tid)
-    assert "Probe" in explain
+    assert "Probe" in explain.text
     # Audit may report "no events" for a fresh task, but it must not raise
     # and must read from the Store envelope.
     audit = _audit_from_store(tool_ctx, tid)
-    assert isinstance(audit, str)
+    assert isinstance(audit.text, str)
