@@ -1,10 +1,10 @@
 # 使用指南
 
-本文档介绍 AgentSDK 的核心使用方法，包括运行模式、自定义 Agent 开发、配置文件使用等内容。
+本文档介绍 Agent SDK 的核心使用方法，包括运行模式、自定义 Agent 开发、配置文件使用等内容。
 
 ## 运行模式
 
-AgentSDK 支持两种运行模式：
+Agent SDK 支持两种运行模式：
 
 | 模式 | 说明 |
 |------|------|
@@ -86,7 +86,7 @@ curl -X POST http://localhost:8030/v1/chat/completions \
 
 ## 自定义 Agent 开发
 
-详见 [自定义 Agent 接入指南](04_custom_agent.md)。
+详见 [自定义 Agent 接入指南](05_custom_agent.md)。
 
 ---
 
@@ -274,7 +274,7 @@ trainer:
 
 ## 注册自定义引擎
 
-AgentSDK 提供注册表机制，支持注册自定义的Agent。
+Agent SDK 提供注册表机制，支持注册自定义的Agent。
 
 ### 注册 Agent 引擎
 
@@ -312,8 +312,9 @@ AGENTS_MAPPING.append({
 ## 更多实践指南
 
 - 训推共卡模式（On-Policy 策略）：[02_hybrid.md](02_hybrid.md)
-- 训推分离模式（One-Step-Off 策略）：[03_one_step_off.md](03_one_step_off.md)
-- 自定义 Agent 接入指南：[04_custom_agent.md](04_custom_agent.md)
+- 训推单步异步分离模式（One Step Off 策略）：[03_one_step_off.md](03_one_step_off.md)
+- 训推全异步分离模式（Fully Async 策略）：[04_fully_async.md](04_fully_async.md)
+- 自定义 Agent 接入指南：[05_custom_agent.md](05_custom_agent.md)
 
 ---
 

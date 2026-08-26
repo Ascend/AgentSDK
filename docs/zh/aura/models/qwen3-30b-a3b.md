@@ -20,10 +20,10 @@
 
 1. [共卡配置文件](../../../../aura/configs/train/verl_train_hybrid_A3_t16_qwen3_30b_a3b_math_fsdp.yaml)
 
-分离模式请修改：
+单步异步分离模式请修改：
 
-1. [分离配置文件](../../../../aura/configs/train/verl_train_async_A3_t16_qwen3_30b_a3b_math_fsdp.yaml)
-2. [分离推理配置](../../../../aura/configs/infer/vllm_infer_i16_qwen3_30b_a3b.yaml)
+1. [单步异步分离配置文件](../../../../aura/configs/train/verl_train_async_A3_t16_qwen3_30b_a3b_math_fsdp.yaml)
+2. [单步异步分离推理配置](../../../../aura/configs/infer/vllm_infer_i16_qwen3_30b_a3b.yaml)
 
 ## **环境配置**
 

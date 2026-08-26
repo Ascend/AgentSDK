@@ -2,11 +2,11 @@
 
 ## 简介
 
-本提案描述了Agentic RL项目中one-step off-policy模式的设计与实现。该模式是一种高效的强化学习训练范式，通过分离的rollout和训练流程，实现了数据生成与模型更新的解耦，从而提高训练效率和资源利用率。
+本提案描述了Agentic RL项目中One Step Off模式的设计与实现。该模式是一种高效的强化学习训练范式，通过分离的rollout和训练流程，实现了数据生成与模型更新的解耦，从而提高训练效率和资源利用率。
 
 ## 动机
 
-在传统的强化学习训练中，rollout（经验生成）和训练（模型更新）通常是串行执行的，但它存在严重的效率问题， 模型更新必须等待生成阶段最长的输出完成。 在生成长尾样本的过程中，NPU 保持空闲，导致资源利用率严重不足。 样本生成中的长尾问题越严重，整体训练效率就越低导致计算资源利用率低下。one-step off-policy模式通过异步执行rollout和训练过程，允许模型在生成新经验的同时利用上一步生成的样本进行当前的训练，一定程度上降低了长尾样本在生成期间的NPU空闲时间。由于训练保证了永远使用上一步所生成的样本，因此命名为单步策略(one-step off policy)。目前单步策略并且在LLM RL上已经验证精度以及具备较高的收敛稳定性。在Agentic RL训推调框架上，支持Qwen3系列（Qwen3-4B/8B/32B/30B-A3B）训推分离+one step off policy训练模式。
+在传统的强化学习训练中，rollout（经验生成）和训练（模型更新）通常是串行执行的，但它存在严重的效率问题， 模型更新必须等待生成阶段最长的输出完成。 在生成长尾样本的过程中，NPU 保持空闲，导致资源利用率严重不足。 样本生成中的长尾问题越严重，整体训练效率就越低导致计算资源利用率低下。One Step Off模式通过异步执行rollout和训练过程，允许模型在生成新经验的同时利用上一步生成的样本进行当前的训练，一定程度上降低了长尾样本在生成期间的NPU空闲时间。由于训练保证了永远使用上一步所生成的样本，因此命名为单步策略(One Step Off)。目前单步策略并且在LLM RL上已经验证精度以及具备较高的收敛稳定性。在Agentic RL训推调框架上，支持Qwen3系列（Qwen3-4B/8B/32B/30B-A3B）训推分离 + One Step Off 训练模式。
 
 ## 提议方案
 
@@ -23,7 +23,7 @@
 
 ### 总体方案
 
-one-step off-policy模式采用分布式架构，主要包含以下组件：
+One Step Off模式采用分布式架构，主要包含以下组件：
 
 - **Rollout组件**：负责生成经验数据，包括OneStepOffRollouter和OneStepOffRolloutExecutor
 - **训练组件**：负责模型训练和更新，包括OneStepOffTrainExecutor和TrainDataLoader
@@ -41,7 +41,7 @@ one-step off-policy模式采用分布式架构，主要包含以下组件：
 
 ### 技术选型
 
-选择one-step off-policy模式的理由：
+选择One Step Off模式的理由：
 
 - 平衡了实现复杂度和训练效率
 - 适合大语言模型的强化学习训练场景
@@ -166,7 +166,7 @@ executor.fit()
 
 ## 缺点和风险
 
-1. **实现复杂度**：相比同步训练模式，one-step off-policy模式的实现复杂度更高，需要更多的组件协调和状态管理。
+1. **实现复杂度**：相比同步训练模式，One Step Off模式的实现复杂度更高，需要更多的组件协调和状态管理。
 
 2. **数据一致性**：方案核心会导致rollout和训练使用不同版本的模型权重，影响训练稳定性。
 
@@ -177,7 +177,7 @@ executor.fit()
 
 ## 现有技术
 
-one-step off-policy模式借鉴了以下技术：
+One Step Off模式借鉴了以下技术：
 
 - **Ray分布式计算框架**：提供了高效的分布式任务调度和通信机制
 - **Actor模型**：用于实现组件间的异步通信
@@ -190,7 +190,7 @@ one-step off-policy模式借鉴了以下技术：
 
 ## 验收标准
 
-在A3服务器上，Agentic RL训推调框架支持 Qwen3系列模型（Qwen3-4B/8B/32B/30B-A3B）的 训推分离+one step off policy训练。
+在A3服务器上，Agentic RL训推调框架支持 Qwen3系列模型（Qwen3-4B/8B/32B/30B-A3B）的 训推分离 + One Step Off训练。
 在训练数据集（[https://huggingface.co/datasets/R2E-Gym/R2E-Gym-Subset],  Agent采用DeepSWE Agent[https://huggingface.co/agentica-org/DeepSWE-Preview], 精度指标：持平GPU（reward曲线收敛稳定的指标 或者 任务成功率pass@1）,1epoch的端到端训练时长较 共卡+on policy模式 降低20%以上
 硬件：Ascend  A2/A3
 OS：Ubuntu 22.04 LTS

@@ -41,5 +41,6 @@ Aura 软件架构如**图 1**所示。
 # 支持特性
 
 - [训推共卡使用指南（On-Policy 策略）](04_user_guide/02_hybrid.md)：训练与推理在同一组卡上通过时分复用协同运行
-- [训推分离使用指南（One-Step-Off 策略）](04_user_guide/03_one_step_off.md)：训练与推理在不同节点上并行执行
-- [自定义 Agent 接入指南](04_user_guide/04_custom_agent.md)：将自定义 agent 接入 Aura 训练框架
+- [训推单步异步分离（One Step Off 策略）](04_user_guide/03_one_step_off.md)：训练与推理在不同节点上并行执行，训练和推理相差一轮的异步训练
+- [训推全异步分离（Fully Async 策略）](04_user_guide/04_fully_async.md)：在训推单步异步分离上实现训推完整解耦，训练和推理相差0到N轮的异步训练
+- [自定义 Agent 接入指南](04_user_guide/05_custom_agent.md)：将自定义 agent 接入 Aura 训练框架

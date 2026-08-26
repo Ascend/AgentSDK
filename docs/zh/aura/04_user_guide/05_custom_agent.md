@@ -2,11 +2,11 @@
 
 ## 简介
 
-AgentSDK 提供了灵活的 Agent 接入机制，允许用户将自定义的智能体接入 Aura 训推调框架。通过实现 `BaseAgent` 和 `BaseEnv` 两个核心抽象类，并在 `agents_mapping.py` 中注册，即可让自定义 Agent 参与强化学习训练循环。
+Agent SDK 提供了灵活的 Agent 接入机制，允许用户将自定义的智能体接入 Aura 训推调框架。通过实现 `BaseAgent` 和 `BaseEnv` 两个核心抽象类，并在 `agents_mapping.py` 中注册，即可让自定义 Agent 参与强化学习训练循环。
 
 ### 核心概念
 
-AgentSDK 的 Agent 体系由以下核心组件构成：
+Agent SDK 的 Agent 体系由以下核心组件构成：
 
 | 组件 | 说明 |
 |------|------|
@@ -207,7 +207,7 @@ agent_args = self.agent_args | kwargs.get("agent_args", {})
 
 ## 内置 Agent 参考
 
-AgentSDK 提供了以下内置 Agent，可作为自定义 Agent 的参考：
+Agent SDK 提供了以下内置 Agent，可作为自定义 Agent 的参考：
 
 | Agent 名称 | 类 | 说明 |
 |------------|-----|------|
@@ -227,14 +227,14 @@ AgentSDK 提供了以下内置 Agent，可作为自定义 Agent 的参考：
 
 ## FAQ
 
-**Q1：env_args 中的参数如何传递到自定义 Environment？**
+**Q1：env_args 中的参数如何传递到自定义 Environment**
 
 YAML 中的 `env_args` 会与 `agents_mapping` 中的 `env_args` 合并后，通过 `env_class.from_dict()` 传入。自定义 Environment 需要实现 `from_dict` 静态方法来解析这些参数。
 
-**Q2：如何调试自定义 Agent？**
+**Q2：如何调试自定义 Agent**
 
 可以在 `update_from_model` 和 `update_from_env` 中添加日志，或设置 `trajectory_save_dir` 保存轨迹到 JSONL 文件进行离线分析。
 
-**Q3：自定义 Agent 可以不使用工具吗？**
+**Q3：自定义 Agent 可以不使用工具吗**
 
 可以。如果 Agent 不需要工具调用，在 `update_from_model` 中始终返回 `finish` 动作即可。此时 Agent 的行为类似于单轮对话，模型输出即为最终回答。
