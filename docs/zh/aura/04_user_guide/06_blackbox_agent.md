@@ -130,7 +130,7 @@
 }
 ```
 
-**核心约束**：Agent 在 agent loop 中的每一步 LLM 调用，**必须将请求发送到 `infer_url`**（即 TrajProxy），而非直接调用 vLLM。这样 TrajProxy 才能记录每步推理的请求/响应，并转发请求至 AgentSDK 推理端，供训练框架后续拉取轨迹。
+**核心约束**：Agent 在 agent loop 中的每一步 LLM 调用，**必须将请求发送到 `infer_url`**（即 TrajProxy），而非直接调用 vLLM。这样 TrajProxy 才能记录每步推理的请求/响应，并转发请求至 Agent SDK 推理端，供训练框架后续拉取轨迹。
 
 #### 运行流程
 
@@ -193,19 +193,19 @@
 
 ## FAQ
 
-**Q1：外部 Agent 服务必须用 Python 实现吗？**
+**Q1：外部 Agent 服务必须用 Python 实现吗**
 
 不需要。只要暴露 `POST /v1/chat/completions` 接口即可，可以使用任何语言或框架。唯一要求是 agent loop 中的 LLM 调用必须走 `infer_url`（TrajProxy）。
 
-**Q2：traj_refine_func 和 res_reward_func 是否必须实现？**
+**Q2：traj_refine_func 和 res_reward_func 是否必须实现**
 
 不必须。如果不配置，框架会使用默认的 `default_token_traj_refine_func` 和 `default_traj_reward_func`。仅当默认行为不满足场景需求时才需要自定义。
 
-**Q3：外部 Agent 服务需要处理哪些异常情况？**
+**Q3：外部 Agent 服务需要处理哪些异常情况**
 
 Agent 服务内部异常应在服务侧自行处理，并确保返回 HTTP 200（避免训练框架重试）。如果 agent loop 执行失败，可以在返回体中携带错误信息，训练框架侧通过 `error_traceback` 字段过滤异常轨迹。
 
-**Q4：多条轨迹与 session_id 的关系？**
+**Q4：多条轨迹与 session_id 的关系**
 
 每次 `POST /v1/chat/completions` 请求对应一个 `session_id`，一个 session 内的所有 LLM 调用通过 `infer_url` 中的 session_id 关联。TrajProxy 按 session_id 分组存储轨迹记录，训练框架通过 `GET /trajectory?session_id=xxx` 拉取完整轨迹。
 

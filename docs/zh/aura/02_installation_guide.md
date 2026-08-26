@@ -127,10 +127,11 @@ modelscope download --dataset AI-ModelScope/gsm8k --local_dir /path/to/gsm8k
 
 根据训练模式的不同，数据处理方式也有所区别：
 
-| 训练模式 | 数据处理方式 | 说明 |
-|---------|-------------|------|
-| **共卡模式 (Hybrid)** | verl 官方脚本 | 数据格式为 parquet |
-| **分离模式 (One-Step-Off)** | Aura 脚本 | 数据格式为 Megatron |
+| 训练模式                        | 数据处理方式 | 说明 |
+|-----------------------------|-------------|------|
+| **共卡模式 (Hybrid)**           | verl 官方脚本 | 数据格式为 parquet |
+| **单步异步分离模式 (One Step Off)** | Aura 脚本 | 数据格式为 Megatron |
+| **全异步分离模式 (Fully Async)**   | Aura 脚本 | 数据格式为 Megatron |
 
 #### 共卡模式数据处理
 

@@ -32,7 +32,7 @@ Aura 提供了训练模型示例。
 ```shell
 # [train]
 # 启动训练相关参数
-# 工作模式：hybrid 共卡模式 | one_step_off 单步滞后分离模式
+# 工作模式：hybrid 共卡模式 | one_step_off 单步异步分离模式 | fully_async 全异步分离模式
 work_mode=one_step_off
 
 # 共卡和分离模式均需要配置训练yaml文件
@@ -57,7 +57,7 @@ clean_old_ckpt=0
 
 根据工作模式选择对应的配置方式：
 
-**hybrid 模式（单机）**：修改为单机对应的 IP 地址，以下以 `192.168.0.1` 为例：
+**共卡模式（hybrid）单机**：修改为单机对应的 IP 地址，以下以 `192.168.0.1` 为例：
 
 ```shell
 # host,index,train_master_index,infer_master_index(可选)
@@ -65,7 +65,7 @@ clean_old_ckpt=0
 192.168.0.1,0,1,1
 ```
 
-**one-step-off 模式（双机）**：修改为双机对应的 IP 地址，以下以 `192.168.0.1` 和 `192.168.0.2` 为例：
+**分离模式（One Step Off 和 Fully Async）双机**：修改为双机对应的 IP 地址，以下以 `192.168.0.1` 和 `192.168.0.2` 为例：
 
 ```shell
 # host,index,train_master_index,infer_master_index(可选)
@@ -141,16 +141,17 @@ bash scripts/start_rl_with_verl_vllm.sh
 
 **Aura 使用样例请参考[使用指南](04_user_guide/01_user_guide.md)**
 
-**Aura Qwen3-4B Math 场景一键拉起样例请参考[Qwen3-4B Math 场景样例](models/qwen3-4b.md)**
+**Aura 各模型支持的场景模式及一键拉起样例：**
 
-**Aura Qwen3-8B Math 场景一键拉起样例请参考[Qwen3-8B Math 场景样例](models/qwen3_8b.md)**
+| 模型            | 共卡模式                                                     | 单步异步分离模式                                                       | 全异步分离模式                     |
+|---------------|----------------------------------------------------------|----------------------------------------------------------------|-----------------------------|
+| Qwen3-4B      | [✓ 支持](models/qwen3-4b_quick_start/qwen3-4b-hybrid.md)   | [✓ 支持](models/qwen3-4b_quick_start/qwen3-4b-one-step-off.md)   | —                           |
+| Qwen3-8B      | [✓ 支持](models/qwen3_8b.md)                               | [✓ 支持](models/qwen3_8b.md)                                     | —                           |
+| Qwen3-14B     | [✓ 支持](models/qwen3-14b_quick_start/qwen3-14b-hybrid.md) | [✓ 支持](models/qwen3-14b_quick_start/qwen3-14b-one-step-off.md) | —                           |
+| Qwen3-30B-A3B | [✓ 支持](models/qwen3-30b-a3b.md)                          | [✓ 支持](models/qwen3-30b-a3b.md)                                | —                           |
+| Qwen3-32B     | [✓ 支持](models/qwen3_32b.md)                              | [✓ 支持](models/qwen3_32b.md)                                    | [✓ 支持](models/qwen3_32b.md) |
 
-**Aura Qwen3-30B-A3B Math 场景一键拉起样例请参考[Qwen3-30B-A3B Math 场景样例](models/qwen3-30b-a3b.md)**
-
-**Aura Qwen3-14B Math 场景共卡模式一键拉起样例请参考[Qwen3-14B Math 场景共卡模式样例](models/qwen3-14b_quick_start/qwen3-14b-hybrid.md)**
-
-**Aura Qwen3-14B Math 场景分离模式一键拉起样例请参考[Qwen3-14B Math 场景分离模式样例](models/qwen3-14b_quick_start/qwen3-14b-one-step-off.md)**
-
-**Aura Qwen3-32B Math 场景一键拉起样例请参考[Qwen3-32B Math 场景样例](models/qwen3_32b.md)**
+> [!NOTE]
+> 「—」表示该模型当前未提供对应模式的一键拉起样例；「✓ 支持」为对应场景样例的链接。
 
 **Aura 支持的后端与模型列表请参考[支持推理后端](10_appendix.md#支持的推理后端)，[支持训练后端](10_appendix.md#支持的训练后端)，[支持agent后端](10_appendix.md#支持的Agent后端)，[支持模型列表](10_appendix.md#支持的模型列表)**

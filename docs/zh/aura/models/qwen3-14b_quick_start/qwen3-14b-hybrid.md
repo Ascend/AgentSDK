@@ -93,7 +93,7 @@ python3 gsm8k.py \
 ```shell
 # [train]
 # 启动训练相关参数
-# 工作模式：hybrid 共卡模式 | one_step_off 全异步分离模式
+# 工作模式：hybrid 共卡模式 | one_step_off 单步异步分离模式 | fully_async 全异步分离模式
 work_mode=hybrid
 
 # 共卡模式需要配置训练yaml文件

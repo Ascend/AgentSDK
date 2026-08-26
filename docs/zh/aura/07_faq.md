@@ -384,7 +384,7 @@ AssertionError: Session name session_2026-07-09_09-17-24_537353_45519 does not m
 
 **原因分析<a name="faq_015_analysis"></a>**
 
-AgentSDK 底层使用 Ray 进行分布式训练，而 Ray 依赖 Redis 来管理集群状态。之前的 Ray 会话没有正常退出，其临时文件或 Redis 中的元数据未被清理，与新启动的会话产生冲突。
+Agent SDK 底层使用 Ray 进行分布式训练，而 Ray 依赖 Redis 来管理集群状态。之前的 Ray 会话没有正常退出，其临时文件或 Redis 中的元数据未被清理，与新启动的会话产生冲突。
 
 **解决方案<a name="faq_015_solution"></a>**
 

@@ -1,4 +1,4 @@
-# Qwen3-4B 分离模式快速入门指南
+# Qwen3-4B 单步异步分离模式（One Step Off）快速入门指南
 
 ## **容器环境部署**
 
@@ -209,8 +209,8 @@ python3 /path/to/AgentSDK/aura/cli/preprocess_data.py gsm8k
 
 在快速入门 qwen3-4b math 场景前，需要修改以下配置文件，需要进行修改的参数可以参照文件头的注释，请将其中的示例路径修改为实际路径。
 
-1. [分离训练配置文件](../../../../../aura/configs/train/verl_train_async_A3_t16_qwen3_4b_math_fsdp.yaml)
-2. [分离推理配置文件](../../../../../aura/configs/infer/vllm_infer_i16_qwen3_4b.yaml)
+1. [单步异步分离训练配置文件](../../../../../aura/configs/train/verl_train_async_A3_t16_qwen3_4b_math_fsdp.yaml)
+2. [单步异步分离推理配置文件](../../../../../aura/configs/infer/vllm_infer_i16_qwen3_4b.yaml)
 
 ### 修改hosts.conf
 
@@ -229,7 +229,7 @@ python3 /path/to/AgentSDK/aura/cli/preprocess_data.py gsm8k
 ```shell
 # [train]
 # 启动训练相关参数
-# 工作模式：hybrid 共卡模式 | one_step_off 全异步分离模式
+# 工作模式：hybrid 共卡模式 | one_step_off 单步异步分离模式 | fully_async 全异步分离模式
 work_mode=one_step_off
 
 # 共卡和分离模式均需要配置训练yaml文件
@@ -307,4 +307,4 @@ bash scripts/start_rl_with_verl_vllm.sh
 ```
 
 > [!NOTE]
-> 本文档专门针对 Qwen3-4B 分离模式（one-step-off）的启动示例，提供该场景下的快速入门步骤；通用且详细的完整启动流程请参考 [快速入门指南](../../03_quick_start.md)。
+> 本文档专门针对 Qwen3-4B 单步异步分离模式（One Step Off）的启动示例，提供该场景下的快速入门步骤；通用且详细的完整启动流程请参考 [快速入门指南](../../03_quick_start.md)。

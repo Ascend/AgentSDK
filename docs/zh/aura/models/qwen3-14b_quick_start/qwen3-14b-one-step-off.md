@@ -46,7 +46,7 @@ docker exec -it your_container_name bash
 
 > [!NOTE] 说明
 >
->- 训练节点和推理节点需使用相同版本的 AgentSDK 代码及配置文件。
+>- 训练节点和推理节点需使用相同版本的 Agent SDK 代码及配置文件。
 >- 两个节点需能够通过相同的绝对路径访问模型权重和训练过程中生成的权重目录，建议使用共享存储。
 >- 两个节点之间需网络互通，且容器内配置的节点 IP 可以相互访问。
 
@@ -192,7 +192,7 @@ verl_conf:
 ```shell
 # [train]
 # 启动训练相关参数
-# 工作模式：hybrid 共卡模式 | one_step_off 全异步分离模式
+# 工作模式：hybrid 共卡模式 | one_step_off 单步异步分离模式 | fully_async 全异步分离模式
 work_mode=one_step_off
 
 # 共卡和分离模式均需要配置训练yaml文件
@@ -245,4 +245,4 @@ bash scripts/start_rl_with_verl_vllm.sh
 ```
 
 > [!NOTE] 说明
-> 本文档专门针对 Qwen3-14B 分离模式（one-step-off）的启动示例，提供该场景下的快速入门步骤；通用且详细的完整启动流程请参考 [快速入门指南](../../03_quick_start.md)。
+> 本文档专门针对 Qwen3-14B 分离模式（One Step Off）的启动示例，提供该场景下的快速入门步骤；通用且详细的完整启动流程请参考 [快速入门指南](../../03_quick_start.md)。

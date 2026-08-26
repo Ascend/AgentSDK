@@ -16,14 +16,14 @@
 
 在快速入门qwen3-4b math场景前，需修改以下文件，需要进行修改的参数可以参照文件头的注释。
 
-共卡模式请修改：
+单步异步分离模式请修改：
 
 1. [共卡配置文件](../../../../aura/configs/train/verl_train_hybrid_A3_t16_qwen3_4b_math_fsdp.yaml)
 
-分离模式请修改：
+单步异步分离模式请修改：
 
-1. [分离配置文件](../../../../aura/configs/train/verl_train_async_A3_t16_qwen3_4b_math_fsdp.yaml)
-2. [分离推理配置](../../../../aura/configs/infer/vllm_infer_i16_qwen3_4b.yaml)
+1. [单步异步分离配置文件](../../../../aura/configs/train/verl_train_async_A3_t16_qwen3_4b_math_fsdp.yaml)
+2. [单步异步分离推理配置](../../../../aura/configs/infer/vllm_infer_i16_qwen3_4b.yaml)
 
 > [!NOTE]
 >
