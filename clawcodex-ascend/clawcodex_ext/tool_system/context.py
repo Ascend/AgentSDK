@@ -1,3 +1,26 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Copyright (c) 2026 Clawd Codex Team
+#
+# AgentSDK is licensed under Mulan PSL v2.
+# You can use this software according to the terms and conditions of the Mulan PSL v2.
+# You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
+# AgentSDK migration Parts do not contain every host facade during incremental validation.
+# pylint: disable=C0201,E0611
+
 from __future__ import annotations
 
 import threading
@@ -300,6 +323,12 @@ class ToolContext:
     # session-scoped field selects one Plan graph inside it.  Subagents
     # inherit the value explicitly; unrelated sessions do not.
     lkb_plan_id: str | None = None
+    # One-way Task-v2/LKB cutover provenance.  Tasks present when LKB is
+    # first enabled remain native for the lifetime of this context; new
+    # TaskCreate calls are LKB-owned.  The explicit set prevents a merged
+    # projection from erasing source authority.
+    lkb_native_task_ids: set[str] = field(default_factory=set)
+    _lkb_task_cutover_initialized: bool = False
     # Throttle/signature cache for the optional LKB REPL/TUI projection
     # refresher. ToolContext uses slots, so the integration cannot attach
     # this state dynamically at runtime.

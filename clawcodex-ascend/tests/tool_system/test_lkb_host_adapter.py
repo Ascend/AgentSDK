@@ -1,3 +1,23 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Copyright (c) 2026 Clawd Codex Team
+#
+# AgentSDK is licensed under Mulan PSL v2.
+# You can use this software according to the terms and conditions of the Mulan PSL v2.
+# You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 """Tests for the LKB host adapter (Phase 4/8 host integration).
 
 Verifies:
@@ -17,6 +37,7 @@ from types import SimpleNamespace
 import pytest
 
 from lkb.clawcodex_task_adapter import try_handle
+from lkb.error_codes import LkbErrorCode
 
 
 @pytest.fixture
@@ -30,7 +51,12 @@ def tmp_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 
 def _ctx(tasks: dict | None = None) -> SimpleNamespace:
-    return SimpleNamespace(tasks=tasks or {}, agent_id="agent-a")
+    return SimpleNamespace(
+        tasks=tasks or {},
+        agent_id="agent-a",
+        lkb_native_task_ids=set(),
+        _lkb_task_cutover_initialized=True,
+    )
 
 
 def test_flag_off_falls_through(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -144,6 +170,69 @@ def test_get_and_list_after_create(tmp_home: Path, monkeypatch: pytest.MonkeyPat
     assert handled is True
     ids = {t["id"] for t in list_res.output["tasks"]}
     assert new_id in ids
+
+
+def test_first_enable_keeps_existing_tasks_native_and_new_tasks_in_lkb(
+    tmp_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _enable_plan_graph(monkeypatch)
+    _install_repo(monkeypatch, tmp_home, "cutover")
+    native = {
+        "id": "native-1",
+        "subject": "pre-existing",
+        "description": "Task-v2 task",
+        "activeForm": "working",
+        "status": "pending",
+        "owner": None,
+        "blocks": [],
+        "blockedBy": [],
+        "metadata": {},
+        "output": "",
+    }
+    context = SimpleNamespace(tasks={"native-1": native}, agent_id="agent-a")
+
+    handled, result = try_handle("TaskGet", {"taskId": "native-1"}, context)
+    assert handled is False
+    assert result is None
+    assert context.lkb_native_task_ids == {"native-1"}
+
+    _, created = try_handle("TaskCreate", {"subject": "post-enable", "description": "LKB task"}, context)
+    lkb_id = created.output["task"]["id"]
+    assert lkb_id not in context.lkb_native_task_ids
+
+    _, listed = try_handle("TaskList", {}, context)
+    assert {task["id"] for task in listed.output["tasks"]} == {"native-1", lkb_id}
+    assert "divergence" not in listed.output
+    assert try_handle("TaskUpdate", {"taskId": "native-1", "status": "completed"}, context)[0] is False
+    assert try_handle("TaskUpdate", {"taskId": lkb_id, "owner": "agent-a"}, context)[0]
+
+
+def test_cross_authority_dependencies_are_rejected(tmp_home: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _enable_plan_graph(monkeypatch)
+    _install_repo(monkeypatch, tmp_home, "cross-authority")
+    context = SimpleNamespace(
+        tasks={
+            "native-1": {
+                "id": "native-1",
+                "subject": "native",
+                "description": "native",
+                "status": "pending",
+            }
+        },
+        agent_id="agent-a",
+    )
+    _, created = try_handle("TaskCreate", {"subject": "lkb", "description": "lkb"}, context)
+    lkb_id = created.output["task"]["id"]
+
+    handled, native_denial = try_handle("TaskUpdate", {"taskId": "native-1", "addBlockedBy": [lkb_id]}, context)
+    assert handled is True
+    assert native_denial.is_error is True
+    assert native_denial.output["reason"]["code"] == "cross_authority_dependency"
+
+    handled, lkb_denial = try_handle("TaskUpdate", {"taskId": lkb_id, "addBlockedBy": ["native-1"]}, context)
+    assert handled is True
+    assert lkb_denial.is_error is True
+    assert lkb_denial.output["reason"]["code"] == "cross_authority_dependency"
 
 
 def test_update_status_routes_to_start_task(tmp_home: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -318,7 +407,10 @@ def test_taskupdate_denial_keeps_native_taskid_updatedfields(tmp_home: Path, mon
         return CommandResult(
             decision="denied",
             command_id=command_id,
-            reason="dependency_not_satisfied",
+            # The human message deliberately contains another code-like word:
+            # the adapter must use error_code and never parse reason text.
+            reason="blocked is only explanatory text; the task was not found",
+            error_code=LkbErrorCode.TASK_NOT_FOUND,
             validation_run_id="V-upd-denied",
         )
 
@@ -334,6 +426,8 @@ def test_taskupdate_denial_keeps_native_taskid_updatedfields(tmp_home: Path, mon
     # LKB detail isolated under ``lkb``.
     assert out["lkb"]["decision"] == "denied"
     assert out["lkb"]["validationRunId"] == "V-upd-denied"
+    assert out["reason"]["code"] == "task_not_found"
+    assert out["lkb"]["reasonCode"] == "task_not_found"
     # Legacy client that ignores ``lkb`` sees no ``error`` key.
     assert "error" not in out
 

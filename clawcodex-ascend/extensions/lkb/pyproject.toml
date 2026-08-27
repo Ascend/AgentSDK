@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=77.0.3", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lkb"
+version = "0.2.0"
+description = "Persistent Plan Graph runtime for ClawCodex TaskV2"
+readme = "README.md"
+license = "MulanPSL-2.0"
+requires-python = ">=3.10"
+authors = [
+    {name = "Clawd Codex Team"},
+]
+keywords = ["plan-graph", "task-management", "kanban"]
+dependencies = []
+
+[tool.setuptools.packages.find]
+where = ["src"]

@@ -1,3 +1,23 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Copyright (c) 2026 Clawd Codex Team
+#
+# AgentSDK is licensed under Mulan PSL v2.
+# You can use this software according to the terms and conditions of the Mulan PSL v2.
+# You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 # pylint: disable=reimported
 """Subagent context creation and isolation.
 
@@ -164,6 +184,9 @@ def create_subagent_context(
     else:
         content_replacement_state = None
 
+    parent_team = parent_context.team if isinstance(parent_context.team, dict) else None
+    share_teammate_task_state = bool(overrides.teammate_name and parent_team and parent_team.get("team_name"))
+
     # --- Build the isolated context ---
     return ToolContext(
         workspace_root=parent_context.workspace_root,
@@ -184,15 +207,7 @@ def create_subagent_context(
         # Readers snapshot (list()) before filtering; if teammate fan-out
         # ever mutates the board from worker threads, guard it like the
         # sibling stores.
-        tasks=(
-            parent_context.tasks
-            if (
-                overrides.teammate_name
-                and isinstance(parent_context.team, dict)
-                and parent_context.team.get("team_name")
-            )
-            else {}
-        ),
+        tasks=parent_context.tasks if share_teammate_task_state else {},
         outbox=[],
         crons={},
         # No-op / None for UI callbacks
@@ -222,7 +237,7 @@ def create_subagent_context(
         # TS teammate.ts:125-131 — a named agent OUTSIDE a team is not a
         # teammate).
         teammate_name=overrides.teammate_name,
-        team_name=((parent_context.team or {}).get("team_name") if isinstance(parent_context.team, dict) else None),
+        team_name=parent_team.get("team_name") if parent_team else None,
         user_modified=parent_context.user_modified,
         session_id=parent_context.session_id,
         # Share overlay for dispatch; never inherit registration capability.
@@ -230,6 +245,8 @@ def create_subagent_context(
         allow_session_macro_registration=False,
         confirm_session_macro_plan=None,
         lkb_plan_id=parent_context.lkb_plan_id,
+        lkb_native_task_ids=(parent_context.lkb_native_task_ids if share_teammate_task_state else set()),
+        _lkb_task_cutover_initialized=True,
         _active_provider=parent_context._active_provider,
         # ch01 round-4 WI-1 — hooks apply to sub-agents exactly as to the
         # parent: same config snapshot, same workspace-trust verdict.
