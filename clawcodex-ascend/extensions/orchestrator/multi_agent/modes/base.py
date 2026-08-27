@@ -83,6 +83,11 @@ class ModeDecision:
     agents: list[str] = field(default_factory=list)
     confidence: float = 1.0
 
+    def __post_init__(self) -> None:
+        """Reject invalid router confidence while keeping mode keys extensible."""
+        if not 0.0 <= self.confidence <= 1.0:
+            raise ValueError("confidence must be between 0.0 and 1.0")
+
 
 @runtime_checkable
 class ModeRunner(Protocol):
