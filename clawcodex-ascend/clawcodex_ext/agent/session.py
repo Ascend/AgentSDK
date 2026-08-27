@@ -78,11 +78,11 @@ class Session:
         # Persist the conversation via SessionStorage (JSONL transcript)
         # so ``--resume`` can attach a :class:`TailFollower` to watch
         # for new lines during a backgrounded agent. Implementation
-        # lives in extensions/agent/session_persist.py so the upstream
+        # lives in clawcodex_ext/agent/session_persist.py so the upstream
         # Session stays free of orchestrator-specific persistence
         # concerns.
         try:
-            from extensions.agent.session_persist import save_to_session_storage
+            from clawcodex_ext.agent.session_persist import save_to_session_storage
 
             save_to_session_storage(self)
         except ImportError:
@@ -144,7 +144,7 @@ class Session:
         intermediate snapshots are unnecessary for correctness.
         """
         try:
-            from extensions.agent.session_persist import save_to_session_storage
+            from clawcodex_ext.agent.session_persist import save_to_session_storage
 
             save_to_session_storage(self)
         except ImportError:
