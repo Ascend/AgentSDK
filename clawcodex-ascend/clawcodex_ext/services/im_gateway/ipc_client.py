@@ -18,6 +18,8 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
+# ruff: noqa: UP009
+
 """Gateway IPC client — POSIX UDS client for REPL/orchestrator opt-in + control.
 
 Connects to the gateway daemon's UDS socket, sends :class:`GatewayFrame`
@@ -46,16 +48,34 @@ import asyncio
 import hashlib
 import logging
 from collections import OrderedDict
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
+from enum import Enum
 from pathlib import Path
-from typing import Any, Awaitable, Callable
+from typing import Any, Self
 
-from .ipc_protocol import GatewayFrame, FrameType
+from .ipc_protocol import FrameType, GatewayFrame
 
 logger = logging.getLogger(__name__)
 
 OnDeliverFn = Callable[[GatewayFrame], Awaitable[None] | None]
 DEFAULT_DELIVERY_CACHE_SIZE = 4096
 _SAFE_ACK_LAYERS = frozenset({"accepted", "enqueued", "processed"})
+
+
+class OutboundSendOutcome(str, Enum):
+    """Observable transport outcome for one outbound IPC request."""
+
+    ACCEPTED = "accepted"
+    REJECTED = "rejected"
+    AMBIGUOUS_TIMEOUT = "ambiguous_timeout"
+    NOT_SENT = "not_sent"
+
+
+@dataclass(frozen=True)
+class OutboundSendResult:
+    outcome: OutboundSendOutcome
+    response: GatewayFrame | None = None
 
 
 def _diagnostic_fingerprint(value: object) -> str:
@@ -150,8 +170,11 @@ class GatewayIpcClient:
                     result = self.on_deliver(frame)
                     if result is not None:
                         asyncio.ensure_future(result)
-                except Exception:  # noqa: BLE001
-                    logger.exception("gateway ipc: on_deliver callback failed")
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning(
+                        "gateway ipc: on_deliver callback failed error_type=%s",
+                        type(exc).__name__,
+                    )
             return
         # Replies (ACK/NACK/EVENT-response) echo the original request's id in
         # ``delivery_id`` (acks) or ``message_id``. Try delivery_id first
@@ -166,7 +189,12 @@ class GatewayIpcClient:
             fut.set_result(frame)
             return
 
-    async def _send(self, frame: GatewayFrame) -> GatewayFrame | None:
+    async def _send(
+        self,
+        frame: GatewayFrame,
+        *,
+        raise_on_connection_error: bool = False,
+    ) -> GatewayFrame | None:
         """Write a frame and await its reply (routed by the read loop).
 
         The server echoes the reply id in either ``message_id`` or
@@ -186,19 +214,26 @@ class GatewayIpcClient:
         fut: asyncio.Future[GatewayFrame] = asyncio.get_running_loop().create_future()
         for k in keys:
             self._pending[k] = fut
+        if self._write_lock is None:
+            self._write_lock = asyncio.Lock()
         # Serialize writes: asyncio StreamWriter is not safe to write from
         # multiple tasks concurrently (heartbeat vs send_outbound vs _send).
         try:
             async with self._write_lock:
                 self._writer.write(frame.encode())
                 await self._writer.drain()
-        except (ConnectionError, BrokenPipeError) as exc:
+        except (ConnectionError, OSError) as exc:
             # The gateway socket is gone (gateway stopped, process killed,
             # or network dropped). Clean up pending futures and return None
             # so the caller can reconnect — never propagate transport errors.
             for k in keys:
                 self._pending.pop(k, None)
-            logger.debug("gateway ipc: send failed (connection lost): %s", exc)
+            logger.debug(
+                "gateway ipc: send failed error_type=%s",
+                type(exc).__name__,
+            )
+            if raise_on_connection_error:
+                raise ConnectionError("gateway IPC request was not sent") from None
             return None
         if not keys:
             return None  # fire-and-forget frame (no reply expected)
@@ -209,6 +244,10 @@ class GatewayIpcClient:
                 self._pending.pop(k, None)
             logger.debug("gateway ipc: reply timed out for keys=%s", keys)
             return None
+        except asyncio.CancelledError:
+            for k in keys:
+                self._pending.pop(k, None)
+            raise
 
     async def _write_frame_no_reply(self, frame: GatewayFrame) -> None:
         """Write a fire-and-forget frame without waiting on the read loop."""
@@ -220,9 +259,12 @@ class GatewayIpcClient:
             async with self._write_lock:
                 self._writer.write(frame.encode())
                 await self._writer.drain()
-        except (ConnectionError, BrokenPipeError) as exc:
-            logger.debug("gateway ipc: send failed (connection lost): %s", exc)
-            return None
+        except (ConnectionError, OSError) as exc:
+            logger.debug(
+                "gateway ipc: send failed error_type=%s",
+                type(exc).__name__,
+            )
+            return
 
     async def register(
         self, *, session_id: str, origin: str, capabilities: list[str] | None = None
@@ -314,7 +356,11 @@ class GatewayIpcClient:
                 context_token=context_token,
             )
         )
-        if response is not None and response.ack_layer in {"accepted", "enqueued", "processed"}:
+        if response is not None and response.ack_layer in {
+            "accepted",
+            "enqueued",
+            "processed",
+        }:
             self._seen_delivery_ids[delivery_id] = None
             self._seen_delivery_ids.move_to_end(delivery_id)
             while len(self._seen_delivery_ids) > self._delivery_cache_size:
@@ -340,8 +386,29 @@ class GatewayIpcClient:
         The server replies with ACK/NACK, so callers get an observable result
         while still treating delivery as best-effort at the IM channel layer.
         """
+        result = await self.send_outbound_result(
+            origin=origin,
+            text=text,
+            context_token=context_token,
+            metadata=metadata,
+            semantic_tags=semantic_tags,
+            in_reply_to=in_reply_to,
+        )
+        return result.response
+
+    async def send_outbound_result(
+        self,
+        *,
+        origin: str,
+        text: str,
+        context_token: str | None = None,
+        metadata: dict[str, Any] | None = None,
+        semantic_tags: list[str] | None = None,
+        in_reply_to: str | None = None,
+    ) -> OutboundSendResult:
+        """Send outbound text while preserving retry-relevant transport state."""
         if self._writer is None:
-            raise RuntimeError("not connected")
+            return OutboundSendResult(OutboundSendOutcome.NOT_SENT)
         frame = GatewayFrame.outbound(
             origin=origin,
             text=text,
@@ -350,18 +417,22 @@ class GatewayIpcClient:
             semantic_tags=semantic_tags,
             in_reply_to=in_reply_to,
         )
-        response = await self._send(frame)
+        try:
+            response = await self._send(frame, raise_on_connection_error=True)
+        except ConnectionError:
+            logger.warning("gateway ipc: OUTBOUND was not sent")
+            return OutboundSendResult(OutboundSendOutcome.NOT_SENT)
         if response is None:
-            logger.warning("gateway ipc: OUTBOUND timed out origin=%s", origin[:24])
-        elif response.type is FrameType.NACK:
+            logger.warning("gateway ipc: OUTBOUND ACK timed out")
+            return OutboundSendResult(OutboundSendOutcome.AMBIGUOUS_TIMEOUT)
+        if response.type is FrameType.NACK:
             logger.warning(
-                "gateway ipc: OUTBOUND rejected origin=%s reason=%s",
-                origin[:24],
-                response.reason or "",
+                "gateway ipc: OUTBOUND rejected %s",
+                _response_failure(response),
             )
-        else:
-            logger.debug("gateway ipc: sent OUTBOUND origin=%s len=%d", origin[:24], len(text))
-        return response
+            return OutboundSendResult(OutboundSendOutcome.REJECTED, response)
+        logger.debug("gateway ipc: sent OUTBOUND len=%d", len(text))
+        return OutboundSendResult(OutboundSendOutcome.ACCEPTED, response)
 
     async def complete_processing(
         self,
@@ -392,9 +463,12 @@ class GatewayIpcClient:
             return resp.payload
         return None
 
-    async def __aenter__(self) -> GatewayIpcClient:
+    async def __aenter__(self) -> Self:
         await self.connect()
         return self
 
     async def __aexit__(self, *exc) -> None:
         await self.close()
+
+
+__all__ = ["GatewayIpcClient", "OutboundSendOutcome", "OutboundSendResult"]
