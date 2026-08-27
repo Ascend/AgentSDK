@@ -44,10 +44,17 @@ async def test_single_mode_is_transparent() -> None:
     assert isinstance(runner, ModeRunner)
 
 
-def test_registry_and_default_decision() -> None:
+def test_registry_and_default_decision(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(modes, "_registry", {})
     runner = SingleModeRunner(SimpleNamespace(run=AsyncMock()))
     modes.register("single-test", runner)
 
     assert modes.get("single-test") is runner
     assert "single-test" in modes.available()
     assert ModeDecision().mode == "single"
+
+
+@pytest.mark.parametrize("confidence", [-0.1, 1.1])
+def test_mode_decision_rejects_out_of_range_confidence(confidence: float) -> None:
+    with pytest.raises(ValueError, match="confidence"):
+        ModeDecision(confidence=confidence)

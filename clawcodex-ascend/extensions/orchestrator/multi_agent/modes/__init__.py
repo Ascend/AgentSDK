@@ -40,7 +40,11 @@ Public surface
 
 from __future__ import annotations
 
+import logging
+
 from .base import DEFAULT_MODE, ModeDecision, ModeRunner
+
+logger = logging.getLogger(__name__)
 
 _registry: dict[str, ModeRunner] = {}
 
@@ -51,6 +55,8 @@ def register(key: str, runner: ModeRunner) -> None:
     Re-registering the same key overwrites the prior entry — this is
     intentional so tests / plugins can swap implementations cleanly.
     """
+    if key in _registry:
+        logger.warning("Replacing already registered collaboration mode %r", key)
     _registry[key] = runner
 
 
