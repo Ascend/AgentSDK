@@ -1,6 +1,10 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Copyright (c) 2026 Clawd Codex Team
 #
 # AgentSDK is licensed under Mulan PSL v2.
 # You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -13,12 +17,6 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
-#
-# Copyright (c) 2026 Clawd Codex Team
-# SPDX-License-Identifier: MIT
-# Source: https://github.com/agentforce314/clawcodex
-# ClawCodex-derived portions remain licensed under the MIT License.
-# See clawcodex-ascend/LICENSE.clawcodex.
 
 """Task-list and background-task widgets.
 
@@ -81,6 +79,7 @@ _STATUS_STYLES: dict[TaskStatus, tuple[str, str]] = {
 # Each entry: (emoji, zh_label, en_label, rich_style)
 _LKB_BADGE_STYLES: dict[str, tuple[str, str, str, str]] = {
     "fail": ("✗", "验证未通过", "Validation failed", "bold red"),
+    "needs_review": ("?", "待复核", "Needs review", "bold magenta"),
     "blocked": ("▣", "被阻塞", "Blocked", "bold yellow"),
     "needs_clarify": ("?", "待澄清", "Needs clarification", "bold cyan"),
     "stale": ("△", "假设已失效", "Stale assumption", "bold #d4943a"),
@@ -97,6 +96,10 @@ def _lkb_badge(lkb: LkbStatus | None) -> Text | None:
     key: str | None = None
     if lkb.validation_result == "fail":
         key = "fail"
+    elif lkb.derived_status == "needs_review":
+        key = "needs_review"
+    elif lkb.derived_status == "needs_recheck":
+        key = "needs_recheck"
     elif lkb.is_blocked:
         key = "blocked"
     elif lkb.has_pending_clarification:
@@ -105,8 +108,6 @@ def _lkb_badge(lkb: LkbStatus | None) -> Text | None:
         key = "stale"
     elif lkb.validation_result == "pass":
         key = "verified"
-    elif lkb.derived_status == "needs_recheck":
-        key = "needs_recheck"
 
     if key is None:
         return None
