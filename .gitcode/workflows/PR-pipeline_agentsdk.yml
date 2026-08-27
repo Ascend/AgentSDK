@@ -4,8 +4,7 @@ on:
   pull_request_comment:
     types: [ created ]
     branches: [ 'master', '26.1.0', '26.0.0', '7.3.0' ]
-    comments: [ '^compile$' ]
-  workflow_dispatch:
+    comments: [ 'compile' ]
 
 env:
   REPO_NAME: ${{ atomgit.event.repository.name }}
@@ -45,14 +44,15 @@ stages:
                 changed:
                   - '**'
                 non-doc:
-                  - '!**.md'
-                  - '!**.rst'
-                  - '!**.log'
-                  - '!**.png'
-                  - '!**.jpg'
-                  - '!**.doc'
-                  - '!**.eddx'
-                  - '!**.svg'
+                  - '!**/*.md'
+                  - '!**/*.rst'
+                  - '!**/*.log'
+                  - '!**/*.png'
+                  - '!**/*.jpg'
+                  - '!**/*.doc'
+                  - '!**/*.eddx'
+                  - '!**/*.svg'
+
           - name: set build skip flag
             id: set-skip
             run: |
