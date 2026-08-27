@@ -19,11 +19,13 @@
 # Source: https://github.com/agentforce314/clawcodex
 # ClawCodex-derived portions remain licensed under the MIT License.
 # See clawcodex-ascend/LICENSE.clawcodex.
-"""Pre-dispatch issue clarity analysis (F-124)."""
+"""Pre-dispatch issue clarity analysis."""
 
+from .gate import IssueClarificationGate
 from .models import ClarifyQuestion, ClarifyResult
 
 __all__ = [
     "ClarifyQuestion",
     "ClarifyResult",
+    "IssueClarificationGate",
 ]
