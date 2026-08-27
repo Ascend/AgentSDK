@@ -1,3 +1,23 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Copyright (c) 2026 Clawd Codex Team
+#
+# AgentSDK is licensed under Mulan PSL v2.
+# You can use this software according to the terms and conditions of the Mulan PSL v2.
+# You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 """Tests for src/agent/subagent_context.py — context isolation."""
 
 from __future__ import annotations
@@ -67,6 +87,18 @@ class TestDefaultIsolation:
         child = create_subagent_context(parent)
 
         assert child.tasks == {}
+
+    def test_teammate_shares_parent_task_state(self):
+        parent = _make_parent_context()
+        parent.team = {"team_name": "review-team"}
+        parent.tasks = {"t1": {"name": "task1"}}
+        parent.lkb_native_task_ids = {"t1"}
+
+        child = create_subagent_context(parent, SubagentContextOverrides(teammate_name="reviewer"))
+
+        assert child.team_name == "review-team"
+        assert child.tasks is parent.tasks
+        assert child.lkb_native_task_ids is parent.lkb_native_task_ids
 
     def test_outbox_fresh(self):
         parent = _make_parent_context()
