@@ -1170,7 +1170,7 @@ async def _call_model_sync(
         # the provider call. Background agents therefore wait off-loop while
         # the middleware's process-wide lock preserves the configured spacing.
         try:
-            from extensions.api.query_middleware import enforce_request_delay
+            from clawcodex_ext.query.query_middleware import enforce_request_delay
 
             enforce_request_delay()
         except ImportError:  # nosec B110
@@ -1276,7 +1276,7 @@ async def _call_model_sync(
         # Rate-limit handling — delegated to extensions so the upstream
         # query loop stays free of orchestrator-specific error policies.
         try:
-            from extensions.api.query_middleware import handle_rate_limit_error
+            from clawcodex_ext.query.query_middleware import handle_rate_limit_error
 
             rate_limit_msg = handle_rate_limit_error(error_str)
             if rate_limit_msg is not None:
