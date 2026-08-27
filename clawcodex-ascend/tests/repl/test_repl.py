@@ -1,6 +1,10 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Copyright (c) 2026 Clawd Codex Team
 #
 # AgentSDK is licensed under Mulan PSL v2.
 # You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -13,12 +17,6 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
-#
-# Copyright (c) 2026 Clawd Codex Team
-# SPDX-License-Identifier: MIT
-# Source: https://github.com/agentforce314/clawcodex
-# ClawCodex-derived portions remain licensed under the MIT License.
-# See clawcodex-ascend/LICENSE.clawcodex.
 
 """Tests for REPL functionality."""
 
@@ -669,6 +667,7 @@ class TestREPL(unittest.TestCase):
                 FakeLiveStatus.instances[-1].kwargs["on_cancel"],
             )
             self.assertIs(repl.tool_context.abort_controller, kwargs["abort_controller"])
+            kwargs["on_attachment"](SimpleNamespace(role="user", content="attachment payload"))
             return AgentLoopRunResult(
                 response_text="goal response",
                 usage={"input_tokens": 4, "output_tokens": 2},
@@ -706,6 +705,8 @@ class TestREPL(unittest.TestCase):
         self.assertTrue(completed)
         self.assertIsNotNone(captured.get("abort_controller"))
         self.assertEqual(captured.get("max_turns"), 0)
+        self.assertTrue(callable(captured.get("on_attachment")))
+        self.assertEqual(repl.session.conversation.messages[-1].content, "attachment payload")
         self.assertIs(repl.tool_context.abort_controller, previous_controller)
         self.assertIsNone(repl._im_active_cancel)
         self.assertIsNone(repl._active_live_status)
