@@ -1,6 +1,10 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Copyright (c) 2026 Clawd Codex Team
 #
 # AgentSDK is licensed under Mulan PSL v2.
 # You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -13,12 +17,6 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
-#
-# Copyright (c) 2026 Clawd Codex Team
-# SPDX-License-Identifier: MIT
-# Source: https://github.com/agentforce314/clawcodex
-# ClawCodex-derived portions remain licensed under the MIT License.
-# See clawcodex-ascend/LICENSE.clawcodex.
 
 """End-to-end tests for Phase 3 dialog screens + widgets."""
 
@@ -48,7 +46,7 @@ from src.tui.widgets.structured_diff import (
     parse_structured_patch,
     parse_unified_diff,
 )
-from src.tui.widgets.task_list import Task, TaskListWidget
+from src.tui.widgets.task_list import LkbStatus, Task, TaskListWidget, render_task_tree
 from src.tui.widgets.tool_activity.edit import EditActivity, _format_edit_summary
 
 
@@ -358,6 +356,36 @@ def test_task_list_progress_counts_leaves_only():
     done, total = widget.progress()
     assert done == 1
     assert total == 3
+
+
+def test_lkb_badges_follow_read_model_priority():
+    rendered = render_task_tree(
+        [
+            Task(
+                id="review",
+                title="review",
+                lkb=LkbStatus(
+                    derived_status="needs_review",
+                    validation_result="pass",
+                    blocked_by=("upstream",),
+                ),
+            ),
+            Task(
+                id="recheck",
+                title="recheck",
+                lkb=LkbStatus(
+                    derived_status="needs_recheck",
+                    validation_result="pass",
+                    blocked_by=("upstream",),
+                ),
+            ),
+        ]
+    ).plain
+
+    assert "Needs review" in rendered
+    assert "Needs recheck" in rendered
+    assert "Blocked" not in rendered
+    assert "Verified" not in rendered
 
 
 @pytest.mark.asyncio
