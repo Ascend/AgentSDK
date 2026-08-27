@@ -1,3 +1,23 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Copyright (c) 2026 Clawd Codex Team
+#
+# AgentSDK is licensed under Mulan PSL v2.
+# You can use this software according to the terms and conditions of the Mulan PSL v2.
+# You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 from __future__ import annotations
 
 import asyncio
@@ -91,6 +111,46 @@ def test_task_v2_reminder_triggers_at_ten_turns_with_lkb_statuses(tmp_path: Path
     assert "#1. [running] Implement reminder" in reminder.content
     assert "#2. [needs_recheck] Recheck downstream docs" in reminder.content
     assert "Never mention this reminder to the user" in reminder.content
+
+
+def test_lkb_projection_refresh_runs_only_when_reminder_is_due(tmp_path: Path) -> None:
+    context = _task_context(tmp_path)
+    with (
+        patch(
+            "clawcodex_ext.query.task_reminder.is_todo_v2_enabled",
+            return_value=True,
+        ),
+        patch(
+            "lkb.clawcodex_task_adapter.refresh_task_projection",
+            return_value=True,
+        ) as refresh,
+    ):
+        assert build_task_reminder(_history(9), context, [TaskUpdateTool]) is None
+        refresh.assert_not_called()
+        assert build_task_reminder(_history(10), context, [TaskUpdateTool]) is not None
+        refresh.assert_called_once_with(context)
+
+
+def test_lkb_projection_refresh_failure_logs_only_the_exception_type(tmp_path: Path, caplog) -> None:
+    context = _task_context(tmp_path)
+    secret = "sensitive exception body must not reach logs"
+
+    with (
+        patch(
+            "clawcodex_ext.query.task_reminder.is_todo_v2_enabled",
+            return_value=True,
+        ),
+        patch(
+            "lkb.clawcodex_task_adapter.refresh_task_projection",
+            side_effect=RuntimeError(secret),
+        ),
+        caplog.at_level("WARNING", logger="clawcodex_ext.query.task_reminder"),
+    ):
+        reminder = build_task_reminder(_history(10), context, [TaskUpdateTool])
+
+    assert reminder is not None
+    assert "error_type=RuntimeError" in caplog.text
+    assert secret not in caplog.text
 
 
 def test_task_write_resets_cadence_but_read_only_task_list_does_not(
