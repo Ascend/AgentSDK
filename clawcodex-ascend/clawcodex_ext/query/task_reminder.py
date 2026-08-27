@@ -1,20 +1,43 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Copyright (c) 2026 Clawd Codex Team
+#
+# AgentSDK is licensed under Mulan PSL v2.
+# You can use this software according to the terms and conditions of the Mulan PSL v2.
+# You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 """Periodic task-list reminders for long-running parent conversations.
 
 The reminder mirrors Claude Code's ``todo_reminders`` attachment cadence:
 after ten assistant turns without a task-list write, and at least ten
 assistant turns after the previous reminder, inject a gentle meta message.
-It is advisory and reads the current ``ToolContext`` projection only; it
-never mutates task or LKB state.
+It is advisory and refreshes the LKB read projection only when a reminder is
+actually due; it never mutates authoritative task or LKB state.
 """
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Mapping, Sequence
 from typing import Any
 
 from clawcodex_ext.tool_system.build_tool import Tool
 from clawcodex_ext.tool_system.context import ToolContext
 from clawcodex_ext.types.messages import Message, UserMessage, create_user_message
+
+# AgentSDK migration Parts do not contain every host facade during incremental validation.
 from clawcodex_ext.utils.task_flags import is_todo_v2_enabled  # pylint: disable=no-name-in-module
 
 TURNS_SINCE_WRITE = 10
@@ -31,6 +54,8 @@ _INTERNAL_QUERY_SOURCES = frozenset(
     }
 )
 _THINKING_BLOCK_TYPES = frozenset({"thinking", "redacted_thinking"})
+
+logger = logging.getLogger(__name__)
 
 
 def _field(value: Any, name: str, default: Any = None) -> Any:
@@ -168,7 +193,6 @@ def build_task_reminder(
         if "TaskUpdate" not in visible_names:
             return None
         write_tool_names = frozenset({"TaskCreate", "TaskUpdate"})
-        item_lines = _render_task_items(context)
         message = (
             "The task tools haven't been used recently. If the current work benefits from "
             "progress tracking, consider using TaskCreate for newly discovered work and "
@@ -182,7 +206,6 @@ def build_task_reminder(
         if "TodoWrite" not in visible_names:
             return None
         write_tool_names = frozenset({"TodoWrite"})
-        item_lines = _render_todo_items(context)
         message = (
             "The TodoWrite tool hasn't been used recently. If the current work benefits "
             "from progress tracking, consider using TodoWrite to update task status and "
@@ -198,6 +221,22 @@ def build_task_reminder(
     )
     if turns_since_write < TURNS_SINCE_WRITE or turns_since_reminder < TURNS_BETWEEN_REMINDERS:
         return None
+
+    if task_v2:
+        try:
+            from lkb.clawcodex_task_adapter import refresh_task_projection
+
+            refresh_task_projection(context)
+        except Exception as exc:
+            # Reminders are advisory; projection refresh failure must never
+            # break or delay the parent query.
+            logger.warning(
+                "Task reminder skipped LKB projection refresh (error_type=%s)",
+                type(exc).__name__,
+            )
+        item_lines = _render_task_items(context)
+    else:
+        item_lines = _render_todo_items(context)
 
     parts = [TASK_REMINDER_MARKER, message]
     if item_lines:
