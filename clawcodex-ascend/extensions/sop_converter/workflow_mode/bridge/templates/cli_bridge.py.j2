@@ -1,0 +1,110 @@
+"""Generated stage bridge — execute pipeline stages via target-application CLI."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import subprocess
+import sys
+from pathlib import Path
+from typing import Any
+
+CLI_PREFIX: list[str] = {{ cli_prefix_json }}
+STAGE_DISPATCH: dict[int, dict[str, Any]] = {{ stage_dispatch_json }}
+STAGE_OUTPUTS: dict[int, list[str]] = {{ stage_outputs_json }}
+
+
+def _build_argv(stage_id: int, project_dir: Path, overrides: dict[str, Any]) -> list[str]:
+    meta = STAGE_DISPATCH.get(stage_id)
+    if not meta:
+        raise ValueError(f"Unknown stage_id {stage_id}")
+    argv = list(CLI_PREFIX)
+    argv.extend(
+        [
+            "execute-stage",
+            "--stage-id",
+            str(stage_id),
+            "--project-dir",
+            str(project_dir),
+        ]
+    )
+    stage_name = meta.get("stage_name")
+    if stage_name:
+        argv.extend(["--stage-name", str(stage_name)])
+    for key, value in overrides.items():
+        flag = f"--{key.replace('_', '-')}"
+        argv.extend([flag, str(value)])
+    return argv
+
+
+def execute_stage(stage_id: int, project_dir: str | Path, **overrides: Any) -> dict[str, Any]:
+    project_dir = Path(project_dir).resolve()
+    argv = _build_argv(stage_id, project_dir, overrides)
+    proc = subprocess.run(
+        argv,
+        capture_output=True,
+        text=True,
+        cwd=str(project_dir),
+    )
+    return {
+        "stage_id": stage_id,
+        "project_dir": str(project_dir),
+        "command": argv,
+        "returncode": proc.returncode,
+        "stdout": proc.stdout,
+        "stderr": proc.stderr,
+    }
+
+
+def validate_outputs(stage_id: int, project_dir: str | Path) -> dict[str, Any]:
+    project_dir = Path(project_dir).resolve()
+    patterns = STAGE_OUTPUTS.get(stage_id, [])
+    checks = []
+    for pattern in patterns:
+        paths = list(project_dir.glob(pattern)) if "*" in pattern else [project_dir / pattern]
+        ok = any(p.exists() for p in paths)
+        checks.append({"pattern": pattern, "ok": ok})
+    all_ok = all(c["ok"] for c in checks) if checks else True
+    return {"stage_id": stage_id, "checks": checks, "all_ok": all_ok}
+
+
+def get_artifacts(stage_id: int, project_dir: str | Path) -> dict[str, Any]:
+    project_dir = Path(project_dir).resolve()
+    patterns = STAGE_OUTPUTS.get(stage_id, [])
+    artifacts: list[str] = []
+    for pattern in patterns:
+        paths = list(project_dir.glob(pattern)) if "*" in pattern else [project_dir / pattern]
+        for p in paths:
+            if p.exists():
+                artifacts.append(str(p))
+    return {"stage_id": stage_id, "artifacts": artifacts}
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="CLI stage bridge")
+    parser.add_argument("--stage-id", type=int, required=True)
+    parser.add_argument("--project-dir", default=".")
+    parser.add_argument("--validate-only", action="store_true")
+    args = parser.parse_args()
+    if args.validate_only:
+        out = validate_outputs(args.stage_id, args.project_dir)
+        print(json.dumps(out, ensure_ascii=False, indent=2))
+        return 0 if out.get("all_ok", True) else 1
+    out = execute_stage(args.stage_id, args.project_dir)
+    out["validation"] = validate_outputs(args.stage_id, args.project_dir)
+    print(json.dumps(out, ensure_ascii=False, indent=2))
+    val = out.get("validation", {})
+    if args.validate_only:
+        out = validate_outputs(args.stage_id, args.project_dir)
+        print(json.dumps(out, ensure_ascii=False, indent=2))
+        return 0 if out.get("all_ok", True) else 1
+    else:
+        out = execute_stage(args.stage_id, args.project_dir)
+        out["validation"] = validate_outputs(args.stage_id, args.project_dir)
+        print(json.dumps(out, ensure_ascii=False, indent=2))
+        val = out.get("validation", {})
+        return 0 if val.get("all_ok", True) and out.get("returncode", 0) == 0 else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

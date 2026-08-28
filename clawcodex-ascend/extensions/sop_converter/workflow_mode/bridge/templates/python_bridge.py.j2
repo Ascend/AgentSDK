@@ -1,0 +1,184 @@
+"""Generated stage bridge — execute single pipeline stages via Python dispatch."""
+
+from __future__ import annotations
+
+import argparse
+import importlib.util
+import inspect
+import json
+import sys
+from pathlib import Path
+from typing import Any
+
+SOURCE_DIR = Path(r"{{ source_dir }}")
+
+
+def _resolve_source_dir() -> Path:
+    """Resolve SDK source root across WSL (/mnt/d/...) and native Windows paths."""
+    candidates: list[Path] = [SOURCE_DIR]
+    text = str(SOURCE_DIR).replace("\\", "/")
+    if text.startswith("/mnt/") and len(text) > 7:
+        drive = text[5].upper()
+        rest = text[7:].replace("/", "\\")
+        candidates.append(Path(f"{drive}:\\{rest}"))
+    manifest = Path(__file__).resolve().parent.parent / "bundle.json"
+    if manifest.is_file():
+        try:
+            data = json.loads(manifest.read_text(encoding="utf-8"))
+            raw = data.get("sdk_source_dir")
+            if raw:
+                candidates.append(Path(str(raw)))
+        except (OSError, json.JSONDecodeError, TypeError):
+            pass
+    for candidate in candidates:
+        try:
+            resolved = candidate.expanduser().resolve()
+        except OSError:
+            continue
+        if resolved.is_dir():
+            return resolved
+    raise FileNotFoundError(
+        f"SDK source directory not found; tried: {[str(c) for c in candidates]}"
+    )
+
+
+SDK_SOURCE_DIR = _resolve_source_dir()
+if str(SDK_SOURCE_DIR) not in sys.path:
+    sys.path.insert(0, str(SDK_SOURCE_DIR))
+
+{{ extra_sys_path_inserts }}
+
+# stage_id → dispatch metadata
+STAGE_DISPATCH: dict[int, dict[str, Any]] = {{ stage_dispatch_json }}
+
+# stage_id → output file patterns
+STAGE_OUTPUTS: dict[int, list[str]] = {{ stage_outputs_json }}
+
+
+def _load_module(py_path: Path):
+    spec = importlib.util.spec_from_file_location(py_path.stem, py_path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Cannot load {py_path}")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def _resolve_run_dir(project_dir: str | Path) -> Path:
+    return Path(project_dir).resolve()
+
+
+def _load_run_context(project_dir: str | Path) -> Path:
+    """Resolve the workspace; SDK-specific context loading is optional."""
+    run_dir = _resolve_run_dir(project_dir)
+    if not run_dir.is_dir():
+        raise FileNotFoundError(f"Workflow workspace not found: {run_dir}")
+    return run_dir
+
+
+def _invoke(fn: Any, kwargs: dict[str, Any]) -> Any:
+    """Call an SDK stage function with only the context it declares."""
+    try:
+        parameters = inspect.signature(fn).parameters
+    except (TypeError, ValueError):
+        return fn(**kwargs)
+    accepts_kwargs = any(p.kind is inspect.Parameter.VAR_KEYWORD for p in parameters.values())
+    selected = {name: value for name, value in kwargs.items() if name in parameters or accepts_kwargs}
+    return fn(**selected)
+
+
+def execute_stage(stage_id: int, project_dir: str | Path, **overrides: Any) -> dict[str, Any]:
+    project_dir = _resolve_run_dir(project_dir)
+    meta = STAGE_DISPATCH.get(stage_id)
+    if not meta:
+        raise ValueError(f"Unknown stage_id {stage_id}")
+
+    rel = meta.get("module_path")
+    if not rel:
+        raise ValueError(f"Stage {stage_id} has no module_path")
+
+    module_path = SDK_SOURCE_DIR / rel
+    mod = _load_module(module_path)
+    func_name = meta.get("entry_function") or "main"
+    fn = getattr(mod, func_name, None)
+    if fn is None:
+        raise AttributeError(f"{module_path}: missing {func_name}")
+
+    run_dir = _load_run_context(project_dir)
+    stage_dir = run_dir / f"stage-{stage_id:02d}"
+    stage_dir.mkdir(parents=True, exist_ok=True)
+
+    call_kwargs: dict[str, Any] = {
+        "stage_dir": stage_dir,
+        "run_dir": run_dir,
+        "project_dir": run_dir,
+        "workspace": run_dir,
+        "run_id": run_dir.name,
+        "stage_id": stage_id,
+        "stage": stage_id,
+        "step_id": stage_id,
+        "step": stage_id,
+        "phase_id": stage_id,
+        "phase": stage_id,
+    }
+    call_kwargs.update(overrides)
+    result = _invoke(fn, call_kwargs)
+    if inspect.isawaitable(result):
+        import asyncio
+        result = asyncio.run(result)
+    return {"stage_id": stage_id, "result": result, "project_dir": str(project_dir)}
+
+
+def validate_outputs(stage_id: int, project_dir: str | Path) -> dict[str, Any]:
+    project_dir = _resolve_run_dir(project_dir)
+    patterns = STAGE_OUTPUTS.get(stage_id, [])
+    checks = []
+    for pattern in patterns:
+        # glob relative to project_dir
+        matches = list(project_dir.glob(pattern)) if "*" in pattern else [project_dir / pattern]
+        ok = any(p.exists() for p in matches)
+        checks.append({"pattern": pattern, "ok": ok})
+    return {"stage_id": stage_id, "checks": checks, "all_ok": all(c["ok"] for c in checks) if checks else True}
+
+
+def get_artifacts(stage_id: int, project_dir: str | Path) -> dict[str, Any]:
+    project_dir = _resolve_run_dir(project_dir)
+    patterns = STAGE_OUTPUTS.get(stage_id, [])
+    artifacts: list[str] = []
+    for pattern in patterns:
+        for p in project_dir.glob(pattern) if "*" in pattern else [project_dir / pattern]:
+            if p.exists():
+                artifacts.append(str(p))
+    return {"stage_id": stage_id, "artifacts": artifacts}
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Stage bridge")
+    parser.add_argument("--stage-id", type=int, required=True)
+    parser.add_argument("--project-dir", default=".")
+    parser.add_argument("--run-dir", default=None, help="Alias for --project-dir")
+    parser.add_argument("--validate-only", action="store_true")
+    args = parser.parse_args()
+
+    workspace = args.run_dir or args.project_dir
+
+    if args.validate_only:
+        out = validate_outputs(args.stage_id, workspace)
+        print(json.dumps(out, ensure_ascii=False, indent=2))
+        return 0 if out.get("all_ok", True) else 1
+    out = execute_stage(args.stage_id, workspace)
+    out["validation"] = validate_outputs(args.stage_id, workspace)
+    print(json.dumps(out, ensure_ascii=False, indent=2))
+    if args.validate_only:
+        out = validate_outputs(args.stage_id, workspace)
+        print(json.dumps(out, ensure_ascii=False, indent=2))
+        return 0 if out.get("all_ok", True) else 1
+    else:
+        out = execute_stage(args.stage_id, workspace)
+        out["validation"] = validate_outputs(args.stage_id, workspace)
+        print(json.dumps(out, ensure_ascii=False, indent=2))
+        return 0 if out.get("validation", {}).get("all_ok", True) else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
