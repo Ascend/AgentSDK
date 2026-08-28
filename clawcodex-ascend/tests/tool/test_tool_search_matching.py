@@ -27,8 +27,8 @@ from extensions.sop_converter.dependency import (
     ToolDependency,
     ToolDependencyGraph,
 )
-from extensions.sop_converter.search_tags import generate_search_tags
-from extensions.sop_converter.source_parser import SourceOperation
+from extensions.sop_converter.core.search_tags import generate_search_tags
+from extensions.sop_converter.core.source_parser import SourceOperation
 from extensions.sop_converter.tool_registry_bridge import operation_to_spec
 
 
