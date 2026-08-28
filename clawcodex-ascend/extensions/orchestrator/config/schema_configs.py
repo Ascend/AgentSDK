@@ -22,6 +22,8 @@ import os
 from dataclasses import dataclass, field
 from typing import Any
 
+from extensions.orchestrator.provider_routing.config import ProviderRoutingConfig
+
 
 @dataclass
 class TrackerConfig:
@@ -220,7 +222,7 @@ class AgentConfig:
     # "agent_followup"), each value is a dict with optional "provider" and/or
     # "model" keys. The orchestrator builds per-stage AgentRunners on top of
     # the main agent config; missing keys inherit from the parent.
-    stage_overrides: dict[str, dict[str, Any]] = field(default_factory=dict)
+    provider_routing: ProviderRoutingConfig = field(default_factory=ProviderRoutingConfig)
     # the inter-run retry queue between separate AgentRunner.run()
     # invocations; these fields govern backoff WITHIN a single run.
     rate_limit_base_delay_ms: int = 30_000
@@ -334,6 +336,11 @@ class AgentConfig:
     # What to do when all three channels time out: "skip" | "mark_failed" | "notify"
     clarification_escalation: str = "skip"
 
+    @property
+    def stage_overrides(self) -> dict[str, dict[str, str]]:
+        """Compatibility view for callers that still read ``agent.stages``."""
+        return self.provider_routing.stage_overrides
+
 
 @dataclass
 class SandboxConfig:
@@ -425,10 +432,10 @@ class ModesConfig:
     workflow.md without crashing.
     """
 
+    provider_routing: ProviderRoutingConfig = field(default_factory=ProviderRoutingConfig)
     enabled: list[str] = field(default_factory=lambda: ["single"])
     default: str = "single"
     router_kind: str = "none"  # "none" | "heuristic" | "llm"
-    router_model: str = "deepseek-v4-flash"  # only consulted when router_kind=="llm"
     router_endpoint: str = "https://api.deepseek.com/chat/completions"
     router_api_key_env: str = "DEEPSEEK_API_KEY"
     router_timeout_seconds: float = 15.0
@@ -444,7 +451,6 @@ class ModesConfig:
     # we just try/finally swap workflow.agent.model per stage.
     # Makes Pipeline a *real* multi-agent system (different "agents"
     # via different LLM brains, not just role labels).
-    pipeline_stage_models: dict[str, str] = field(default_factory=dict)
     # Per-stage max_turns override — workflow.agent.max_turns is a
     # single value applied everywhere; realistic Pipelines need
     # different budgets per stage (analyzer reads a lot, implementer
@@ -478,7 +484,6 @@ class ModesConfig:
     # Optional stronger model for the judge stage. None = use the
     # workflow's default agent.model (same as proposers). Set to e.g.
     # "deepseek-v4" to upgrade just the judging step.
-    debate_judge_model: str | None = None
     # Judge behavior:
     #   "pick"       — pick 1 winning proposer verbatim (default; legacy)
     #   "synthesize" — combine best ideas from ALL proposers into a
@@ -489,7 +494,6 @@ class ModesConfig:
     # Per-proposer model overrides — only honored in sequential mode.
     # In parallel mode (see debate_parallel) all proposers share the
     # workflow default model to avoid concurrent env mutations.
-    debate_proposer_models: dict[str, str] = field(default_factory=dict)
     # Workspace isolation strategy between proposers (and before judge):
     #   "reset"    — git reset --hard + git clean (default; cheap, single dir)
     #   "worktree" — git worktree add per proposer (real physical isolation)
@@ -504,6 +508,22 @@ class ModesConfig:
     swarm_max_subtasks: int = 8
     swarm_max_parallel: int = 3
     swarm_max_waves: int = 6
+
+    @property
+    def router_model(self) -> str:
+        return self.provider_routing.router_model
+
+    @property
+    def pipeline_stage_models(self) -> dict[str, str]:
+        return self.provider_routing.pipeline_stage_models
+
+    @property
+    def debate_judge_model(self) -> str | None:
+        return self.provider_routing.debate_judge_model
+
+    @property
+    def debate_proposer_models(self) -> dict[str, str]:
+        return self.provider_routing.debate_proposer_models
 
 
 # ---------------------------------------------------------------------------

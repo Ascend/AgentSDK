@@ -24,6 +24,8 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
+from extensions.orchestrator.provider_routing.config import ProviderRoutingConfig
+
 from ..tracker import (
     default_active_states_for_kind,
     default_terminal_states_for_kind,
@@ -163,7 +165,10 @@ def _parse_repro_first_config(raw: Any) -> "ReproFirstConfig":
     )
 
 
-def _parse_modes_config(raw: dict[str, Any]) -> "ModesConfig":
+def _parse_modes_config(
+    raw: dict[str, Any],
+    provider_routing: ProviderRoutingConfig | None = None,
+) -> "ModesConfig":
     """Build a ``ModesConfig`` from the parsed ``modes`` YAML section.
 
     Tolerant of:
@@ -205,10 +210,10 @@ def _parse_modes_config(raw: dict[str, Any]) -> "ModesConfig":
         pipeline_handoff = "prompt"
 
     return ModesConfig(
+        provider_routing=provider_routing or ProviderRoutingConfig(),
         enabled=_normalize_string_list(raw.get("enabled"), default=["single"]),
         default=str(raw.get("default", "single")).strip().lower() or "single",
         router_kind=router_kind,
-        router_model=(str(router_raw.get("model", "deepseek-v4-flash")).strip() or "deepseek-v4-flash"),
         router_endpoint=(
             str(router_raw.get("endpoint", "https://api.deepseek.com/chat/completions")).strip()
             or "https://api.deepseek.com/chat/completions"
@@ -221,7 +226,6 @@ def _parse_modes_config(raw: dict[str, Any]) -> "ModesConfig":
             default=["analyzer", "implementer", "tester"],
         ),
         pipeline_max_retries_per_stage=max(0, int(pipeline_raw.get("max_retries_per_stage", 1) or 0)),
-        pipeline_stage_models=_normalize_model_map(pipeline_raw.get("stage_models")),
         pipeline_stage_max_turns=_normalize_int_map(pipeline_raw.get("stage_max_turns"), min_value=1),
         pipeline_stage_specs=_normalize_stage_specs(pipeline_raw.get("stage_specs")),
         pipeline_handoff=pipeline_handoff,
@@ -229,8 +233,6 @@ def _parse_modes_config(raw: dict[str, Any]) -> "ModesConfig":
             debate_raw.get("proposers"),
             default=["proposer_a", "proposer_b"],
         ),
-        debate_judge_model=(str(debate_raw["judge_model"]).strip() if debate_raw.get("judge_model") else None),
-        debate_proposer_models=_normalize_model_map(debate_raw.get("proposer_models")),
         debate_isolation=_normalize_debate_isolation(debate_raw.get("isolation", "reset")),
         debate_parallel=bool(debate_raw.get("parallel", False)),
         debate_judge_mode=_normalize_debate_judge_mode(debate_raw.get("judge_mode", "pick")),
@@ -475,6 +477,11 @@ class WorkflowConfig:
         review_feedback_raw = raw.get("review_feedback", {})
         rules_raw = raw.get("rules", {})
         modes_raw = raw.get("modes", {}) or {}
+        provider_routing = ProviderRoutingConfig.from_raw(
+            agent_raw,
+            modes_raw,
+            value_resolver=_resolve_env_value,
+        )
         observability_raw = raw.get("observability", {})
         server_raw = raw.get("server", {})
         pr_conflict_scan_raw = raw.get("pr_conflict_scan", {})
@@ -571,22 +578,8 @@ class WorkflowConfig:
         )
 
         verification_raw = agent_raw.get("verification", {})
-        # Multi-model stage overrides: parse agent.stages YAML dict.
-        stages_raw = agent_raw.get("stages", {}) or {}
-        stage_overrides: dict[str, dict[str, Any]] = {}
-        for stage_name, stage_cfg in stages_raw.items():
-            if not isinstance(stage_cfg, dict):
-                continue
-            override: dict[str, Any] = {}
-            provider = _resolve_env_value(stage_cfg.get("provider"))
-            model = _resolve_env_value(stage_cfg.get("model"))
-            if provider:
-                override["provider"] = provider
-            if model:
-                override["model"] = model
-            if override:
-                stage_overrides[stage_name] = override
         agent = AgentConfig(
+            provider_routing=provider_routing,
             max_concurrent_agents=agent_raw.get("max_concurrent_agents", 10),
             max_turns=agent_raw.get("max_turns", 600),
             max_retry_backoff_ms=agent_raw.get("max_retry_backoff_ms", 300_000),
@@ -652,8 +645,6 @@ class WorkflowConfig:
             max_tools_per_turn=int(agent_raw.get("max_tools_per_turn", 50)),
             # Root-cause fix: model name override.
             model=_resolve_env_value(agent_raw.get("model")) or None,
-            # Multi-model stage overrides (parsed above).
-            stage_overrides=stage_overrides,
             # Per-run env vars merged into Bash/hook subprocess env.
             env={str(k): str(v) for k, v in (agent_raw.get("env") or {}).items() if v is not None},
             # Three-channel clarification flow tuning. Keys mirror the
@@ -743,7 +734,7 @@ class WorkflowConfig:
                 port=server_raw.get("port"),
                 host=server_raw.get("host", "127.0.0.1"),
             ),
-            modes=_parse_modes_config(modes_raw),
+            modes=_parse_modes_config(modes_raw, provider_routing),
             pr_template=PrTemplateConfig(
                 title=str(pr_template_raw.get("title", "") or "").strip(),
                 body=str(pr_template_raw.get("body", "") or ""),
