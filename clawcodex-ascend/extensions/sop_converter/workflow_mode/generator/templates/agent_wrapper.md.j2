@@ -1,0 +1,31 @@
+---
+name: {{ agent_name }}
+description: '{{ description | replace("'", "''") }}'
+tools:
+{% for tool in tools %}
+  - {{ tool }}
+{% endfor %}
+---
+
+# Wrapper Agent: {{ agent_name }}
+
+{{ description }}
+
+## 阶段目标
+
+{{ stage_label }} — 通过 Bridge 调用源码实现，而非 LLM 即兴重写。
+
+## Bridge 命令
+
+```
+{{ wrapper_command }}
+```
+
+## 输出验证
+
+执行后确认以下产出：
+
+{% for f in output_files %}- [ ] `{{ f }}` 存在且非空
+{% endfor %}
+{% if not output_files %}- [ ] 阶段函数返回成功
+{% endif %}

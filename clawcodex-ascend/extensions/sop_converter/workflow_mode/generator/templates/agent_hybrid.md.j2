@@ -1,0 +1,53 @@
+---
+name: {{ agent_name }}
+description: '{{ description | replace("'", "''") }}'
+tools:
+{% for tool in tools %}
+  - {{ tool }}
+{% endfor %}
+{% if skills %}skills:
+{% for skill in skills %}
+  - {{ skill }}
+{% endfor %}{% endif %}
+---
+
+# Hybrid Agent: {{ agent_name }}
+
+{{ description }}
+
+## 阶段目标
+
+{{ stage_label }} — 结合 LLM 推理与 Bridge 调用。
+
+## 执行指导
+
+**阻塞**：必须先 `Skill(skill="{{ stage_skill_name }}")`，再 `ToolSearch`，最后调用主工具。
+
+**用户最短指令**：`@agent-{{ agent_name }} 在 run_dir=<绝对路径> 执行本阶段` — 无需用户写出工具名或 fallback 规则（见运行时 SOP 前缀）。
+
+{% for step in steps %}
+{{ loop.index }}. {{ step }}
+{% endfor %}
+
+{% if input_files %}
+## 输入契约
+
+{% for f in input_files %}- `{{ f }}`
+{% endfor %}{% endif %}
+{% if output_files %}
+## 输出契约
+
+{% if contract_dod %}**DoD:** {{ contract_dod }}
+
+{% endif %}{% for f in output_files %}- `{{ f }}`{% if output_descriptions.get(f) %} — {{ output_descriptions[f] }}{% endif %}
+{% endfor %}{% endif %}
+
+{% if bridge_tool %}
+## 何时调用 Bridge
+
+当需要执行确定性源码逻辑（文件 I/O、外部 API、复杂计算）时，调用 `{{ bridge_tool }}` 而非自行实现。
+
+```
+{{ wrapper_command }}
+```
+{% endif %}

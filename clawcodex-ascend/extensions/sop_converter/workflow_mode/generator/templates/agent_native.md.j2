@@ -1,0 +1,48 @@
+---
+name: {{ agent_name }}
+description: '{{ description | replace("'", "''") }}'
+tools:
+{% for tool in tools %}
+  - {{ tool }}
+{% endfor %}
+{% if skills %}skills:
+{% for skill in skills %}
+  - {{ skill }}
+{% endfor %}{% endif %}
+---
+
+# Stage Agent: {{ agent_name }}
+
+{{ description }}
+
+## 阶段目标
+
+{{ stage_label }} — {{ stage_description }}
+
+## 执行步骤
+
+**阻塞**：必须先 `Skill(skill="{{ stage_skill_name }}")`，再 `ToolSearch`，最后调用主工具。
+
+**用户最短指令**：`@agent-{{ agent_name }} 在 run_dir=<绝对路径> 执行本阶段` — 无需用户写出工具名或 fallback 规则（见运行时 SOP 前缀）。
+
+{% for step in steps %}
+{{ loop.index }}. {{ step }}
+{% endfor %}
+
+## 质量要求
+
+- 遵守阶段输入/输出契约
+- 完成后验证约定产出文件是否存在
+
+{% if input_files %}
+## 输入契约
+
+{% for f in input_files %}- `{{ f }}`
+{% endfor %}{% endif %}
+{% if output_files %}
+## 输出契约
+
+{% if contract_dod %}**DoD:** {{ contract_dod }}
+
+{% endif %}{% for f in output_files %}- `{{ f }}`{% if output_descriptions.get(f) %} — {{ output_descriptions[f] }}{% endif %}
+{% endfor %}{% endif %}
