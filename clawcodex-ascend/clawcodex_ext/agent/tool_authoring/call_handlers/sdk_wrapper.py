@@ -26,7 +26,7 @@ from clawcodex_ext.agent.sdk_instance_registry import (
 from clawcodex_ext.agent.tool_authoring.persistence import (
     TOOL_DIR,
 )
-from extensions.sop_converter.sdk_serialization import to_jsonable
+from extensions.sop_converter.core.sdk_serialization import to_jsonable
 
 _WRAPPER_CALL_RE = re.compile(r'(?:python3?|[^\s]*python[^\s]*)\s+"([^"]+)"\s+(\w+)\s+\'\{json_args\}\'')
 
