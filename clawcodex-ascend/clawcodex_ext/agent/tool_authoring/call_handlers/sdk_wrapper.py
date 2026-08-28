@@ -240,7 +240,7 @@ def _ensure_bundle_imports_for_in_process(script_path: Path) -> None:
         activate_bundle_venv_imports,
         ensure_bundle_venv,
     )
-    from extensions.sop_converter.sdk_dependency_resolver import SdkDependencySpec
+    from extensions.sop_converter.core.sdk_dependency_resolver import SdkDependencySpec
 
     deps = SdkDependencySpec(
         requirements=requirements,

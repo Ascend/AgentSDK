@@ -347,7 +347,7 @@ def _collect_macro_manifests(opts: ConvertOptions) -> list[Path]:
 def _handle_convert_from_source(opts: ConvertOptions) -> int:
     """Convert a source code directory into Agents via SourceCodeParser + grouping strategy."""
     sdk_path = Path(opts.sdk_spec)
-    from extensions.sop_converter.type_schema import reset_schema_probe_runtime_state
+    from extensions.sop_converter.core.type_schema import reset_schema_probe_runtime_state
     from extensions.sop_converter.workflow_mode.pipeline import discriminate_and_extract
     from extensions.sop_converter.workflow_mode.extractors.preview import (
         format_discrimination_summary,
@@ -356,7 +356,7 @@ def _handle_convert_from_source(opts: ConvertOptions) -> int:
     from extensions.sop_converter.workflow_mode.mapping import (
         build_workflow_stages,
     )
-    from extensions.sop_converter.source_parser import SourceCodeParser
+    from extensions.sop_converter.core.source_parser import SourceCodeParser
     from extensions.sop_converter.skill_grouper import (
         GroupStrategy,
         group_source_components,
@@ -419,7 +419,7 @@ def _handle_convert_from_source(opts: ConvertOptions) -> int:
         bundle_venv_dir,
         bundle_venv_python,
     )
-    from extensions.sop_converter.sdk_dependency_resolver import resolve_sdk_dependencies
+    from extensions.sop_converter.core.sdk_dependency_resolver import resolve_sdk_dependencies
 
     sdk_deps = resolve_sdk_dependencies(sdk_path)
     bundle_dir_for_tools = Path(opts.output_dir).resolve() if opts.output_dir else None
@@ -505,7 +505,7 @@ def _handle_convert_from_source(opts: ConvertOptions) -> int:
 
     tool_deps_index = None
     try:
-        from extensions.sop_converter.tool_dependencies import build_tool_dependency_index
+        from extensions.sop_converter.core.tool_dependencies import build_tool_dependency_index
 
         tool_deps_index = build_tool_dependency_index(components, source_dir=str(sdk_path))
     except Exception:
@@ -910,7 +910,7 @@ def _handle_convert_from_source(opts: ConvertOptions) -> int:
         from extensions.sop_converter.cross_domain_orchestration import (
             write_orchestration_routes,
         )
-        from extensions.sop_converter.sdk_overview import write_sdk_overview
+        from extensions.sop_converter.core.sdk_overview import write_sdk_overview
 
         overview_md_path = write_sdk_overview(
             out_path,
