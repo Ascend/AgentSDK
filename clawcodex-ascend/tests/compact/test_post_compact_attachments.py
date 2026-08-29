@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
-#  This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
 # Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSE.clawcodex.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
-#           http://license.coscl.org.cn/MulanPSL2
+#          http://license.coscl.org.cn/MulanPSL2
 #
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
@@ -114,7 +117,7 @@ class TestCreatePostCompactFileAttachments(unittest.TestCase):
         self.assertEqual(result, [])
 
     def test_creates_attachments_for_existing_files(self):
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:  # noqa: SIM115
+        with tempfile.NamedTemporaryFile(encoding="utf-8", mode="w", suffix=".py", delete=False) as f:  # noqa: SIM115
             f.write("print('hello')")
             f.flush()
             name = f.name
@@ -136,7 +139,7 @@ class TestCreatePostCompactFileAttachments(unittest.TestCase):
         files = []
         try:
             for i in range(10):
-                f = tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False)  # noqa: SIM115
+                f = tempfile.NamedTemporaryFile(encoding="utf-8", mode="w", suffix=".py", delete=False)  # noqa: SIM115
                 f.write(f"file {i}")
                 f.close()
                 files.append(f.name)
@@ -149,7 +152,7 @@ class TestCreatePostCompactFileAttachments(unittest.TestCase):
                 os.unlink(name)
 
     def test_skips_preserved_read_paths(self):
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:  # noqa: SIM115
+        with tempfile.NamedTemporaryFile(encoding="utf-8", mode="w", suffix=".py", delete=False) as f:  # noqa: SIM115
             f.write("content")
             f.flush()
             name = f.name
@@ -177,7 +180,7 @@ class TestCreatePostCompactFileAttachments(unittest.TestCase):
         files = []
         try:
             for i in range(3):
-                f = tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False)  # noqa: SIM115
+                f = tempfile.NamedTemporaryFile(encoding="utf-8", mode="w", suffix=".py", delete=False)  # noqa: SIM115
                 f.write(f"file_{i}_content")
                 f.close()
                 files.append(f.name)
@@ -204,7 +207,7 @@ class TestCreatePlanAttachmentIfNeeded(unittest.TestCase):
         self.assertIsNone(create_plan_attachment_if_needed("/nonexistent/plan.md"))
 
     def test_creates_attachment_for_existing_plan(self):
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
+        with tempfile.NamedTemporaryFile(encoding="utf-8", mode="w", suffix=".md", delete=False) as f:
             f.write("# My Plan\n\n1. Step one\n2. Step two")
             f.flush()
             name = f.name
@@ -217,7 +220,7 @@ class TestCreatePlanAttachmentIfNeeded(unittest.TestCase):
             os.unlink(name)
 
     def test_empty_plan_returns_none(self):
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
+        with tempfile.NamedTemporaryFile(encoding="utf-8", mode="w", suffix=".md", delete=False) as f:
             f.write("   ")
             f.flush()
             name = f.name

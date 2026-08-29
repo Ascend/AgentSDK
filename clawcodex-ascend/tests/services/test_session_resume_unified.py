@@ -3,12 +3,14 @@
 
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
-# Copyright (c) 2026 Clawd Codex Team
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSE.clawcodex.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -18,7 +20,7 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""F-49 Phase 0.4.6: Recursive resume consistency verification.
+"""Phase 0.4.6: Recursive resume consistency verification.
 
 Verifies that ``Session.resume()`` (with the Phase 0.4.1 JSONL back-fill)
 behaves correctly for orchestrator/cron sessions that only write JSONL
@@ -166,7 +168,7 @@ def _messages_equal(
 
 
 class TestResumeUnified:
-    """F-49 Phase 0.4.6: Recursive resume consistency."""
+    """Phase 0.4.6: Recursive resume consistency."""
 
     def test_orchestrator_resume_loads_messages(
         self,
@@ -274,7 +276,7 @@ class TestResumeUnified:
         """After resume→save, the transcript carries a trailing
         ``session_snapshot`` line (P5-A unified format).
 
-        F-49 P5-A: ``session.json`` is no longer written. The cost
+        P5-A: ``session.json`` is no longer written. The cost
         snapshot lives in the **last line** of ``transcript.jsonl`` as
         a ``{"type": "session_snapshot", "cost": ...}`` entry, so
         ``cost_restore`` can pick it up via ``tail -1``.

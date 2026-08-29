@@ -3,12 +3,14 @@
 
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
-# Copyright (c) 2026 Clawd Codex Team
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSE.clawcodex.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -26,12 +28,12 @@ discovery paths (user / project / managed) plus the P85-E built-in
 catalogue. Uses ``tmp_path`` and ``monkeypatch`` to isolate the
 filesystem from the host environment and from other tests.
 
-P85-E/F-95: ``bootstrap_default_templates`` now registers the 5 built-in
+P85-E/``bootstrap_default_templates`` now registers the 5 built-in
 canonical agent templates plus 4 built-in orchestrator templates BEFORE
 walking the user / project / managed dirs. The constant
 :data:`_BOOTSTRAP_BASE_COUNT` captures that baseline so the count assertions
 below can be expressed as ``_BOOTSTRAP_BASE_COUNT + N`` instead of bare
-``N`` - keeping the tests honest about the post-P85-E/F-95 contract
+``N`` - keeping the tests honest about the post-P85-E/contract
 without sprinkling magic numbers through the file.
 """
 # pylint: disable=redefined-outer-name

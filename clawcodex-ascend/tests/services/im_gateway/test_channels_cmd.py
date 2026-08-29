@@ -3,12 +3,14 @@
 
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
-# Copyright (c) 2026 Clawd Codex Team
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSE.clawcodex.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -508,7 +510,7 @@ def test_wizard_add_then_edit_then_remove(tmp_path, monkeypatch) -> None:
     p = tmp_path / "channels.yaml"
     monkeypatch.setattr(ch, "wechat_login", lambda name, state_dir=None: 0)
     monkeypatch.setattr(ch, "wechat_login_status", lambda name, state_dir=None: "logged_in")
-    # 新流程：wechat 是第 2 项；未登录 → _wizard_add_wechat（扫码 + 编辑菜单）
+    # WeChat is the second option; unauthenticated users enter the scan-and-edit flow.
     inputs = iter(
         [
             "2",  # select wechat (not logged in → add flow: scan + edit menu)
@@ -521,7 +523,7 @@ def test_wizard_add_then_edit_then_remove(tmp_path, monkeypatch) -> None:
     listed = ch.list_channels(str(p))
     assert listed == [{"name": "wechat", "type": "wechat", "enabled": True}]
 
-    # edit: disable then remove（wechat 已登录 → 编辑菜单；选项 4=启停，5=移除）
+    # Edit the logged-in channel: option 4 toggles it and option 5 removes it.
     inputs2 = iter(
         [
             "2",  # select wechat (logged in → edit menu)
@@ -1037,7 +1039,7 @@ def test_wizard_edit_feishu_login_manual_masks_secret_and_keeps_values(tmp_path,
     p = tmp_path / "channels.yaml"
     ch.add_channel(str(p), _feishu_ws_channel())
     monkeypatch.setattr(ch, "_feishu_dependencies_available", lambda: True)
-    # 新流程：ui.prompt 在 input_fn 路径下空行=ESC=中断；为"保留"字段需显式重输原值。
+    # In the input_fn path, an empty prompt response means ESC; re-enter values to keep them.
     inputs = iter(
         [
             "1",  # select feishu (logged in → edit menu)
@@ -1124,14 +1126,14 @@ def test_wizard_edit_feishu_scan_login_updates_allowed_user(tmp_path, monkeypatc
 
 
 def test_run_wizard_esc_at_channel_select_exits(tmp_path) -> None:
-    """频道选择层 ESC（空行）直接退出 setup。"""
+    """Verify that ESC at channel selection exits setup."""
     p = tmp_path / "channels.yaml"
     inputs = iter([""])  # ESC at channel select
     assert ch.run_wizard(str(p), input_fn=lambda _p: next(inputs)) == 0
 
 
 def test_run_wizard_feishu_not_logged_in_runs_add_flow(tmp_path, monkeypatch) -> None:
-    """无 feishu 渠道 → 选 feishu → 走新增流程（_wizard_add_feishu）。"""
+    """Verify that selecting an unconfigured Feishu channel starts the add flow."""
     p = tmp_path / "channels.yaml"
     monkeypatch.setattr(ch, "_feishu_dependencies_available", lambda: True)
     monkeypatch.setattr(
@@ -1160,7 +1162,7 @@ def test_run_wizard_feishu_not_logged_in_runs_add_flow(tmp_path, monkeypatch) ->
 
 
 def test_run_wizard_wechat_not_logged_in_runs_add_flow(tmp_path, monkeypatch) -> None:
-    """无 wechat 渠道 → 选 wechat → 走新增流程（扫码）。"""
+    """Verify that selecting an unconfigured WeChat channel starts the scan flow."""
     p = tmp_path / "channels.yaml"
     login_calls: list[str] = []
 
@@ -1185,9 +1187,9 @@ def test_run_wizard_wechat_not_logged_in_runs_add_flow(tmp_path, monkeypatch) ->
 
 
 def test_run_wizard_feishu_logged_in_goes_to_edit_menu(tmp_path, monkeypatch, capsys) -> None:
-    """feishu 已登录 → 选 feishu → 进入编辑菜单（含"重置"而非"登录"）。"""
+    """Verify that a logged-in Feishu channel opens its edit menu."""
     p = tmp_path / "channels.yaml"
-    ch.add_channel(str(p), _feishu_ws_channel())  # 已配置且 app_id/app_secret 齐全
+    ch.add_channel(str(p), _feishu_ws_channel())  # Configured with app_id and app_secret.
     monkeypatch.setattr(ch, "_feishu_dependencies_available", lambda: True)
     inputs = iter(
         [
@@ -1200,20 +1202,20 @@ def test_run_wizard_feishu_logged_in_goes_to_edit_menu(tmp_path, monkeypatch, ca
     assert ch.run_wizard(str(p), input_fn=lambda _p: next(inputs)) == 0
 
     text = capsys.readouterr().out
-    # 新菜单用"重置"而非"登录"
+    # The new menu uses reset instead of login.
     assert "重置" in text
-    # 负向断言只针对 feishu 编辑菜单片段（到下一次回频道选择标题之前），
-    # 避免被频道选择层的 wechat [未登录] 或 ESC 后再次渲染的菜单误伤
+    # Limit the negative assertion to the Feishu edit-menu section so the
+    # channel-selection menu and its rerender after ESC cannot affect it.
     feishu_edit_section = ""
     if "编辑 feishu [feishu]" in text:
         after = text.split("编辑 feishu [feishu]", 1)[-1]
-        # 截到回频道选择标题之前
+        # Stop before the channel-selection title is rendered again.
         feishu_edit_section = after.split("ClawCodex 消息渠道配置", 1)[0]
     assert "登录" not in feishu_edit_section
 
 
 def test_run_wizard_wechat_logged_in_goes_to_edit_menu(tmp_path, monkeypatch, capsys) -> None:
-    """wechat 已登录 → 选 wechat → 进入编辑菜单（含"重置"）。"""
+    """Verify that a logged-in WeChat channel opens its edit menu."""
     p = tmp_path / "channels.yaml"
     ch.add_channel(str(p), ch.build_default_channel("wechat"))
     monkeypatch.setattr(ch, "wechat_login_status", lambda name, state_dir=None: "logged_in")
@@ -1232,7 +1234,7 @@ def test_run_wizard_wechat_logged_in_goes_to_edit_menu(tmp_path, monkeypatch, ca
 
 
 def test_run_wizard_esc_at_feishu_edit_returns_to_channel_select(tmp_path, monkeypatch) -> None:
-    """feishu 编辑菜单 ESC → 回频道选择；再 ESC → 退出 setup。"""
+    """Verify that ESC returns from Feishu editing and a second ESC exits setup."""
     p = tmp_path / "channels.yaml"
     ch.add_channel(str(p), _feishu_ws_channel())
     monkeypatch.setattr(ch, "_feishu_dependencies_available", lambda: True)
@@ -1248,7 +1250,7 @@ def test_run_wizard_esc_at_feishu_edit_returns_to_channel_select(tmp_path, monke
 
 
 def test_feishu_edit_remove_then_reenter_runs_add_flow(tmp_path, monkeypatch) -> None:
-    """feishu 已登录 → 编辑菜单选"移除" → 回频道选择 → 再选 feishu → 走新增流程。"""
+    """Verify that removing Feishu and selecting it again starts the add flow."""
     p = tmp_path / "channels.yaml"
     ch.add_channel(str(p), _feishu_ws_channel())
     monkeypatch.setattr(ch, "_feishu_dependencies_available", lambda: True)
@@ -1284,18 +1286,18 @@ def test_feishu_edit_remove_then_reenter_runs_add_flow(tmp_path, monkeypatch) ->
 
     assert ch.run_wizard(str(p), input_fn=lambda _p: next(inputs)) == 0
 
-    assert add_calls == [1]  # 走了一次新增流程
+    assert add_calls == [1]  # The add flow ran once.
     listed = ch.list_channels(str(p))
     assert listed == [{"name": "feishu", "type": "feishu", "enabled": True}]
 
 
 def test_existing_slack_channel_remains_editable_but_not_addable(tmp_path, monkeypatch) -> None:
-    """预置 slack 渠道 → 菜单含 slack 存量项 → 可编辑/移除，无"新增 slack"选项。"""
+    """Verify that an existing Slack channel remains editable but cannot be added again."""
     p = tmp_path / "channels.yaml"
     ch.add_channel(str(p), _slack("slack-ops", enabled=True))
     inputs = iter(
         [
-            "3",  # select slack (存量项，第3项)
+            "3",  # Select the existing Slack item, which is third.
             "3",  # remove
             "y",  # confirm
             "",  # ESC exit setup
@@ -1310,13 +1312,13 @@ def test_existing_slack_channel_remains_editable_but_not_addable(tmp_path, monke
     assert ch.run_wizard(str(p), input_fn=_input) == 0
 
     assert ch.list_channels(str(p)) == []
-    # 菜单提示中不应出现"新增 slack"
+    # The menu must not offer to add Slack again.
     text = "\n".join(prompts)
     assert "新增" not in text or "slack" not in text.lower().rsplit("新增", maxsplit=1)[-1]
 
 
 def test_feishu_manual_login_esc_aborts_without_saving(tmp_path, monkeypatch) -> None:
-    """feishu 重置→手动填写中途 ESC → 返回主菜单，渠道未修改。"""
+    """Verify that ESC during manual Feishu login aborts without saving."""
     p = tmp_path / "channels.yaml"
     original = _feishu_ws_channel()
     ch.add_channel(str(p), original)
@@ -1337,13 +1339,13 @@ def test_feishu_manual_login_esc_aborts_without_saving(tmp_path, monkeypatch) ->
     from clawcodex_ext.services.im_gateway.config import load_config
 
     channel = load_config(str(p)).get_channel("feishu")
-    # 渠道未变
+    # The channel is unchanged.
     assert channel.extra["app_id"] == "cli_app"
     assert channel.extra["app_secret"] == "orig_plaintext_secret_xyz"
 
 
 def test_edit_fields_esc_aborts_without_saving(tmp_path, monkeypatch) -> None:
-    """slack 字段填写中途 ESC → 渠道未变。"""
+    """Verify that ESC while editing Slack fields leaves the channel unchanged."""
     p = tmp_path / "channels.yaml"
     ch.add_channel(str(p), _slack("slack-ops", enabled=True))
     inputs = iter(
@@ -1365,7 +1367,7 @@ def test_edit_fields_esc_aborts_without_saving(tmp_path, monkeypatch) -> None:
 
 
 def test_feishu_is_logged_in_detects_configured_credentials() -> None:
-    """_feishu_is_logged_in: app_id+app_secret 齐全 → True。"""
+    """Return True when Feishu app_id and app_secret are configured."""
     channel = _feishu_ws_channel()
     assert ch._feishu_is_logged_in(channel) is True
 
@@ -1374,7 +1376,7 @@ def test_feishu_is_logged_in_detects_configured_credentials() -> None:
 
 
 def test_wechat_is_logged_in_reflects_login_status(monkeypatch) -> None:
-    """_wechat_is_logged_in: 复用 wechat_login_status。"""
+    """Delegate WeChat login detection to wechat_login_status."""
     monkeypatch.setattr(ch, "wechat_login_status", lambda name, state_dir=None: "logged_in (x)")
     assert ch._wechat_is_logged_in("wechat") is True
 

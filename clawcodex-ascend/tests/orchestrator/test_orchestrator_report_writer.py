@@ -3,12 +3,14 @@
 
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Clawd Codex Team
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSE.clawcodex.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -26,7 +28,7 @@ Covers the structured per-run report writer:
 * :func:`write` dual-write (workspace ``.reports/`` + persistent
   ``~/.clawcodex/reports/{tracker}/{owner}/{repo}/{issue}/``) of both
   Markdown and JSON artefacts.
-* F-45 tool-event dual-write (per-tool ``events.ndjson`` mirrored into
+* tool-event dual-write (per-tool ``events.ndjson`` mirrored into
   the persistent layer).
 * :func:`_safe_segment` path-segment sanitisation.
 * :func:`_excerpt` truncation behaviour.
@@ -468,7 +470,7 @@ class TestWriteEdgeCases(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
-# write() — F-45 tool events dual-write
+# write() — tool events dual-write
 # ---------------------------------------------------------------------------
 
 
@@ -503,7 +505,7 @@ class TestWriteToolEvents(unittest.TestCase):
         self.assertTrue(persistent_events.exists())
         self.assertEqual(persistent_events.read_text(), '{"tool": "bash"}\n')
         # And the markdown report must mention the path.
-        md = Path(result.workspace_markdown_path).read_text()
+        md = Path(result.workspace_markdown_path).read_text(encoding="utf-8")
         self.assertIn("Tool events:", md)
 
     def test_missing_tool_events_file_is_silently_skipped(self) -> None:
@@ -526,7 +528,7 @@ class TestWriteToolEvents(unittest.TestCase):
         self.assertFalse(persistent_events.exists())
 
     def test_none_tool_events_path_skips_copy_and_markdown_line(self) -> None:
-        # F-46.0: when audit_log is "none" the runner never sets
+        # when audit_log is "none" the runner never sets
         # tool_events_path; report_writer must skip both copy and mention.
         result = write(
             run_id="r1",
@@ -540,7 +542,7 @@ class TestWriteToolEvents(unittest.TestCase):
         )
         persistent_events = self.home / ".clawcodex" / "reports" / "t" / "o" / "r" / "1" / "r1.events.ndjson"
         self.assertFalse(persistent_events.exists())
-        md = Path(result.workspace_markdown_path).read_text()
+        md = Path(result.workspace_markdown_path).read_text(encoding="utf-8")
         self.assertNotIn("Tool events:", md)
 
 
@@ -583,7 +585,7 @@ class TestWriteOverwrite(unittest.TestCase):
             issue=issue,
             status="completed",
         )
-        payload = json.loads(Path(result.workspace_json_path).read_text())
+        payload = json.loads(Path(result.workspace_json_path).read_text(encoding="utf-8"))
         self.assertEqual(payload["status"], "completed")
 
 

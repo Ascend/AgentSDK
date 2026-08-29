@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 #  This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
@@ -16,17 +17,13 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""Stage 1 — 核心模块导入验证（< 2 秒）。
-
-确保所有核心模块可导入且关键类/函数可调用。这是最基本的门禁，
-防止因 import 链断裂、AttributeError 或依赖缺失导致的启动崩溃。
-"""
+"""Tests for stage1 imports."""
 
 from __future__ import annotations
 
 
 class TestStage1CoreImports:
-    """验证 src/ 下所有核心模块的导入性。"""
+    """Tests for TestStage1CoreImports."""
 
     def test_src_cli_import(self):
         import src.cli
@@ -119,7 +116,7 @@ class TestStage1CoreImports:
         assert MessageStop is not None
 
     def test_api_query_events_import(self):
-        """Query loop 事件（TextDelta / ToolCallEvent / PhaseComplete）可导入。"""
+        """Verify api query events import."""
         from extensions.api.query import (
             PhaseComplete,
             SessionComplete,
@@ -168,7 +165,7 @@ class TestStage1CoreImports:
         assert callable(src.prefetch.get_or_start_keychain_prefetch)
 
     def test_telemetry_import(self):
-        """F-97: telemetry package importable; default-off path zero-cost."""
+        """telemetry package importable; default-off path zero-cost."""
         from telemetry import recorder
 
         assert callable(recorder.get_recorder)

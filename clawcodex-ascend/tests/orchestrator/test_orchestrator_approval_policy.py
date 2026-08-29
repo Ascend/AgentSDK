@@ -1,10 +1,16 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSE.clawcodex.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -13,12 +19,7 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
-#
-# Copyright (c) 2026 Clawd Codex Team
-# SPDX-License-Identifier: MIT
-# Source: https://github.com/agentforce314/clawcodex
-# ClawCodex-derived portions remain licensed under the MIT License.
-# See clawcodex-ascend/LICENSE.clawcodex.
+
 """Unit tests for the orchestrator tool-call approval policy system.
 
 Covers:
@@ -42,8 +43,10 @@ from extensions.orchestrator.approval_policy import (
     AskApprovalPolicy,
     NeverApprovalPolicy,
     ToolCallEvent,
+    apply_approval_decision,
     build_approval_policy_map,
     get_approval_policy,
+    read_approval_decision,
 )
 
 
@@ -59,33 +62,56 @@ class TestToolCallEvent(unittest.TestCase):
         self.assertEqual(event.params, {})
         self.assertIsNone(event.tool_use_id)
         self.assertIsNone(event.is_approved)
-        self.assertIsNone(event._approved)
-        self.assertIsNone(event._deny_reason)
+        self.assertIsNone(event.denial_reason)
 
     def test_allow_sets_approved_true(self) -> None:
         event = ToolCallEvent(tool_name="read")
         event.allow()
         self.assertTrue(event.is_approved)
-        self.assertIsNone(event._deny_reason)
+        self.assertIsNone(event.denial_reason)
 
     def test_allow_with_reason_keeps_deny_reason_empty(self) -> None:
         event = ToolCallEvent(tool_name="read")
         event.allow("policy=never")
         self.assertTrue(event.is_approved)
-        self.assertIsNone(event._deny_reason)
+        self.assertIsNone(event.denial_reason)
 
     def test_deny_sets_approved_false(self) -> None:
         event = ToolCallEvent(tool_name="bash")
         event.deny(reason="nope")
         self.assertFalse(event.is_approved)
-        self.assertEqual(event._deny_reason, "nope")
+        self.assertEqual(event.denial_reason, "nope")
 
     def test_overwrite_allow_then_deny(self) -> None:
         event = ToolCallEvent(tool_name="x")
         event.allow("first")
         event.deny("second")
         self.assertFalse(event.is_approved)
-        self.assertEqual(event._deny_reason, "second")
+        self.assertEqual(event.denial_reason, "second")
+
+    def test_decision_properties_are_read_only(self) -> None:
+        event = ToolCallEvent(tool_name="bash")
+        with self.assertRaises(AttributeError):
+            event.is_approved = True  # type: ignore[misc]
+        with self.assertRaises(AttributeError):
+            event.denial_reason = "override"  # type: ignore[misc]
+
+    def test_helpers_support_legacy_private_event_contract(self) -> None:
+        legacy_event = SimpleNamespace(_approved=None, _deny_reason=None)
+        denied = ToolCallEvent(tool_name="bash")
+        denied.deny("blocked")
+
+        apply_approval_decision(legacy_event, read_approval_decision(denied))
+
+        self.assertEqual(read_approval_decision(legacy_event), read_approval_decision(denied))
+
+    def test_helpers_preserve_legacy_unevaluated_state(self) -> None:
+        legacy_event = SimpleNamespace(_approved=True, _deny_reason="stale")
+        unevaluated = ToolCallEvent(tool_name="bash")
+
+        apply_approval_decision(legacy_event, read_approval_decision(unevaluated))
+
+        self.assertEqual(read_approval_decision(legacy_event), read_approval_decision(unevaluated))
 
 
 # ---------------------------------------------------------------------------
@@ -100,7 +126,7 @@ class TestNeverApprovalPolicy(unittest.TestCase):
         result = policy.evaluate(event, session_context={})
         self.assertTrue(result)
         self.assertTrue(event.is_approved)
-        self.assertIsNone(event._deny_reason)
+        self.assertIsNone(event.denial_reason)
 
 
 class TestAskApprovalPolicy(unittest.TestCase):
@@ -110,7 +136,7 @@ class TestAskApprovalPolicy(unittest.TestCase):
         result = policy.evaluate(event, session_context={})
         self.assertFalse(result)
         self.assertFalse(event.is_approved)
-        self.assertIn("policy=ask", event._deny_reason or "")
+        self.assertIn("policy=ask", event.denial_reason or "")
 
 
 class TestApproveSafeOnlyPolicy(unittest.TestCase):
@@ -140,7 +166,7 @@ class TestApproveSafeOnlyPolicy(unittest.TestCase):
         event = self._event("bash")
         self.assertFalse(self.policy.evaluate(event, {}))
         self.assertFalse(event.is_approved)
-        self.assertIn("bash", event._deny_reason or "")
+        self.assertIn("bash", event.denial_reason or "")
 
     def test_tool_name_is_case_insensitive(self) -> None:
         event = self._event("READ")

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 #  This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
@@ -16,7 +17,7 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""F-81.3: 图像差异对比与处理模块单元测试."""
+"""image comparison and processing unit tests."""
 
 from __future__ import annotations
 
@@ -39,7 +40,7 @@ def _pil_available() -> bool:
 
 @pytest.fixture
 def two_png_files(tmp_path: Path):
-    """生成两张纯色 PNG：红色 vs 红色（相同）+ 红色 vs 蓝色（不同）."""
+    """Create identical and different pairs of solid-color PNG files."""
     same1 = tmp_path / "a.png"
     same2 = tmp_path / "b.png"
     diff1 = tmp_path / "c.png"

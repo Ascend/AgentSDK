@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 #  This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
@@ -16,7 +17,7 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""F-81.5: 修饰键检测模块单元测试（不依赖真实键盘硬件）."""
+"""modifier-key detection tests without real keyboard hardware."""
 
 from __future__ import annotations
 
@@ -75,7 +76,7 @@ def test_modifiers_current_state_raises_when_unavailable():
 
 
 def test_modifiers_module_backend_detection():
-    """构造时根据环境检测后端，结果应为 None/'pynput'/'evdev'."""
+    """Construction selects no backend, pynput, or evdev for the environment."""
     mod = ModifiersModule()
     assert mod._backend in (None, "pynput", "evdev")
     assert mod.is_available() == (mod._backend is not None)

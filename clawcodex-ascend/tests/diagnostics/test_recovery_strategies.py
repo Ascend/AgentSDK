@@ -1,10 +1,16 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSE.clawcodex.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -13,14 +19,8 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
-#
-# Copyright (c) 2026 Clawd Codex Team
-# SPDX-License-Identifier: MIT
-# Source: https://github.com/agentforce314/clawcodex
-# ClawCodex-derived portions remain licensed under the MIT License.
-# See clawcodex-ascend/LICENSE.clawcodex.
 
-"""F-108 P108-G — auto-recovery strategy catalogue tests."""
+"""P108-G — auto-recovery strategy catalogue tests."""
 
 from __future__ import annotations
 
@@ -37,7 +37,6 @@ from clawcodex_ext.diagnostics import (
 class TestRecoveryTable(unittest.TestCase):
     def test_five_paths_match_plan(self):
         actions = {spec.action for spec in recovery_actions()}
-        # F-108 §十八 P108-G promises these five:
         self.assertIn(RecoveryAction.PERMISSION_AUTO_DENY, actions)
         self.assertIn(RecoveryAction.ASK_USER_EMPTY, actions)
         self.assertIn(RecoveryAction.LLM_TURN_TIMEOUT, actions)

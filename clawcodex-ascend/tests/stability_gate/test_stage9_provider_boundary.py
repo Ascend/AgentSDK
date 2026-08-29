@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 #  This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
@@ -16,17 +17,7 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""Stage 9 — Provider 边界测试（< 3 秒）。
-
-覆盖 P1#6（API 超时 / 429 / 500 / malformed / 空 response）、
-P1#7（Tool 异常隔离）、P0#4（无 API key 配置时的 fallback）。
-
-验证：
-- ChatResponse 空内容/缺失可选字段的构造
-- FakeProvider / WriteToolProvider 输出结构的正确性
-- BaseProvider._prepare_messages 对各种输入的处理
-- 工具调用的 error 标记传播
-"""
+"""P1 P0 Tests for stage9 provider boundary."""
 
 from __future__ import annotations
 
@@ -34,10 +25,10 @@ from clawcodex_ext.providers.base import BaseProvider, ChatMessage, ChatResponse
 
 
 class TestStage9ChatResponseBoundary:
-    """ChatResponse 边界值构造 — P1#6 空/残缺 response。"""
+    """P1 Tests for TestStage9ChatResponseBoundary."""
 
     def test_chat_response_empty_content(self):
-        """content 为空字符串的 ChatResponse 正常构造。"""
+        """Verify chat response empty content."""
         resp = ChatResponse(content="", model="test-model", usage={}, finish_reason="stop")
         assert resp.content == ""
         assert resp.model == "test-model"
@@ -45,14 +36,14 @@ class TestStage9ChatResponseBoundary:
         assert resp.tool_uses is None
 
     def test_chat_response_missing_optional_fields(self):
-        """ChatResponse 不传 optional 字段时默认为 None。"""
+        """Verify chat response missing optional fields."""
         resp = ChatResponse(content="hello", model="m", usage={}, finish_reason="stop")
         assert resp.reasoning_content is None
         assert resp.tool_uses is None
         assert resp.raw_content_blocks is None
 
     def test_chat_response_with_tool_uses(self):
-        """ChatResponse 含 tool_uses 时结构正确。"""
+        """Verify chat response with tool uses."""
         tool_uses = [
             {"id": "tu_001", "name": "Read", "input": {"file_path": "/tmp/x"}},
         ]
@@ -68,14 +59,13 @@ class TestStage9ChatResponseBoundary:
         assert resp.tool_uses[0]["name"] == "Read"
 
     def test_chat_response_empty_usage(self):
-        """usage 为空 dict 是合法的。"""
+        """Verify chat response empty usage."""
         resp = ChatResponse(content="x", model="m", usage={}, finish_reason="stop")
         assert resp.usage == {}
-        # 验证没有 KeyError 风险
         assert resp.usage.get("input_tokens", 0) == 0
 
     def test_chat_response_zero_tokens(self):
-        """usage 中 token 为零是合法的边界值。"""
+        """Verify chat response zero tokens."""
         resp = ChatResponse(
             content="",
             model="m",
@@ -87,10 +77,10 @@ class TestStage9ChatResponseBoundary:
 
 
 class TestStage9ChatMessageBoundary:
-    """ChatMessage 边界测试。"""
+    """Tests for TestStage9ChatMessageBoundary."""
 
     def test_chat_message_empty_content(self):
-        """ChatMessage content 为空字符串。"""
+        """Verify chat message empty content."""
         msg = ChatMessage(role="user", content="")
         assert msg.role == "user"
         assert msg.content == ""
@@ -98,17 +88,17 @@ class TestStage9ChatMessageBoundary:
         assert d == {"role": "user", "content": ""}
 
     def test_chat_message_long_content(self):
-        """ChatMessage 超长 content。"""
+        """Verify chat message long content."""
         long_text = "x" * 100_000
         msg = ChatMessage(role="user", content=long_text)
         assert len(msg.content) == 100_000
 
 
 class TestStage9FakeProviderBoundary:
-    """FakeProvider / WriteToolProvider 输出结构验证 — P1#7 工具异常隔离。"""
+    """P1 Tests for TestStage9FakeProviderBoundary."""
 
     def test_fake_provider_first_chat_structure(self):
-        """FakeProvider 第一次 chat 返回正常 text 响应。"""
+        """Verify fake provider first chat structure."""
         from tests.stability_gate._fake_provider import FakeProvider
 
         provider = FakeProvider(api_key="test-key")
@@ -120,20 +110,18 @@ class TestStage9FakeProviderBoundary:
         assert resp.usage["input_tokens"] == 5
 
     def test_fake_provider_second_chat_tool_use(self):
-        """FakeProvider 第二次 chat 返回 Write tool_use。"""
+        """Verify fake provider second chat tool use."""
         from tests.stability_gate._fake_provider import FakeProvider
 
         provider = FakeProvider(api_key="test-key")
-        # 第一次 chat
         provider.chat([{"role": "user", "content": "first"}])
-        # 第二次 chat — 返回 tool_use
         resp = provider.chat([{"role": "user", "content": "second"}])
         assert resp.finish_reason == "tool_use"
         assert resp.tool_uses is not None
         assert resp.tool_uses[0]["name"] == "Write"
 
     def test_write_tool_provider_first_chat(self):
-        """WriteToolProvider 首次 chat 返回 Write 工具调用。"""
+        """Verify write tool provider first chat."""
         from tests.stability_gate._fake_provider import WriteToolProvider
 
         provider = WriteToolProvider(api_key="test-key")
@@ -144,7 +132,7 @@ class TestStage9FakeProviderBoundary:
         assert "file_path" in resp.tool_uses[0]["input"]
 
     def test_write_tool_provider_second_chat_stop(self):
-        """WriteToolProvider 第二次 chat 返回 stop。"""
+        """Verify write tool provider second chat stop."""
         from tests.stability_gate._fake_provider import WriteToolProvider
 
         provider = WriteToolProvider(api_key="test-key")
@@ -155,10 +143,10 @@ class TestStage9FakeProviderBoundary:
 
 
 class TestStage9BaseProvider:
-    """BaseProvider 基础方法边界测试。"""
+    """Tests for TestStage9BaseProvider."""
 
     def test_prepare_messages_empty(self):
-        """_prepare_messages([]) 返回 []。"""
+        """Verify prepare messages empty."""
 
         class _MinimalProvider(BaseProvider):
             def chat(self, messages, tools=None, **kwargs):
@@ -175,7 +163,7 @@ class TestStage9BaseProvider:
         assert result == []
 
     def test_prepare_messages_basic(self):
-        """_prepare_messages 将 ChatMessage 转为 dict。"""
+        """Verify prepare messages basic."""
 
         class _MinimalProvider(BaseProvider):
             def chat(self, messages, tools=None, **kwargs):
@@ -193,7 +181,7 @@ class TestStage9BaseProvider:
         assert result[0] == {"role": "user", "content": "hello"}
 
     def test_provider_chat_stream_response_not_implemented(self):
-        """chat_stream_response 默认抛出 NotImplementedError。"""
+        """Verify provider chat stream response not implemented."""
 
         class _MinimalProvider(BaseProvider):
             def chat(self, messages, tools=None, **kwargs):

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 #  This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
@@ -16,20 +17,7 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""Stage 5 — 三方扩展组件测试（< 5 秒）。
-
-验证 clawcodex_ext/ 下扩展模块的可用性：
-- CLI dispatch 入口
-- Runtime context
-- Frontend 插件注册
-- TUI 应用层级
-- REPL 扩展
-- Provider / Auth 扩展
-- 命令系统 / 权限 / Cron 系统
-- Memory / Hooks / Settings / Skills
-- Bridge 服务
-- Tool system
-"""
+"""Tests for stage5 extensions."""
 
 from __future__ import annotations
 
@@ -38,7 +26,7 @@ import sys
 
 
 class TestStage5ExtCli:
-    """下游 CLI 派发和入口点测试。"""
+    """Tests for TestStage5ExtCli."""
 
     def test_downstream_cli_main_is_callable(self):
         import clawcodex_ext.cli.main as main_mod
@@ -59,7 +47,7 @@ class TestStage5ExtCli:
         assert args.permission_mode == "plan"
 
     def test_downstream_cli_import_is_lightweight(self):
-        """导入入口模块不应该拉入重型模块。"""
+        """Verify downstream cli import is lightweight."""
         for name in ("clawcodex_ext.cli.main", "src.tui.app", "src.repl.core"):
             sys.modules.pop(name, None)
 
@@ -68,7 +56,7 @@ class TestStage5ExtCli:
 
 
 class TestStage5ExtRuntime:
-    """Runtime 扩展测试。"""
+    """Tests for TestStage5ExtRuntime."""
 
     def test_runtime_context_imports(self):
         from clawcodex_ext.runtime.context import RuntimeContext, RuntimeOptions
@@ -93,7 +81,7 @@ class TestStage5ExtRuntime:
 
 
 class TestStage5ExtFrontend:
-    """Frontend 插件注册测试。"""
+    """Tests for TestStage5ExtFrontend."""
 
     def test_frontend_plugins_registered(self):
         from clawcodex_ext.frontend import get_frontend
@@ -118,7 +106,7 @@ class TestStage5ExtFrontend:
 
 
 class TestStage5ExtTui:
-    """TUI 扩展测试。"""
+    """Tests for TestStage5ExtTui."""
 
     def test_downstream_tui_app_subclasses_upstream(self):
         from clawcodex_ext.tui.app import ClawCodexTUI as ClawCodexExtTUI
@@ -145,7 +133,7 @@ class TestStage5ExtTui:
 
 
 class TestStage5ExtRepl:
-    """REPL 扩展测试。"""
+    """Tests for TestStage5ExtRepl."""
 
     def test_repl_app_import(self):
         from clawcodex_ext.repl.app import ClawCodexExtREPL
@@ -164,7 +152,7 @@ class TestStage5ExtRepl:
 
 
 class TestStage5ExtAgent:
-    """Agent 扩展测试。"""
+    """Tests for TestStage5ExtAgent."""
 
     def test_agent_session_ext_import(self):
         from clawcodex_ext.agent.session_ext import resume_session_with_tail
@@ -592,7 +580,7 @@ class TestStage5ExtAgent:
 
 
 class TestStage5ExtCommandSystem:
-    """命令系统扩展测试。"""
+    """Tests for TestStage5ExtCommandSystem."""
 
     def test_command_system_engine_import(self):
         from clawcodex_ext.command_system.engine import CommandEngine
@@ -616,7 +604,7 @@ class TestStage5ExtCommandSystem:
 
 
 class TestStage5ExtProviders:
-    """Provider 扩展测试。"""
+    """Tests for TestStage5ExtProviders."""
 
     def test_providers_runtime_import(self):
         from clawcodex_ext.providers.runtime import build_provider_from_config, create_provider
@@ -637,7 +625,7 @@ class TestStage5ExtProviders:
 
 
 class TestStage5ExtPermissions:
-    """权限扩展测试。"""
+    """Tests for TestStage5ExtPermissions."""
 
     def test_permissions_cycle_import(self):
         from clawcodex_ext.permissions.cycle import (
@@ -650,7 +638,7 @@ class TestStage5ExtPermissions:
 
 
 class TestStage5ExtCron:
-    """Cron 系统扩展测试。"""
+    """Tests for TestStage5ExtCron."""
 
     def test_cron_subsystem_imports(self):
         from clawcodex_ext.cron_system import (
@@ -672,7 +660,7 @@ class TestStage5ExtCron:
 
 
 class TestStage5ExtAuth:
-    """Auth 扩展测试。"""
+    """Tests for TestStage5ExtAuth."""
 
     def test_auth_codex_oauth_import(self):
         from clawcodex_ext.auth.codex_oauth import (
@@ -700,7 +688,7 @@ class TestStage5ExtAuth:
 
 
 class TestStage5ExtMemory:
-    """Memory 扩展测试。"""
+    """Tests for TestStage5ExtMemory."""
 
     def test_memory_scope_aware_prompt_import(self):
         from clawcodex_ext.memory.scope_aware_prompt import (
@@ -715,7 +703,7 @@ class TestStage5ExtMemory:
 
 
 class TestStage5ExtHooks:
-    """Hooks 扩展测试。"""
+    """Tests for TestStage5ExtHooks."""
 
     def test_hooks_pluggy_adapter_import(self):
         from clawcodex_ext.hooks._pluggy_adapter import (
@@ -732,7 +720,7 @@ class TestStage5ExtHooks:
 
 
 class TestStage5ExtSettings:
-    """Settings 扩展测试。"""
+    """Tests for TestStage5ExtSettings."""
 
     def test_settings_pydantic_adapter_import(self):
         from clawcodex_ext.settings.pydantic_adapter import (
@@ -747,7 +735,7 @@ class TestStage5ExtSettings:
 
 
 class TestStage5ExtSkills:
-    """Skills 扩展测试。"""
+    """Tests for TestStage5ExtSkills."""
 
     def test_skills_frontmatter_adapter_import(self):
         from clawcodex_ext.skills._frontmatter_adapter import (
@@ -762,10 +750,10 @@ class TestStage5ExtSkills:
 
 
 class TestStage5ExtToolSystem:
-    """Tool system 扩展测试。"""
+    """Tests for TestStage5ExtToolSystem."""
 
     def test_tool_system_tools_import(self):
-        """工具模块（ask_issue_author / create_agent_tool / progress_report）可导入。"""
+        """Verify tool system tools import."""
         from clawcodex_ext.tool_system.tools.ask_issue_author import _ask_issue_author_call
         from clawcodex_ext.tool_system.tools.create_agent_tool import make_create_agent_tool
         from clawcodex_ext.tool_system.tools.progress_report import ProgressReportTool
@@ -775,7 +763,7 @@ class TestStage5ExtToolSystem:
         assert ProgressReportTool is not None
 
     def test_monitor_tool_import(self):
-        """F-88 Monitor tool and controller import without side effects."""
+        """Monitor tool and controller import without side effects."""
         from clawcodex_ext.services.monitor import (
             MonitorController,
             StallWatchdogExemptor,
@@ -793,7 +781,7 @@ class TestStage5ExtToolSystem:
 
 
 class TestStage5ExtContextSystem:
-    """Context system 扩展测试。"""
+    """Tests for TestStage5ExtContextSystem."""
 
     def test_context_system_prompt_assembly_import(self):
         from clawcodex_ext.context_system.prompt_assembly import (
@@ -807,28 +795,20 @@ class TestStage5ExtContextSystem:
         assert SystemPromptSection is not None
 
     def test_context_system_gitpython_adapter_import(self):
-        """GitPython 适配器导入。
-
-        注意：由于 `tests/git_fixtures/` 不再遮蔽 `git` 包名（2026-06 重命名），
-        此导入可以正常进行。如未来 `tests/` 下出现 `git` 目录名，会再次
-        触发 PYTHONPATH 遮蔽。
-        """
+        """Verify context system gitpython adapter import."""
         import sys
 
         import pytest
 
-        # 安全地检查 git 是否已加载且来自 tests/ 目录
         if "git" in sys.modules:
             git_mod = sys.modules["git"]
             git_file = getattr(git_mod, "__file__", "") or ""
             if "tests" in git_file and "gitpython" not in git_file.lower():
-                pass  # 可能被遮蔽 — 继续下面的 try
+                pass
         try:
             import git  # noqa: F401
         except ImportError:
             pytest.skip("GitPython 未安装")
-        # 防御性检查：如果 git 加载后没有 Repo 属性，说明被非 GitPython 的
-        # 影子包覆盖了
         import git as _git_check
 
         if not hasattr(_git_check, "Repo"):
@@ -845,7 +825,7 @@ class TestStage5ExtContextSystem:
 
 
 class TestStage5ExtUtils:
-    """Utils 扩展测试。"""
+    """Tests for TestStage5ExtUtils."""
 
     def test_utils_session_watcher_import(self):
         from clawcodex_ext.utils.session_watcher import SessionWatcher
@@ -859,7 +839,7 @@ class TestStage5ExtUtils:
 
 
 class TestStage5ExtBridge:
-    """Bridge 服务扩展测试。"""
+    """Tests for TestStage5ExtBridge."""
 
     def test_bridge_session_import(self):
         from clawcodex_ext.services.bridge.session import BridgeSession
@@ -948,14 +928,10 @@ class TestStage5ExtBridge:
 
 
 class TestStage5Resilience:
-    """扩展加载健壮性 — P1#9 坏扩展不阻塞启动, P2#12 Hook 异常隔离。"""
+    """P1 P2 Tests for TestStage5Resilience."""
 
     def test_bad_extension_import_does_not_crash_interpreter(self):
-        """模拟 import 一个坏的 .py 模块不应造成进程级崩溃。
-
-        验证: 即使 import 一个语法错误的模块, Python 的 ImportError
-        可以被 caught, 不会级联到 SystemExit/SIGABRT.
-        """
+        """Verify bad extension import does not crash interpreter."""
         import sys
         import tempfile
         from pathlib import Path
@@ -966,23 +942,16 @@ class TestStage5Resilience:
             (bad_pkg / "__init__.py").write_text("this is not valid python =(", encoding="utf-8")
             sys.path.insert(0, tmpdir)
             try:
-                # 这应该抛 ImportError / SyntaxError 而不是 SystemExit
                 __import__("bad_ext")
                 assert False, "should have raised"
             except Exception:  # noqa: BLE001, S110
-                # 任何 Exception 都可以 —— 关键是不导致进程崩溃
-                pass
+                pass  # Import failure is the resilience behavior under test.
             finally:
                 if tmpdir in sys.path:
                     sys.path.remove(tmpdir)
 
     def test_root_level_py_import_error_caught(self):
-        """项目根目录的 *.py 如果 import 失败, 不应级联到其他模块。
-
-        注: 这是对 '坏扩展不阻塞主程序启动' 的简化模拟 ——
-        验证 import 异常的作用域被限制在 try/except 内。
-        """
-        # 核心模块的导入不应被前一个失败的 import 影响
+        """Verify root level py import error caught."""
         from src.agent.conversation import Conversation
 
         conv = Conversation()
@@ -991,14 +960,10 @@ class TestStage5Resilience:
 
 
 class TestStage5Telemetry:
-    """F-97: telemetry (clawcodex_ext/cli/dispatch 段并行的遥测段)。
-
-    验证 telemetry 子系统在不破坏现有扩展语义的前提下提供
-    privacy-first 的本地事件流 + crash 去重 fingerprint。
-    """
+    """Tests for TestStage5Telemetry."""
 
     def test_telemetry_subpackage_imports(self):
-        """All F-97 submodules importable."""
+        """All submodules importable."""
         from telemetry import (
             aggregator,
             config,
@@ -1141,7 +1106,8 @@ class TestStage5Telemetry:
         except ValueError as exc:
             a = compute_fingerprint(exc)
             b = compute_fingerprint(exc)
-        assert a == b
+        # The explicit ValueError above guarantees both assignments.
+        assert a == b  # pylint: disable=used-before-assignment
         assert len(a) == 16
 
     def test_telemetry_storage_creates_dirs_lazily(self):
@@ -1181,12 +1147,7 @@ class TestStage5Telemetry:
 
 
 class TestStage5ExtDreaming:
-    """F-100: 移植 Dreaming 后台记忆整合系统 — Phase A.
-
-    验证 ``clawcodex_ext/dreaming/`` 子系统的 public surface 可加载,
-    并锁定与上游 ``claude-code-best`` 对齐的常量/默认值. 子模块覆盖:
-    config / paths / lock / prompt / runner / service.
-    """
+    """Tests for TestStage5ExtDreaming."""
 
     def test_dreaming_package_imports(self):
         """Top-level package re-exports the consolidated public API."""
@@ -1321,12 +1282,12 @@ class TestStage5ExtDreaming:
 
 
 class TestStage5ExtF84Daemon:
-    """F-84 Daemon subsystem smoke tests.
+    """Daemon subsystem smoke tests.
 
     Validates that the ``extensions.daemon`` package, the
     ``extensions.capabilities.daemon_protocol`` module, and the
     downstream ``clawcodex_ext.daemon`` gate are all importable and
-    expose the contract documented in ``f-84-daemon.md``.
+    expose the daemon lifecycle contract.
     """
 
     def test_daemon_package_imports(self):
@@ -1381,12 +1342,12 @@ class TestStage5ExtF84Daemon:
 
         parser = build_parser()
         verbs = set(parser._subparsers._group_actions[0].choices.keys())  # type: ignore[attr-defined]
-        # The verb set should cover the F-84 P84-E/F surface.
+        # The verb set should cover the P84-E/F surface.
         for verb in ("start", "stop", "status", "ps", "bg", "attach", "logs", "kill"):
             assert verb in verbs, f"daemon CLI missing verb {verb!r}"
 
     def test_feature_flags_registered(self):
-        """F-84 P84-H — DAEMON + BRIDGE_MODE are registered with the
+        """P84-H — DAEMON + BRIDGE_MODE are registered with the
         feature registry and default to disabled.
         """
         from clawcodex_ext.feature_gate import get_registry

@@ -1,3 +1,25 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSE.clawcodex.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 """Tests for ch03 round-2 R2.1: Session.save persists a cost block
 matching the cost_restore reader schema, and Session.resume restores it.
 """
@@ -59,7 +81,7 @@ class SaveCostBlockTests(unittest.TestCase):
     def _read_saved(self, sid: str) -> dict:
         """Read the cost block written by ``Session.save``.
 
-        F-49 P5-A: ``session.json`` no longer exists. The cost block
+        P5-A: ``session.json`` no longer exists. The cost block
         lives in the trailing ``session_snapshot`` line of
         ``transcript.jsonl``. This helper returns a dict shaped like
         the legacy session.json (with a top-level ``cost`` key) so

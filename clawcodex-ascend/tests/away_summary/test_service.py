@@ -3,12 +3,14 @@
 
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
-# Copyright (c) 2026 Clawd Codex Team
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSE.clawcodex.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -19,6 +21,7 @@
 # -------------------------------------------------------------------------
 
 # pylint: disable=no-name-in-module,ungrouped-imports
+
 from __future__ import annotations
 
 from src.agent.conversation import Conversation
@@ -694,9 +697,7 @@ def test_service_falls_back_when_content_is_full_cot_transcript() -> None:
 
 
 def test_normalize_summary_output_strips_chinese_preamble() -> None:
-    """Models may emit a meta-intro such as '你刚回来，这是之前的会话摘要：'
-    despite the prompt forbidding it. The post-processor must strip it.
-    """
+    """Strip a Chinese recap meta-intro even when the model emits one."""
     raw = "你刚回来，这是之前的会话摘要：\n用户与助手进行了简单的问候。\n- 继续聊天"
     cleaned = _normalize_summary_output(raw)
     assert "你刚回来" not in cleaned
@@ -721,9 +722,7 @@ def test_normalize_summary_output_replaces_non_hyphen_bullets() -> None:
 
 
 def test_normalize_summary_output_drops_low_value_greeting_bullets() -> None:
-    """A bare greeting session should not produce a bullet that only says
-    '问候' / 'hello' — such bullets carry no useful context.
-    """
+    """Drop bullets that contain only a low-value greeting."""
     raw = "用户与助手打了个招呼。\n- 问候\n- 继续聊天"
     cleaned = _normalize_summary_output(raw)
     assert "- 问候" not in cleaned

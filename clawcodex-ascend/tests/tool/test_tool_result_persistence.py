@@ -1,3 +1,25 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSE.clawcodex.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 """Tests for src/services/tool_execution/tool_result_persistence.py.
 
 Mirrors behaviors from typescript/src/utils/toolResultStorage.ts.
@@ -138,7 +160,7 @@ class TestPersistToolResult(unittest.TestCase):
         self.assertIsInstance(result, PersistedToolResult)
         assert isinstance(result, PersistedToolResult)
         self.assertTrue(result.filepath.endswith("tool-use-1.txt"))
-        self.assertEqual(Path(result.filepath).read_text(), "hello world")
+        self.assertEqual(Path(result.filepath).read_text(encoding="utf-8"), "hello world")
         self.assertEqual(result.original_size, len("hello world"))
         self.assertFalse(result.is_json)
         self.assertFalse(result.has_more)
@@ -155,7 +177,7 @@ class TestPersistToolResult(unittest.TestCase):
         assert isinstance(result, PersistedToolResult)
         self.assertTrue(result.filepath.endswith("tool-use-2.json"))
         self.assertTrue(result.is_json)
-        loaded = json.loads(Path(result.filepath).read_text())
+        loaded = json.loads(Path(result.filepath).read_text(encoding="utf-8"))
         self.assertEqual(loaded[0]["text"], "block one")
 
     def test_rejects_non_text_blocks(self) -> None:
@@ -184,7 +206,7 @@ class TestPersistToolResult(unittest.TestCase):
         self.assertIsInstance(result, PersistedToolResult)
         # File still has the original content.
         assert isinstance(result, PersistedToolResult)
-        self.assertEqual(Path(result.filepath).read_text(), "first")
+        self.assertEqual(Path(result.filepath).read_text(encoding="utf-8"), "first")
 
 
 class TestBuildLargeToolResultMessage(unittest.TestCase):

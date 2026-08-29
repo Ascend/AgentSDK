@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 #  This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
@@ -16,31 +17,7 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""Stage 3g — REPL 底部状态条 (``_bottom_toolbar``) 测试（< 2 秒）。
-
-回归守卫
---------
-2026-07-04 commit ``0293f5e1`` 在重构 ``_bottom_toolbar`` 时:
-
-- 删除了 ``goal_part`` 的整个定义块(初始化 + try/except +
-  ``clawcodex_ext.goal.registry`` 引用),但 ``return`` 内的
-  ``f"{goal_part}"`` 引用忘了删 —— 每次 redraw 抛 ``NameError``,
-  被顶层 ``except Exception: return ''`` 兜底吞掉,状态条整个消失
-
-此门禁做两层防护:
-
-1. **静态源扫描**: 抓 ``_bottom_toolbar`` 函数体内出现的
-   ``f"{NAME}"`` 插值,要求每个 ``NAME`` 都在函数内被赋值。孤儿
-   引用一出现就 fail,根本不等到运行时。
-2. **运行时烟雾**: 用 stub ``self`` + ``_load_heavy_runtime()`` 跑
-   一次 ``_bottom_toolbar``,断言不抛 ``NameError`` 且返回非空。
-
-覆盖:
-
-- 静态源扫描: ``goal_part`` 引用检测、``f"{NAME}"`` 完整性扫描
-- 运行时: 正常渲染、零 advisor / cost 隐藏、非零 advisor 显示、
-  ``tool_context`` 缺失兜底、未知名模型降级
-"""
+"""Tests for stage3g bottom toolbar."""
 
 from __future__ import annotations
 
@@ -49,12 +26,7 @@ import pytest
 
 @pytest.fixture(scope="module")
 def _heavy_runtime():
-    """模块级 fixture — 一次性加载重型运行时。
-
-    ``_load_heavy_runtime()`` 触发 21+ 个 clawcodex_ext 扩展和上游
-    provider/tool/session 模块的延迟 import。多次调用收益为零,
-    所以挂在 module scope 上让 9 个测试只触发一次。
-    """
+    """Test helper for heavy runtime."""
     from src.repl.core import ClawcodexREPL, _load_heavy_runtime
 
     _load_heavy_runtime()
@@ -62,17 +34,10 @@ def _heavy_runtime():
 
 
 class TestStage3gBottomToolbarSource:
-    """源代码静态回归守卫。"""
+    """Tests for TestStage3gBottomToolbarSource."""
 
     def test_no_orphan_goal_part_reference(self):
-        """``_bottom_toolbar`` 不得保留孤儿 ``goal_part`` 引用。
-
-        2026-07-04 commit ``0293f5e1`` 删除了 ``goal_part`` 的整个
-        定义块但保留了 ``f"{goal_part}"`` 引用,触发 NameError 被
-        except 吞掉的状态条消失事故。守卫的语义是:若 ``goal_part``
-        在 f-string 中被引用,本地必须有对应的赋值。如果未来 commit
-        再次引入同样的孤儿引用,在此处直接 fail。
-        """
+        """Verify no orphan goal part reference."""
         import inspect
         import re
 
@@ -93,11 +58,7 @@ class TestStage3gBottomToolbarSource:
         )
 
     def test_all_interpolated_vars_are_assigned(self):
-        """所有 ``f"{NAME}"`` 插值变量都必须在函数体内被赋值。
-
-        这是 generic 版"孤儿引用"扫描,不只防 ``goal_part``,也防
-        未来任何重构时只删定义不删引用的回归。
-        """
+        """Verify all interpolated vars are assigned."""
         import inspect
         import re
 
@@ -118,7 +79,7 @@ class TestStage3gBottomToolbarSource:
 
 
 class TestStage3gBottomToolbarRuntime:
-    """运行时烟雾测试 — stub self 调用 ``_bottom_toolbar``。"""
+    """Tests for TestStage3gBottomToolbarRuntime."""
 
     @staticmethod
     def _make_stub(
@@ -168,7 +129,7 @@ class TestStage3gBottomToolbarRuntime:
         return stub
 
     def test_renders_non_empty_string(self, _heavy_runtime):
-        """正常渲染: 返回非空字符串,包含 provider / model / cwd。"""
+        """Verify renders non empty string."""
         ClawcodexREPL = _heavy_runtime
         stub = self._make_stub()
         result = ClawcodexREPL._bottom_toolbar(stub)
@@ -178,13 +139,7 @@ class TestStage3gBottomToolbarRuntime:
         assert "/tmp" in result
 
     def test_no_name_error_on_render(self, _heavy_runtime):
-        """各种权限模式下都不抛 NameError。
-
-        这是 ``goal_part`` 事故的核心症状:任何孤儿引用都会在
-        f-string 求值时抛 ``NameError``。把 ``except Exception``
-        当作 catch-all 兜底时,这种故障对用户完全不可见 —— 所以
-        我们在门禁里直接 assert 调用能正常返回非空字符串。
-        """
+        """Verify no name error on render."""
         ClawcodexREPL = _heavy_runtime
         for perm_mode in ("default", "plan", "acceptEdits", "bypassPermissions"):
             stub = self._make_stub()
@@ -203,32 +158,28 @@ class TestStage3gBottomToolbarRuntime:
             )
 
     def test_zero_advisor_hides_advisor_part(self, _heavy_runtime):
-        """零 advisor token 时不渲染 advisor part。"""
+        """Verify zero advisor hides advisor part."""
         ClawcodexREPL = _heavy_runtime
         stub = self._make_stub(advisor_in=0, advisor_out=0)
         result = ClawcodexREPL._bottom_toolbar(stub)
         assert "advisor" not in result, f"advisor tokens are 0 but result contains 'advisor': {result!r}"
 
     def test_nonzero_advisor_renders_advisor_part(self, _heavy_runtime):
-        """非零 advisor token 时渲染 advisor: X in / Y out。"""
+        """Verify nonzero advisor renders advisor part."""
         ClawcodexREPL = _heavy_runtime
         stub = self._make_stub(advisor_in=1234, advisor_out=567)
         result = ClawcodexREPL._bottom_toolbar(stub)
         assert "advisor" in result, f"advisor tokens are non-zero but result lacks 'advisor': {result!r}"
 
     def test_zero_cost_hides_cost_part(self, _heavy_runtime):
-        """零 token 时不渲染 cost part。"""
+        """Verify zero cost hides cost part."""
         ClawcodexREPL = _heavy_runtime
         stub = self._make_stub(in_tokens=0, out_tokens=0)
         result = ClawcodexREPL._bottom_toolbar(stub)
         assert "cost" not in result, f"tokens are 0 but result contains 'cost': {result!r}"
 
     def test_missing_tool_context_returns_empty(self, _heavy_runtime):
-        """异常韧性: ``tool_context`` 缺失时不崩溃,返回空字符串。
-
-        ``_bottom_toolbar`` 顶层 ``except Exception: return ''`` 保证
-        即使依赖异常,REPL 输入框也不会被打断。此测试固定这个语义。
-        """
+        """Verify missing tool context returns empty."""
         ClawcodexREPL = _heavy_runtime
 
         class _BareStub:
@@ -245,7 +196,7 @@ class TestStage3gBottomToolbarRuntime:
         assert result == "", f"expected empty string when tool_context is None, got {result!r}"
 
     def test_unknown_model_renders_without_crash(self, _heavy_runtime):
-        """未知名模型不崩,降级渲染(模型上下文窗口查询静默失败)。"""
+        """Verify unknown model renders without crash."""
         ClawcodexREPL = _heavy_runtime
         stub = self._make_stub(
             provider_name="anthropic",

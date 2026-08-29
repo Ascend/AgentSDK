@@ -1,14 +1,26 @@
-"""F-99 方案1 tests — ``AnthropicProvider._ensure_client`` read_timeout bound.
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
-The fix caps the blocking httpx socket read at 5s so a Ctrl+C on
-platforms where ``response.close()`` is advisory (LiteLLM proxy,
-some Win32 / Linux kernels) surfaces as ``httpx.ReadTimeout`` within
-~5s instead of the upstream default 60s.
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSE.clawcodex.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
 
-These tests pin the contract by patching ``anthropic`` on the
-provider module and asserting the ``timeout`` kwarg is forwarded.
-We don't exercise the real SDK — that would require a live API key.
-"""
+"""Tests for the Anthropic read timeout."""
 
 from __future__ import annotations
 
@@ -61,7 +73,7 @@ def patched_anthropic(fake_anthropic_module):
 
 
 def test_read_timeout_constant_is_five_seconds() -> None:
-    """F-99: the bound is 5s — short enough to feel instant, long enough to
+    """the bound is 5s — short enough to feel instant, long enough to
     tolerate real network jitter on slow chunks.
 
     Pinning the constant prevents accidental drift (e.g. someone
@@ -72,14 +84,7 @@ def test_read_timeout_constant_is_five_seconds() -> None:
 
 
 def test_ensure_client_passes_timeout_kwarg(fresh_provider, patched_anthropic) -> None:
-    """F-99 方案1: ``_ensure_client`` forwards a ``timeout=5.0`` kwarg.
-
-    The Anthropic SDK accepts ``timeout`` as either an ``httpx.Timeout``
-    or a float (defaults applied). Pinning the kwarg rather than the
-    concrete ``httpx.Timeout`` instance keeps the test stable across
-    SDK upgrades where the constructor signature might rewrap the
-    value.
-    """
+    """Verify ensure client passes timeout kwarg."""
     mod, fake_anthropic_module = patched_anthropic
     fresh_provider._ensure_client()
     fake_anthropic_module.Anthropic.assert_called_once()
@@ -90,10 +95,10 @@ def test_ensure_client_passes_timeout_kwarg(fresh_provider, patched_anthropic) -
 
 
 def test_ensure_client_preserves_explicit_timeout(fresh_provider, patched_anthropic) -> None:
-    """F-99: caller-supplied ``timeout`` overrides the F-99 default.
+    """caller-supplied ``timeout`` overrides the default.
 
     If a future caller threads an ``http_client`` or custom
-    ``timeout`` through ``_client_kwargs``, F-99 must not stomp on
+    ``timeout`` through ``_client_kwargs``, must not stomp on
     it. The ``if 'timeout' not in kwargs`` guard makes the
     override opt-in: callers that need the old behaviour can
     request it explicitly.
@@ -108,12 +113,12 @@ def test_ensure_client_preserves_explicit_timeout(fresh_provider, patched_anthro
 
 
 def test_ensure_client_preserves_explicit_http_client(fresh_provider, patched_anthropic) -> None:
-    """F-99: caller-supplied ``http_client`` wins over the F-99 timeout.
+    """caller-supplied ``http_client`` wins over the timeout.
 
     A caller that builds their own httpx client (e.g. with proxy,
-    SSL context, or telemetry hooks) wants F-99 to stay out of the
+    SSL context, or telemetry hooks) wants to stay out of the
     way. The ``if 'http_client' not in kwargs`` guard ensures the
-    F-99 timeout is only applied when the SDK is responsible for
+    timeout is only applied when the SDK is responsible for
     building its own httpx client.
     """
     mod, fake_anthropic_module = patched_anthropic
@@ -121,17 +126,17 @@ def test_ensure_client_preserves_explicit_http_client(fresh_provider, patched_an
     fresh_provider._client_kwargs["http_client"] = custom_http
     fresh_provider._ensure_client()
     call_kwargs = fake_anthropic_module.Anthropic.call_args.kwargs
-    # When http_client is supplied, F-99 must NOT also supply
+    # When http_client is supplied, must NOT also supply
     # timeout — the user's client owns its own timeout config.
     assert "timeout" not in call_kwargs
     assert call_kwargs.get("http_client") is custom_http
 
 
 def test_ensure_client_caches_client(fresh_provider, patched_anthropic) -> None:
-    """F-99: subsequent calls return the cached client.
+    """subsequent calls return the cached client.
 
     The existing cache contract (set ``self.client`` once, return
-    the same instance) must be preserved by the F-99 fix. This pins
+    the same instance) must be preserved by the fix. This pins
     that we don't accidentally rebuild the client per request.
     """
     mod, fake_anthropic_module = patched_anthropic
@@ -143,9 +148,9 @@ def test_ensure_client_caches_client(fresh_provider, patched_anthropic) -> None:
 
 
 def test_ensure_client_forwards_base_url(fresh_provider, patched_anthropic) -> None:
-    """F-99: ``base_url`` (and any other ``_client_kwargs`` keys) still forwarded.
+    """``base_url`` (and any other ``_client_kwargs`` keys) still forwarded.
 
-    Regression guard — the F-99 fix only adds a default ``timeout``
+    Regression guard — the fix only adds a default ``timeout``
     kwarg; existing keys must still reach the constructor so the
     proxy / custom-endpoint flow keeps working.
     """

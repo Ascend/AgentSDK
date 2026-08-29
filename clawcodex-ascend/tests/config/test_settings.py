@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
-#  This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
 # Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSE.clawcodex.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
-#           http://license.coscl.org.cn/MulanPSL2
+#          http://license.coscl.org.cn/MulanPSL2
 #
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
@@ -57,7 +60,7 @@ class TestSettingsSchema:
         assert s.extra.get("unknown_field") == 42
 
     def test_from_dict_nested_objects(self):
-        # F-47: ``permissions`` is now a structured dict, not a list.
+        # ``permissions`` is now a structured dict, not a list.
         data = {
             "output_style": {"style": "concise", "max_width": 80},
             "compact": {"auto_compact": False, "threshold_tokens": 50000},
@@ -77,7 +80,7 @@ class TestSettingsSchema:
         assert s.permissions.rules == {"allow": ["Bash"], "deny": [], "ask": []}
 
     def test_from_dict_permissions_none_safe(self):
-        # F-47: ``None``/``[]``/``{}`` should all degrade to an empty
+        # ``None``/``[]``/``{}`` should all degrade to an empty
         # PermissionsConfig without raising. ``rules`` is always
         # initialized to the 3-behavior skeleton so downstream code can
         # read ``rules["allow"]`` without a KeyError.
@@ -101,20 +104,20 @@ class TestValidation:
         assert any(e.field == "effort" for e in errors)
 
     def test_invalid_permission_mode_via_structured(self):
-        # F-47: bad default mode is reported against ``permissions.defaultMode``
+        # bad default mode is reported against ``permissions.defaultMode``
         # when written through the structured field.
         s = SettingsSchema(permissions=PermissionsConfig(default_mode="not-a-mode"))
         errors = validate_settings(s)
         assert any(e.field == "permissions.defaultMode" for e in errors)
 
     def test_invalid_permission_mode_via_legacy_top_level(self):
-        # F-47: top-level ``permission_mode`` still works as back-compat.
+        # top-level ``permission_mode`` still works as back-compat.
         s = SettingsSchema(permission_mode="bad")
         errors = validate_settings(s)
         assert any(e.field == "permissions.defaultMode" for e in errors)
 
     def test_empty_permission_mode_is_unset(self):
-        # F-47: the new default ``""`` is treated as "unset" and skips the
+        # the new default ``""`` is treated as "unset" and skips the
         # enum check (no false-positive ValidationError).
         s = SettingsSchema(permission_mode="")
         errors = validate_settings(s)
@@ -136,7 +139,7 @@ class TestValidation:
         assert any(e.field == "max_turns" for e in errors)
 
     def test_permission_rule_empty_string_in_allow(self):
-        # F-47: rules is a dict[str, list[str]]; empty strings are invalid.
+        # rules is a dict[str, list[str]]; empty strings are invalid.
         s = SettingsSchema(permissions=PermissionsConfig(rules={"allow": ["Bash", ""], "deny": [], "ask": []}))
         errors = validate_settings(s)
         assert any(e.field == "permissions.rules.allow[1]" for e in errors)
@@ -253,7 +256,7 @@ class TestPermissionsConfig:
         assert pc.additional == {}
 
     def test_from_dict_top_level_behavior_keys(self):
-        # F-47: top-level allow/deny/ask keys (alternative to ``rules``)
+        # top-level allow/deny/ask keys (alternative to ``rules``)
         # are also accepted, matching the on-disk format produced by
         # older binaries.
         data = {

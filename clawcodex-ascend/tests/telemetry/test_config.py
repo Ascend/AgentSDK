@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
-#  This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
 # Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSE.clawcodex.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
-#           http://license.coscl.org.cn/MulanPSL2
+#          http://license.coscl.org.cn/MulanPSL2
 #
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
@@ -203,7 +206,7 @@ def test_load_config_cwd_falls_back_for_legacy_loader(monkeypatch, tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# F-97-K: TOML config loader
+# K: TOML config loader
 # ---------------------------------------------------------------------------
 
 
@@ -232,7 +235,7 @@ def _write_telemetry_toml(cwd: Path) -> Path:
 
 
 def test_load_config_reads_pyproject_toml_section(monkeypatch, tmp_path):
-    """F-97-K: pyproject.toml [tool.clawcodex.telemetry] is discovered
+    """pyproject.toml [tool.clawcodex.telemetry] is discovered
     by walking upward from cwd.
     """
     monkeypatch.setenv("HOME", str(tmp_path))
@@ -247,7 +250,7 @@ def test_load_config_reads_pyproject_toml_section(monkeypatch, tmp_path):
 
 
 def test_load_config_reads_telemetry_toml(monkeypatch, tmp_path):
-    """F-97-K: standalone <cwd>/telemetry.toml is read directly."""
+    """standalone <cwd>/telemetry.toml is read directly."""
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.delenv("CLAW_TELEMETRY_ENABLED", raising=False)
     monkeypatch.setattr("src.config.load_config", lambda *a, **k: {})
@@ -260,7 +263,7 @@ def test_load_config_reads_telemetry_toml(monkeypatch, tmp_path):
 
 
 def test_load_config_json_overrides_toml(monkeypatch, tmp_path):
-    """F-97-K: when both TOML and JSON provide the same key, JSON wins."""
+    """when both TOML and JSON provide the same key, JSON wins."""
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.delenv("CLAW_TELEMETRY_ENABLED", raising=False)
     _write_telemetry_toml(tmp_path)  # TOML: enabled = true
@@ -275,7 +278,7 @@ def test_load_config_json_overrides_toml(monkeypatch, tmp_path):
 
 
 def test_load_config_toml_invalid_falls_back_to_defaults(monkeypatch, tmp_path):
-    """F-97-K: malformed TOML must not break load_config — silently
+    """malformed TOML must not break load_config — silently
     treat it as 'no TOML section' and use dataclass defaults.
     """
     monkeypatch.setenv("HOME", str(tmp_path))
@@ -293,7 +296,7 @@ def test_load_config_toml_invalid_falls_back_to_defaults(monkeypatch, tmp_path):
 
 
 def test_load_config_pyproject_walks_upward_from_cwd(monkeypatch, tmp_path):
-    """F-97-K: the TOML loader walks upward from cwd looking for
+    """the TOML loader walks upward from cwd looking for
     pyproject.toml, so a nested invocation still finds the table.
     """
     monkeypatch.setenv("HOME", str(tmp_path))
@@ -310,8 +313,8 @@ def test_load_config_pyproject_walks_upward_from_cwd(monkeypatch, tmp_path):
 
 
 def test_load_config_no_toml_files_unchanged_from_json_only(monkeypatch, tmp_path):
-    """F-97-K: when no TOML files are present, behavior is identical to
-    the pre-F-97-K JSON-only path.
+    """when no TOML files are present, behavior is identical to
+    the JSON-only path.
     """
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.delenv("CLAW_TELEMETRY_ENABLED", raising=False)

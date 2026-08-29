@@ -1,3 +1,25 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSE.clawcodex.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 import os
 import subprocess
 
@@ -31,7 +53,7 @@ def git_repo(tmp_path):
         ["git", "-C", repo_dir, "config", "user.name", "Test"],
         capture_output=True,
     )
-    with open(os.path.join(repo_dir, "README.md"), "w") as f:
+    with open(os.path.join(repo_dir, "README.md"), "w", encoding="utf-8") as f:
         f.write("# Test\n")
     subprocess.run(["git", "-C", repo_dir, "add", "."], capture_output=True)
     subprocess.run(
@@ -84,14 +106,14 @@ class TestGetFileStatus:
         assert status == []
 
     def test_modified_file(self, git_repo):
-        with open(os.path.join(git_repo, "README.md"), "a") as f:
+        with open(os.path.join(git_repo, "README.md"), "a", encoding="utf-8") as f:
             f.write("more content\n")
         status = get_file_status(git_repo)
         assert len(status) >= 1
         assert any(s.path == "README.md" for s in status)
 
     def test_new_file(self, git_repo):
-        with open(os.path.join(git_repo, "new.txt"), "w") as f:
+        with open(os.path.join(git_repo, "new.txt"), "w", encoding="utf-8") as f:
             f.write("new file\n")
         status = get_file_status(git_repo)
         assert len(status) >= 1
@@ -131,7 +153,7 @@ class TestGetSessionDiff:
         assert result.diff_text == ""
 
     def test_with_changes(self, git_repo):
-        with open(os.path.join(git_repo, "README.md"), "a") as f:
+        with open(os.path.join(git_repo, "README.md"), "a", encoding="utf-8") as f:
             f.write("added line\n")
         result = get_session_diff(git_repo)
         assert result.diff_text != ""

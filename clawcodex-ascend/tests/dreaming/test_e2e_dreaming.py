@@ -3,12 +3,14 @@
 
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Clawd Codex Team
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSE.clawcodex.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -18,7 +20,7 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""End-to-end tests for the dreaming subsystem — F-100 / 100.7.
+"""End-to-end tests for the dreaming subsystem.
 
 Covers the *full* integration paths that a real session would take:
 
@@ -26,11 +28,11 @@ Covers the *full* integration paths that a real session would take:
   ``execute_auto_dream`` → runner → task registry (manual trigger).
 * Permanent cron install + wire handler + manual fire → dream runs
   (scheduled trigger).
-* ``install_and_wire_dream`` is idempotent on startup — second call
-  is a no-op (验收 #4: 启动时若检测到 dream 周期任务未注册，自动注册为
-  permanent cron; 重复启动不会重复注册).
+* ``install_and_wire_dream`` is idempotent on startup: a missing recurring
+  dream task is registered as a permanent cron, and later starts do not
+  register duplicates.
 * Real :class:`CronScheduler` tick with a backdated ``next_fire_at``
-  fires the dream task via the wire handler (F-22 dual-durable pattern).
+  fires the dream task via the wire handler.
 * A custom runner factory records calls — proves the runner is
   reached end-to-end, not stubbed out by an early gate or exception.
 
@@ -239,14 +241,14 @@ def test_e2e_cron_fire_triggers_dream_via_wire_handler(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# E2E #4 — install_and_wire_dream is idempotent on startup (验收 #4)
+# E2E #4 — install_and_wire_dream is idempotent on startup
 # ---------------------------------------------------------------------------
 
 
 def test_e2e_install_is_idempotent_across_starts(tmp_path: Path) -> None:
     """Simulate two app starts. The first installs the dream
     permanent task; the second sees it and is a no-op. The task list
-    ends up with exactly one permanent dream task (验收 #4).
+    ends up with exactly one permanent dream task.
     """
     # Start 1 — install.
     s1 = CronScheduler(tmp_path, on_fire=lambda p: None)

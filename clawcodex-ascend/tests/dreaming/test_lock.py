@@ -3,12 +3,14 @@
 
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Clawd Codex Team
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSE.clawcodex.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -18,7 +20,7 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""Tests for ``clawcodex_ext.dreaming.lock`` — F-100.
+"""Tests for ``clawcodex_ext.dreaming.lock``.
 
 Covers the file-based consolidation lock: readLastConsolidatedAt,
 tryAcquireConsolidationLock, rollback, recordConsolidation, and the
@@ -95,7 +97,7 @@ def test_acquire_lock_self_pid_returns_prior_mtime(memory_dir: Path) -> None:
     """If the lock is already held by our own PID, return the prior mtime
     (not ``None``) — self-acquisition is a no-op for the lock file.
 
-    This is the F-100/100.4 contract: ``record_consolidation`` (called
+    This is the contract: ``record_consolidation`` (called
     by the manual ``/dream`` path) pre-stamps the lock with our own
     PID; the subsequent ``try_acquire_consolidation_lock`` inside the
     dream service must NOT block on that self-stamp.

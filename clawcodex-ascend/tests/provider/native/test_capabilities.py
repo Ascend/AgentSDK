@@ -1,4 +1,26 @@
-"""Tests for the F-72 capability constants module."""
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSE.clawcodex.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
+"""Tests for the capability constants module."""
 
 from __future__ import annotations
 
@@ -55,7 +77,7 @@ def test_capability_descriptions_cover_all_constants() -> None:
 
 def test_capability_strings_use_snake_case() -> None:
     """Capability identifiers should be snake_case to match the
-    F-72 plan's naming convention (``structured_output``,
+    plan's naming convention (``structured_output``,
     ``streaming_tools``, ...).
     """
     for cap in (

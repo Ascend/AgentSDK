@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
-#  This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
 # Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSE.clawcodex.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
-#           http://license.coscl.org.cn/MulanPSL2
+#          http://license.coscl.org.cn/MulanPSL2
 #
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
@@ -18,20 +20,7 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""
-Telemetry 错误触发 Issue 推送 — 真实 E2E 测试。
-
-模拟三种场景：
-  1. CLI 命令报错退出       → record_error() → flush()
-  2. 未捕获异常 (excepthook) → hooks._emit() → record_error() + flush()
-  3. shutdown cleanup 兜底   → 有 error 时才 flush()
-
-前置条件：
-  export CLAW_TELEMETRY_REPORTING_TOKEN=你的gitcode_token
-
-用法：
-  python3 tests/telemetry/telemetry_issue_push_errors.py
-"""
+"""Tests for telemetry issue push errors."""
 
 from __future__ import annotations
 
@@ -44,7 +33,6 @@ from pathlib import Path
 from typing import Any
 
 # ---------------------------------------------------------------------------
-# 路径
 # ---------------------------------------------------------------------------
 _HERE = Path(__file__).resolve().parent.parent.parent
 os.chdir(str(_HERE))
@@ -150,7 +138,6 @@ def close_issue(token: str, issue_id: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Test 1: CLI 命令报错退出 → record_error() + flush()
 # ---------------------------------------------------------------------------
 def test_cli_error_record(tmpdir: str, token: str) -> dict[str, Any] | None:
     print("\n" + "=" * 72)
@@ -162,7 +149,6 @@ def test_cli_error_record(tmpdir: str, token: str) -> dict[str, Any] | None:
 
     reset_recorder_for_tests()
 
-    # 跟踪 reporter emit
     emitted: list[tuple[str, str]] = []
 
     class _TrackingReporter:
@@ -176,7 +162,6 @@ def test_cli_error_record(tmpdir: str, token: str) -> dict[str, Any] | None:
     recorder, storage, cfg = build_recorder(tmpdir, token, client=_TrackingReporter())
     override_recorder(recorder)
 
-    # 模拟一次命令报错
     sid = uuid.uuid4().hex
     recorder.record_session_start(session_id=sid, entrypoint="cli")
     try:
@@ -186,7 +171,6 @@ def test_cli_error_record(tmpdir: str, token: str) -> dict[str, Any] | None:
 
     check(len(emitted) == 0, "record_error 后不应自动 emit（需等 flush）")
 
-    # 模拟退出时 cleanup flush
     recorder.flush()
     check(len(emitted) >= 1, "flush 后应有 emit")
     check(emitted[0][1] == time.strftime("%Y-%m-%d"), f"emit date = today ({emitted[0][1]})")
@@ -197,7 +181,6 @@ def test_cli_error_record(tmpdir: str, token: str) -> dict[str, Any] | None:
 
 
 # ---------------------------------------------------------------------------
-# Test 2: 未捕获异常 → hooks._emit() → record_error() + immediate flush()
 # ---------------------------------------------------------------------------
 def test_unhandled_exception_via_hooks(tmpdir: str, token: str) -> dict[str, Any] | None:
     print("\n" + "=" * 72)
@@ -228,7 +211,6 @@ def test_unhandled_exception_via_hooks(tmpdir: str, token: str) -> dict[str, Any
     override_recorder(recorder)
     install_exception_hooks()
 
-    # 模拟未捕获异常
     try:
         raise RuntimeError("simulated unhandled exception for telemetry test")
     except RuntimeError as exc:
@@ -236,15 +218,12 @@ def test_unhandled_exception_via_hooks(tmpdir: str, token: str) -> dict[str, Any
 
         hook_emit(exc)
 
-    # hooks._emit 只 record_error，不应 emit
     check(len(emitted) == 0, "hooks._emit() 不应立即 emit（由 cleanup 触发）")
 
-    # 但 error 已落盘
     today = time.strftime("%Y-%m-%d")
     crashes = storage.read_day("crashes", today)
     check(len(crashes) >= 1, f"crashes 文件中有 {len(crashes)} 条 error 事件")
 
-    # 手动 flush 验证后续能正确推
     recorder.flush()
     check(len(emitted) >= 1, "flush() 后应有 emit")
 
@@ -254,7 +233,6 @@ def test_unhandled_exception_via_hooks(tmpdir: str, token: str) -> dict[str, Any
 
 
 # ---------------------------------------------------------------------------
-# Test 3: shutdown cleanup 仅在报错时 flush
 # ---------------------------------------------------------------------------
 def test_shutdown_cleanup_only_on_error(tmpdir: str, token: str) -> dict[str, Any] | None:
     print("\n" + "=" * 72)
@@ -278,7 +256,6 @@ def test_shutdown_cleanup_only_on_error(tmpdir: str, token: str) -> dict[str, An
             emitted.append((rendered, date))
             return True
 
-    # ---- 3a: 正常退出 ----
     recorder_ok, storage_ok, _ = build_recorder(tmpdir + "/ok", token, client=_TrackingReporter())
     override_recorder(recorder_ok)
     emitted.clear()
@@ -293,7 +270,6 @@ def test_shutdown_cleanup_only_on_error(tmpdir: str, token: str) -> dict[str, An
 
     reset_recorder_for_tests()
 
-    # ---- 3b: 有 error ----
     recorder_err, storage_err, _ = build_recorder(tmpdir + "/err", token, client=_TrackingReporter())
     override_recorder(recorder_err)
     emitted.clear()
@@ -306,7 +282,6 @@ def test_shutdown_cleanup_only_on_error(tmpdir: str, token: str) -> dict[str, An
         recorder_err.record_error(session_id=sid2, exc=exc)
 
     _telemetry_shutdown_flush()
-    # daemon thread 异步执行，给 5s 窗口等它完成
     import time
 
     for _ in range(25):
@@ -320,7 +295,6 @@ def test_shutdown_cleanup_only_on_error(tmpdir: str, token: str) -> dict[str, An
 
 
 # ---------------------------------------------------------------------------
-# Test 4: 真实 Issue 推送（远端验证）
 # ---------------------------------------------------------------------------
 def test_real_issue_push(tmpdir: str, token: str) -> None:
     print("\n" + "=" * 72)
@@ -335,7 +309,6 @@ def test_real_issue_push(tmpdir: str, token: str) -> None:
     recorder, storage, _ = build_recorder(tmpdir, token)
     override_recorder(recorder)
 
-    # 模拟报错
     sid = uuid.uuid4().hex
     recorder.record_session_start(session_id=sid, entrypoint="cli")
     try:
@@ -343,7 +316,6 @@ def test_real_issue_push(tmpdir: str, token: str) -> None:
     except RuntimeError as exc:
         recorder.record_error(session_id=sid, exc=exc)
 
-    # flush → 推远端 Issue
     recorder.flush()
 
     cursor = storage.read_reporter_cursor("issue")
@@ -352,7 +324,6 @@ def test_real_issue_push(tmpdir: str, token: str) -> None:
     print(f"  Issue URL: https://{PLATFORM}.com/{OWNER}/{REPO}/issues/{issue_id}")
 
     if issue_id:
-        # 从 API 验证 body 包含 error 信息
         import httpx
 
         r = httpx.get(
@@ -371,7 +342,6 @@ def test_real_issue_push(tmpdir: str, token: str) -> None:
             print(f"  body 长度: {len(body)} 字符")
             print(f"  body 摘录:\n{body[:400]}\n  ...")
 
-            # 清理
             close_issue(token, issue_id)
 
     reset_recorder_for_tests()
@@ -387,16 +357,12 @@ def main() -> int:
         return 1
 
     with tempfile.TemporaryDirectory(prefix="telemetry-error-e2e-") as tmpdir:
-        # Test 1: CLI 命令报错
         test_cli_error_record(tmpdir, token)
 
-        # Test 2: 未捕获异常 hooks
         test_unhandled_exception_via_hooks(tmpdir, token)
 
-        # Test 3: shutdown cleanup 条件
         test_shutdown_cleanup_only_on_error(tmpdir, token)
 
-        # Test 4: 真实远端推送
         test_real_issue_push(tmpdir + "/real", token)
 
     print("\n" + "=" * 72)

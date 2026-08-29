@@ -1,3 +1,25 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSE.clawcodex.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 import asyncio
 import tempfile
 import unittest
@@ -80,7 +102,7 @@ class TestQueryIntegrationToolCalls(unittest.TestCase):
         _run(run())
 
         self.assertTrue(Path(file_path).exists())
-        self.assertEqual(Path(file_path).read_text(), "integration test content")
+        self.assertEqual(Path(file_path).read_text(encoding="utf-8"), "integration test content")
 
         assistants = [m for m in collected if isinstance(m, AssistantMessage)]
         self.assertGreaterEqual(len(assistants), 1)
@@ -93,7 +115,7 @@ class TestQueryIntegrationToolCalls(unittest.TestCase):
         provider.chat_stream_response.side_effect = NotImplementedError()
 
         file_path = str(self.workspace / "data.txt")
-        Path(file_path).write_text("pre-existing content\nline 2\n")
+        Path(file_path).write_text("pre-existing content\nline 2\n", encoding="utf-8")
 
         tool_use_response = ChatResponse(
             content="Reading file.",
@@ -197,8 +219,8 @@ class TestQueryIntegrationToolCalls(unittest.TestCase):
 
         self.assertTrue(Path(file1).exists())
         self.assertTrue(Path(file2).exists())
-        self.assertEqual(Path(file1).read_text(), "file a")
-        self.assertEqual(Path(file2).read_text(), "file b")
+        self.assertEqual(Path(file1).read_text(encoding="utf-8"), "file a")
+        self.assertEqual(Path(file2).read_text(encoding="utf-8"), "file b")
 
     def test_engine_state_persists_across_calls(self):
         provider = MagicMock()

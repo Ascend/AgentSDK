@@ -1,3 +1,25 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSE.clawcodex.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 """Tests for src/permissions/updates.py.
 
 Mirrors the behaviors covered by ``typescript/src/utils/permissions/PermissionUpdate.ts``.
@@ -335,7 +357,7 @@ class TestPersistPermissionUpdate(unittest.TestCase):
     def _read(self) -> dict:
         if not os.path.isfile(self.user_settings):
             return {}
-        with open(self.user_settings) as f:
+        with open(self.user_settings, encoding="utf-8") as f:
             return json.load(f)
 
     def test_in_memory_destination_returns_false(self) -> None:
@@ -369,7 +391,7 @@ class TestPersistPermissionUpdate(unittest.TestCase):
         )
 
     def test_addRules_appends_without_duplicating(self) -> None:
-        with open(self.user_settings, "w") as f:
+        with open(self.user_settings, "w", encoding="utf-8") as f:
             json.dump({"permissions": {"allow": ["Read"]}}, f)
         update = PermissionUpdateAddRules(
             destination="userSettings",
@@ -386,7 +408,7 @@ class TestPersistPermissionUpdate(unittest.TestCase):
         )
 
     def test_replaceRules_overwrites_slot(self) -> None:
-        with open(self.user_settings, "w") as f:
+        with open(self.user_settings, "w", encoding="utf-8") as f:
             json.dump({"permissions": {"allow": ["Read", "Edit"]}}, f)
         update = PermissionUpdateReplaceRules(
             destination="userSettings",
@@ -398,7 +420,7 @@ class TestPersistPermissionUpdate(unittest.TestCase):
 
     def test_removeRules_normalizes_via_round_trip(self) -> None:
         # "Bash(*)" should normalize to "Bash" and match a removal request for "Bash"
-        with open(self.user_settings, "w") as f:
+        with open(self.user_settings, "w", encoding="utf-8") as f:
             json.dump({"permissions": {"allow": ["Bash(*)", "Read"]}}, f)
         update = PermissionUpdateRemoveRules(
             destination="userSettings",
@@ -414,7 +436,7 @@ class TestPersistPermissionUpdate(unittest.TestCase):
         self.assertEqual(self._read()["permissions"]["defaultMode"], "plan")
 
     def test_addDirectories_appends_unique(self) -> None:
-        with open(self.user_settings, "w") as f:
+        with open(self.user_settings, "w", encoding="utf-8") as f:
             json.dump({"permissions": {"additionalDirectories": ["/foo"]}}, f)
         update = PermissionUpdateAddDirectories(
             destination="userSettings",

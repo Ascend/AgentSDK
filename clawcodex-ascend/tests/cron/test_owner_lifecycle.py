@@ -1,4 +1,26 @@
-"""F-22-F-4 / F-22-F-5 stub tests — teammate integration awaits.
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSE.clawcodex.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
+"""stub tests — teammate integration awaits.
 
 The teammate subsystem (``TeammateManager``) is not yet wired into the
 cron pipeline, so these hooks are stubs:
@@ -129,7 +151,7 @@ def test_cleanup_orphaned_tasks_swallows_provider_exception(tmp_path):
 
 
 def test_scheduler_default_has_no_owner_hooks(tmp_path):
-    """Default construction has no F-4/F-5 callbacks wired."""
+    """Default construction has no callbacks wired."""
     scheduler = _make_scheduler(tmp_path)
     assert scheduler.on_owner_exited is None
     assert scheduler.active_agents_provider is None

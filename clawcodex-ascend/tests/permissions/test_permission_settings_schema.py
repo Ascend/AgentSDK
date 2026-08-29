@@ -1,19 +1,26 @@
-"""F-47: Permission Settings Schema refactor -- 7 acceptance unit tests.
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
-Covers the F-47 §3.17 acceptance criteria spelled out in
-``docs/PROGRESS.md`` (F-47 验收标准):
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSE.clawcodex.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
 
-  1. test_permissions_dict_loads_into_struct
-  2. test_default_mode_resolved_from_permissions_dict
-  3. test_has_allow_bypass_true_after_settings_loaded
-  4. test_legacy_extra_permissions_fallback
-  5. test_legacy_top_level_permission_mode_still_resolves
-  6. test_unknown_subkey_preserved
-  7. test_dict_shape_no_longer_crashes_validation
-
-Plus a small helper that exercises the CLI ``resolve_permission_state``
-plumb end-to-end (covers Sub-D).
-"""
+"""Tests for permission settings schema."""
 
 from __future__ import annotations
 
@@ -113,7 +120,7 @@ class TestHasAllowBypassTrueAfterSettingsLoaded:
 # ---------------------------------------------------------------------------
 class TestLegacyExtraPermissionsFallback:
     def test_legacy_extra_permissions_fallback(self):
-        # Simulate the pre-F-47 shape: a dict landed in ``settings.extra``
+        # Simulate the pre- shape: a dict landed in ``settings.extra``
         # because the schema field did not exist (or because a third-party
         # tool wrote it there). ``_settings_perms`` must still surface it.
         settings = SettingsSchema()

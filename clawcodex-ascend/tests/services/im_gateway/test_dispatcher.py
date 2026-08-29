@@ -3,12 +3,14 @@
 
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
-# Copyright (c) 2026 Clawd Codex Team
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSE.clawcodex.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -18,15 +20,7 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""Tests for InboundDispatcher IM slash-command whitelist integration.
-
-覆盖 dispatcher.process 在 REPL 目标下的白名单检查：
-- REPL 绑定的 origin 发送非白名单命令 → 返回拒绝 ack，_push_handler 不被调用
-- REPL 绑定的 origin 发送白名单命令 → _push_handler 被调用
-- REPL 绑定的 origin 发送普通文本 → _push_handler 被调用
-- orchestrator 绑定的 origin 发送非白名单命令 → 返回拒绝 ack，_push_handler 不被调用
-- orchestrator 绑定的 origin 发送白名单命令 → _push_handler 被调用
-"""
+"""Tests for dispatcher."""
 
 from __future__ import annotations
 
@@ -66,11 +60,7 @@ def _make_dispatcher(
     orchestrator_origin: str = "wechat:acct:user2",
     command_allowlists: CommandAllowlistConfig | None = None,
 ) -> tuple[InboundDispatcher, SessionRouter, list[InboundMessage]]:
-    """构造一个 dispatcher，REPL 与 orchestrator 各绑定一个 origin。
-
-    返回 (dispatcher, router, pushed_messages)。
-    pushed_messages 记录 _push_handler 收到的所有消息，用于断言是否被调用。
-    """
+    """Test helper for make dispatcher."""
     store = ReliabilityStore(tmp_path)
     binding = BindingPolicy()
     binding.bind(repl_origin, SessionTarget(session_id="repl-sess", host_type="repl"))
@@ -91,12 +81,9 @@ def _make_dispatcher(
     return dispatcher, router, pushed
 
 
-# -- REPL 目标：非白名单命令被拒绝 -------------------------------------------
-
-
 @pytest.mark.asyncio
 async def test_repl_blocked_command_not_pushed(tmp_path) -> None:
-    """REPL 绑定的 origin 发送 /exit → 返回拒绝 ack，push_handler 不被调用。"""
+    """Verify repl blocked command not pushed."""
     dispatcher, router, pushed = _make_dispatcher(tmp_path)
     msg = _make_message("wechat:acct:user1", "/exit")
 
@@ -109,7 +96,7 @@ async def test_repl_blocked_command_not_pushed(tmp_path) -> None:
 
 @pytest.mark.asyncio
 async def test_repl_blocked_command_with_args_not_pushed(tmp_path) -> None:
-    """REPL 绑定的 origin 发送 /model gpt-4 → 拒绝，push_handler 不被调用。"""
+    """Verify repl blocked command with args not pushed."""
     dispatcher, router, pushed = _make_dispatcher(tmp_path)
     msg = _make_message("wechat:acct:user1", "/model gpt-4")
 
@@ -120,12 +107,9 @@ async def test_repl_blocked_command_with_args_not_pushed(tmp_path) -> None:
     assert "/model" in (receipt.message or "")
 
 
-# -- REPL 目标：白名单命令被放行 ---------------------------------------------
-
-
 @pytest.mark.asyncio
 async def test_repl_allowed_command_pushed(tmp_path) -> None:
-    """REPL 绑定的 origin 发送 /clear → push_handler 被调用。"""
+    """Verify repl allowed command pushed."""
     dispatcher, router, pushed = _make_dispatcher(tmp_path)
     msg = _make_message("wechat:acct:user1", "/clear")
 
@@ -138,7 +122,7 @@ async def test_repl_allowed_command_pushed(tmp_path) -> None:
 
 @pytest.mark.asyncio
 async def test_repl_allowed_command_with_args_pushed(tmp_path) -> None:
-    """REPL 绑定的 origin 发送 /goal finish → push_handler 被调用。"""
+    """Verify repl allowed command with args pushed."""
     dispatcher, router, pushed = _make_dispatcher(tmp_path)
     msg = _make_message("wechat:acct:user1", "/goal finish the task")
 
@@ -150,7 +134,7 @@ async def test_repl_allowed_command_with_args_pushed(tmp_path) -> None:
 
 @pytest.mark.asyncio
 async def test_repl_stop_command_pushed(tmp_path) -> None:
-    """REPL 绑定的 origin 发送 /stop → push_handler 被调用（/stop 在白名单内）。"""
+    """Verify repl stop command pushed."""
     dispatcher, router, pushed = _make_dispatcher(tmp_path)
     msg = _make_message("wechat:acct:user1", "/stop")
 
@@ -160,12 +144,9 @@ async def test_repl_stop_command_pushed(tmp_path) -> None:
     assert receipt.layer == AckLayer.ENQUEUED
 
 
-# -- REPL 目标：普通文本放行 -------------------------------------------------
-
-
 @pytest.mark.asyncio
 async def test_repl_plain_text_pushed(tmp_path) -> None:
-    """REPL 绑定的 origin 发送普通文本 → push_handler 被调用（白名单不影响非斜杠输入）。"""
+    """Verify repl plain text pushed."""
     dispatcher, router, pushed = _make_dispatcher(tmp_path)
     msg = _make_message("wechat:acct:user1", "你好，请帮我写个函数")
 
@@ -197,12 +178,9 @@ async def test_repl_uses_channels_yaml_command_allowlist(tmp_path) -> None:
     assert blocked_receipt.notify_user is True
 
 
-# -- orchestrator 目标：白名单生效 -------------------------------------------
-
-
 @pytest.mark.asyncio
 async def test_orchestrator_blocked_command_not_pushed(tmp_path) -> None:
-    """orchestrator 绑定的 origin 发送 /dashboard → 拒绝，push_handler 不被调用。"""
+    """Verify orchestrator blocked command not pushed."""
     dispatcher, router, pushed = _make_dispatcher(tmp_path)
     msg = _make_message("wechat:acct:user2", "/dashboard")
 
@@ -216,7 +194,7 @@ async def test_orchestrator_blocked_command_not_pushed(tmp_path) -> None:
 
 @pytest.mark.asyncio
 async def test_orchestrator_issue_takeover_not_pushed(tmp_path) -> None:
-    """orchestrator 绑定的 origin 发送 /issue takeover → 拒绝，不进入 IPC。"""
+    """Verify orchestrator issue takeover not pushed."""
     dispatcher, router, pushed = _make_dispatcher(tmp_path)
     msg = _make_message("wechat:acct:user2", "/issue takeover --id AGENTSDK-15")
 
@@ -230,7 +208,7 @@ async def test_orchestrator_issue_takeover_not_pushed(tmp_path) -> None:
 
 @pytest.mark.asyncio
 async def test_orchestrator_allowed_issue_command_pushed(tmp_path) -> None:
-    """orchestrator 绑定的 origin 发送 /issue list → push_handler 被调用。"""
+    """Verify orchestrator allowed issue command pushed."""
     dispatcher, router, pushed = _make_dispatcher(tmp_path)
     msg = _make_message("wechat:acct:user2", "/issue list")
 
@@ -244,7 +222,7 @@ async def test_orchestrator_allowed_issue_command_pushed(tmp_path) -> None:
 
 @pytest.mark.asyncio
 async def test_orchestrator_allowed_server_status_pushed(tmp_path) -> None:
-    """orchestrator 绑定的 origin 发送 /server status → push_handler 被调用。"""
+    """Verify orchestrator allowed server status pushed."""
     dispatcher, router, pushed = _make_dispatcher(tmp_path)
     msg = _make_message("wechat:acct:user2", "/server status")
 
@@ -286,12 +264,9 @@ async def test_orchestrator_uses_channels_yaml_command_allowlist(tmp_path) -> No
     assert blocked_receipt.notify_user is True
 
 
-# -- 拒绝时记录 audit -------------------------------------------------------
-
-
 @pytest.mark.asyncio
 async def test_repl_blocked_command_records_audit(tmp_path) -> None:
-    """REPL 绑定的 origin 发送非白名单命令 → audit.ndjson 记录 repl_command_blocked 事件。"""
+    """Verify repl blocked command records audit."""
     dispatcher, router, pushed = _make_dispatcher(tmp_path)
     msg = _make_message("wechat:acct:user1", "/exit")
 
@@ -305,7 +280,7 @@ async def test_repl_blocked_command_records_audit(tmp_path) -> None:
 
 @pytest.mark.asyncio
 async def test_orchestrator_blocked_command_records_audit(tmp_path) -> None:
-    """orchestrator 绑定的 origin 发送非白名单命令 → audit.ndjson 记录事件。"""
+    """Verify orchestrator blocked command records audit."""
     dispatcher, router, pushed = _make_dispatcher(tmp_path)
     msg = _make_message("wechat:acct:user2", "/server stop")
 

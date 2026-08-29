@@ -1,10 +1,16 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSE.clawcodex.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -13,12 +19,7 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
-#
-# Copyright (c) 2026 Clawd Codex Team
-# SPDX-License-Identifier: MIT
-# Source: https://github.com/agentforce314/clawcodex
-# ClawCodex-derived portions remain licensed under the MIT License.
-# See clawcodex-ascend/LICENSE.clawcodex.
+
 """Focused tests for Agent Runtime events, transcripts and rate limits."""
 
 from __future__ import annotations
@@ -50,6 +51,31 @@ class _Storage:
         self.messages.append(message)
 
 
+class _ToolCallEvent:
+    def __init__(
+        self,
+        *,
+        tool_name: str,
+        params: dict,
+        tool_use_id: str,
+        approved: bool | None,
+        denial_reason: str | None,
+    ) -> None:
+        self.tool_name = tool_name
+        self.params = params
+        self.tool_use_id = tool_use_id
+        self.__approved = approved
+        self.__denial_reason = denial_reason
+
+    @property
+    def is_approved(self) -> bool | None:
+        return self.__approved
+
+    @property
+    def denial_reason(self) -> str | None:
+        return self.__denial_reason
+
+
 @pytest.fixture
 def event_log_module(monkeypatch):
     module = ModuleType("extensions.orchestrator.tool_event_log")
@@ -71,12 +97,12 @@ def _runner() -> AgentEventMixin:
 
 
 def test_full_audit_log_writes_tool_decision(tmp_path, event_log_module) -> None:
-    event = SimpleNamespace(
+    event = _ToolCallEvent(
         tool_name="Read",
         params={"file_path": "README.md"},
         tool_use_id="tool-1",
-        _approved=True,
-        _deny_reason=None,
+        approved=True,
+        denial_reason=None,
     )
     context = {
         "workspace_path": tmp_path,
@@ -94,12 +120,12 @@ def test_full_audit_log_writes_tool_decision(tmp_path, event_log_module) -> None
 
 
 def test_none_and_minimal_audit_modes_filter_rows(tmp_path, event_log_module) -> None:
-    approved = SimpleNamespace(
+    approved = _ToolCallEvent(
         tool_name="Read",
         params={},
         tool_use_id="tool-1",
-        _approved=True,
-        _deny_reason=None,
+        approved=True,
+        denial_reason=None,
     )
     runner = _runner()
     runner._append_tool_event_log(approved, {"workspace_path": tmp_path, "run_id": "none", "audit_log": "none"})
@@ -109,6 +135,25 @@ def test_none_and_minimal_audit_modes_filter_rows(tmp_path, event_log_module) ->
     )
     assert not (tmp_path / ".reports/none.events.ndjson").exists()
     assert not (tmp_path / ".reports/minimal.events.ndjson").exists()
+
+
+def test_minimal_audit_log_keeps_denial_reason(tmp_path, event_log_module) -> None:
+    denied = _ToolCallEvent(
+        tool_name="Bash",
+        params={"cmd": "false"},
+        tool_use_id="tool-2",
+        approved=False,
+        denial_reason="blocked by policy",
+    )
+
+    _runner()._append_tool_event_log(
+        denied,
+        {"workspace_path": tmp_path, "run_id": "minimal-denied", "audit_log": "minimal"},
+    )
+
+    row = json.loads((tmp_path / ".reports/minimal-denied.events.ndjson").read_text())
+    assert row["approved"] is False
+    assert row["deny_reason"] == "blocked by policy"
 
 
 def test_agent_spawn_result_records_child_id(tmp_path, event_log_module) -> None:

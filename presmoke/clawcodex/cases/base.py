@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 """
 -------------------------------------------------------------------------
 This file is part of the AgentSDK project.
@@ -57,19 +60,12 @@ def get_patches_dir() -> Path:
     """
     upstream_base = get_project_root() / UPSTREAM_PATCHES_BASE
     if not upstream_base.is_dir():
-        raise FileNotFoundError(
-            f"Upstream patches directory not found: {upstream_base}"
-        )
+        raise FileNotFoundError(f"Upstream patches directory not found: {upstream_base}")
 
-    candidates = sorted(
-        d for d in upstream_base.iterdir()
-        if d.is_dir() and (d / "series").is_file()
-    )
+    candidates = sorted(d for d in upstream_base.iterdir() if d.is_dir() and (d / "series").is_file())
 
     if not candidates:
-        raise FileNotFoundError(
-            f"No upstream snapshot with a 'series' file found under {upstream_base}"
-        )
+        raise FileNotFoundError(f"No upstream snapshot with a 'series' file found under {upstream_base}")
 
     return candidates[-1]
 
@@ -253,7 +249,7 @@ class FileOps:
             try:
                 path.write_text(original_content, encoding="utf-8")
             except OSError:
-                pass
+                pass  # Cleanup continues so other modified files are restored.
         self._modified_files.clear()
 
         for path, original_content in reversed(self._deleted_files):
@@ -261,7 +257,7 @@ class FileOps:
                 if not path.exists():
                     path.write_text(original_content, encoding="utf-8")
             except OSError:
-                pass
+                pass  # Cleanup continues so other deleted files are restored.
         self._deleted_files.clear()
 
 
@@ -280,9 +276,7 @@ class PatchValidator:
         """
         series_file = get_patches_dir() / "series"
         if not series_file.exists():
-            raise FileNotFoundError(
-                f"Patch series file not found: {series_file}"
-            )
+            raise FileNotFoundError(f"Patch series file not found: {series_file}")
         return series_file
 
     @staticmethod
@@ -300,7 +294,7 @@ class PatchValidator:
         patches_dir = series_file.parent
 
         missing = []
-        with open(series_file, "r") as f:
+        with open(series_file, "r", encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
                 if not line or line.startswith("#"):
@@ -322,18 +316,17 @@ class PatchValidator:
             FileNotFoundError: If the series file does not exist.
         """
         series_file = PatchValidator._check_series_exists()
-        patches_dir = series_file.parent
 
         actual_count = 0
         declared = -1
-        with open(series_file, "r") as f:
+        with open(series_file, "r", encoding="utf-8") as f:
             for line in f:
                 stripped = line.strip()
                 if stripped.startswith("# Total patches:"):
                     try:
                         declared = int(stripped.split(":")[1].strip())
                     except (IndexError, ValueError):
-                        pass
+                        pass  # An invalid declaration is reported by the count check.
                 if stripped and not stripped.startswith("#"):
                     actual_count += 1
 
@@ -350,11 +343,10 @@ class PatchValidator:
             FileNotFoundError: If the series file does not exist.
         """
         series_file = PatchValidator._check_series_exists()
-        patches_dir = series_file.parent
 
         seen = set()
         duplicates = []
-        with open(series_file, "r") as f:
+        with open(series_file, "r", encoding="utf-8") as f:
             for line in f:
                 stripped = line.strip()
                 if stripped and not stripped.startswith("#"):
@@ -386,7 +378,7 @@ class SystemTestBase(unittest.TestCase):
                 if os.path.exists(temp_file):
                     os.remove(temp_file)
             except OSError:
-                pass
+                pass  # Class teardown continues for the remaining temporary files.
 
     def setUp(self):
         """Set up test-level fixtures."""
@@ -401,7 +393,7 @@ class SystemTestBase(unittest.TestCase):
                 if os.path.exists(temp_file):
                     os.remove(temp_file)
             except OSError:
-                pass
+                pass  # Test teardown continues for the remaining temporary files.
 
     def assertExitSuccess(self, result: CLIResult, msg: Optional[str] = None):
         """Assert that the CLI command succeeded (exit code 0)."""

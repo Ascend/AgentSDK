@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# coding=utf-8
+# -*- coding: utf-8 -*-
 
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
@@ -7,7 +7,7 @@
 # Originally from the clawcodex project:
 #   https://github.com/agentforce314/clawcodex
 #   Copyright (c) 2026 Clawd Codex Team
-#   Licensed under the MIT License. See LICENSE-MIT-clawcodex in this directory.
+#   Licensed under the MIT License. See clawcodex-ascend/LICENSE.clawcodex.
 #
 # Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
 # Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
@@ -105,7 +105,6 @@ class TestIssueRegistryPersistence(unittest.TestCase):
         self.assertEqual(record.branch_name, "feat/x")
 
     def test_malformed_json_raises(self) -> None:
-        # 严格加载：非法 JSON 直接抛出，不再吞异常后空启动。
         path = Path(self.tmp.name) / "registry.json"
         path.write_text("not-valid-json", encoding="utf-8")
         with self.assertRaises(Exception):
@@ -125,7 +124,6 @@ class TestIssueRegistryPersistence(unittest.TestCase):
             ),
             encoding="utf-8",
         )
-        # 严格加载：无效 status 值抛 ValueError，不再静默回退 PENDING。
         with self.assertRaises(ValueError):
             IssueRegistry(storage_path=path)
 
@@ -143,12 +141,10 @@ class TestIssueRegistryPersistence(unittest.TestCase):
             ),
             encoding="utf-8",
         )
-        # 严格加载：无效 intent 值抛 ValueError，不再静默回退 NONE。
         with self.assertRaises(ValueError):
             IssueRegistry(storage_path=path)
 
     def test_unknown_fields_raise(self) -> None:
-        # 严格加载：未知字段抛 TypeError（旧实现是静默丢弃 forward-compat）。
         path = Path(self.tmp.name) / "registry.json"
         path.write_text(
             json.dumps(

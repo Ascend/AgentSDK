@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 #  This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
@@ -127,7 +128,7 @@ def test_sieve_subcommand_routes_without_crash(subcommand: str):
             rc = run_cli(argv)
             assert isinstance(rc, int)
         except (SystemExit, TypeError, Exception):  # noqa: BLE001, S110
-            pass
+            pass  # This smoke case only verifies that routing reaches the handler.
 
 
 # ---------------------------------------------------------------------------
@@ -149,7 +150,7 @@ def test_registered_subcommand_handler_is_callable(subcommand: str):
         rc = handler([])
         assert isinstance(rc, int), f"{subcommand} handler returned {type(rc).__name__}, expected int"
     except (SystemExit, TypeError):
-        pass
+        pass  # CLI handlers may signal usage through these expected exceptions.
     except Exception as exc:
         raise AssertionError(f"{subcommand} handler raised unexpected exception: {exc}") from exc
 

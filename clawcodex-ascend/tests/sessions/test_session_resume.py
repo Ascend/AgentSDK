@@ -1,3 +1,25 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSE.clawcodex.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 """Tests for R2-WS-7: Session resume."""
 
 from __future__ import annotations
@@ -50,7 +72,7 @@ class TestResumeSession:
         # Write some valid and invalid lines
         transcript_path = storage.session_dir / "transcript.jsonl"
         storage.session_dir.mkdir(parents=True, exist_ok=True)
-        with open(transcript_path, "w") as f:
+        with open(transcript_path, "w", encoding="utf-8") as f:
             f.write(json.dumps({"role": "user", "content": "valid", "type": "user"}) + "\n")
             f.write("this is not json\n")
             f.write(

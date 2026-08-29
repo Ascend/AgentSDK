@@ -3,12 +3,14 @@
 
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
-# Copyright (c) 2026 Clawd Codex Team
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSE.clawcodex.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -18,7 +20,7 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""Tests for F-88 generic text tail follower."""
+"""Tests for generic text tail follower."""
 # pylint: disable=no-name-in-module
 
 from __future__ import annotations
@@ -34,7 +36,7 @@ from clawcodex_ext.services.monitor.text_tail import TextTailBuffer, TextTailFol
 class TestTextTailFollower:
     @pytest.mark.asyncio
     async def test_reads_appended_text(self):
-        with tempfile.NamedTemporaryFile(mode="w", delete=False) as fh:
+        with tempfile.NamedTemporaryFile(encoding="utf-8", mode="w", delete=False) as fh:
             path = fh.name
             fh.write("line1\n")
 
@@ -52,7 +54,7 @@ class TestTextTailFollower:
 
     @pytest.mark.asyncio
     async def test_ring_buffer_drops_old_bytes(self):
-        with tempfile.NamedTemporaryFile(mode="w", delete=False) as fh:
+        with tempfile.NamedTemporaryFile(encoding="utf-8", mode="w", delete=False) as fh:
             path = fh.name
             fh.write("old")
 
@@ -67,7 +69,7 @@ class TestTextTailFollower:
 
     @pytest.mark.asyncio
     async def test_truncation_recovery(self):
-        with tempfile.NamedTemporaryFile(mode="w", delete=False) as fh:
+        with tempfile.NamedTemporaryFile(encoding="utf-8", mode="w", delete=False) as fh:
             path = fh.name
             fh.write("1234567890")
 
@@ -91,7 +93,7 @@ class TestTextTailFollower:
 
     @pytest.mark.asyncio
     async def test_async_iteration(self):
-        with tempfile.NamedTemporaryFile(mode="w", delete=False) as fh:
+        with tempfile.NamedTemporaryFile(encoding="utf-8", mode="w", delete=False) as fh:
             path = fh.name
 
         follower = TextTailFollower(path)

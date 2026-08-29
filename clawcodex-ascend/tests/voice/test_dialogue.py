@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
-#  This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
 # Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSE.clawcodex.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
-#           http://license.coscl.org.cn/MulanPSL2
+#          http://license.coscl.org.cn/MulanPSL2
 #
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
@@ -17,16 +20,16 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""Tests for F-65 (Voice Dialogue Mode) components.
+"""Tests for voice dialogue mode components.
 
 Covers:
 * :class:`DialogueConfig` / :class:`DialogueEvent` dataclasses.
 * :class:`FullDuplexDialogueProvider` ABC (registered in registry).
 * :class:`InterruptDetector` (energy-based VAD for barge-in).
 * :class:`AudioOutQueue.clear` and :class:`AudioPlayer` ``stop_nowait`` /
-  ``stop_and_close`` for the F-65 interrupt path.
+  ``stop_and_close`` for the interrupt path.
 * :class:`DialogueSessionManager` state machine with a stub provider.
-* :mod:`voice_mode_enabled` F-65 gate (DIALOGUE_PROVIDERS,
+* :mod:`voice_mode_enabled` gate (DIALOGUE_PROVIDERS,
   has_dialogue_auth, is_dialogue_feature_enabled, is_dialogue_available,
   is_dialogue_enabled, get_dialogue_provider).
 * :mod:`provider_registry` dialogue registration round-trip.
@@ -281,7 +284,7 @@ class TestDialogueProviderRegistry(unittest.TestCase):
             DIALOGUE_REGISTRY.pop("unique-stub", None)
 
 
-# ── voice-mode gating (F-65) ──────────────────────────────────────────────
+# ── voice-mode gating ─────────────────────────────────────────────────────
 
 
 class TestDialogueGate(unittest.TestCase):
@@ -307,7 +310,7 @@ class TestDialogueGate(unittest.TestCase):
             try:
                 patch.stop()
             except Exception:
-                pass
+                pass  # Teardown continues so every settings patch is released.
 
     def _patch_settings(self, **values: Any) -> None:
         from src.settings import settings as settings_module
@@ -733,7 +736,7 @@ class TestDialogueCommand(unittest.TestCase):
             try:
                 p.stop()
             except Exception:
-                pass
+                pass  # Teardown continues so every dialogue patch is released.
         for env in (
             "FEATURE_DIALOGUE_MODE",
             "CLAWCODEX_VOICE_DISABLED",
@@ -894,7 +897,7 @@ class TestDialogueConfigSetters(unittest.TestCase):
             try:
                 p.stop()
             except Exception:
-                pass
+                pass  # Teardown continues so every configuration patch is released.
 
     def test_set_dialogue_provider_normalizes_minimax(self) -> None:
         from src.config import set_dialogue_provider
@@ -936,7 +939,7 @@ class TestDialogueConfigSetters(unittest.TestCase):
 
 class TestVoicePackageExports(unittest.TestCase):
     def test_lazy_attribute_resolution(self) -> None:
-        # Resolve each F-65 export via the package __getattr__ hook.
+        # Resolve each voice export via the package __getattr__ hook.
         from clawcodex_ext.services import voice as vp
 
         for name in (

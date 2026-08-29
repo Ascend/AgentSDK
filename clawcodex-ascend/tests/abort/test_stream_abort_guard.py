@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
-#  This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
 # Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSE.clawcodex.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
-#           http://license.coscl.org.cn/MulanPSL2
+#          http://license.coscl.org.cn/MulanPSL2
 #
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
@@ -301,7 +304,6 @@ def test_reraise_if_aborted_no_signal_is_noop() -> None:
 
 
 # ---------------------------------------------------------------------------
-# F-99 方案2: transport.close() — interrupt the underlying socket read
 #
 # ``response.close()`` is advisory on some platforms and does not
 # interrupt the in-flight blocking read on the worker thread. Closing
@@ -312,7 +314,7 @@ def test_reraise_if_aborted_no_signal_is_noop() -> None:
 
 
 def test_close_response_safely_closes_transport_on_non_windows(monkeypatch) -> None:
-    """F-99: ``_close_response_safely`` calls ``response._transport.close()``.
+    """``_close_response_safely`` calls ``response._transport.close()``.
 
     Mock ``sys.platform`` so the Windows skip branch doesn't fire and
     assert both ``response.close`` AND ``response._transport.close``
@@ -330,11 +332,11 @@ def test_close_response_safely_closes_transport_on_non_windows(monkeypatch) -> N
 
 
 def test_close_response_safely_skips_transport_on_windows(monkeypatch) -> None:
-    """F-99: Windows skips transport.close to avoid kernel-level deadlock risk.
+    """Windows skips transport.close to avoid kernel-level deadlock risk.
 
     On Windows, forcibly closing a socket mid-read can deadlock some
-    Winsock code paths. The F-99 plan degrades to ``response.close()``
-    only on Windows, relying on ``read_timeout=5s`` (方案1) for the
+    Winsock code paths. The plan degrades to ``response.close()``
+    only on Windows, relying on ``read_timeout=5s`` (approach 1) for the
     cancel latency bound instead.
     """
     monkeypatch.setattr("src.providers._stream_abort.sys.platform", "win32")
@@ -346,7 +348,7 @@ def test_close_response_safely_skips_transport_on_windows(monkeypatch) -> None:
 
 
 def test_close_response_safely_handles_missing_transport(monkeypatch) -> None:
-    """F-99: missing ``_transport`` attribute is a silent no-op, not an error.
+    """missing ``_transport`` attribute is a silent no-op, not an error.
 
     httpx is allowed to rename the attribute in a future major
     version; the close must degrade to ``response.close()``-only
@@ -370,7 +372,7 @@ def test_close_response_safely_handles_missing_transport(monkeypatch) -> None:
 
 
 def test_close_response_safely_handles_transport_close_failure(monkeypatch) -> None:
-    """F-99: ``_transport.close()`` failures are swallowed, not propagated.
+    """``_transport.close()`` failures are swallowed, not propagated.
 
     The listener fires from the keypress / SIGINT thread — letting
     the close raise there would crash that thread without delivering
@@ -386,7 +388,7 @@ def test_close_response_safely_handles_transport_close_failure(monkeypatch) -> N
 
 
 def test_attach_listener_closes_transport_on_abort(monkeypatch) -> None:
-    """F-99 end-to-end: abort fires → both response.close AND _transport.close run.
+    """end-to-end: abort fires → both response.close AND _transport.close run.
 
     Pins the full listener path: the ``attach`` context's listener
     closes ``stream.response`` AND the underlying transport when the
@@ -404,7 +406,7 @@ def test_attach_listener_closes_transport_on_abort(monkeypatch) -> None:
 
 
 def test_attach_transport_close_failure_does_not_propagate(monkeypatch) -> None:
-    """F-99: transport.close() failures during abort must not raise.
+    """transport.close() failures during abort must not raise.
 
     The listener thread cannot be allowed to die mid-abort; if it did,
     the underlying socket would leak and the agent loop would hang

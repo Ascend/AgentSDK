@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 #  This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
@@ -16,7 +17,7 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""P66-A — ACP 协议层数据模型 / 序列化测试."""
+"""P66-A Tests for acp protocol."""
 
 from __future__ import annotations
 
@@ -32,7 +33,7 @@ from extensions.capabilities.acp_protocol import (
 
 
 def test_message_type_enum_values() -> None:
-    """枚举值对齐 JSON-RPC method 命名空间 (str 子类)。"""
+    """Verify message type enum values."""
     assert ACPMessageType.SESSION_CREATE.value == "session/create"
     assert ACPMessageType.MESSAGE_STREAM.value == "message/stream"
     assert ACPMessageType.TOOL_CALL.value == "tool/call"
@@ -45,7 +46,7 @@ def test_message_role_enum_values() -> None:
 
 
 def test_message_round_trip_dict() -> None:
-    """to_dict / from_dict 往返保持语义。"""
+    """Verify message round trip dict."""
     msg = ACPMessage(
         type=ACPMessageType.MESSAGE_SEND,
         id="m1",
@@ -68,7 +69,7 @@ def test_message_round_trip_dict() -> None:
 
 
 def test_message_from_dict_tolerates_unknown_type() -> None:
-    """未知 type 降级为 ERROR 而非抛错 (协议前向兼容)。"""
+    """Verify message from dict tolerates unknown type."""
     msg = ACPMessage.from_dict({"type": "future/method", "id": "x", "content": "c"})
     assert msg.type == ACPMessageType.ERROR
     assert msg.metadata["unknown_type"] == "future/method"
@@ -76,22 +77,21 @@ def test_message_from_dict_tolerates_unknown_type() -> None:
 
 
 def test_message_from_dict_tolerates_unknown_role() -> None:
-    """未知 role 降级为 USER 而非抛错。"""
+    """Verify message from dict tolerates unknown role."""
     msg = ACPMessage.from_dict({"type": "message/send", "role": "developer"})
     assert msg.role == ACPMessageRole.USER
 
 
 def test_message_default_timestamp_present() -> None:
-    """默认 timestamp 是 timezone-aware ISO 字符串 (非空)。"""
+    """Verify message default timestamp present."""
     msg = ACPMessage(type=ACPMessageType.SESSION_CREATE)
     assert isinstance(msg.timestamp, str)
     assert len(msg.timestamp) > 0
-    # 应含 'T' 分隔 (ISO 8601)
     assert "T" in msg.timestamp
 
 
 def test_session_append_records_history() -> None:
-    """ACPSession.append 记录消息历史。"""
+    """Verify session append records history."""
     session = ACPSession(id="s1", workspace_path="/tmp/ws")
     assert session.messages == []
     msg = ACPMessage(type=ACPMessageType.MESSAGE_SEND, session_id="s1", content="hi")
@@ -118,8 +118,7 @@ def test_tool_spec_defaults() -> None:
 
 
 def test_transport_and_server_are_runtime_checkable_protocols() -> None:
-    """Protocol 应为 runtime_checkable，便于 isinstance 适配器检查。"""
-    # 构造一个空对象验证 Protocol 不在实例化路径上抛错
+    """Verify transport and server are runtime checkable protocols."""
     assert hasattr(ACPTransport, "connect")
     assert hasattr(ACPServer, "create_session")
     assert hasattr(ACPServer, "process_message")

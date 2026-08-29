@@ -1,3 +1,25 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSE.clawcodex.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 from __future__ import annotations
 
 from dataclasses import replace
@@ -331,7 +353,7 @@ def test_in_flight_dedup_across_file_and_session(tmp_path) -> None:
 
 
 def test_daemon_mode_dir_override(tmp_path: Path) -> None:
-    """F-22-G9: dir_override redirects all file I/O."""
+    """Verify that dir_override redirects all file I/O."""
     import time
 
     alt_root = tmp_path / "daemon-workspace"
@@ -366,7 +388,7 @@ def test_daemon_mode_dir_override(tmp_path: Path) -> None:
 
 
 def test_daemon_mode_no_override_falls_back(tmp_path: Path) -> None:
-    """F-22-G9: when dir_override/lock_identity are None, existing
+    """When dir_override and lock_identity are None, existing
     behaviour is preserved.
     """
     fired: list[str] = []
@@ -383,7 +405,7 @@ def test_daemon_mode_no_override_falls_back(tmp_path: Path) -> None:
 
 
 def test_daemon_mode_async_scheduler(tmp_path: Path) -> None:
-    """F-22-G9: AsyncCronScheduler respects dir_override and lock_identity."""
+    """Verify that AsyncCronScheduler respects dir_override and lock_identity."""
     alt_root = tmp_path / "async-daemon-workspace"
     alt_root.mkdir()
 

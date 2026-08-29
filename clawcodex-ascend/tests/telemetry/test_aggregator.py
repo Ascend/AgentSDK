@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
-#  This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
 # Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSE.clawcodex.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
-#           http://license.coscl.org.cn/MulanPSL2
+#          http://license.coscl.org.cn/MulanPSL2
 #
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
@@ -167,7 +170,7 @@ def test_aggregate_handles_payload_without_fields(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# F-97-L: mixed v1 / v2 events
+# L: mixed v1 / v2 events
 # ---------------------------------------------------------------------------
 
 
@@ -209,7 +212,7 @@ def _crash_v2(sid, fingerprint_hash, error_class="ValueError"):
 
 
 def test_aggregate_handles_v1_and_v2_mixed(tmp_path):
-    """F-97-L: events written before and after the v1→v2 cutover must
+    """events written before and after the v1→v2 cutover must
     produce a single coherent daily summary — sessions counted from
     both shapes, summary stamped at v2.
     """
@@ -233,7 +236,7 @@ def test_aggregate_handles_v1_and_v2_mixed(tmp_path):
 
 
 def test_aggregate_crash_summary_groups_v1_v2_same_hash(tmp_path):
-    """F-97-L: a v1 crash with fingerprint string 'abc123' and a v2
+    """a v1 crash with fingerprint string 'abc123' and a v2
     crash with fingerprint dict ``{'hash': 'abc123', ...}`` must end
     up in the same crash bucket after the v1→v2 migration.
     """

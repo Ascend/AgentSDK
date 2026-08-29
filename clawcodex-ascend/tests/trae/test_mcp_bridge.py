@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 #  This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
@@ -16,7 +17,7 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""P66-E — TraeMcpBridge 单元测试 (mcp 可选依赖降级路径)."""
+"""P66-E Tests for mcp bridge."""
 
 from __future__ import annotations
 
@@ -39,12 +40,11 @@ from extensions.trae.mcp_bridge import (
 )
 
 # ---------------------------------------------------------------------------
-# 工具规格
 # ---------------------------------------------------------------------------
 
 
 def test_build_tool_specs_returns_4_tools() -> None:
-    """§1.9.5 验收: tools/list 返回 4 个工具。"""
+    """Verify build tool specs returns 4 tools."""
     specs = build_tool_specs()
     names = [s.name for s in specs]
     assert names == [
@@ -53,7 +53,6 @@ def test_build_tool_specs_returns_4_tools() -> None:
         TOOL_SKILL_INVOKE,
         TOOL_STABILITY_GATE,
     ]
-    # 每个工具都有 description 和 input_schema
     for spec in specs:
         assert spec.description, f"{spec.name} missing description"
         assert isinstance(spec.input_schema, dict)
@@ -90,8 +89,6 @@ def test_bridge_config_from_env_defaults_empty() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Windows → WSL 路径转换（Trae CN 是 Windows 进程，传入 ${workspaceFolder}
-# 是 C:\xxx 形式；bridge 在 WSL 跑需 /mnt/c/xxx）
 # ---------------------------------------------------------------------------
 
 
@@ -120,7 +117,7 @@ def test_win_to_wsl_empty_and_quoted() -> None:
 
 
 def test_bridge_config_from_env_converts_windows_paths() -> None:
-    """Trae CN 经 wsl.exe 启动时，env 里 Windows 路径需自动转 WSL 路径。"""
+    """Verify bridge config from env converts windows paths."""
     cfg = BridgeConfig.from_env(
         {
             "CLAWCODEX_WORKSPACE": "C:\\WorkSpace\\clawcodex",
@@ -133,7 +130,7 @@ def test_bridge_config_from_env_converts_windows_paths() -> None:
 
 
 def test_bridge_config_from_env_disabled_conversion() -> None:
-    """CLAWCODEX_AUTO_WIN_TO_WSL=0 时禁用转换（纯 Linux 部署场景）。"""
+    """Verify bridge config from env disabled conversion."""
     cfg = BridgeConfig.from_env(
         {
             "CLAWCODEX_WORKSPACE": "C:\\foo",
@@ -144,7 +141,6 @@ def test_bridge_config_from_env_disabled_conversion() -> None:
 
 
 # ---------------------------------------------------------------------------
-# call_tool 分发 — 注入 mock 依赖，不依赖真实 orchestrator/sop/skill/mcp
 # ---------------------------------------------------------------------------
 
 
@@ -157,7 +153,7 @@ async def test_call_tool_unknown_raises() -> None:
 
 @pytest.mark.asyncio
 async def test_call_tool_orch_run_fire_and_forget(tmp_path: Path) -> None:
-    """orchestrator 入队 fire-and-forget — 立即返回 run_id。"""
+    """Verify call tool orch run fire and forget."""
     enqueued: list[tuple[str, str | None]] = []
 
     def fake_enqueue(issue_url: str, workflow_path: str | None) -> str:
@@ -172,7 +168,6 @@ async def test_call_tool_orch_run_fire_and_forget(tmp_path: Path) -> None:
     assert "run-123" in result
     assert "queued" in result
     assert enqueued == [("https://gitcode.com/x/y/issues/1", None)]
-    # 进度文件路径已记录
     assert "run-123" in bridge._runs
 
 
@@ -186,7 +181,7 @@ async def test_call_tool_orch_run_missing_issue_url() -> None:
 
 @pytest.mark.asyncio
 async def test_call_tool_orch_run_enqueue_exception_surfaces() -> None:
-    """enqueue 抛错时应被捕获并返回 error (boundary, 不让 MCP server 崩)。"""
+    """Verify call tool orch run enqueue exception surfaces."""
 
     def boom(issue_url: str, workflow_path: str | None) -> str:
         raise RuntimeError("daemon down")
@@ -286,20 +281,18 @@ async def test_call_tool_stability_gate_exception_surfaces() -> None:
 
 
 # ---------------------------------------------------------------------------
-# 默认 orchestrator enqueue — 验证 run_id 生成 + ndjson 写入
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
 async def test_default_orchestrator_enqueue_writes_ndjson(tmp_path: Path) -> None:
-    """默认 enqueue 实现生成 run_id 并写 ndjson 进度文件 (供 Trae 端轮询)。"""
+    """Verify default orchestrator enqueue writes ndjson."""
     bridge = TraeMcpBridge(config=BridgeConfig(reports_dir=str(tmp_path / ".reports")))
     result = await bridge.call_tool(
         TOOL_ORCH_RUN,
         {"issue_url": "https://example.com/i/1", "workflow_path": "./w.md"},
     )
     assert "queued run_id=" in result
-    # ndjson 文件已创建
     ndjson_files = list((tmp_path / ".reports").glob("*.ndjson"))
     assert len(ndjson_files) == 1
     record = json.loads(ndjson_files[0].read_text(encoding="utf-8"))
@@ -310,12 +303,11 @@ async def test_default_orchestrator_enqueue_writes_ndjson(tmp_path: Path) -> Non
 
 
 # ---------------------------------------------------------------------------
-# 默认 stability runner — 用真实 subprocess (跑 --version 避免长耗时)
 # ---------------------------------------------------------------------------
 
 
 def test_default_stability_runner_runs_subprocess(tmp_path: Path) -> None:
-    """默认 stability_runner 通过 subprocess 跑命令；用一个会快速成功的命令验证路径。"""
+    """Verify default stability runner runs subprocess."""
     import sys
 
     cfg = BridgeConfig(
@@ -330,7 +322,7 @@ def test_default_stability_runner_runs_subprocess(tmp_path: Path) -> None:
 
 
 def test_default_stability_runner_timeout(tmp_path: Path) -> None:
-    """subprocess 超时返回 error 文案。"""
+    """Verify default stability runner timeout."""
     import sys
 
     cfg = BridgeConfig(
@@ -345,7 +337,7 @@ def test_default_stability_runner_timeout(tmp_path: Path) -> None:
 
 
 def test_default_stability_runner_not_found() -> None:
-    """pytest 不在 PATH 时返回 error (而非抛 FileNotFoundError)。"""
+    """Verify default stability runner not found."""
     cfg = BridgeConfig(stability_gate_args=["definitely-not-a-real-binary-xyz"])
     bridge = TraeMcpBridge(config=cfg)
     result = bridge._default_stability_runner()
@@ -354,17 +346,16 @@ def test_default_stability_runner_not_found() -> None:
 
 
 # ---------------------------------------------------------------------------
-# mcp 可选依赖降级路径
 # ---------------------------------------------------------------------------
 
 
 def test_mcp_available_returns_bool() -> None:
-    """mcp_available() 在已装/未装两种环境下都返回 bool，不抛错。"""
+    """Verify mcp available returns bool."""
     assert isinstance(mcp_available(), bool)
 
 
 def test_build_mcp_server_raises_when_mcp_missing() -> None:
-    """mcp 未安装时 _build_mcp_server 抛 ImportError 提示安装方式。"""
+    """Verify build mcp server raises when mcp missing."""
     bridge = TraeMcpBridge()
     if mcp_available():
         pytest.skip("mcp installed — skip the missing-mcp path")
@@ -373,7 +364,7 @@ def test_build_mcp_server_raises_when_mcp_missing() -> None:
 
 
 def test_main_returns_2_when_mcp_missing(capsys) -> None:
-    """模块入口在 mcp 未安装时返回 exit code 2 并打印提示。"""
+    """Verify main returns 2 when mcp missing."""
     if mcp_available():
         pytest.skip("mcp installed — skip the missing-mcp path")
     from extensions.trae.mcp_bridge import _main
@@ -385,7 +376,6 @@ def test_main_returns_2_when_mcp_missing(capsys) -> None:
 
 
 # ---------------------------------------------------------------------------
-# list_tools — 不依赖 mcp 安装
 # ---------------------------------------------------------------------------
 
 
@@ -397,12 +387,11 @@ def test_list_tools_returns_4_specs() -> None:
 
 
 # ---------------------------------------------------------------------------
-# 异步运行 helper — 确保 asyncio loop 可用
 # ---------------------------------------------------------------------------
 
 
 def test_call_tool_async_runs_in_new_loop() -> None:
-    """call_tool 可在无运行中 event loop 的同步上下文里 await。"""
+    """Verify call tool async runs in new loop."""
     bridge = TraeMcpBridge(stability_runner=lambda: "exit=0 | ok")
     result = asyncio.run(bridge.call_tool(TOOL_STABILITY_GATE, {}))
     assert "exit=0" in result
