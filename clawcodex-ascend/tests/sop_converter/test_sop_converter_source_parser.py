@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import tempfile
 from pathlib import Path
+from typing import ClassVar
 
 import pytest
 
@@ -452,9 +453,6 @@ class TestInferTypeHintFromDescription:
         assert infer_type_hint_from_description("收件人邮箱") is None
         assert infer_type_hint_from_description("SMTP port number") is None
         assert infer_type_hint_from_description("") is None
-
-
-# --- appended from PR #756 ---
 
 
 class TestAgentMarkdownWriter:
@@ -1179,3 +1177,680 @@ class TestLLMSemanticStrategy:
         )
         result = grouper._group_with_llm("")
         assert result == grouper._static_group()
+
+
+# =========================================================================
+# --extern-only filtering tests
+# =========================================================================
+
+
+class TestExternOnlyFiltering:
+    """Tests for --extern-only flag that filters to docstring-documented API."""
+
+    def test_extern_only_docstring_filter(self) -> None:
+        """extern_only=True: only methods with docstrings are included."""
+        source = '''
+class Processor:
+    def documented(self, x: int) -> str:
+        """Process the input value.
+
+        Args:
+            x: The value to process.
+
+        Returns:
+            Processed string.
+        """
+        return str(x)
+
+    def undocumented(self, y: str) -> None:
+        pass
+'''
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            (tmp / "mod.py").write_text(source)
+
+            parser = SourceCodeParser(tmp, extern_only=True)
+            components = parser.parse()
+
+        ops = [op for comp in components for op in comp.operations]
+        op_names = {op.name for op in ops}
+        assert "documented" in op_names, f"Expected 'documented', got: {op_names}"
+        assert "undocumented" not in op_names, f"'undocumented' should be filtered out, got: {op_names}"
+
+    def test_extern_only_all_exports(self) -> None:
+        """extern_only=True + __all__: only classes/functions in __all__ pass."""
+        source = '''
+__all__ = ["Processor"]
+
+class Processor:
+    """A document processor."""
+
+    def process(self, data: str) -> str:
+        """Process data.
+
+        Args:
+            data: Input data.
+
+        Returns:
+            Processed data.
+        """
+        return data
+
+class InternalHelper:
+    """Internal helper class."""
+
+    def help(self) -> None:
+        """Provide help."""
+        pass
+'''
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            (tmp / "mod.py").write_text(source)
+
+            parser = SourceCodeParser(tmp, extern_only=True)
+            components = parser.parse()
+
+        ops = [op for comp in components for op in comp.operations]
+        op_names = {op.name for op in ops}
+        # Processor is in __all__ and has docstring
+        assert "process" in op_names
+        # InternalHelper is NOT in __all__
+        assert "help" not in op_names, f"'help' from InternalHelper should be filtered out, got: {op_names}"
+
+    def test_extern_only_all_and_docstring(self) -> None:
+        """__all__ + extern_only: export with no docstring is still filtered out."""
+        source = '''
+__all__ = ["Processor", "utility_func"]
+
+class Processor:
+    """Processor class."""
+
+    def process(self, data: str) -> str:
+        """Process data.
+
+        Args:
+            data: Input data.
+
+        Returns:
+            Result.
+        """
+        return data
+
+def utility_func(x: int) -> int:
+    """Do something useful.
+
+    Args:
+        x: Input value.
+
+    Returns:
+        Result.
+    """
+    return x * 2
+
+def internal_func(y: int) -> int:
+    pass
+'''
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            (tmp / "mod.py").write_text(source)
+
+            parser = SourceCodeParser(tmp, extern_only=True)
+            components = parser.parse()
+
+        ops = [op for comp in components for op in comp.operations]
+        op_names = {op.name for op in ops}
+        # Documented methods/functions in __all__ pass
+        assert "process" in op_names
+        assert "utility_func" in op_names
+        # internal_func has no docstring → filtered out even if in __all__
+        assert "internal_func" not in op_names, f"'internal_func' should be filtered (no docstring), got: {op_names}"
+
+    def test_extern_only_no_all(self) -> None:
+        """No __all__ defined: filter by docstring only."""
+        source = '''
+class Worker:
+    """Worker class."""
+
+    def do_work(self) -> str:
+        """Do some work.
+
+        Returns:
+            Result.
+        """
+        return "done"
+
+    def _internal(self) -> None:
+        """Internal helper."""
+        pass
+
+    def no_docs(self, x: int) -> int:
+        pass
+
+def public_func() -> None:
+    """A public function."""
+    pass
+
+def hidden_func() -> None:
+    pass
+'''
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            (tmp / "mod.py").write_text(source)
+
+            parser = SourceCodeParser(tmp, extern_only=True)
+            components = parser.parse()
+
+        ops = [op for comp in components for op in comp.operations]
+        op_names = {op.name for op in ops}
+        # has docstring → passes
+        assert "do_work" in op_names
+        assert "public_func" in op_names
+        # no docstring → filtered out
+        assert "no_docs" not in op_names
+        assert "hidden_func" not in op_names
+        # _-prefixed already excluded by existing logic
+        assert "_internal" not in op_names
+
+    def test_extern_only_empty_all(self) -> None:
+        """Empty __all__ with extern_only=True: no operations pass."""
+        source = '''
+__all__ = []
+
+class Processor:
+    """Processor class."""
+
+    def process(self, data: str) -> str:
+        """Process data.
+
+        Args:
+            data: Input data.
+
+        Returns:
+            Result.
+        """
+        return data
+'''
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            (tmp / "mod.py").write_text(source)
+
+            parser = SourceCodeParser(tmp, extern_only=True)
+            components = parser.parse()
+
+        ops = [op for comp in components for op in comp.operations]
+        assert len(ops) == 0, f"Empty __all__ should yield no ops, got: {[op.name for op in ops]}"
+
+    def test_all_methods_flag(self) -> None:
+        """extern_only=False (--all): all public methods included, regardless of docstring."""
+        source = '''
+class Processor:
+    def with_docs(self, x: int) -> str:
+        """Documented method.
+
+        Args:
+            x: Input.
+
+        Returns:
+            Output.
+        """
+        return str(x)
+
+    def no_docs(self, y: str) -> None:
+        pass
+'''
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            (tmp / "mod.py").write_text(source)
+
+            parser = SourceCodeParser(tmp, extern_only=False)  # --all
+            components = parser.parse()
+
+        ops = [op for comp in components for op in comp.operations]
+        op_names = {op.name for op in ops}
+        # Both should be included when extern_only=False
+        assert "with_docs" in op_names
+        assert "no_docs" in op_names
+
+    def test_extern_only_top_level_func(self) -> None:
+        """Top-level functions: documented ones pass, undocumented filtered out."""
+        source = '''
+def documented_func(x: int) -> int:
+    """Square the input.
+
+    Args:
+        x: Input value.
+
+    Returns:
+        Squared value.
+    """
+    return x * x
+
+def undocumented_func(y: str) -> None:
+    pass
+'''
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            (tmp / "mod.py").write_text(source)
+
+            parser = SourceCodeParser(tmp, extern_only=True)
+            components = parser.parse()
+
+        ops = [op for comp in components for op in comp.operations]
+        op_names = {op.name for op in ops}
+        assert "documented_func" in op_names
+        assert "undocumented_func" not in op_names
+
+    def test_extern_only_excludes_init(self) -> None:
+        """extern_only=True: __init__ is always excluded, even with docstring."""
+        source = '''
+class Service:
+    """A public service class."""
+
+    def __init__(self, endpoint: str, timeout: int = 30) -> None:
+        """Initialise the service.
+
+        Args:
+            endpoint: Service endpoint URL.
+            timeout: Connection timeout in seconds.
+        """
+        self.endpoint = endpoint
+        self.timeout = timeout
+
+    def call(self, payload: str) -> str:
+        """Call the service.
+
+        Args:
+            payload: Request payload.
+
+        Returns:
+            Response string.
+        """
+        return f"response: {payload}"
+'''
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            (tmp / "mod.py").write_text(source)
+
+            parser = SourceCodeParser(tmp, extern_only=True)
+            components = parser.parse()
+
+        ops = [op for comp in components for op in comp.operations]
+        op_names = {op.name for op in ops}
+        # call() has docstring → passes
+        assert "call" in op_names
+        # __init__ has docstring but should always be excluded in extern_only mode
+        assert "__init__" not in op_names, f"__init__ should be excluded in --extern-only mode, got: {op_names}"
+
+    def test_extern_only_excludes_init_with_all(self) -> None:
+        """extern_only=True + __all__: __init__ excluded even if class is in __all__."""
+        source = '''
+__all__ = ["Service"]
+
+class Service:
+    """A public service class."""
+
+    def __init__(self, endpoint: str, timeout: int = 30) -> None:
+        """Initialise the service.
+
+        Args:
+            endpoint: Service endpoint URL.
+            timeout: Connection timeout in seconds.
+        """
+        self.endpoint = endpoint
+        self.timeout = timeout
+
+    def call(self, payload: str) -> str:
+        """Call the service.
+
+        Args:
+            payload: Request payload.
+
+        Returns:
+            Response string.
+        """
+        return f"response: {payload}"
+'''
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            (tmp / "mod.py").write_text(source)
+
+            parser = SourceCodeParser(tmp, extern_only=True)
+            components = parser.parse()
+
+        ops = [op for comp in components for op in comp.operations]
+        op_names = {op.name for op in ops}
+        # call() has docstring and class is in __all__ → passes
+        assert "call" in op_names
+        # __init__ should be excluded even when its class is in __all__
+        assert "__init__" not in op_names, f"__init__ should be excluded in --extern-only mode, got: {op_names}"
+
+    def test_extern_only_excludes_test_methods(self) -> None:
+        """extern_only=True: test_* methods are never external interfaces."""
+        source = '''
+class TestService:
+    """Tests for Service."""
+
+    def test_connect(self) -> None:
+        """Test that service connects successfully."""
+        pass
+
+    def test_timeout(self) -> None:
+        """Test timeout behaviour."""
+        pass
+
+    def helper(self) -> str:
+        """A helper method, not a test."""
+        return "helper"
+'''
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            (tmp / "mod.py").write_text(source)
+
+            parser = SourceCodeParser(tmp, extern_only=True)
+            components = parser.parse()
+
+        ops = [op for comp in components for op in comp.operations]
+        op_names = {op.name for op in ops}
+        # helper() has docstring → passes
+        assert "helper" in op_names
+        # test_* methods are never external API
+        assert "test_connect" not in op_names, f"test_connect should be excluded in --extern-only mode, got: {op_names}"
+        assert "test_timeout" not in op_names, f"test_timeout should be excluded in --extern-only mode, got: {op_names}"
+
+    def test_extern_only_excludes_dunder_methods(self) -> None:
+        """extern_only=True: all dunder methods (__call__, __enter__, etc.) excluded."""
+        source = '''
+class Handler:
+    """An event handler class."""
+
+    def __call__(self, event: str) -> str:
+        """Handle the event.
+
+        Args:
+            event: The event payload.
+
+        Returns:
+            Processed result.
+        """
+        return f"handled: {event}"
+
+    def __enter__(self) -> "Handler":
+        """Enter context.
+
+        Returns:
+            Self.
+        """
+        return self
+
+    def __exit__(self, *args: object) -> None:
+        """Exit context."""
+        pass
+
+    def process(self, data: str) -> str:
+        """Process data.
+
+        Args:
+            data: Input data.
+
+        Returns:
+            Result.
+        """
+        return data
+'''
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            (tmp / "mod.py").write_text(source)
+
+            parser = SourceCodeParser(tmp, extern_only=True)
+            components = parser.parse()
+
+        ops = [op for comp in components for op in comp.operations]
+        op_names = {op.name for op in ops}
+        # process() is the only real external API
+        assert "process" in op_names, f"Expected 'process', got: {op_names}"
+        # dunder methods are never external interfaces
+        for dunder in ("__call__", "__enter__", "__exit__"):
+            assert dunder not in op_names, f"'{dunder}' should be excluded in --extern-only mode, got: {op_names}"
+
+    def test_extern_only_excludes_main(self) -> None:
+        """extern_only=True: main() CLI entry points are never external API."""
+        source = '''
+def main() -> None:
+    """CLI entry point for the pipeline.
+
+    Parses command-line arguments and runs the pipeline.
+    """
+    pass
+
+def run_pipeline(config_path: str) -> dict:
+    """Run the pipeline with given config.
+
+    Args:
+        config_path: Path to the config file.
+
+    Returns:
+        Pipeline result dict.
+    """
+    return {}
+'''
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            (tmp / "mod.py").write_text(source)
+
+            parser = SourceCodeParser(tmp, extern_only=True)
+            components = parser.parse()
+
+        ops = [op for comp in components for op in comp.operations]
+        op_names = {op.name for op in ops}
+        # run_pipeline() has docstring → passes
+        assert "run_pipeline" in op_names
+        # main() is CLI entry point, not external API
+        assert "main" not in op_names, f"'main' should be excluded in --extern-only mode, got: {op_names}"
+
+
+# =========================================================================
+# E2E: pos convert → loadable agent/skill files
+# =========================================================================
+
+
+class TestPosConvertE2E:
+    """End-to-end: run pos convert on a real source tree, verify output."""
+
+    SAMPLE_PROJECT: ClassVar[dict[str, str]] = {
+        "video_ops/__init__.py": '"""Video processing SDK."""\n',
+        "video_ops/transcoder.py": '''
+class Transcoder:
+    """Transcode video between formats."""
+
+    def transcode(self, input_path: str, output_format: str = "mp4") -> bool:
+        """Convert a video file to the target format.
+
+        Args:
+            input_path: Path to the input video file.
+            output_format: Target output format (default: "mp4").
+
+        Returns:
+            True if successful, False otherwise.
+        """
+        return True
+
+    def probe(self, file_path: str) -> dict:
+        """Get video metadata and format info.
+
+        Args:
+            file_path: Path to the video file.
+
+        Returns:
+            Dict with codec, resolution, bitrate keys.
+        """
+        return {"codec": "h264", "resolution": "1920x1080"}
+''',
+        "video_ops/thumbs.py": '''
+class Thumbnailer:
+    """Generate video thumbnails."""
+
+    def extract_thumbnail(self, input_path: str, time_sec: float = 0.0) -> bytes:
+        """Extract a thumbnail frame at a given timestamp.
+
+        Args:
+            input_path: Path to the video file.
+            time_sec: Timestamp in seconds (default: 0.0).
+
+        Returns:
+            PNG image bytes.
+        """
+        return b""
+''',
+        "audio_ops/__init__.py": '"""Audio processing SDK."""\n',
+        "audio_ops/mixer.py": '''
+class AudioMixer:
+    """Mix and process audio streams."""
+
+    def mix(self, tracks: list[str], output_path: str) -> str:
+        """Mix multiple audio tracks into one.
+
+        Args:
+            tracks: List of input track paths.
+            output_path: Output file path.
+
+        Returns:
+            Path to the mixed output file.
+        """
+        return output_path
+''',
+    }
+
+    def _write_project(self, root: Path) -> None:
+        for relpath, content in self.SAMPLE_PROJECT.items():
+            full = root / relpath
+            full.parent.mkdir(parents=True, exist_ok=True)
+            full.write_text(content, encoding="utf-8")
+
+    def test_convert_writes_agent_and_skill_files(self) -> None:
+        """pos convert writes loadable agent .md and skill files to --out and --skills."""
+        import tempfile
+
+        from clawcodex_ext.cli.sop_cmd.commands import run_sop_command
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            proj = tmp / "media_sdk"
+            self._write_project(proj)
+            out_dir = tmp / "output"
+            skills_dir = tmp / "skills"
+
+            # Run pos convert with --all (include all methods)
+            exit_code = run_sop_command(
+                [
+                    "convert",
+                    str(proj),
+                    "--strategy",
+                    "keyword",
+                    "--out",
+                    str(out_dir),
+                    "--skills",
+                    str(skills_dir),
+                    "--all",
+                ]
+            )
+            assert exit_code == 0, f"pos convert failed with exit code {exit_code}"
+
+            # ── Verify agent files ──
+            agents_dir = out_dir / ".claude" / "agents"
+            assert agents_dir.is_dir(), f"Expected agents dir at {agents_dir}"
+            agent_files = sorted(agents_dir.glob("*.md"))
+            assert len(agent_files) >= 1, f"No agent files in {agents_dir}"
+
+            # Each agent .md should have valid frontmatter
+            for af in agent_files:
+                content = af.read_text(encoding="utf-8")
+                assert content.startswith("---"), f"Agent {af.name} missing frontmatter"
+                parts = content.split("---", 2)
+                assert len(parts) >= 3, f"Agent {af.name} malformed frontmatter"
+                fm_text = parts[1]
+                assert "name:" in fm_text, f"Agent {af.name} missing 'name' in frontmatter"
+                assert "description:" in fm_text, f"Agent {af.name} missing 'description' in frontmatter"
+                assert "tools:" in fm_text, f"Agent {af.name} missing 'tools' in frontmatter"
+
+            # ── Verify skill files ──
+            assert skills_dir.is_dir(), f"Expected skills dir at {skills_dir}"
+            skill_files = sorted(skills_dir.glob("*-skill.md"))
+            assert len(skill_files) >= 1, f"No skill files in {skills_dir}"
+
+            # Each skill file should have required frontmatter fields
+            for sf in skill_files:
+                content = sf.read_text(encoding="utf-8")
+                assert "name:" in content, f"Skill {sf.name} missing name"
+                assert "description:" in content, f"Skill {sf.name} missing description"
+                assert "allowed-tools:" in content, f"Skill {sf.name} missing allowed-tools"
+
+    def test_convert_extern_only_default(self) -> None:
+        """Default behavior (no --all): only documented external interfaces pass."""
+        import tempfile
+
+        from clawcodex_ext.cli.sop_cmd.commands import run_sop_command
+
+        # Create source with both documented and undocumented methods
+        source = {
+            "lib/__init__.py": "",
+            "lib/api.py": '''
+class Service:
+    """Public service."""
+
+    def call(self, payload: str) -> str:
+        """Call the service endpoint.
+
+        Args:
+            payload: Request payload.
+
+        Returns:
+            Response string.
+        """
+        return f"response: {payload}"
+
+    def _internal(self) -> None:
+        """Internal helper."""
+        pass
+''',
+            "lib/hidden.py": '''
+class HiddenUtil:
+    """Utility without documented methods."""
+
+    def no_docs(self, x: int) -> int:
+        return x * 2
+''',
+        }
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            lib = tmp / "lib_src"
+            for relpath, content in source.items():
+                full = lib / relpath
+                full.parent.mkdir(parents=True, exist_ok=True)
+                full.write_text(content, encoding="utf-8")
+
+            out_dir = tmp / "out"
+            exit_code = run_sop_command(
+                [
+                    "convert",
+                    str(lib),
+                    "--strategy",
+                    "keyword",
+                    "--out",
+                    str(out_dir),
+                    # No --all → default extern-only filtering
+                ]
+            )
+            assert exit_code == 0
+
+            # Verify agents were generated
+            agents_dir = out_dir / ".claude" / "agents"
+            agent_files = sorted(agents_dir.glob("*.md"))
+            # Should have at least the service agent
+            assert len(agent_files) >= 1
+
+            # Read agent file and check it references the documented method
+            agent_content = agent_files[0].read_text(encoding="utf-8")
+            assert "call" in agent_content or "Service" in agent_content, (
+                f"Agent should reference documented API, got:\n{agent_content[:500]}"
+            )
