@@ -3,12 +3,14 @@
 
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
-# Copyright (c) 2026 Clawd Codex Team
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -74,6 +76,9 @@ def _get_global_config_dir() -> Path:
     if env_override:
         return Path(env_override).expanduser().resolve()
     return Path.home() / ".clawcodex"
+
+
+get_global_config_dir = _get_global_config_dir
 
 
 def _get_managed_file_path() -> Path:
@@ -761,11 +766,11 @@ def _invalidate_config_manager_cache() -> None:
     MCP add/remove that already landed on disk.
     """
     try:
-        from src.config import _get_default_manager
+        from src.config import get_default_manager
 
-        _get_default_manager().invalidate()
+        get_default_manager().invalidate()
     except Exception:  # noqa: BLE001  # nosec B110 - best-effort cache coherence; failure must not break MCP add/remove
-        pass
+        pass  # The file update is authoritative; cache invalidation is best-effort.
 
 
 def _write_user_config_atomic(config_file: Path, data: dict[str, Any]) -> None:
@@ -786,7 +791,7 @@ def _write_user_config_atomic(config_file: Path, data: dict[str, Any]) -> None:
         try:
             os.unlink(tmp_path)
         except OSError:
-            pass
+            pass  # Cleanup is best-effort and must not replace the primary operation result.
         raise
 
 
@@ -828,7 +833,7 @@ def add_mcp_config(
             try:
                 os.unlink(tmp_path)
             except OSError:
-                pass
+                pass  # Cleanup is best-effort and must not replace the primary operation result.
             raise
 
     elif scope == "user":
@@ -880,7 +885,7 @@ def remove_mcp_config(name: str, scope: ConfigScope) -> None:
             try:
                 os.unlink(tmp_path)
             except OSError:
-                pass
+                pass  # Cleanup is best-effort and must not replace the primary operation result.
             raise
 
     elif scope == "user":

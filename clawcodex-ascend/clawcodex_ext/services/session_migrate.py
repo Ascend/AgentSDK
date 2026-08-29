@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 #  This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
@@ -16,7 +17,7 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""F-49 P5-H: session format migration tool.
+"""P5-H: session format migration tool.
 
 Converts legacy 3-file sessions (session.json + metadata.json +
 transcript.jsonl) into the unified 2-file format introduced by Phase 5
@@ -266,7 +267,7 @@ def migrate_session(
 
                     created_at = datetime.fromtimestamp(start, tz=timezone.utc).isoformat()
         except (OSError, json.JSONDecodeError):
-            pass
+            pass  # Invalid candidate; continue with the surrounding fallback.
 
     # Existing on-disk uuids — used to skip duplicates when both
     # session.json and transcript.jsonl hold overlapping message lists.
@@ -413,7 +414,7 @@ def migrate_all(
 
 # ---------------------------------------------------------------------------
 # CLI helper — invoked by ``clawcodex-dev session migrate --from-3-file``
-# and the F-49 P5 subcommand sieve.
+# and the P5 subcommand sieve.
 # ---------------------------------------------------------------------------
 
 

@@ -3,12 +3,14 @@
 
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
-# Copyright (c) 2026 Clawd Codex Team
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -433,7 +435,7 @@ class McpClient:
             try:
                 await self._send_response(msg.id, error={"code": -32603, "message": str(e)})
             except Exception:  # nosec B110 - best-effort error reporting; never crash the receive loop
-                pass
+                pass  # Error-response delivery is best-effort after the request handler has already failed.
 
     async def _run_elicitation(self, params: dict[str, Any]) -> dict[str, Any]:
         """Run the injected elicitation handler, or decline if none is set."""
@@ -655,7 +657,7 @@ class McpClient:
             try:
                 await self._receive_task
             except asyncio.CancelledError:
-                pass
+                pass  # The task was explicitly cancelled; awaiting it only drains shutdown cleanup.
         if self._transport:
             await self._transport.close()
 

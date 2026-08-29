@@ -3,12 +3,14 @@
 
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
-# Copyright (c) 2026 Clawd Codex Team
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -105,11 +107,7 @@ def maybe_truncate_with_liveview(
     max_chunks: int = DEFAULT_MAX_CHUNKS,
     liveview_url: str | None = None,
 ) -> list[str]:
-    """Split text; if it would exceed ``max_chunks`` chunks, truncate + link.
-
-    Returns a list of body chunks to send. When truncation occurs, the
-    final chunk carries a "已截断，完整内容见 LiveView: <url>" notice.
-    """
+    """Truncate text and publish the full value to LiveView when needed."""
     if max_chunks <= 0:
         raise ValueError("max_chunks must be greater than zero")
     chunks = split_text(text, chunk_size)

@@ -1,3 +1,25 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 """Agnes AI video generation provider.
 
 Uses the **async task pattern**::
@@ -160,7 +182,7 @@ class AgnesVideoProvider(VideoProvider):
             try:
                 progress = float(progress_raw)
             except (ValueError, TypeError):
-                pass
+                pass  # Invalid candidate; continue with the surrounding fallback.
 
         error = data.get("error") or data.get("failure_reason")
 
@@ -200,7 +222,7 @@ class AgnesVideoProvider(VideoProvider):
             try:
                 duration = int(nf) / int(fr)
             except (ValueError, ZeroDivisionError):
-                pass
+                pass  # Invalid candidate; continue with the surrounding fallback.
 
         return VideoResult(
             video_url=video_url,

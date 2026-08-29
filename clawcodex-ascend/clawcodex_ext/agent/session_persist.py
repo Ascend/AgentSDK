@@ -18,7 +18,7 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""二开 agent session persistence — session storage read/write hooks.
+"""Downstream agent session persistence and session-storage hooks.
 
 Extracted from ``src/agent/session.py`` so the upstream Session class
 remains free of orchestrator-specific SessionStorage / TailFollower
@@ -28,7 +28,7 @@ Architecture::
 
     src/agent/session.py                   ← upstream Session (calls hooks below)
         ↑ import
-    clawcodex_ext/agent/session_persist.py    ← this module (二开 persistence)
+    clawcodex_ext/agent/session_persist.py    ← this downstream module
 
 Two public hooks:
 
@@ -200,7 +200,7 @@ def _inject_parent_uuids(
         if isinstance(uuid, str) and uuid:
             # Always recompute parentUuid from the previous message
             # in the conversation list. The design doc
-            # explicitly mandates "写入时计算" (compute on write);
+            # explicitly mandates computing the value on write;
             # we never trust a pre-existing value because rewinds
             # truncate the in-memory conversation and a stale
             # parentUuid on a "new" message would point at the
@@ -307,7 +307,7 @@ def _write_session_init_line(storage: Any, session: Any) -> None:
         try:
             os.unlink(tmp_path)
         except OSError:
-            pass
+            pass  # Best-effort cleanup must not hide the original write error.
         raise
 
     # Reset the SessionStorage's de-dup baseline so the follow-up

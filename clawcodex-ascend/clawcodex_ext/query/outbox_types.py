@@ -1,8 +1,26 @@
-"""类型化的 outbox 事件（P102-C）。
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
-将 ``ToolContext.outbox`` 从 ``list[dict[str, Any]]`` 改为 ``list[OutboxEvent]``
-Union dataclass，使 mypy --strict 通过，并为未来事件类型提供扩展点。
-"""
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
+"""P102-C Typed outbox events."""
 
 from __future__ import annotations
 
@@ -12,7 +30,7 @@ from typing import Any, Union
 
 @dataclass
 class CronPromptEvent:
-    """Scheduler 触发的 cron 任务执行提示。"""
+    """Represent a scheduler-triggered cron prompt."""
 
     prompt: str = ""
     task_id: str = ""
@@ -46,7 +64,7 @@ class CronPromptEvent:
 
 @dataclass
 class CronMissedEvent:
-    """Cron missed one-shot 通知。"""
+    """Represent a missed one-shot cron notification."""
 
     tasks: list[str] = field(default_factory=list)
     notification: str = ""
@@ -99,11 +117,7 @@ class ProactivePromptEvent:
 
 @dataclass
 class GenericOutboxEvent:
-    """通用 outbox 事件，兼容任意工具写入的键值对。
-
-    保留 ``payload`` dict 以容纳 ``tool``、``message``、``questions`` 等
-    任意字段，同时提供类型标注。
-    """
+    """Represent an outbox event with arbitrary payload fields."""
 
     payload: dict[str, Any] = field(default_factory=dict)
 
@@ -125,11 +139,7 @@ OutboxEvent = Union[CronPromptEvent, CronMissedEvent, ProactivePromptEvent, Gene
 
 
 def outbox_event_from_dict(d: dict[str, Any]) -> OutboxEvent:
-    """从原始 dict 反序列化为类型化的 OutboxEvent。
-
-    根据 ``type`` 字段自动分发到具体子类；未知类型统一归到
-    ``GenericOutboxEvent``。
-    """
+    """Deserialize a typed outbox event from a mapping."""
     etype = d.get("type", "")
     if etype == "cron_prompt":
         return CronPromptEvent(

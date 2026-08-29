@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 #  This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
@@ -61,7 +62,7 @@ class TemplateResolutionError(TemplatesError):
 
 
 # ---------------------------------------------------------------------------
-# F-95 (P95-B / P95-C / P95-G) — product-layer exceptions
+# (P95-B / P95-C / P95-G) — product-layer exceptions
 # ---------------------------------------------------------------------------
 
 

@@ -1,11 +1,33 @@
-"""voice — ``/voice`` command (F-64 Voice Mode).
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
+"""Voice — ``/voice`` command.
 
 Mirrors TS ``src/commands/voice/voice.ts``: toggles voice mode on/off and
 selects the STT backend. The persisted state lives in
 ``settings.voice_enabled`` (master switch) and ``settings.voice_provider``
 (``"anthropic"`` | ``"doubao"``); both are written via
-:func:`src.config.set_voice_enabled` / :func:`src.config.set_voice_provider`
-which invalidate the settings cache so the next ``get_settings()`` reflects
+:func:`src.config.set_voice_enabled` / :func:`src.config.set_voice_provider`,
+which invalidate the settings cache so the next ``get_settings`` reflects
 the change mid-session.
 
 Usage
@@ -26,7 +48,7 @@ Design decisions (mirrors TS)
 * Provider validation happens here (not in settings) so the command can
   surface a clear "unknown backend" message with the valid list, rather
   than the settings layer silently coercing.
-* Availability diagnostics in ``status`` surface the three F-64 gate
+* Availability diagnostics in ``status`` surface the three gate
   layers (feature flag / kill-switch / per-provider auth) so the user can
   see *why* voice is unavailable without reading source.
 * Follows the project's :class:`LocalCommand` convention (matches
@@ -67,18 +89,18 @@ _HELP = (
     "- /voice status       Show current state and availability\n"
     "- /voice help         Show this help\n\n"
     "Tip: for full-duplex voice dialogue (simultaneous speech in + out "
-    "with barge-in), see /dialogue (F-65)."
+    "with barge-in), see /dialogue."
 )
 
 
 def _status_text() -> str:
     """Render the current voice state + per-layer availability diagnostics.
 
-    Surfaces all three F-64 gate layers so the user can see *why* voice
+    Surfaces all three gate layers so the user can see *why* voice
     is unavailable (feature flag off / kill-switch set / OAuth missing)
     without having to read source or check env vars by hand.
 
-    Also surfaces the F-65 dialogue status line so a F-64 user
+    Also surfaces the dialogue status line so a user
     encountering the half-duplex code path discovers the full-duplex
     sibling without reading the docs.
     """
@@ -102,9 +124,9 @@ def _status_text() -> str:
         lines.append("Tip: run /login to obtain an Anthropic OAuth token for STT.")
     if provider == "doubao":
         lines.append("Tip: configure ~/.clawcodex/tts/doubao/credentials.json for Doubao ASR.")
-    # F-65 cross-reference. The dialogue status block is a single
+    # cross-reference. The dialogue status block is a single
     # line — enough to make the user aware that the full-duplex path
-    # exists without duplicating the F-65 status command's output.
+    # exists without duplicating the status command's output.
     with suppress(Exception):
         from clawcodex_ext.services.voice.voice_mode_enabled import (  # pylint: disable=no-name-in-module
             is_dialogue_enabled,

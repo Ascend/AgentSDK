@@ -3,12 +3,14 @@
 
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Clawd Codex Team
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -136,9 +138,9 @@ def refresh_agent_skill_listing(
         return prompt
 
     from clawcodex_ext.context_system.context_analyzer import get_context_window_for_model
-    from clawcodex_ext.context_system.prompt_assembly import _build_skill_section
+    from clawcodex_ext.context_system.prompt_assembly import build_skill_section
 
-    section = _build_skill_section(
+    section = build_skill_section(
         skills,
         # This path deliberately rebuilds the child's *live* workspace-scoped
         # catalog.  The prompt-section cache is process-global and keyed only

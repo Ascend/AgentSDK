@@ -1,4 +1,26 @@
-"""F-125 C9: read-file-state seed for headless resume.
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
+"""Read-file-state seed for headless resume.
 
 When a session is resumed via ``--resume`` / ``--fork-session``, the
 conversation history carries ``tool_use`` blocks for prior ``Read``
@@ -19,17 +41,17 @@ cache reflects the file's current mtime/size.
 Design notes
 ------------
 * **Pairing not required**: a ``tool_use`` alone is sufficient evidence
-  the model read the file — the corresponding ``tool_result`` only
-  carries the content snapshot, not the disk fingerprint. We seed from
-  ``tool_use`` blocks directly.
+ the model read the file — the corresponding ``tool_result`` only
+ carries the content snapshot, not the disk fingerprint. We seed from
+ ``tool_use`` blocks directly.
 * **Partial reads**: when the historical Read used ``offset`` / ``limit``
-  we mark the file partial so the dedup path won't falsely collapse a
-  later full read.
+ we mark the file partial so the dedup path won't falsely collapse a
+ later full read.
 * **Missing files**: silently skipped. The file may have been deleted
-  between runs; re-reading it would have failed anyway.
+ between runs; re-reading it would have failed anyway.
 * **Best-effort**: any error is swallowed and logged at debug level —
-  seeding is an optimisation, not a correctness gate. The agent can
-  always re-Read explicitly.
+ seeding is an optimisation, not a correctness gate. The agent can
+ always re-Read explicitly.
 * **Return value**: the number of files seeded, for telemetry / tests.
 """
 
@@ -100,13 +122,13 @@ def seed_read_file_state_from_history(
                 # mark_file_read stats the file; if it races with a
                 # delete or a permission change, treat as a skip.
                 logger.debug(
-                    "F-125 read-file-state seed: mark_file_read failed for %s",
+                    "read-file-state seed: mark_file_read failed for %s",
                     path,
                     exc_info=True,
                 )
     if seeded:
         logger.debug(
-            "F-125 read-file-state seed: populated %d file fingerprint(s) from resumed history",
+            "read-file-state seed: populated %d file fingerprint(s) from resumed history",
             seeded,
         )
     return seeded

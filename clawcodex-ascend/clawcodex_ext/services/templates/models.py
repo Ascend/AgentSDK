@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 #  This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
@@ -36,7 +37,7 @@ This module is the single source of truth for what a template looks
 like on disk; the registry and resolver layer only deal with
 :class:`Template` instances, never raw dicts.
 
-F-95 extensions (P95-A): in addition to the legacy agent-config shape,
+extensions (P95-A): in addition to the legacy agent-config shape,
 :class:`Template` may now declare a *kind* (agent / skill / workflow /
 prompt / issue / generic) plus *variable schema* / *category* / *tags*
 / *schema_version* / *min_clawcodex_version* / *output_path_template*
@@ -64,7 +65,7 @@ _TITLE_MAX = 200
 _DESCRIPTION_MAX = 2_000
 _FIELDS_MAX = 64
 _FIELD_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
-# F-95: variable-name shape — letters / digits / underscore, must start
+# variable-name shape — letters / digits / underscore, must start
 # with a letter or underscore. The renderer walks ``{{ name }}``
 # placeholders; the names extracted there are matched against declared
 # variables using this same pattern.
@@ -72,7 +73,7 @@ _VARIABLE_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
 _TAG_MAX_LEN = 32
 _TAGS_MAX = 16
 
-# F-95: the closed set of template kinds. ``generic`` is the catch-all
+# the closed set of template kinds. ``generic`` is the catch-all
 # for templates that don't fit one of the typed slots; the renderer /
 # generator treat it as a content-only template (no special output
 # routing).
@@ -176,7 +177,7 @@ def _normalize_tags(raw: Any) -> tuple[str, ...]:
 
 
 # ---------------------------------------------------------------------------
-# F-95 (P95-A): extended data model
+# (P95-A): extended data model
 # ---------------------------------------------------------------------------
 
 
@@ -184,7 +185,7 @@ def _normalize_tags(raw: Any) -> tuple[str, ...]:
 class TemplateVariable:
     """A single declared input for a template.
 
-    F-95 (P95-A): templates may declare their inputs explicitly so the
+    (P95-A): templates may declare their inputs explicitly so the
     renderer can fail fast on missing values and the TUI picker can
     build a typed form. A variable is *required* by default; setting
     ``required=False`` (or providing a non-``None`` ``default``) marks
@@ -273,7 +274,7 @@ class TemplateVariable:
 class TemplateManifest:
     """The "what is this template" projection of a :class:`Template`.
 
-    F-95 (P95-A): the manifest is what the catalogue / picker / CLI
+    (P95-A): the manifest is what the catalogue / picker / CLI
     consume. It is derived from the on-disk :class:`Template` (via
     :func:`get_manifest`) so the storage surface stays a single
     dataclass but consumers get a typed view that is safe to render,
@@ -288,7 +289,7 @@ class TemplateManifest:
         tags: Search/filter tags.
         category: Optional coarse grouping label (e.g. ``"search"``,
             ``"edit"``). The built-in agents already use this in
-            ``metadata.category``; F-95 surfaces it directly.
+            ``metadata.category``; surfaces it directly.
         schema_version: On-disk schema version (defaults to ``"1"``).
         min_clawcodex_version: Optional minimum clawcodex build id; the
             compatibility gate enforces this.
@@ -375,13 +376,13 @@ class Template:
         fields: Optional mapping of field name -> default value. Used
             both to declare what the template contributes and to give
             a baseline value when no inline override is supplied. Field
-            names must be valid Python identifiers. F-95 also recognises
+            names must be valid Python identifiers. also recognises
             two special keys here: ``output_path_template`` and
             ``content_template`` — when present the renderer / generator
             use them as the materialised path and rendered body
             respectively (so on-disk templates can be plain YAML/JSON
             without touching the new ``manifest`` block).
-        metadata: Optional free-form metadata. F-95 reads the following
+        metadata: Optional free-form metadata. reads the following
             keys (all optional): ``kind``, ``category``, ``tags``,
             ``schema_version``, ``min_clawcodex_version``,
             ``output_path_template``, ``variables``. Unknown keys are
@@ -446,19 +447,19 @@ class Template:
 
 
 # ---------------------------------------------------------------------------
-# F-95 (P95-A) projections: helper accessors that lift metadata into the
+# (P95-A) projections: helper accessors that lift metadata into the
 # typed model. Kept as free functions so a :class:`Template` (frozen,
 # stored everywhere) can be projected without copying.
 # ---------------------------------------------------------------------------
 
 
 def kind_of(template: Template) -> TemplateKind:
-    """Return the F-95 ``kind`` declared on ``template.metadata``."""
+    """Return the ``kind`` declared on ``template.metadata``."""
     return _coerce_kind(template.metadata.get("kind"))
 
 
 def category_of(template: Template) -> str | None:
-    """Return the optional F-95 ``category`` declared on ``template.metadata``."""
+    """Return the optional ``category`` declared on ``template.metadata``."""
     raw = template.metadata.get("category")
     if raw is None:
         return None
@@ -468,7 +469,7 @@ def category_of(template: Template) -> str | None:
 
 
 def tags_of(template: Template) -> tuple[str, ...]:
-    """Return the F-95 ``tags`` declared on ``template.metadata``.
+    """Return the ``tags`` declared on ``template.metadata``.
 
     Accepts the legacy comma-separated string (``"python,fix"``) and a
     proper iterable of strings. Returns an empty tuple when absent.
@@ -498,7 +499,7 @@ def variables_of(template: Template) -> tuple[TemplateVariable, ...]:
 
 
 def output_path_template_of(template: Template) -> str | None:
-    """Return the F-95 ``output_path_template`` (preferred metadata)."""
+    """Return the ``output_path_template`` (preferred metadata)."""
     raw_meta = template.metadata.get("output_path_template")
     if raw_meta is not None:
         if not isinstance(raw_meta, str):
@@ -513,7 +514,7 @@ def output_path_template_of(template: Template) -> str | None:
 
 
 def content_template_of(template: Template) -> str | None:
-    """Return the F-95 ``content_template`` (preferred metadata, then fields)."""
+    """Return the ``content_template`` (preferred metadata, then fields)."""
     raw_meta = template.metadata.get("content_template")
     if raw_meta is not None:
         if not isinstance(raw_meta, str):
@@ -553,7 +554,7 @@ def get_manifest(template: Template) -> TemplateManifest:
     The manifest is the shape catalogue / renderer / generator consume.
     Building it on demand keeps :class:`Template` as the single storage
     surface (so existing tests and on-disk YAML keep working) while
-    letting the F-95 surface operate on typed records.
+    letting the surface operate on typed records.
     """
     return TemplateManifest(
         id=template.id,

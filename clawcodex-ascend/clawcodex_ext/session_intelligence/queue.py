@@ -3,12 +3,14 @@
 
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Clawd Codex Team
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -79,14 +81,14 @@ def _exclusive_queue_lock(lock_path: Path) -> Iterator[None]:
                     os.lseek(fd, 0, os.SEEK_SET)
                     msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
                 except OSError:
-                    pass
+                    pass  # Best-effort operation failed; keep the surrounding fallback.
             else:
                 import fcntl
 
                 try:
                     fcntl.flock(fd, fcntl.LOCK_UN)
                 except OSError:
-                    pass
+                    pass  # Best-effort operation failed; keep the surrounding fallback.
         os.close(fd)
 
 
@@ -128,7 +130,7 @@ def _atomic_write_queue(path: Path, rows: list[dict[str, Any]]) -> None:
         try:
             os.unlink(temporary_path)
         except OSError:
-            pass
+            pass  # Best-effort operation failed; keep the surrounding fallback.
         raise
 
 

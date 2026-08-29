@@ -1,10 +1,16 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -13,12 +19,6 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
-#
-# Copyright (c) 2026 Clawd Codex Team
-# SPDX-License-Identifier: MIT
-# Source: https://github.com/agentforce314/clawcodex
-# ClawCodex-derived portions remain licensed under the MIT License.
-# See clawcodex-ascend/LICENSE.clawcodex.
 
 """Base class for tool-activity widgets.
 
@@ -95,7 +95,7 @@ class ToolActivity(Widget):
                     static.remove()
                     break
         except Exception:  # nosec B110
-            pass
+            pass  # Intentional best-effort path; the surrounding fallback remains valid.
         body = self.result_body(output, is_error=is_error)
         if is_error and body is None and error:
             body = Panel(Text(error, style="red"), border_style="red", padding=(0, 1))
@@ -106,7 +106,7 @@ class ToolActivity(Widget):
         try:
             self.mount(result_widget)
         except Exception:  # nosec B110
-            pass
+            pass  # Intentional best-effort path; the surrounding fallback remains valid.
 
 
 _BODY_MAX_CHARS = 1500

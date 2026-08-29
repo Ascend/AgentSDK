@@ -1,4 +1,26 @@
-"""Runtime glue for downstream Cron tools and scheduler (F-22-G1 + G4)."""
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
+"""Runtime glue for downstream Cron tools and scheduler."""
 
 from __future__ import annotations
 
@@ -50,11 +72,11 @@ def attach_cron_runtime(
     is_loading: Callable[[], bool] | None = None,
     assistant_mode: bool = False,
     asciicast_observer: Any | None = None,
-    agent_id: str | None = None,  # F-22-F: agent ownership
+    agent_id: str | None = None,  # agent ownership
 ) -> CronScheduler:
     """Wire Cron tools + scheduler to a session context.
 
-    ``is_killed`` is the F-22-G1 kill switch. When None, falls back to
+    ``is_killed`` is the kill switch. When None, falls back to
     ``is_cron_disabled`` (reads ``CLAWCODEX_DISABLE_CRON``). When provided,
     it takes precedence — daemon callers can pass a GrowthBook-style flag.
 
@@ -67,7 +89,7 @@ def attach_cron_runtime(
     proceed even while the agent is busy. Used by assistant/daemon
     sub-modes where cron must not be starved.
 
-    ``agent_id`` (F-22-F) sets the owning agent identity. When provided,
+    ``agent_id`` sets the owning agent identity. When provided,
     the scheduler only fires tasks belonging to this agent or global tasks
     (agent_id=None). Pass None for single-agent mode (no filtering).
     """
@@ -105,7 +127,7 @@ def attach_cron_runtime(
             )
         )
 
-    # F-22-G7: opt-in observability sink — by default just logs at debug.
+    # opt-in observability sink — by default just logs at debug.
     def _log_event(payload: dict) -> None:
         _log.debug("cron event: %s", payload)
 
@@ -123,7 +145,7 @@ def attach_cron_runtime(
         on_missed_event = _log_event
         on_expired_event = _log_event
 
-    # F-22-G2: the scheduler hot-loads the jitter config on every
+    # the scheduler hot-loads the jitter config on every
     # ``check_once`` tick. Threading the loader through ctx.cron_jitter_config
     # (if present) lets REPL callers inject a GrowthBook-style remote source.
     config_loader = getattr(ctx, "cron_jitter_config", None)
@@ -147,7 +169,7 @@ def attach_cron_runtime(
         session_store=session_store,
         is_loading=is_loading,
         assistant_mode=assistant_mode,
-        agent_id=agent_id,  # F-22-F
+        agent_id=agent_id,
     )
     setattr(ctx, "cron_scheduler", scheduler)
     setattr(ctx, "cron_jitter_config", lambda: load_jitter_config(ctx.workspace_root))
@@ -160,13 +182,13 @@ def install_permanent_cron_tasks(
     workspace_root: Any,
     tasks: list[dict],
 ) -> list[tuple[Any, bool]]:
-    """F-22-G4 installer entry point.
+    """Installer entry point.
 
     ``tasks`` is a list of dicts with keys: ``cron``, ``prompt``,
     optional ``recurring`` (default True), ``jitter`` (CronJitterConfig),
     ``created_at`` (epoch ms), ``task_id`` (8-hex string).
 
-    Returns a list of ``(task, created)`` tuples — same shape as
+    Returns a list of ``(task, created)`` tuples — the same shape as
     :func:`clawcodex_ext.cron_system.tasks.write_permanent_task_if_missing`.
     Used by the assistant-mode installer to seed catch-up / morning-checkin
     / dream tasks.

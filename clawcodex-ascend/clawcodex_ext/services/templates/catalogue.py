@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 #  This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
@@ -16,7 +17,7 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""Catalogue browsing, search, describe, and preview for F-95 templates."""
+"""Catalogue browsing, search, describe, and preview for templates."""
 
 from __future__ import annotations
 

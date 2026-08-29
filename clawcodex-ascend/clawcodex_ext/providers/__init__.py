@@ -1,3 +1,25 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 # pylint: disable=cyclic-import
 """Downstream provider extensions — model discovery hooks and provider overrides.
 
@@ -266,7 +288,7 @@ def _init_provider_extensions() -> None:
     # config persistence, and catalog lookup must all normalize ``glm`` to the
     # canonical upstream ``zai`` entry; ``src.providers.get_provider_class``
     # deliberately checks this literal compatibility route before aliasing.
-    from src.providers import _EXTRA_PROVIDER_CLASSES
+    from src.providers import EXTRA_PROVIDER_CLASSES as _EXTRA_PROVIDER_CLASSES
 
     _EXTRA_PROVIDER_CLASSES.setdefault("glm", _GLMProvider_lazy)  # type: ignore[arg-type]
 
@@ -303,3 +325,8 @@ def _init_provider_extensions() -> None:
 
     media_registry.register_image("agnes", _AgnesImageProvider_lazy)
     media_registry.register_video("agnes", _AgnesVideoProvider_lazy)
+
+
+def initialize_provider_extensions() -> None:
+    """Install the downstream provider extensions through a public boundary."""
+    _init_provider_extensions()

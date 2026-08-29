@@ -1,10 +1,16 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -13,12 +19,6 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
-#
-# Copyright (c) 2026 Clawd Codex Team
-# SPDX-License-Identifier: MIT
-# Source: https://github.com/agentforce314/clawcodex
-# ClawCodex-derived portions remain licensed under the MIT License.
-# See clawcodex-ascend/LICENSE.clawcodex.
 
 """Headless (print-mode) frontend plugin for the downstream registry."""
 
@@ -36,7 +36,7 @@ class HeadlessFrontend(FrontendPlugin):
     def run(self, ctx, argv: list[str]) -> int:
         from src.entrypoints.headless import HeadlessOptions, run_headless
 
-        # F-125: forward resume / fork / resume-session-at from the
+        # forward resume / fork / resume-session-at from the
         # RuntimeContext that ``dispatch.py`` already built. The pre-
         # resolved session on ``ctx.session`` is passed as
         # ``external_session`` so ``run_headless`` skips its own
@@ -78,7 +78,7 @@ class HeadlessFrontend(FrontendPlugin):
             record_width=getattr(ctx.options, "record_width", None),
             record_height=getattr(ctx.options, "record_height", None),
         )
-        # F-125 C14: release the TailFollower that ``RuntimeContext.build``
+        # C14: release the TailFollower that ``RuntimeContext.build``
         # obtained from ``resume_session_with_tail``. Headless never
         # iterates it — without an explicit release the follower keeps a
         # reference to the transcript path and asyncio event state for

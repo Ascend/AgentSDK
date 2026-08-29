@@ -3,12 +3,14 @@
 
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
-# Copyright (c) 2026 Clawd Codex Team
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -18,7 +20,7 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""Push-to-Talk controller — F-64 P64-B.
+"""Push-to-Talk controller — P64-B.
 
 Mirrors TS ``src/hooks/useVoice.ts``: orchestrates the recording lifecycle
 on a push-to-talk key event. The user holds a key (default: spacebar,
@@ -155,7 +157,7 @@ class PushToTalkController:
     def can_start(self) -> bool:
         """Gate check — should the hotkey arm at all right now?
 
-        Combines the three F-64 layers: feature flag + kill-switch (via
+        Combines the three layers: feature flag + kill-switch (via
         :func:`is_voice_available`) and the master on/off switch (via
         :func:`is_voice_enabled`). The per-provider OAuth check is
         deferred to :meth:`start` so the user gets a specific "run
@@ -222,7 +224,7 @@ class PushToTalkController:
         try:
             self._loop = asyncio.get_running_loop()
         except RuntimeError:
-            pass
+            pass  # Optional runtime path is unavailable; keep the fallback.
         if self._loop is None:
             try:
                 self._loop = asyncio.get_event_loop()
@@ -386,7 +388,7 @@ class PushToTalkController:
             try:
                 self._recorder.stop()
             except Exception:  # nosec B110 - best-effort recorder stop during disarm
-                pass
+                pass  # Intentional best-effort path; the surrounding fallback remains valid.
             self._recorder = None
         self._cleanup_connection()
         self._set_state(VoiceSessionState.IDLE)

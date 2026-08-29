@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 #  This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
@@ -16,7 +17,7 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""Compatibility checks for F-95 templates."""
+"""Compatibility checks for templates."""
 
 from __future__ import annotations
 
@@ -56,7 +57,7 @@ def check_compatibility(
     *,
     current_version: str | None = None,
 ) -> None:
-    """Raise when ``template`` declares an unsupported F-95 schema/version."""
+    """Raise when ``template`` declares an unsupported schema/version."""
 
     manifest = get_manifest(template)
     if manifest.schema_version not in SUPPORTED_SCHEMA_VERSIONS:

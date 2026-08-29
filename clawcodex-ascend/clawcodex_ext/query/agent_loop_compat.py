@@ -1,3 +1,25 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 # pylint: disable=too-many-lines,relative-beyond-top-level
 """Adapter from ``query.query`` → ``AgentLoopResult`` shape.
 
@@ -74,7 +96,7 @@ def _heartbeat_freeze_detector() -> None:
         if detector is not None:
             detector.heartbeat()
     except Exception:  # nosec B110
-        pass
+        pass  # Diagnostics are best-effort and must not affect the monitored operation.
 
 
 async def _await_turn_with_inflight_pause(
@@ -753,7 +775,7 @@ async def _run_query_as_agent_loop_impl(
                         try:
                             main_transcript.close()
                         except OSError:  # nosec B110
-                            pass
+                            pass  # Cleanup is best-effort and must not replace the primary operation result.
                         main_transcript = None
 
                 # Bridge cancel_signal: if it fires mid-stream, propagate to
@@ -933,7 +955,7 @@ async def _run_query_as_agent_loop_impl(
                 error.aggregate_usage = dict(reported_usage)  # type: ignore[attr-defined]
                 error.num_turns = num_turns  # type: ignore[attr-defined]
             except Exception:  # nosec B110
-                pass
+                pass  # Usage metadata enrichment is optional; preserve the original model error.
             raise error
         if reason == "goal_evaluator_error":
             error = getattr(terminal, "error", None)

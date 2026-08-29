@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
-#  This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
 # Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
-#           http://license.coscl.org.cn/MulanPSL2
+#          http://license.coscl.org.cn/MulanPSL2
 #
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
@@ -27,7 +30,7 @@ import uuid
 
 
 def _telemetry_session_record(*, entrypoint: str, is_non_interactive: bool) -> tuple[str, float]:
-    """F-97: best-effort session_start helper. Returns (session_id, start_ts)."""
+    """Best-effort session_start helper. Return (session_id, start_ts)."""
     sid = _telemetry_derive_session_id()
     start = time.monotonic()
     try:
@@ -40,7 +43,7 @@ def _telemetry_session_record(*, entrypoint: str, is_non_interactive: bool) -> t
             is_non_interactive=is_non_interactive,
         )
     except Exception:  # nosec B110
-        pass
+        pass  # Telemetry is optional and must not affect command execution.
     return sid, start
 
 
@@ -70,7 +73,7 @@ def _telemetry_session_end(
             exit_status=exit_status,
         )
     except Exception:  # nosec B110
-        pass
+        pass  # Telemetry is optional and must not affect command execution.
 
 
 def _telemetry_derive_session_id() -> str:
@@ -81,7 +84,7 @@ def _telemetry_derive_session_id() -> str:
         if isinstance(sid, str) and sid:
             return sid
     except Exception:  # nosec B110
-        pass
+        pass  # Telemetry is optional and must not affect command execution.
     return uuid.uuid4().hex
 
 
@@ -96,7 +99,7 @@ def run_print_mode(args) -> int:
     from src.cli_core.exit import cli_error
     from src.entrypoints.headless import HeadlessOptions, run_headless
 
-    # F-97: print mode is invoked directly by external callers, so emit
+    # print mode is invoked directly by external callers, so emit
     # session_start here as a fallback for the dispatch path that does
     # not pass through run_cli. The dispatch path emits a session_start
     # of its own with entrypoint="cli"; we keep this branch distinct so
@@ -185,7 +188,7 @@ def run_tui_mode(args) -> int:
     from clawcodex_ext.tui.entrypoint import run_tui
     from src.entrypoints.tui import TUIOptions
 
-    # F-97: emit session_start so direct invocations of run_tui_mode
+    # emit session_start so direct invocations of run_tui_mode
     # (e.g. from tests or sub-shells) are still observable. The
     # dispatch path in run_cli also emits one; the recorder de-dupes
     # session_id matching via the per-day cache.
@@ -261,6 +264,10 @@ def _show_provider_defaults_table() -> None:
 
     console.print(table)
     console.print()
+
+
+split_csv = _split_csv
+show_provider_defaults_table = _show_provider_defaults_table
 
 
 # ----------------------------------------------------------------------
@@ -413,7 +420,7 @@ def start_repl(
     from src.config import get_default_provider
     from clawcodex_ext.repl.app import ClawCodexExtREPL
 
-    # F-97: emit session_start so direct invocations of start_repl
+    # emit session_start so direct invocations of start_repl
     # (e.g. from legacy tests, MCP fast-path, or `python -m`) are
     # observable. The dispatch path in run_cli also emits one; the
     # recorder dedupes by session_id match in the per-day cache.

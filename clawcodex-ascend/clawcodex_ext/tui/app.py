@@ -1,10 +1,16 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -13,12 +19,7 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
-#
-# Copyright (c) 2026 Clawd Codex Team
-# SPDX-License-Identifier: MIT
-# Source: https://github.com/agentforce314/clawcodex
-# ClawCodex-derived portions remain licensed under the MIT License.
-# See clawcodex-ascend/LICENSE.clawcodex.
+
 
 """Textual ``App`` subclass that hosts the Claw Codex TUI.
 
@@ -208,7 +209,7 @@ class ClawCodexTUI(App):
         self._away_summary_controller: AwaySummaryController | None = None
         self._intent_forecast_controller: IntentForecastController | None = None
         self._pending_system_messages: list[tuple[str, str, str | None]] = []
-        # F-9 / ``/goal``: persistent controller instance wired into
+        # / ``/goal``: persistent controller instance wired into
         # the agent run lifecycle so continuation/budget-limit injections
         # are drained and enqueued for auto-continuation. Installed by
         # ``_install_goal_controller`` in ``__init__`` and on session resume.
@@ -317,7 +318,7 @@ class ClawCodexTUI(App):
             self.stylesheet.add_source(textual_css_overrides(self.palette))
             self.stylesheet.parse()
         except Exception:  # nosec B110
-            pass
+            pass  # This presentation update is best-effort and must not interrupt the user flow.
 
         self._repl_screen = REPLScreen(
             version=CLAW_VERSION,
@@ -352,7 +353,7 @@ class ClawCodexTUI(App):
 
             start_summary_queue_worker()
         except Exception:  # nosec B110
-            pass
+            pass  # This optional feature is unavailable; continue with the core command path.
 
         # Terminal chrome: set a descriptive title, enable DEC 1004
         # focus reporting, and mark the tab idle. The app-state
@@ -364,7 +365,7 @@ class ClawCodexTUI(App):
         try:
             enable_focus_events()
         except Exception:  # nosec B110
-            pass
+            pass  # This presentation update is best-effort and must not interrupt the user flow.
         self._state_unsub = self.app_state.subscribe(self._on_state_change)
 
         # If --resume was given without a SESSION_ID, show the session
@@ -381,13 +382,13 @@ class ClawCodexTUI(App):
         try:
             self._state_unsub()  # type: ignore[attr-defined]
         except Exception:  # nosec B110
-            pass
+            pass  # Unsubscription is best-effort because the application is already unmounting.
         try:
             set_tab_status(None)
             clear_terminal_title()
             disable_focus_events()
         except Exception:  # nosec B110
-            pass
+            pass  # This presentation update is best-effort and must not interrupt the user flow.
         # Fallback capture in case ``exit()`` wasn't the path out (e.g.
         # Ctrl+C / SIGTERM). Entry points will print whatever landed
         # here to the host shell after the alt-screen exits.
@@ -398,7 +399,7 @@ class ClawCodexTUI(App):
         try:
             self.session.save()
         except Exception:  # nosec B110
-            pass
+            pass  # Session persistence is best-effort at this recovery or shutdown boundary.
         self._enqueue_summary_sidecar_job()
 
     # ---- exit / snapshot ----------------------------------------------
@@ -446,7 +447,7 @@ class ClawCodexTUI(App):
         try:
             self.session.save()
         except Exception:  # nosec B110
-            pass
+            pass  # Session persistence is best-effort at this recovery or shutdown boundary.
         self._enqueue_summary_sidecar_job()
         return super().exit(result, return_code=return_code, message=message)
 
@@ -469,7 +470,7 @@ class ClawCodexTUI(App):
                 try:
                     ring_bell()
                 except Exception:  # nosec B110
-                    pass
+                    pass  # The optional callback is isolated so it cannot interrupt the owning event loop.
                 self.announcer.announce(describe_status("idle"), level="polite", notify=False)
             else:
                 self.announcer.announce(
@@ -487,7 +488,7 @@ class ClawCodexTUI(App):
             title = f"ClawCodex — {state.model or self.provider_name}: {verb}"
             set_terminal_title(title)
         except Exception:  # nosec B110
-            pass
+            pass  # This presentation update is best-effort and must not interrupt the user flow.
 
     # ---- bindings ----
     def action_cancel_or_quit(self) -> None:
@@ -538,12 +539,12 @@ class ClawCodexTUI(App):
 
             signal_background()
         except Exception:  # nosec B110
-            pass
+            pass  # This optional feature is unavailable; continue with the core command path.
         # Persist session so --resume can find it later.
         try:
             self.session.save()
         except Exception:  # nosec B110
-            pass
+            pass  # Session persistence is best-effort at this recovery or shutdown boundary.
         sid = getattr(self.session, "session_id", None) or ""
 
         if self.app_state.is_thinking:
@@ -563,7 +564,7 @@ class ClawCodexTUI(App):
                 )
                 has_bg_agent = True
             except Exception:  # nosec B110
-                pass
+                pass  # This optional feature is unavailable; continue with the core command path.
             self.exit(result=("__BACKGROUND_EXIT__", sid, has_bg_agent))
         else:
             # Agent is idle — simple exit with session ID for resume hint.
@@ -604,7 +605,7 @@ class ClawCodexTUI(App):
         self._runtime_permission_controller.cycle()
 
     def action_monitor_panel(self) -> None:
-        """Shift+Down: open the F-88 monitor task panel."""
+        """Shift+Down: open the monitor task panel."""
         if self.tool_context is None:
             return
         self.push_screen(MonitorPanel(self.tool_context))
@@ -620,7 +621,7 @@ class ClawCodexTUI(App):
         try:
             self._post_to_screen(PermissionModeChanged(mode=mode))
         except Exception:  # nosec B110
-            pass
+            pass  # Screen notification is presentational and must not block the mode change.
 
     # ---- local command dispatcher ----
     def handle_local_slash_command(self, text: str, transcript: Transcript) -> bool:
@@ -764,11 +765,11 @@ class ClawCodexTUI(App):
 
                 signal_background()
             except Exception:  # nosec B110
-                pass
+                pass  # This optional feature is unavailable; continue with the core command path.
             try:
                 self.session.save()
             except Exception:  # nosec B110
-                pass
+                pass  # Session persistence is best-effort at this recovery or shutdown boundary.
             sid = getattr(self.session, "session_id", None) or ""
             self.exit(result=("__FULL_EXIT__", sid))
             return
@@ -792,7 +793,7 @@ class ClawCodexTUI(App):
             try:
                 self.session.conversation.clear()
             except Exception:  # nosec B110
-                pass
+                pass  # Cleanup is best-effort and must not replace the primary operation result.
             self.app_state.set_goal_status(None)
             transcript.clear_transcript()
             self._agent_bridge.reset_advisor_dedup()
@@ -930,7 +931,7 @@ class ClawCodexTUI(App):
                 if hasattr(self.provider, "model"):
                     setattr(self.provider, "model", model_id)
             except Exception:  # nosec B110
-                pass
+                pass  # The optional callback is isolated so it cannot interrupt the owning event loop.
             self.app_state.model = model_id
             transcript.append_system(f"Model switched to {model_id}.", style="muted")
             if self._repl_screen is not None:
@@ -1052,7 +1053,7 @@ class ClawCodexTUI(App):
             if ctx is not None and ctx.permission_context is not None:
                 current_mode = to_external_permission_mode(ctx.permission_context.mode or "default")
         except Exception:  # nosec B110
-            pass
+            pass  # Permission-mode metadata is optional; retain the conservative picker defaults.
 
         is_bypass_available = False
         try:
@@ -1060,7 +1061,7 @@ class ClawCodexTUI(App):
 
             is_bypass_available = has_allow_bypass_permissions_mode()
         except Exception:  # nosec B110
-            pass
+            pass  # Permission-mode metadata is optional; retain the conservative picker defaults.
 
         def _on_selected(mode: str | None) -> None:
             self._restore_prompt_focus()
@@ -1113,7 +1114,7 @@ class ClawCodexTUI(App):
                     model=self.model,
                 )
             except Exception:  # nosec B110
-                pass
+                pass  # Forecast persistence is optional and must not block displaying the result.
         if result is None or not result.generated or not result.suggestions:
             transcript.append_system(
                 result.reason if result is not None else "Forecast has no suggestions right now.",
@@ -1263,10 +1264,11 @@ class ClawCodexTUI(App):
         # command just routes focus to it rather than stacking a modal.
         if self._repl_screen is not None and hasattr(self._repl_screen, "focus_task_panel"):
             try:
-                self._repl_screen.focus_task_panel()
+                # This capability can be supplied by a runtime screen extension after the hasattr guard.
+                self._repl_screen.focus_task_panel()  # pylint: disable=no-member
                 return
             except Exception:  # nosec B110
-                pass
+                pass  # This presentation update is best-effort and must not interrupt the user flow.
         transcript.append_system("Task panel focus is not available in this build.", style="muted")
 
     def _confirm_exit(self, transcript: Transcript) -> None:
@@ -1304,7 +1306,7 @@ class ClawCodexTUI(App):
         try:
             self._repl_screen.prompt_input.focus_input()
         except Exception:  # nosec B110
-            pass
+            pass  # This presentation update is best-effort and must not interrupt the user flow.
 
     # ---- theme live-switch ----
     def apply_theme(self, name: str, *, transcript: Transcript | None = None) -> None:
@@ -1319,7 +1321,7 @@ class ClawCodexTUI(App):
 
             set_theme(name)
         except ImportError:
-            pass
+            pass  # The optional integration is unavailable; continue with the built-in path.
         try:
             new_css = textual_css_overrides(self.palette)
             if self._theme_source_idx is not None and self._theme_source_idx < len(self.stylesheet._sources):
@@ -1330,7 +1332,7 @@ class ClawCodexTUI(App):
             self.stylesheet.parse()
             self.refresh_css()
         except Exception:  # nosec B110
-            pass
+            pass  # This presentation update is best-effort and must not interrupt the user flow.
         if transcript is not None:
             transcript.append_system(f"Theme set to {name}.", style="muted")
             self.announcer.announce(f"Theme set to {name}.", notify=False)
@@ -1391,7 +1393,7 @@ class ClawCodexTUI(App):
             if fallback_models:
                 return fallback_models, warning
         except Exception:  # nosec B110
-            pass
+            pass  # This probe is optional; preserve the existing conservative fallback.
         # Fallback: just the active model.
         return [current_model or "default"], warning
 
@@ -1415,8 +1417,8 @@ class ClawCodexTUI(App):
 
                 load_and_register_skills(registry=None)
             except Exception:  # nosec B110
-                pass
-            # F-53: also register dynamic tool commands in the global
+                pass  # This optional feature is unavailable; continue with the core command path.
+            # also register dynamic tool commands in the global
             # registry so ``execute_command_sync`` (which looks at the
             # global registry, not the TUI's private one) can route
             # ``/<tool-name>`` slash commands.
@@ -1425,7 +1427,7 @@ class ClawCodexTUI(App):
 
                 register_tool_commands(None, tool_registry=self.tool_registry)
             except Exception:  # nosec B110
-                pass
+                pass  # This optional feature is unavailable; continue with the core command path.
             # Builtin registration installs the interactive ModelCommand.
             # Reinstall the runtime facade last so TUI `/model <name>` uses
             # the same provider swap and state-sync path as the REPL.
@@ -1460,7 +1462,7 @@ class ClawCodexTUI(App):
         try:
             self.history_store.append(prompt)
         except Exception:  # nosec B110
-            pass
+            pass  # Session persistence is best-effort at this recovery or shutdown boundary.
         submitted = self._agent_bridge.submit(prompt)
         if not submitted:
             # If the bridge is busy we queue the prompt for the next
@@ -1526,7 +1528,7 @@ class ClawCodexTUI(App):
             storage = SessionStorage(session_id=self.session.session_id)
             storage.update_metadata(last_user_input=text[:200])  # cap at 200 chars
         except Exception:  # nosec B110
-            pass
+            pass  # Session persistence is best-effort at this recovery or shutdown boundary.
 
     def _enqueue_summary_sidecar_job(self) -> None:
         try:
@@ -1543,7 +1545,7 @@ class ClawCodexTUI(App):
                 transcript_mtime=transcript.stat().st_mtime if transcript.exists() else 0.0,
             )
         except Exception:  # nosec B110
-            pass
+            pass  # Summary generation is a sidecar and must not affect the user turn.
 
     def _show_resume_browser(self) -> None:
         """Push the ResumeConversation modal so the user can pick a session."""
@@ -1585,7 +1587,7 @@ class ClawCodexTUI(App):
             # Replay the restored conversation into the transcript.
             self._schedule_replay_history_MARKER()
         except Exception:  # nosec B110
-            pass
+            pass  # The optional callback is isolated so it cannot interrupt the owning event loop.
 
     def _build_default_tool_context(self) -> ToolContext:
         # ``ask_user`` and ``permission_handler`` are wired by
@@ -1612,13 +1614,13 @@ class ClawCodexTUI(App):
             try:
                 self.call_after_refresh(self._flush_pending_system_messages)
             except Exception:  # nosec B110
-                pass
+                pass  # Deferred UI flushing is best-effort; the message remains queued.
             return
         transcript.append_system(text, style=style, render=render)
         try:
             self.call_after_refresh(lambda: transcript.scroll_end(animate=False))
         except Exception:  # nosec B110
-            pass
+            pass  # This presentation update is best-effort and must not interrupt the user flow.
 
     def _flush_pending_system_messages(self) -> None:
         screen = self._repl_screen
@@ -1909,7 +1911,7 @@ class ClawCodexTUI(App):
         try:
             target.post_message(message)
         except Exception:  # nosec B110
-            pass
+            pass  # This presentation update is best-effort and must not interrupt the user flow.
 
 
 class ClawCodexExtTUI(ClawCodexTUI):

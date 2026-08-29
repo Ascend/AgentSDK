@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
-#  This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
 # Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
-#           http://license.coscl.org.cn/MulanPSL2
+#          http://license.coscl.org.cn/MulanPSL2
 #
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
@@ -17,12 +20,12 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""DynamicCommandDiscovery — F-53 scan of ``ToolRegistry`` for non-core tools.
+"""DynamicCommandDiscovery — scan of ``ToolRegistry`` for non-core tools.
 
 The discovery walks the supplied ``ToolRegistry``, filters out core /
 built-in tools (via :mod:`clawcodex_ext.cli.tool_cmd.core_filter`), and
 wraps each remaining tool in a :class:`DynamicToolCommand`. The result
-is an iterable of :class:`LocalCommand` ready to be registered in a
+is an iterable of :class:`LocalCommand` objects ready to be registered in a
 :class:`CommandRegistry`.
 
 Two scan modes
@@ -37,7 +40,7 @@ Two scan modes
 Conflict policy
 ---------------
 If a discovered tool's name collides with an already-registered
-command (e.g. a F-43 dynamic command or a F-49 skill command), the
+command (e.g. a dynamic command or a skill command), the
 discovery skips it. The core set itself is filtered *before* this
 check, so collisions with built-ins like ``/read`` cannot happen.
 """

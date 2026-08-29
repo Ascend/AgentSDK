@@ -1,3 +1,25 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 # pylint: disable=subprocess-run-check,consider-using-with
 """Bash call handler — executes whitelisted shell commands safely."""
 
@@ -16,9 +38,9 @@ from typing import Any
 
 _DEFAULT_TIMEOUT_SEC = 300.0
 
-# 轮询间隔：与 bash_tool._ABORT_POLL_INTERVAL_S 对齐，ESC 在 ~50ms 内生效。
+# Match ``bash_tool._ABORT_POLL_INTERVAL_S`` for roughly 50 ms ESC latency.
 _ABORT_POLL_INTERVAL_S = 0.05
-# SIGKILL 后等待内核回收进程的上限，超时则放弃回收直接 communicate()。
+# Bound the post-SIGKILL reap wait before falling back to ``communicate``.
 _KILL_REAP_TIMEOUT_S = 2.0
 
 
@@ -142,7 +164,7 @@ def resolve_agent_tool_bash_timeout_sec() -> float:
         try:
             return max(1.0, float(raw))
         except ValueError:
-            pass
+            pass  # The candidate value is invalid; continue with the existing fallback.
     return _DEFAULT_TIMEOUT_SEC
 
 
@@ -164,12 +186,12 @@ def _kill_process_tree(pid: int) -> None:
                 timeout=5,
             )
         except (OSError, subprocess.TimeoutExpired):
-            pass
+            pass  # Cleanup is best-effort and must not replace the primary operation result.
     else:
         try:
             os.killpg(os.getpgid(pid), signal.SIGKILL)
         except (ProcessLookupError, PermissionError, OSError):
-            pass
+            pass  # Cleanup is best-effort and must not replace the primary operation result.
 
 
 def _run_subprocess_with_abort(
@@ -235,7 +257,7 @@ def _run_subprocess_with_abort(
         try:
             proc.wait(timeout=_KILL_REAP_TIMEOUT_S)
         except subprocess.TimeoutExpired:
-            pass
+            pass  # Cleanup is best-effort and must not replace the primary operation result.
 
     try:
         stdout, stderr = proc.communicate(input=stdin_input, timeout=_KILL_REAP_TIMEOUT_S)
@@ -390,7 +412,7 @@ def parse_sop_wrapper_stdout(raw: str) -> Any:
     try:
         return json.loads(text)
     except json.JSONDecodeError:
-        pass
+        pass  # This candidate is not valid JSON; continue with the documented parsing fallback.
 
     for line in reversed(text.splitlines()):
         candidate = line.strip()

@@ -1,3 +1,25 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 """Per-session git worktree helper for ``--spawn worktree`` mode.
 
 When the bridge runs multi-session with ``--spawn worktree``, each
@@ -113,13 +135,13 @@ async def _run_git(*args: str, cwd: str) -> tuple[int, str]:
             try:
                 proc.kill()
             except ProcessLookupError:  # nosec B110
-                pass
+                pass  # Cleanup is best-effort and must not replace the primary operation result.
             # Drain so the transport releases its FDs. Bounded so a
             # truly wedged process can't hang the finally block.
             try:
                 await asyncio.wait_for(proc.wait(), timeout=1.0)
             except (asyncio.TimeoutError, asyncio.CancelledError):
-                pass
+                pass  # Bounded cleanup must not replace the primary Git result.
     rc = proc.returncode if proc.returncode is not None else -1
     return rc, stderr_bytes.decode("utf-8", "replace")
 

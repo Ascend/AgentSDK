@@ -1,26 +1,25 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
-#  This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# This file is part of the AgentSDK project.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
 #
-#           http://license.coscl.org.cn/MulanPSL2
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
 #
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
 
-# -------------------------------------------------------------------------
-# This file is derived from Clawd Codex (https://github.com/agentforce314/clawcodex),
-# which is licensed under the MIT License.
-# Copyright (c) 2026 Clawd Codex Team
-# -------------------------------------------------------------------------
-# -------------------------------------------------------------------------
 
 """Session storage — JSONL transcript recording matching TypeScript session/storage.ts.
 
@@ -52,7 +51,7 @@ from src.utils.clawcodex_dirs import get_sessions_dir
 logger = logging.getLogger(__name__)
 
 
-# F-125 C13: cross-process file lock for JSONL append writes.
+# cross-process file lock for JSONL append writes.
 # ``fcntl.flock`` is available on POSIX (Linux/macOS/WSL). On Windows
 # the import fails and we degrade to unlocked writes — the same
 # behaviour as before this change. The lock is held for the duration
@@ -96,9 +95,12 @@ def _locked_append(file_path: Path) -> Iterator[Any]:
                 try:
                     _fcntl.flock(fh.fileno(), _fcntl.LOCK_UN)
                 except OSError:
-                    pass
+                    pass  # Cleanup is best-effort and must not replace the primary operation result.
         finally:
             fh.close()
+
+
+locked_append = _locked_append
 
 
 # Canonical default honors CLAWCODEX_CONFIG_DIR. The downstream-specific
@@ -111,7 +113,7 @@ LARGE_CONTENT_THRESHOLD = 10_000  # 10KB — store separately
 DEFAULT_RETENTION_DAYS = 30
 MAX_FLUSH_BATCH = 50
 
-# F-11: sessionStorage 容量限制
+# Session-storage capacity limit
 # Prevents unbounded memory growth from tracking too many session
 # directories in long-running daemon/swarm processes.
 MAX_CACHED_SESSION_FILES = 1000
@@ -158,7 +160,7 @@ def clear_session_cache() -> None:
 class SessionMetadata:
     """Metadata for a session.
 
-    F-49 P5-F: ``cwd``, ``total_cost``, ``last_user_input``, ``agent_name``,
+    ``cwd``, ``total_cost``, ``last_user_input``, ``agent_name``,
     and ``cost`` are kept as in-memory attributes (for backward compatibility
     with callers that read them) but are no longer **written** to
     ``metadata.json``. The on-disk shape is now limited to list-summary
@@ -208,7 +210,7 @@ class SessionMetadata:
     def to_dict(self) -> dict[str, Any]:
         """Serialize session metadata for disk persistence.
 
-        ``last_user_input`` is included here (despite F-49 P5-F's original
+        ``last_user_input`` is included here despite the original
         intent) because the session browser (``/resume``) relies on it for
         display — reading it from the transcript JSONL for every session in
         the listing would be O(n) file reads with unacceptable latency.
@@ -271,7 +273,7 @@ class SessionStorage:
         # the de-dup baseline instead of re-appending everything.
         self._flushed_uuids: set[str] | None = None
 
-        # F-11: Register in the session file LRU cache.
+        # Register in the session file LRU cache.
         register_session_file(self.session_id, self._session_dir)
 
     @property
@@ -280,7 +282,7 @@ class SessionStorage:
 
     # --- Metadata ---
 
-    # F-49 P5-F: fields that are kept in memory but no longer written
+    # fields that are kept in memory but no longer written
     # to ``metadata.json``. ``cwd`` is preserved here for caller
     # compatibility (extensions may still pass it); it is simply not
     # persisted. The same applies to total_cost / last_user_input /
@@ -308,7 +310,7 @@ class SessionStorage:
         Idempotent: when ``metadata.json`` already exists on disk
         (e.g. a resumed session or a second ``save_to_session_storage``
         call for the same session_id), the existing ``start_time`` is
-        preserved instead of being overwritten with ``time.time()``.
+        preserved instead of being overwritten with ``time.time``.
         The same applies to the on-disk ``message_count`` and
         ``last_updated`` — only the caller-supplied fields are written.
         This prevents the clock-skew class of bugs where re-saving a
@@ -316,7 +318,7 @@ class SessionStorage:
         contains (see visualizer screenshot repro for
         ``02cba64e-…``).
 
-        F-49 P5-F: ``cwd`` and other legacy metadata fields
+        ``cwd`` and other legacy metadata fields
         (``total_cost`` / ``last_user_input`` / ``agent_name`` /
         ``cost``) are accepted for caller compatibility but are NOT
         written to ``metadata.json``. They live in the transcript
@@ -371,12 +373,12 @@ class SessionStorage:
     def update_metadata(self, **kwargs: Any) -> None:
         """Update metadata fields.
 
-        F-49 P5-F: legacy fields (``cwd``, ``total_cost``,
+        Legacy fields (``cwd``, ``total_cost``,
         ``last_user_input``, ``agent_name``, ``cost``) are still
         updated on the in-memory ``SessionMetadata`` so callers that
         read them keep working, but they are NOT written to
         ``metadata.json``. The next ``_save_metadata`` will use
-        ``to_dict()`` which excludes them, so they evaporate on the
+        ``to_dict`` which excludes them, so they evaporate on the
         next save. This keeps callers backward compatible while
         preventing the legacy fields from re-entering the on-disk
         format.
@@ -406,7 +408,7 @@ class SessionStorage:
             data = json.loads(self._metadata_path.read_text(encoding="utf-8"))
             self._metadata = SessionMetadata.from_dict(data)
             return self._metadata
-        except Exception as e:  # noqa: BLE001:
+        except Exception as e:  # noqa: BLE001
             logger.debug("Failed to load metadata: %s", e)
             return None
 
@@ -457,10 +459,10 @@ class SessionStorage:
             self._write_buffer.clear()
             return
         self._session_dir.mkdir(parents=True, exist_ok=True)
-        # F-125 C13: hold an exclusive flock for the append batch so
+        # hold an exclusive flock for the append batch so
         # two processes resuming the same session don't interleave
         # their JSONL lines. The lock is per-call (acquired+released
-        # inside _locked_append); long-held locks would block the
+        # inside locked_append); long-held locks would block the
         # agent loop, so we keep the critical section to the file
         # write only.
         with _locked_append(self._transcript_path) as f:
@@ -572,7 +574,7 @@ class SessionStorage:
         for entry in entries:
             try:
                 messages.append(message_from_dict(entry))
-            except Exception as e:  # noqa: BLE001:
+            except Exception as e:  # noqa: BLE001
                 logger.warning("Failed to parse message: %s", e)
         return messages
 
@@ -642,7 +644,7 @@ class SessionStorage:
                         deleted += 1
                         continue
                 except Exception:  # noqa: BLE001, S110  # nosec B110
-                    pass
+                    pass  # This probe is optional; preserve the existing conservative fallback.
             else:
                 # No metadata — check directory mtime
                 try:
@@ -650,7 +652,7 @@ class SessionStorage:
                         shutil.rmtree(entry, ignore_errors=True)
                         deleted += 1
                 except Exception:  # noqa: BLE001, S110  # nosec B110
-                    pass
+                    pass  # This probe is optional; preserve the existing conservative fallback.
 
         return deleted
 
@@ -658,7 +660,7 @@ class SessionStorage:
         """Delete this session's directory."""
         if self._session_dir.exists():
             shutil.rmtree(self._session_dir, ignore_errors=True)
-        # F-11: Evict from the LRU cache.
+        # Evict from the LRU cache.
         _session_file_cache.pop(self.session_id, None)
 
 
@@ -674,5 +676,8 @@ def _atomic_write(path: Path, content: str) -> None:
         try:
             os.unlink(tmp)
         except OSError:
-            pass
+            pass  # Cleanup is best-effort and must not replace the primary operation result.
         raise
+
+
+locked_append = _locked_append

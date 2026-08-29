@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 #  This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
@@ -16,9 +17,9 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""Kairos / Brief scheduling service layer (F-86 first iteration).
+"""Kairos / Brief scheduling service layer (first iteration).
 
-This package provides the core primitives for the F-86 feature slice:
+This package provides the core primitives for the feature slice:
 
 * :mod:`models` — :class:`TickConfig`, :class:`TickEvent`,
   :class:`BriefSummarySnapshot`, and :class:`DailyLogEntry` dataclasses

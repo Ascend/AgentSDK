@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 #  This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
@@ -16,7 +17,7 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""F-62 P62-A/B/C — :class:`ChromeController` abstract base.
+"""Abstract base for :class:`ChromeController`.
 
 Mirrors the layered pattern used by :mod:`src.services.computer_use`
 and :mod:`src.services.channels`: an ABC declares the contract, and
@@ -27,7 +28,7 @@ Every method is ``async`` and returns a :class:`ChromeActionResult`
 rather than raising. This is deliberate — browser operations
 against a live session can fail in many non-fatal ways (selector
 not found, navigation timeout, JS error in the page). Surfacing
-those as :class:`ChromeActionResult` lets the agent loop decide
+Returning those :class:`ChromeActionResult` instances lets the agent loop decide
 whether to retry, screenshot, or report the failure, instead of
 crashing the tool dispatch.
 """

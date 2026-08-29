@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 #  This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
@@ -16,10 +17,10 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""Templates service layer (F-85).
+"""Templates service layer.
 
 This package provides a thin service layer for reusable agent
-configuration templates. F-85 ships a full surface:
+configuration templates. ships a full surface:
 
 * :mod:`models` — :class:`Template` dataclass with strict validation
   and ``to_dict`` / ``from_dict`` round-trip.

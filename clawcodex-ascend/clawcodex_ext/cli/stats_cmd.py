@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
-#  This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
 # Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
-#           http://license.coscl.org.cn/MulanPSL2
+#          http://license.coscl.org.cn/MulanPSL2
 #
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
@@ -18,16 +21,16 @@
 # -------------------------------------------------------------------------
 
 # pylint: disable=no-name-in-module
-"""F-75 tool/skill stats CLI subcommand.
+"""tool/skill stats CLI subcommand.
 
 Usage::
 
-    clawcodex stats                        # 聚合摘要（全部）
-    clawcodex stats --kind tool            # 仅工具
-    clawcodex stats --kind skill           # 仅 Skill
-    clawcodex stats --limit 10             # 最近 10 条明细
-    clawcodex stats --agent orchestrator   # 某 agent 的统计
-    clawcodex stats --json                 # JSON 格式输出
+ clawcodex stats # Aggregate summary
+ clawcodex stats --kind tool # Tool calls only
+ clawcodex stats --kind skill # Skill calls only
+ clawcodex stats --limit 10 # Ten most recent details
+ clawcodex stats --agent orchestrator # One agent's statistics
+ clawcodex stats --json # JSON output
 """
 
 from __future__ import annotations
@@ -43,7 +46,7 @@ from clawcodex_ext.tool_stats import get_stats, get_summary
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="clawcodex stats",
-        description="工具/Skill 调用统计（F-75）",
+        description="工具/Skill 调用统计",
     )
     p.add_argument(
         "--kind",
@@ -71,7 +74,7 @@ def run_stats_command(args: list[str]) -> int:
     agent = parsed.agent
 
     if parsed.limit > 0:
-        # 明细模式
+        # Detailed records
         rows = get_stats(kind=kind, agent_id=agent, limit=parsed.limit)
         if parsed.json:
             json.dump({"kind": kind, "agent_id": agent, "rows": rows}, sys.stdout, indent=2)
@@ -92,7 +95,7 @@ def run_stats_command(args: list[str]) -> int:
                     f"{r.get('agent_id', '?'):<16}"
                 )
     else:
-        # 摘要模式
+        # Aggregate summary
         summary = get_summary(kind=kind, agent_id=agent)
         if parsed.json:
             json.dump(summary, sys.stdout, indent=2)

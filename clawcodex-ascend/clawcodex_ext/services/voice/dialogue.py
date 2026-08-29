@@ -3,12 +3,14 @@
 
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
-# Copyright (c) 2026 Clawd Codex Team
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -18,47 +20,7 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""Full-duplex voice dialogue abstraction — F-65 P65-A.
-
-Defines the interface every full-duplex voice backend (MiniMax Realtime,
-OpenAI GPT-4o Voice, etc.) must implement. A full-duplex provider owns a
-single bidirectional channel — usually a WebSocket — that simultaneously:
-
-* receives PCM frames from the user microphone (``feed_audio``);
-* emits incremental transcripts (``DialogueEvent(transcript, ...)``);
-* emits TTS audio frames for the agent reply
-  (``DialogueEvent(audio, pcm=...)``);
-* accepts interrupt signals (``interrupt``) to cancel in-flight output
-  without tearing down the session.
-
-Why a separate ABC rather than reusing ``STTProvider`` / ``TTSProvider``
-----------------------------------------------------------------------
-MiniMax Realtime (and OpenAI Realtime) run ASR + LLM + TTS server-side
-in one pipe. Pulling transcripts out of a transcript stream and pushing
-text into a TTS stream would double the latency and lose the server's
-VAD / turn-taking state. The single-pipe design is what makes
-sub-second end-to-end response possible — so the abstraction mirrors it.
-The standalone STT and TTS providers stay around as the F-64 half-duplex
-/ 试听 fallback paths.
-
-Lifecycle
----------
-* :meth:`start` — open the underlying transport (WebSocket) and begin
-  receiving the first ``DialogueEvent`` shortly after. Events stream
-  through the ``on_event`` callback until ``stop`` is called.
-* :meth:`feed_audio` — push PCM frames the user is currently saying.
-  Non-blocking: returns after queueing the frame (the wire protocol
-  task dispatches it on the event loop).
-* :meth:`send_text` — inject a text message (e.g. an agent reply
-  produced by an external LLM call) into the same conversation.
-  Optional; some deployments only use server-side LLM.
-* :meth:`interrupt` — user barges in. Cancels any in-flight TTS on the
-  server side and stops local playback. The session stays open.
-* :meth:`stop` — graceful shutdown: tell the server to flush its
-  buffers, then disconnect. Returns the final transcript / summary.
-* :meth:`close` — release resources (cancel tasks, close socket).
-  Called automatically by ``stop``; not always needed by callers.
-"""
+"""P65-A Voice dialogue orchestration."""
 
 from __future__ import annotations
 

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-# coding=utf-8
+# -*- coding: utf-8 -*-
+
 
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
@@ -88,7 +89,7 @@ def flock_unlock(fd: int) -> None:
     try:
         _fcntl.flock(fd, _fcntl.LOCK_UN)
     except OSError:
-        pass
+        pass  # Best-effort operation failed; keep the surrounding fallback.
 
 
 @contextlib.contextmanager
@@ -119,7 +120,7 @@ def exclusive_file_lock(lock_path: str | Path) -> Iterator[int]:
                 os.lseek(fd, 0, os.SEEK_SET)
                 _msvcrt.locking(fd, _msvcrt.LK_UNLCK, 1)
             except OSError:
-                pass
+                pass  # Best-effort operation failed; keep the surrounding fallback.
         else:
             flock_unlock(fd)
         os.close(fd)

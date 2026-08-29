@@ -1,3 +1,25 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 """Async StructuredIO-style bridge over a Transport.
 
 Port of ``typescript/src/cli/remoteIO.ts`` (structural skeleton).
@@ -274,7 +296,7 @@ class RemoteIO:
                 except Exception as exc:  # noqa: BLE001
                     logger.debug("RemoteIO keep_alive write failed: %s", exc)
         except asyncio.CancelledError:  # nosec B110
-            pass
+            pass  # Cancellation is the normal signal used to stop this owned keep-alive task.
 
     # -- Internal events (overridden by future CCR v2 wiring) -----------------
 
@@ -308,7 +330,7 @@ class RemoteIO:
         try:
             self._transport.close()
         except Exception:  # noqa: BLE001  # nosec B110
-            pass
+            pass  # Cleanup is best-effort and must not replace the primary operation result.
         # Wake any iterator that's blocked on the queue.
         self._input_queue.put_nowait(_END_OF_STREAM)
 

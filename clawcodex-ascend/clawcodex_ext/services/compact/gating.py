@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 #  This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
@@ -16,7 +17,7 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""F-106 — Lazy compression pipeline gate.
+"""Lazy compression pipeline gate.
 
 Decides whether :func:`run_compression_pipeline` should run on the
 current turn. When the estimated input token count is well below the
@@ -26,8 +27,7 @@ avoids the 20-500ms cost of allocating, traversing, and emitting
 
 Design rationale
 ----------------
-§11.2.1 of ``docs/FEATURE_PLAN.md`` identifies the per-turn compression
-pipeline as a P0 perf hotspot (cost #3). The TS upstream skips the
+The per-turn compression pipeline is a performance hotspot. The TS upstream skips the
 pipeline when the message list is small; this module ports that
 behaviour without touching ``clawcodex_ext/query/query.py`` — the
 gate is invoked inside :class:`CompressionPipeline` itself.
@@ -35,14 +35,14 @@ gate is invoked inside :class:`CompressionPipeline` itself.
 Force-run conditions (any one of these overrides the threshold):
 
 - ``query_source`` in ``{"compact", "session_memory"}`` — these flows
-  exist to *reduce* the message list, so skipping them would deadlock
-  the loop. Mirrors the existing ``skip_blocking_guards`` short-circuit
-  in ``clawcodex_ext/query/query.py``.
+ exist to *reduce* the message list, so skipping them would deadlock
+ the loop. Mirrors the existing ``skip_blocking_guards`` short-circuit
+ in ``clawcodex_ext/query/query.py``.
 - ``transition_reason`` in ``{"reactive_compact_retry",
-  "collapse_drain_retry"}`` — recovery transitions must always see a
-  fresh pipeline run.
+ "collapse_drain_retry"}`` — recovery transitions must always see a
+ fresh pipeline run.
 - ``previous_pipeline_errored`` — when the previous run errored, the
-  next turn gets another shot at recovering.
+ next turn gets another shot at recovering.
 
 Env-var override
 ----------------
@@ -91,7 +91,7 @@ def _get_env_float(name: str) -> float | None:
         return None
     if parsed <= 0 or parsed >= 1.0:
         # Out of range: treat as unset. The configured default still applies.
-        logger.debug("F-106 ignoring %s=%s (must satisfy 0 < x < 1)", name, parsed)
+        logger.debug("ignoring %s=%s (must satisfy 0 < x < 1)", name, parsed)
         return None
     return parsed
 

@@ -1,3 +1,25 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 # pylint: disable=not-callable
 from __future__ import annotations
 
@@ -26,8 +48,8 @@ from clawcodex_ext.skills.invocation import (
     SkillInvocationOrigin,
     SkillInvocationRequest,
     SkillInvocationResult,
-    _effective_skill_root,
     apply_skill_context_modifier,
+    effective_skill_root,
 )
 
 from ..build_tool import Tool, ValidationResult, build_tool
@@ -292,7 +314,7 @@ def _invocation_result_to_tool_result(
             {
                 "prompt": result.prompt,
                 "loadedFrom": getattr(skill, "loaded_from", None),
-                "skillRoot": _effective_skill_root(skill),
+                "skillRoot": effective_skill_root(skill),
                 "allowedTools": list(getattr(skill, "allowed_tools", None) or []) or None,
                 "model": getattr(skill, "model", None),
                 "effort": getattr(skill, "effort", None),

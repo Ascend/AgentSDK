@@ -1,3 +1,25 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 """Token storage for OpenAI Codex ChatGPT OAuth.
 
 At-rest encryption via AES-256-GCM, keyed from machine identity, with
@@ -106,7 +128,7 @@ def _get_machine_id_bytes() -> bytes:
         try:
             return mid.read_bytes().strip()
         except OSError:
-            pass
+            pass  # This optional system source is unavailable; try the next source.
 
     # 2. macOS: IOPlatformUUID from I/O Registry.
     try:
@@ -123,7 +145,7 @@ def _get_machine_id_bytes() -> bytes:
             if m:
                 return m.group(1)
     except Exception:  # nosec B110
-        pass
+        pass  # This machine identifier source is unavailable; try the next platform source.
 
     # 3. Fallback: hostname + home directory.
     host = socket.gethostname().encode("utf-8", errors="replace")
@@ -334,7 +356,7 @@ def _atomic_write_json(path: Path, data: dict[str, Any]) -> None:
         try:
             os.unlink(tmp)
         except OSError:
-            pass
+            pass  # Cleanup is best-effort and must not replace the primary operation result.
         raise
 
 

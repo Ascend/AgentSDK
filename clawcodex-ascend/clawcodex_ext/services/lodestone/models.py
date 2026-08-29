@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 #  This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
@@ -16,7 +17,7 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""F-97 LODESTONE — data models.
+"""LODESTONE — data models.
 
 Frozen dataclasses describing the core types used by the parser, target
 registry, resolver and renderer. Designed to be import-side-effect-free

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 #  This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
@@ -18,7 +19,7 @@
 
 """Plan adjuster: replace / add / remove steps and sub-plans mid-execution.
 
-The adjuster is the API layer for the P83-D "动态调整计划" sub-feature.
+The adjuster is the API layer for dynamic plan changes.
 It enforces three invariants that the executor and verifier rely on:
 
 * Step ids are unique within a sub-plan and across the whole plan.

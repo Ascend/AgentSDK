@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 #  This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
@@ -133,7 +134,7 @@ class TemplateStateFile:
             try:
                 os.unlink(tmp_path)
             except OSError:
-                pass
+                pass  # Best-effort operation failed; keep the surrounding fallback.
             raise
 
 

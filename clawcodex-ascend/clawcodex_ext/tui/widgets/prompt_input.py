@@ -1,10 +1,16 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -13,12 +19,7 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
-#
-# Copyright (c) 2026 Clawd Codex Team
-# SPDX-License-Identifier: MIT
-# Source: https://github.com/agentforce314/clawcodex
-# ClawCodex-derived portions remain licensed under the MIT License.
-# See clawcodex-ascend/LICENSE.clawcodex.
+
 
 """Prompt input widget — bottom ``❯`` line with slash palette + history.
 
@@ -84,20 +85,20 @@ from clawcodex_ext.utils.completers import (
 
 # Reuse the same matching machinery as the prompt_toolkit REPL.
 # ``_AT_TOKEN_RE`` matches ``@<query>`` at the cursor position;
-# ``_is_path_like_token`` / ``_path_completions`` handle absolute
+# ``is_path_like_token`` / ``path_completions`` handle absolute
 # and explicit-relative paths by walking the filesystem directly;
-# ``_filter_candidates`` ranks project-file hits by substring,
+# ``filter_candidates`` ranks project-file hits by substring,
 # subsequence and fuzzy signals with a 26-bit bitmap pre-filter.
 # ``_list_git_files`` / ``_walk_filesystem`` provide the candidate list.
 from src.utils.at_file_completer import (  # type: ignore[import-untyped]
-    _AT_TOKEN_RE,
-    _build_path_bitmap,
-    _filter_candidates,
-    _is_path_like_token,
-    _list_git_files,
-    _MAX_SUGGESTIONS as _AT_FILE_MAX_SUGGESTIONS,
-    _path_completions,
-    _walk_filesystem,
+    AT_TOKEN_RE as _AT_TOKEN_RE,
+    MAX_SUGGESTIONS as _AT_FILE_MAX_SUGGESTIONS,
+    build_path_bitmap,
+    filter_candidates,
+    is_path_like_token,
+    list_git_files as _list_git_files,
+    path_completions,
+    walk_filesystem as _walk_filesystem,
 )
 
 # How long we cache the project-file index (same as ``AtFileCompleter``).
@@ -139,7 +140,8 @@ class _PasteAwareInput(Input):
                 break
             handler = getattr(node, "handle_paste", None)
             if callable(handler):
-                handler(event.text)
+                # The callable guard validates this dynamically discovered parent capability.
+                handler(event.text)  # pylint: disable=not-callable
                 # ``prevent_default`` is what stops Textual's MRO
                 # walker from also invoking the stock
                 # ``Input._on_paste`` (which would truncate the
@@ -390,7 +392,7 @@ class PromptInput(Vertical):
         self._file_cache_bitmaps: list[int] = []
         self._file_cache_built_at: float = 0.0
         # ---- suggest mode: tracks which popup type is active for
-        #      unified key handling (F-38 Enter/Tab separation) ----
+        # unified key handling (Enter/Tab separation) ----
         self._suggest_mode: str = ""  # "slash" | "at_file" | "at_agent" | "message" | ""
 
     def compose(self) -> ComposeResult:
@@ -613,7 +615,7 @@ class PromptInput(Vertical):
         # accept the selection (fill / splice) but do NOT submit —
         # the user must press Enter again to actually send.  Mirrors the
         # upstream behaviour where Enter on a highlighted row is "select
-        # + keep typing", not "select + submit" (F-38 unified path).
+        # + keep typing", not "select + submit" (the unified path).
         if self._suggest_mode:
             if self._accept_suggestion():
                 return
@@ -634,7 +636,7 @@ class PromptInput(Vertical):
         """Handle Enter/Space on a suggestion row — insert the command."""
         if event.option.id:
             selected_text = event.option.id
-            # Check takes_args for slash commands (F-38 _arg_lookup)
+            # Check ``takes_args`` for slash commands via ``_arg_lookup``.
             if event.option_list is self._suggestions and self._suggestions_provider is not None:
                 try:
                     suggestions = self._suggestions_provider() or []
@@ -644,7 +646,7 @@ class PromptInput(Vertical):
                                 selected_text += " "
                             break
                 except Exception:  # nosec B110
-                    pass
+                    pass  # The optional callback is isolated so it cannot interrupt the owning event loop.
             self._input.value = selected_text
             self._input.cursor_position = len(selected_text)
             # ``OptionList.OptionSelected`` exposes its source list via
@@ -702,7 +704,7 @@ class PromptInput(Vertical):
             return
 
         # Tab: if any suggestion popup is open, accept the highlighted
-        # item (F-38 Enter/Tab separation). Otherwise accept the
+        # item (Enter/Tab separation). Otherwise accept the
         # ghost-text suggestion when one is visible. If neither,
         # let the event bubble up to the App's default ``focus_next``
         # binding — crucially we do NOT call ``event.stop()`` in that
@@ -981,9 +983,9 @@ class PromptInput(Vertical):
         self._message_suggestions.clear_options()
         for full_msg in ranked:
             display = full_msg[:100] + ("..." if len(full_msg) > 100 else "")
-            # Textual 0.79 的 OptionList.add_option 不再接受 id=
-            # kwarg；通过 Option 包装传入。id 是选中后回填到 input
-            # 的全文（display 仅作展示截断）。
+            # Textual 0.79 no longer accepts id= in OptionList.add_option.
+            # Wrap the value in Option so its full text can refill the input;
+            # display is truncated only for presentation.
             self._message_suggestions.add_option(Option(display, id=full_msg))
         self._message_suggestions.highlighted = 0
         self._message_suggestions.remove_class("-hidden")
@@ -1004,7 +1006,7 @@ class PromptInput(Vertical):
         popup is visible or nothing was highlighted.
 
         This is the single entry point for both Enter (when a popup is open)
-        and Tab (F-38) — the caller decides whether to stop the key event.
+        and Tab — the caller decides whether to stop the key event.
         """
         # Slash command popup
         if not self._suggestions.has_class("-hidden"):
@@ -1014,7 +1016,7 @@ class PromptInput(Vertical):
                 if option is not None and option.id:
                     # Check if the selected command takes arguments:
                     # if so, append a trailing space so the user can type
-                    # args immediately (F-38 _arg_lookup).
+                    # args immediately (via ``_arg_lookup``).
                     selected_text = option.id
                     current_text = (self._input.value or "").strip()
                     takes_args = False
@@ -1027,7 +1029,7 @@ class PromptInput(Vertical):
                                     takes_args = bool(s.takes_args)
                                     break
                         except Exception:  # nosec B110
-                            pass
+                            pass  # Suggestion metadata is optional; accept the selected text with default spacing.
                     if current_text == selected_text and not takes_args:
                         self._hide_suggestions()
                         return False
@@ -1082,7 +1084,7 @@ class PromptInput(Vertical):
 
         Mirrors the 5-second TTL of ``AtFileCompleter._candidates_snapshot``.
         Returns ``(paths, bitmaps)`` — the bitmaps are 26-bit ints encoding
-        lowercase a-z presence for fast pre-filtering in ``_filter_candidates``.
+        lowercase a-z presence for fast pre-filtering in ``filter_candidates``.
         """
         now = time.monotonic()
         if self._file_cache and (now - self._file_cache_built_at) < _FILE_CACHE_TTL:
@@ -1093,7 +1095,7 @@ class PromptInput(Vertical):
             paths = _walk_filesystem(self._cwd)
         paths.sort(key=str.lower)
         self._file_cache = paths
-        self._file_cache_bitmaps = [_build_path_bitmap(p) for p in paths]
+        self._file_cache_bitmaps = [build_path_bitmap(p) for p in paths]
         self._file_cache_built_at = time.monotonic()
         return self._file_cache, self._file_cache_bitmaps
 
@@ -1103,11 +1105,11 @@ class PromptInput(Vertical):
         Two code paths:
         * If a custom ``files_provider`` is set, use it exclusively.
         * Path-like tokens (``@/...``, ``@~/...``, ``@./...``, ``@../...``)
-          walk the filesystem directly via ``_path_completions``.
+          walk the filesystem directly via ``path_completions``.
         * Plain queries (``@src/uti``) are matched against the cached
-          project-file index via ``_filter_candidates``.
+          project-file index via ``filter_candidates``.
         """
-        # Custom files_provider takes priority when set (F-38).
+        # Custom files_provider takes priority when set.
         if self._files_provider is not None:
             try:
                 entries = self._files_provider()
@@ -1129,15 +1131,14 @@ class PromptInput(Vertical):
             self._suggest_mode = "at_file"
             return
 
-        if _is_path_like_token(query):
-            entries = _path_completions(query, _AT_FILE_MAX_SUGGESTIONS)
+        if is_path_like_token(query):
+            entries = path_completions(query, _AT_FILE_MAX_SUGGESTIONS)
             if not entries:
                 self._hide_at_file_suggestions()
                 return
             self._at_file_suggestions.clear_options()
             for entry in entries:
-                # Textual 0.79: id= kwarg 不再被 add_option 接受，
-                # 改用 Option 包装。
+                # Textual 0.79 requires an Option wrapper for the id value.
                 self._at_file_suggestions.add_option(
                     Option(entry.display, id="@" + entry.text),
                 )
@@ -1151,7 +1152,7 @@ class PromptInput(Vertical):
             self._hide_at_file_suggestions()
             return
 
-        matches = _filter_candidates(
+        matches = filter_candidates(
             candidates,
             query,
             _AT_FILE_MAX_SUGGESTIONS,
@@ -1163,8 +1164,7 @@ class PromptInput(Vertical):
 
         self._at_file_suggestions.clear_options()
         for path in matches:
-            # Textual 0.79: id= kwarg 不再被 add_option 接受，
-            # 改用 Option 包装。
+            # Textual 0.79 requires an Option wrapper for the id value.
             self._at_file_suggestions.add_option(Option(path, id="@" + path))
         self._at_file_suggestions.highlighted = 0
         self._at_file_suggestions.remove_class("-hidden")

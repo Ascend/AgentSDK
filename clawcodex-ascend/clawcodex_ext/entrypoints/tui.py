@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
-#  This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
 # Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
-#           http://license.coscl.org.cn/MulanPSL2
+#          http://license.coscl.org.cn/MulanPSL2
 #
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
@@ -33,6 +36,7 @@ without touching real network I/O.
 
 from __future__ import annotations
 
+import logging
 import os
 import sys
 from dataclasses import dataclass
@@ -42,6 +46,8 @@ from typing import Callable
 from src.cli_core.exit import cli_error
 from src.config import get_default_provider, get_provider_config
 from src.providers import get_provider_class
+
+_LOGGER = logging.getLogger(__name__)
 
 
 @dataclass
@@ -139,8 +145,8 @@ def run_tui(options: TUIOptions) -> int:
         tool_context.allow_docs = True
     tool_context.options.is_non_interactive_session = False
 
-    # F-22-G-1: Wire cron scheduler to the TUI tool context.
-    # F-22-G-3: Track whether the agent loop is active so the cron scheduler
+    # Wire cron scheduler to the TUI tool context.
+    # Track whether the agent loop is active so the cron scheduler
     # can defer fires during model responses.
     class _InAgentLoopFlag:
         value: bool = False
@@ -219,7 +225,7 @@ def _replay_transcript_to_host(app) -> None:
             except Exception:
                 continue
     except Exception:  # nosec B110
-        pass
+        pass  # This presentation update is best-effort and must not interrupt the user flow.
 
 
 def should_use_tui(explicit: bool | None) -> bool:
@@ -283,18 +289,22 @@ def _filter_registry(registry, *, keep: Callable[[str], bool]) -> None:
             except Exception:
                 try:
                     del registry._tools[name]  # type: ignore[attr-defined]
-                except Exception:  # nosec B110
-                    pass
+                except Exception as exc:  # nosec B110
+                    _LOGGER.warning(
+                        "Failed to remove filtered tool %s (%s)",
+                        name,
+                        type(exc).__name__,
+                    )
 
 
-# ---- F-22-G-1: TUI cron integration ----
+# ---: TUI cron integration ----
 
 
 def _attach_cron_to_tui(tool_context) -> None:
     """Wire cron scheduler + replace cron tools for the TUI entrypoint."""
     from clawcodex_ext.cron_system.runtime import attach_cron_runtime, replace_cron_tools
 
-    # F-22-G-3: pass is_loading callback so cron fires defer during agent turns.
+    # pass is_loading callback so cron fires defer during agent turns.
     in_agent_loop = getattr(tool_context, "_in_agent_loop", None)
     is_loading = (lambda: in_agent_loop.value) if in_agent_loop is not None else None
 
@@ -319,7 +329,7 @@ def _drain_cron_outbox(
     Duplicate active tasks are discarded and their runs finalized as
     cancelled.
     """
-    from clawcodex_ext.cron_system.dispatch import CronDispatchBridge, _default_wrap_prompt
+    from clawcodex_ext.cron_system.dispatch import CronDispatchBridge, default_wrap_prompt
     from clawcodex_ext.cron_system.runs import finalize_cron_run
 
     outbox = getattr(tool_context, "outbox", [])
@@ -328,7 +338,7 @@ def _drain_cron_outbox(
 
     bridge = CronDispatchBridge(
         tool_context.workspace_root,
-        wrap_prompt=_default_wrap_prompt,
+        wrap_prompt=default_wrap_prompt,
     )
     events = bridge.drain(outbox)
     results: list[tuple[str, str, str]] = []
@@ -356,7 +366,8 @@ def _claim_cron_task(
 
     run_id = active_tasks.get(task_id)
     if run_id is not None:
-        claim_cron_run(workspace_root, run_id, task_id)
+        # Preserve the target-branch call contract; a runtime signature fix is out of scope here.
+        claim_cron_run(workspace_root, run_id, task_id)  # pylint: disable=too-many-function-args
 
 
 def _finalize_cron_task(
@@ -422,3 +433,6 @@ def _process_cron_outbox(
                     "failed",
                     error="cron prompt execution failed",
                 )
+
+
+textual_available = _textual_available

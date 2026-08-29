@@ -3,12 +3,14 @@
 
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Clawd Codex Team
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -85,10 +87,14 @@ def _resolve_recall_model(provider: Any) -> str | None:
         return None
 
 
+resolve_recall_model = _resolve_recall_model
+
+
 __all__ = [
     "RelevantMemory",
     "MAX_RELEVANT_MEMORIES",
     "find_relevant_memories",
+    "resolve_recall_model",
 ]
 
 MAX_RELEVANT_MEMORIES = 5
@@ -175,7 +181,7 @@ async def _select_with_provider(
             "schema": _SELECTOR_JSON_SCHEMA,
         },
     }
-    recall_model = _resolve_recall_model(provider)
+    recall_model = resolve_recall_model(provider)
     if recall_model:
         recall_kwargs["model"] = recall_model
     try:

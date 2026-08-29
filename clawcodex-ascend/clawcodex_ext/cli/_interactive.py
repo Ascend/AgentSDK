@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
-#  This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
 # Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
-#           http://license.coscl.org.cn/MulanPSL2
+#          http://license.coscl.org.cn/MulanPSL2
 #
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
@@ -57,13 +60,14 @@ InputFn = Callable[[str], str]
 
 
 def _clear_rendered_lines(line_count: int) -> None:
-    """向 stdout 写入 ANSI 控制序列，清除前 ``line_count`` 行渲染内容。
+    """Clear the previous ``line_count`` rendered lines with ANSI codes.
 
-    用于 ``full_screen=False`` 模式下 ``arrow_select`` 退出后清理自身渲染，
-    避免上层菜单重新渲染时堆积。无 prompt_toolkit 时不应被调用。
+    This cleans up ``arrow_select`` after a ``full_screen=False`` menu exits,
+    preventing the parent menu from accumulating duplicate renderings. It is
+    not called when prompt_toolkit is unavailable.
 
-    - ``line_count <= 0``：no-op，不写任何序列。
-    - ``line_count > 0``：光标上移 N 行（`\033[NA`），再清除到屏幕底（`\033[J`）。
+    ``line_count <= 0`` is a no-op. Positive values move the cursor up N
+    lines (``\033[NA``) and clear to the bottom of the screen (``\033[J``).
     """
     if line_count <= 0:
         return
@@ -105,7 +109,7 @@ def arrow_select(
 
     cursor = [0]
     selected: set[int] | None = set() if multi_select else None
-    rendered_lines = [0]  # 本次菜单渲染的行数，退出后用于清行
+    rendered_lines = [0]  # Number of rendered lines to clear when the menu exits.
 
     def get_menu_fragments() -> list[tuple[str, str]]:
         fragments: list[tuple[str, str]] = []
@@ -134,9 +138,8 @@ def arrow_select(
         else:
             hint = "  ↑↓ navigate · Enter select · 1-9 quick select · Esc cancel"
         fragments.append(("class:dim", f"\n{hint}"))
-        # 统计本次渲染的行数用于退出后清行。
-        # 行数 = \n 数 + 1：最后 hint 行无结尾 \n，但占一个光标位置
-        # （prompt_toolkit 退出时光标停在该行末尾）。
+        # Count rendered lines for cleanup. The final hint has no trailing
+        # newline but still occupies the cursor line when prompt_toolkit exits.
         rendered_lines[0] = sum(text.count("\n") for _style, text in fragments) + 1
         return fragments
 
@@ -215,7 +218,7 @@ def arrow_select(
     else:
         result = app.run()
 
-    # 清除本次菜单渲染的行，使上层菜单能在原位置重新渲染而非堆积
+    # Clear this menu so its parent can render again in the same location.
     _clear_rendered_lines(rendered_lines[0])
 
     if result is None:
@@ -277,7 +280,7 @@ class InteractiveInput:
 
     @property
     def input_fn(self) -> InputFn:
-        """底层行读取器；供仍需 callable 的旧函数（如 _feishu_scan_login）使用。"""
+        """Return the line reader used by legacy callable-based helpers."""
         return self._input_fn if self._input_fn is not None else input
 
     def select(

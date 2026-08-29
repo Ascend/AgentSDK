@@ -3,12 +3,14 @@
 
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
-# Copyright (c) 2026 Clawd Codex Team
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -18,7 +20,7 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""STT + TTS + Dialogue provider registries — F-64 / F-65.
+"""STT + TTS + Dialogue provider registries.
 
 Three parallel registries that map provider names to *factory* callables
 producing :class:`STTProvider` / :class:`TTSProvider` /
@@ -114,7 +116,7 @@ def get_dialogue_provider(name: str) -> "FullDuplexDialogueProvider":  # type: i
     """Construct (not reuse) a full-duplex dialogue provider.
 
     Unlike STT/TTS providers which are typically stateless wrappers, the
-    F-65 dialogue provider is *session-scoped* (a live WebSocket + pump
+    dialogue provider is *session-scoped* (a live WebSocket + pump
     tasks per session). Returning a fresh instance per call sidesteps
     any cross-session state leak; the caller (``DialogueSessionManager``
     in P65-B) owns it for the duration of one session.
@@ -123,7 +125,7 @@ def get_dialogue_provider(name: str) -> "FullDuplexDialogueProvider":  # type: i
     # not at module scope, but keeping the import local makes the
     # dependency graph explicit at the only call site that materialises
     # the type. Anything that uses STT/TTS paths never touches
-    # ``dialogue.py`` so the cold-start cost stays zero (F-64 STG-6 perf).
+    # ``dialogue.py`` so the cold-start cost stays zero (STG-6 perf).
 
     factory = DIALOGUE_REGISTRY.get(name.lower())
     if factory is None:
@@ -184,10 +186,10 @@ def _register_builtins() -> None:
     register_tts_provider("minimax", _minimax_tts_factory)
     register_tts_provider("gemini", _gemini_tts_factory)
 
-    # F-65 P65-A: full-duplex dialogue factories. Local-import the
+    # P65-A: full-duplex dialogue factories. Local-import the
     # provider class inside the factory so REPL cold-start doesn't pay
     # for the websockets import unless the user actually starts a
-    # dialogue session. Matches the F-64 STT/TTS lazy-load pattern.
+    # dialogue session. Matches the STT/TTS lazy-load pattern.
     def _minimax_dialogue_factory() -> "FullDuplexDialogueProvider":  # type: ignore[name-defined]  # noqa: F821
         from .minimax_realtime_dialogue import MiniMaxRealtimeDialogueProvider
 

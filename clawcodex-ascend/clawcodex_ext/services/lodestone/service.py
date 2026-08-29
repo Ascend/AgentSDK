@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 #  This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
@@ -16,20 +17,20 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""F-97 LODESTONE — high-level service facade.
+"""LODESTONE — high-level service facade.
 
 Owns one :class:`AnchorTargetRegistry` and one :class:`AnchorResolver`
 in process.  Two reasons we expose the facade rather than calling
 :func:`AnchorResolver().resolve(...)` directly:
 
-*   ``config`` is loaded once and shared; CLI ``/link config …`` mutates
+* ``config`` is loaded once and shared; CLI ``/link config …`` mutates
     it through :meth:`LodestoneService.update_config`.
-*   A built-in target registry (vscode / gitcode / …) is built once at
+* A built-in target registry (vscode / gitcode / …) is built once at
     construction, so the registry is hot-path-alloc-free.
 
 A module-level :func:`get_lodestone_service` exposes the default
-singleton.  Tests should pass ``config=`` and ``registry=`` explicitly
-to :class:`LodestoneService` to keep state local.
+singleton. Tests should pass ``config=`` and ``registry=`` explicitly to
+:class:`LodestoneService` to keep state local.
 """
 
 from __future__ import annotations

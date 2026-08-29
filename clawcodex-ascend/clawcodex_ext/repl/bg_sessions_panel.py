@@ -1,10 +1,16 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -13,26 +19,8 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
-#
-# Copyright (c) 2026 Clawd Codex Team
-# SPDX-License-Identifier: MIT
-# Source: https://github.com/agentforce314/clawcodex
-# ClawCodex-derived portions remain licensed under the MIT License.
-# See clawcodex-ascend/LICENSE.clawcodex.
 
-"""F-94 P94-F — REPL/TUI 后台会话显示适配器。
-
-提供 ``bg_sessions_panel``（footer 统计）与 ``format_bg_sessions_status``
-（task list 分组渲染）。**纯展示层** — 不持有状态，每次调用从 registry
-实时读取。
-
-设计（f-94-bg-sessions.md §1.8 UI 规则）：
-
-* TUI footer 显示当前 workspace 的 running BG sessions 数量；
-* task list 中把 background shell、local agent 与 BG session 分组显示；
-* completion notification 应包含 session_id 与恢复命令（由调用方在事件
-  回调中拼接，本模块提供 ``format_completion_notification`` 辅助）。
-"""
+"""P94-F Background-session status panel rendering."""
 
 from __future__ import annotations
 # pylint: disable=E0611
@@ -44,7 +32,7 @@ from clawcodex_ext.tasks.bg_session_registry import BgSessionRegistry
 
 
 # ---------------------------------------------------------------------------
-# Footer 统计
+# Footer statistics
 # ---------------------------------------------------------------------------
 
 
@@ -53,10 +41,7 @@ def footer_summary(
     *,
     workspace_root: Path | None = None,
 ) -> str:
-    """返回 footer 单行摘要，如 ``bg:2``。
-
-    ``bg_sessions=off`` 时返回空串（footer 不显示）。
-    """
+    """Format background-session counts for the status footer."""
     if not is_bg_sessions_enabled(registry.config):
         return ""
     sessions = registry.list(workspace_root=workspace_root)
@@ -71,7 +56,7 @@ def footer_summary(
 
 
 # ---------------------------------------------------------------------------
-# Task list 分组渲染
+# Grouped task-list rendering
 # ---------------------------------------------------------------------------
 
 
@@ -81,10 +66,7 @@ def format_bg_sessions_status(
     workspace_root: Path | None = None,
     include_completed: bool = False,
 ) -> str:
-    """多行渲染 BG session 分组（供 task list / status 面板）。
-
-    与 TaskList 的 background shell / local agent 分组并列显示。
-    """
+    """Format the background-session status panel."""
     if not is_bg_sessions_enabled(registry.config):
         return "(bg_sessions disabled)"
     sessions = registry.list(workspace_root=workspace_root)
@@ -118,12 +100,7 @@ def _status_marker(status: str) -> str:
 
 
 def format_completion_notification(session: BgSession) -> str:
-    """后台 session 完成时的通知文本（含 session_id 与恢复命令）。
-
-    供 task notification 队列消费方在 preamble 中注入。格式遵循
-    f-94-bg-sessions.md §1.8 "completion notification 应包含 session_id
-    与恢复命令"。
-    """
+    """Format a background-session completion notice."""
     return (
         f"<bg-session-notification>\n"
         f"  session_id: {session.session_id}\n"
@@ -135,16 +112,12 @@ def format_completion_notification(session: BgSession) -> str:
 
 
 # ---------------------------------------------------------------------------
-# 便捷：从环境构造 registry 并扫描
+# Build and scan a registry from the environment.
 # ---------------------------------------------------------------------------
 
 
 def make_panel_registry() -> BgSessionRegistry:
-    """构造一个用于面板展示的 registry（from_env，惰性 scan）。
-
-    调用方负责在需要最新数据时 ``registry.scan()``。建议 REPL/TUI 启动时
-    调用一次，并在 BG session 变化时（如 Ctrl+B 后）调用 scan 刷新。
-    """
+    """Build and scan a background-session registry."""
     return BgSessionRegistry()
 
 

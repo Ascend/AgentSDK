@@ -1,3 +1,29 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions derived from OpenCode: https://github.com/anomalyco/opencode
+# Copyright (c) 2025 opencode
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/OpenCode-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 # pylint: disable=no-else-continue,duplicate-value
 """WebFetch tool — fetch a URL and return extracted text content.
 
@@ -15,6 +41,7 @@ from __future__ import annotations
 import gzip
 import html
 import ipaddress
+import logging
 import re
 import socket
 import time
@@ -32,6 +59,8 @@ from clawcodex_ext.permissions.types import (
     PermissionPassthroughResult,
     PermissionResult,
 )
+
+_LOGGER = logging.getLogger(__name__)
 
 
 # -- HTML to Markdown ----------------------------------------------------------
@@ -254,7 +283,7 @@ def _read_response_body(resp) -> str:
             try:
                 raw = zlib.decompress(raw, -zlib.MAX_WBITS)  # raw deflate, no header
             except Exception:  # nosec
-                pass
+                pass  # This probe is optional; preserve the existing conservative fallback.
     charset = _charset_from_content_type(resp.headers.get("Content-Type", "")) or "utf-8"
     try:
         return raw.decode(charset, errors="replace")
@@ -484,7 +513,7 @@ def _check_permissions(tool_input: dict[str, Any], context: ToolContext) -> Perm
                 decision_reason=OtherDecisionReason(reason="Preapproved host"),
             )
     except Exception:  # nosec
-        pass
+        pass  # Preapproval parsing failed; continue through the normal permission path.
 
     rule_content = _domain_rule_content(url)
     if rule_content is None:
@@ -517,8 +546,8 @@ def _check_permissions(tool_input: dict[str, Any], context: ToolContext) -> Perm
                     updated_input=tool_input,
                     decision_reason=RuleDecisionReason(rule=allow),
                 )
-        except Exception:  # nosec
-            pass
+        except Exception as exc:  # nosec
+            _LOGGER.warning("WebFetch permission rule lookup failed (%s)", type(exc).__name__)
 
     return PermissionPassthroughResult(
         suggestions=_domain_suggestions(rule_content),

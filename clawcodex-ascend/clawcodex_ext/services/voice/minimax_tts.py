@@ -3,12 +3,14 @@
 
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
-# Copyright (c) 2026 Clawd Codex Team
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -18,7 +20,7 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""MiniMax T2A TTS provider — F-64 P64-E3.
+"""MiniMax T2A TTS provider — P64-E3.
 
 Implements :class:`TTSProvider` against MiniMax's ``POST /v1/t2a_v2``
 HTTP endpoint (Text-to-Audio v2). MiniMax T2A supports 8 models
@@ -29,8 +31,8 @@ with ``stream=true`` (hex-encoded PCM frames in a JSON envelope).
 Credentials
 -----------
 Same as P64-D1 STT: ``MINIMAX_API_KEY`` + ``MINIMAX_GROUP_ID`` env, or
-``~/.clawcodex/tts/minimax/credentials.json``. The two F-64 sub-features
-share the credential file (per f-64-voice-mode.md §5.8).
+``~/.clawcodex/tts/minimax/credentials.json``. The two sub-features
+share the credential file.
 
 Streaming
 ---------
@@ -168,14 +170,7 @@ class _MiniMaxSynthesis(TTSSynthesis):
 
 
 class MiniMaxTTSProvider(TTSProvider):
-    """MiniMax T2A HTTP TTS — P1 provider (P0 minimum uses OpenAI).
-
-    Like OpenAI's ``audio.speech``, T2A HTTP accepts the full text up
-    front and streams audio frames back. We accumulate ``feed_text`` and
-    POST on finalize. For lower-latency token-level streaming, the
-    Realtime WebSocket (P64-D1) is the better path; T2A HTTP is simpler
-    and good enough for the ``/tts minimax say "..."`` 试听 path.
-    """
+    """P1 P0 P64-D1 Provide text-to-speech through MiniMax."""
 
     def __init__(
         self,

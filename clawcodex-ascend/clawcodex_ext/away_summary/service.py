@@ -3,12 +3,14 @@
 
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
-# Copyright (c) 2026 Clawd Codex Team
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -179,7 +181,7 @@ def _generate_via_fork(
     try:
         asyncio.get_running_loop()
     except RuntimeError:
-        pass
+        pass  # Optional runtime path is unavailable; keep the fallback.
     else:
         raise _ForkUnavailable("running event loop detected")
 
@@ -634,10 +636,10 @@ def _normalize_summary_output(text: str) -> str:
     Models occasionally ignore the prompt's formatting instructions and
     emit:
 
-    * a preamble such as "你刚回来，这是之前的会话摘要：" or "Here's a summary:";
+    * a recap preamble in Chinese or English;
     * non-hyphen bullet markers (``•``, ``*``, ``·``);
     * markdown emphasis/backticks/headings/bold;
-    * low-value bullets for bare greetings (e.g. ``• 问候``).
+    * low-value bullets that merely report a greeting.
 
     This function cleans those up as a defensive post-processing step so
     the rendered recap stays consistent regardless of model compliance.

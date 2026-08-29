@@ -1450,7 +1450,7 @@ function script:Ensure-Local-EnvFile {
         Copy-Item -LiteralPath $envExample -Destination $envFile -Force
     } else {
         $template = @(
-            '# Local F-73 release credentials. Never commit real token values.'
+            '# Local release credentials. Never commit real token values.'
             'GITCODE_TOKEN='
             'TEST_PYPI_TOKEN='
             '# PYPI_TOKEN='

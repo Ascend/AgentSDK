@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-# coding=utf-8
+# -*- coding: utf-8 -*-
+
 
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
@@ -7,7 +8,7 @@
 # Originally from the clawcodex project:
 #   https://github.com/agentforce314/clawcodex
 #   Copyright (c) 2026 Clawd Codex Team
-#   Licensed under the MIT License. See LICENSE-MIT-clawcodex in this directory.
+#   Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
 #
 # Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
 # Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
@@ -231,7 +232,7 @@ class SessionsWebSocket:
             try:
                 await ws.close()
             except (websockets.exceptions.ConnectionClosed, OSError):
-                pass
+                pass  # Closing a failed handshake is best-effort; preserve the connection failure.
             return
 
         self._ws = ws
@@ -280,12 +281,12 @@ class SessionsWebSocket:
             try:
                 await self._reader_task
             except (asyncio.CancelledError, websockets.exceptions.ConnectionClosed):
-                pass
+                pass  # The task was explicitly cancelled; awaiting it only drains shutdown cleanup.
         if ws is not None:
             try:
                 await ws.close()
             except (websockets.exceptions.ConnectionClosed, OSError):
-                pass
+                pass  # Socket closure is idempotent and best-effort during disconnect.
 
     async def reconnect(self) -> None:
         """Force close + immediate reconnect (resets retry counters).
@@ -309,13 +310,13 @@ class SessionsWebSocket:
             try:
                 await ws.close()
             except (websockets.exceptions.ConnectionClosed, OSError):
-                pass
+                pass  # Closing the previous socket is best-effort before reconnecting.
         if self._reader_task is not None and not self._reader_task.done():
             self._reader_task.cancel()
             try:
                 await self._reader_task
             except (asyncio.CancelledError, websockets.exceptions.ConnectionClosed):
-                pass
+                pass  # The task was explicitly cancelled; awaiting it only drains shutdown cleanup.
         # 500 ms grace before reconnecting (matches TS).
         await asyncio.sleep(0.5)
         await self.connect()
@@ -369,7 +370,10 @@ class SessionsWebSocket:
                     logger.debug("[SessionsWebSocket] parse error: %s", exc)
                     continue
                 if not _is_sessions_message(parsed):
-                    logger.debug("[SessionsWebSocket] ignoring non-message: %s", parsed)
+                    logger.debug(
+                        "[SessionsWebSocket] ignoring non-message (type=%s)",
+                        type(parsed).__name__,
+                    )
                     continue
                 await self._invoke(self._callbacks.on_message, parsed)
         except websockets.exceptions.ConnectionClosed as exc:

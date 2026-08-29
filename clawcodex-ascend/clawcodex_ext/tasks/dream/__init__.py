@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-# coding=utf-8
+# -*- coding: utf-8 -*-
+
 
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
@@ -17,7 +18,7 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""``dream`` task type — F-100.
+"""``dream`` task type.
 
 Mirrors ``typescript/src/tasks/DreamTask/DreamTask.ts`` in shape: a
 typed ``DreamTaskState`` dataclass with extension fields plus a

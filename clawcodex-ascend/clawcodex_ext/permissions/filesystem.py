@@ -1,3 +1,25 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 from __future__ import annotations
 
 import os
@@ -242,7 +264,7 @@ def get_write_scope(
         Path(abs_path).relative_to(Path(effective_cwd).resolve())
         return "inside_cwd"
     except ValueError:
-        pass
+        pass  # The path is outside this candidate root; test the next allowed scope.
 
     if additional_directories:
         for d in additional_directories:
@@ -305,7 +327,7 @@ def _readable_internal_dirs(context: Any) -> list[Path]:
         if context is not None:
             dirs.append(resolve_tool_results_dir(context))
     except Exception:  # nosec B110
-        pass
+        pass  # This probe is optional; preserve the existing conservative fallback.
 
     # Tool-result budget spill dir (``/tmp/claw_codex_budget/<pid>``) — the
     # compaction pipeline offloads large results here and the model reads them
@@ -317,13 +339,13 @@ def _readable_internal_dirs(context: Any) -> list[Path]:
 
         dirs.append(get_tool_result_budget_dir())
     except Exception:  # nosec B110
-        pass
+        pass  # This probe is optional; preserve the existing conservative fallback.
 
     # Per-session scratchpad (path only — do not create it here).
     try:
         dirs.append(Path(_scratchpad_dir_path()))
     except Exception:  # nosec B110
-        pass
+        pass  # This probe is optional; preserve the existing conservative fallback.
 
     # Auto-memory (memdir): the ``~/.clawcodex/projects/<slug>/memory/`` subtree
     # ONLY. NOT ``get_memory_base_dir()`` — that returns the whole ``~/.clawcodex``
@@ -335,7 +357,7 @@ def _readable_internal_dirs(context: Any) -> list[Path]:
 
         dirs.append(Path(get_auto_mem_path()))
     except Exception:  # nosec B110
-        pass
+        pass  # This probe is optional; preserve the existing conservative fallback.
 
     # Bundled skill resources are readable only while their invocation scope
     # is active. Validate every root against the process-private extraction
@@ -351,7 +373,7 @@ def _readable_internal_dirs(context: Any) -> list[Path]:
             if is_bundled_skill_path(root):
                 dirs.append(root)
     except Exception:  # nosec B110
-        pass
+        pass  # This probe is optional; preserve the existing conservative fallback.
 
     # NOTE: TS ``checkReadableInternalPath`` also allowlists session-plan files,
     # the current project's transcript dir (``isProjectDirPath``), project-temp
@@ -364,7 +386,7 @@ def _readable_internal_dirs(context: Any) -> list[Path]:
 
 
 def check_readable_catalog_path(file_path: str, context: Any = None) -> bool:
-    """True when ``file_path`` is an F-56 catalog JSON under known roots.
+    """True when ``file_path`` is an catalog JSON under known roots.
 
     Basename must be one of ``sop-resources.json``, ``catalog.json``,
     ``resource-catalog.json``, and the resolved path must sit under
@@ -392,7 +414,7 @@ def check_readable_catalog_path(file_path: str, context: Any = None) -> bool:
         roots.append(home / "sop-resources")
         roots.append(home / "sessions")
     except Exception:  # nosec B110
-        pass
+        pass  # The optional catalog is unavailable; retain the normal deny-by-default path.
 
     try:
         bundle = getattr(context, "bundle_context", None) if context is not None else None
@@ -407,7 +429,7 @@ def check_readable_catalog_path(file_path: str, context: Any = None) -> bool:
         if bp is not None:
             roots.append(Path(bp).expanduser().resolve() / ".clawcodex")
     except Exception:  # nosec B110
-        pass
+        pass  # This probe is optional; preserve the existing conservative fallback.
 
     for root in roots:
         try:
@@ -513,12 +535,12 @@ def check_read_permission_for_tool(file_path: str, context: Any) -> PermissionRe
             ),
         )
 
-    # F-56 catalog JSON under CLAWCODEX_HOME / bundle .clawcodex.
+    # catalog JSON under CLAWCODEX_HOME / bundle.clawcodex.
     if check_readable_catalog_path(abs_path, context):
         return PermissionAllowDecision(
             behavior="allow",
             decision_reason=OtherDecisionReason(
-                reason="Read of an F-56 resource catalog file",
+                reason="Read of a resource catalog file",
             ),
         )
 

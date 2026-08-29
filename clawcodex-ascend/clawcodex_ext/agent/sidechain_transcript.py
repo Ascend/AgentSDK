@@ -1,11 +1,32 @@
-"""Sidechain transcript for /btw side questions (F-122-H).
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
+"""Sidechain transcript for /btw side questions.
 
 Records each ``/btw`` invocation (question + response + usage + provider)
 to a dedicated JSONL file under ``$CLAWCODEX_DATA_DIR/sidechains/`` so the
 side question has an independent paper trail — and *never* pollutes the
-main session's ``transcript.jsonl``. Mirrors the design intent in
-``docs/feature_plan/03-agent-core/f-122-btw-side-question.md`` §1.3 / §1.2
-(the "transcript" isolation row of the boundary table).
+main session's ``transcript.jsonl``. This preserves the side-question
+design's "transcript isolation" boundary.
 
 Storage shape
 -------------
@@ -18,29 +39,29 @@ A single side-question JSON line is far below 4 KiB.
 
 Record schema (one JSON line per call)::
 
-    {
-      "ts":        "2026-07-02T12:34:56",     // ISO 8601, second precision
-      "epoch":     1751475296.123,            // wall-clock for tooling
-      "type":      "btw",                     // future-proof for /watz/etc
-      "session_id": "<active session uuid>",
-      "question":  "what is X?",
-      "response":  "X is ...",                // null on failure
-      "usage":     {                          // token counts; empty on failure
-        "input_tokens":  123,
-        "output_tokens": 45
-      },
-      "provider":  "anthropic",               // optional
-      "model":     "claude-...",              // optional
-      "error":     "..."                      // optional, present iff /btw failed
-    }
+ {
+ "ts": "2026-07-02T12:34:56", // ISO 8601, second precision
+ "epoch": 1751475296.123, // wall-clock for tooling
+ "type": "btw", // future-proof for /watz/etc
+ "session_id": "<active session uuid>",
+ "question": "what is X?",
+ "response": "X is...", // null on failure
+ "usage": { // token counts; empty on failure
+ "input_tokens": 123,
+ "output_tokens": 45
+ },
+ "provider": "anthropic", // optional
+ "model": "claude...", // optional
+ "error": "..."// optional, present iff /btw failed
+ }
 
 Disable / reconfigure
 ---------------------
 
 * ``CLAWCODEX_DISABLE_SIDECHAIN_TRANSCRIPT=1`` (or any truthy value)
-  disables recording — the function becomes a no-op.
+ disables recording — the function becomes a no-op.
 * ``CLAWCODEX_DATA_DIR=/path/to/root`` overrides the base directory
-  (default: ``~/.clawcodex``).
+ (default: ``~/.clawcodex``).
 
 Failure semantics
 -----------------
@@ -49,7 +70,7 @@ Sidechain writes are *fire-and-forget*. Any IO failure
 (``PermissionError``, ``OSError``, full disk, missing parent dir that
 ``mkdir`` cannot create, etc.) is logged at WARNING level and swallowed —
 the main ``/btw`` user flow must never be blocked or visibly affected by
-sidechain bookkeeping. This matches the F-122 isolation invariant that
+sidechain bookkeeping. This matches the isolation invariant that
 "the side question never observes any failure from the recording path".
 """
 
@@ -204,7 +225,7 @@ def record_btw_invocation(
         return path
     except Exception:  # nosec
         logger.warning(
-            "F-122-H: failed to record /btw sidechain transcript (session=%s, question=%r)",
+            "failed to record /btw sidechain transcript (session=%s, question=%r)",
             session_id,
             (question or "")[:80],
             exc_info=True,
@@ -249,7 +270,7 @@ def read_sidechain_file(path: Path) -> list[dict[str, Any]]:
                 records.append(json.loads(line))
             except json.JSONDecodeError:
                 logger.warning(
-                    "F-122-H: malformed JSON at %s:%d (skipping)",
+                    "malformed JSON at %s:%d (skipping)",
                     path,
                     line_no,
                 )

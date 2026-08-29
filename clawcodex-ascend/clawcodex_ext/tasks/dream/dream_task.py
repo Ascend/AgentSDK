@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-# coding=utf-8
+# -*- coding: utf-8 -*-
+
 
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
@@ -17,7 +18,7 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""``dream`` task state machine — F-100.
+"""``dream`` task state machine.
 
 Mirrors the chapter-10 pattern used by ``local_agent`` / ``in_process_teammate``:
 a typed ``DreamTaskState`` dataclass (subclass of ``TaskStateBase``) plus

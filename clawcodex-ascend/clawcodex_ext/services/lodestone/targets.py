@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 #  This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
@@ -16,7 +17,7 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""F-97 LODESTONE — built-in target set and registry factory.
+"""LODESTONE — built-in target set and registry factory.
 
 The defaults registered here are:
 
@@ -33,8 +34,9 @@ The defaults registered here are:
 * ``tracker:gitcode``     — tracker issue → ``gitcode.com/{owner}/{repo}/issues/{n}``
 * ``tracker:linear``      — tracker issue → ``linear.app/...``
 
-Call ``build_default_registry(cfg)`` from :class:`LodestoneService`
-construction — never re-instantiate these manually except in tests.
+Call ``build_default_registry(cfg)`` when constructing a
+:class:`LodestoneService`; never re-instantiate these manually except in
+tests.
 """
 
 from __future__ import annotations

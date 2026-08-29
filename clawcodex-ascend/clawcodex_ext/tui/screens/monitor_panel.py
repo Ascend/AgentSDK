@@ -1,10 +1,16 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -13,14 +19,8 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
-#
-# Copyright (c) 2026 Clawd Codex Team
-# SPDX-License-Identifier: MIT
-# Source: https://github.com/agentforce314/clawcodex
-# ClawCodex-derived portions remain licensed under the MIT License.
-# See clawcodex-ascend/LICENSE.clawcodex.
 
-"""F-88 TUI monitor panel.
+"""TUI monitor panel.
 
 Opened with Shift+Down.  Shows the list of active monitor tasks on the left
 and a live tail of the selected task's log on the right.
@@ -126,7 +126,7 @@ class MonitorPanel(ModalScreen[None]):
                 loop = asyncio.get_running_loop()
                 loop.create_task(self._follower.stop())
             except RuntimeError:
-                pass
+                pass  # Optional runtime path is unavailable; keep the fallback.
 
     def _refresh_tasks(self) -> None:
         self._tasks = self._ctrl.list_active()
@@ -164,7 +164,7 @@ class MonitorPanel(ModalScreen[None]):
                 text = output_path.read_text(encoding="utf-8", errors="replace")
                 self._output_widget.write(text[-task.tail_buffer_size :])
             except OSError:
-                pass
+                pass  # Best-effort operation failed; keep the surrounding fallback.
 
     def _tick(self) -> None:
         if self._follower is None or self._output_widget is None:

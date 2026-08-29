@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-# coding=utf-8
+# -*- coding: utf-8 -*-
+
 
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
@@ -7,7 +8,7 @@
 # Originally from the clawcodex project:
 #   https://github.com/agentforce314/clawcodex
 #   Copyright (c) 2026 Clawd Codex Team
-#   Licensed under the MIT License. See LICENSE-MIT-clawcodex in this directory.
+#   Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
 #
 # Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
 # Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
@@ -788,3 +789,14 @@ def _subsequence_score(text: str, query: str) -> int | None:
     if first is None:
         return None
     return last - first
+
+
+build_path_bitmap = _build_path_bitmap
+filter_candidates = _filter_candidates
+is_path_like_token = _is_path_like_token
+path_completions = _path_completions
+subsequence_score = _subsequence_score
+AT_TOKEN_RE = _AT_TOKEN_RE
+MAX_SUGGESTIONS = _MAX_SUGGESTIONS
+list_git_files = _list_git_files
+walk_filesystem = _walk_filesystem

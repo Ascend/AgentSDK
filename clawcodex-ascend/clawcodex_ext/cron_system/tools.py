@@ -1,6 +1,28 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 """Downstream Cron tool implementations backed by persistent storage.
 
-Implements F-22-G1 (kill switch) and F-22-G6 (rich prompt docs).
+Implements (kill switch) and (rich prompt docs).
 """
 
 from __future__ import annotations
@@ -20,7 +42,7 @@ from .parser import cron_to_human, parse_cron_expression
 from .schedule import get_cron_task_detail, manual_fire_cron_task
 from .tasks import add_cron_task, read_all_cron_tasks, remove_cron_tasks
 
-# F-22-G1: keep in sync with `is_cron_disabled` for the in-process fast path.
+# keep in sync with `is_cron_disabled` for the in-process fast path.
 CRON_DISABLED_MESSAGE = "Cron is disabled (CLAWCODEX_DISABLE_CRON is set)."
 
 CRON_CREATE_PROMPT = """\
@@ -122,7 +144,7 @@ def _cron_create_call(tool_input: dict[str, Any], context: ToolContext) -> ToolR
     if not isinstance(prompt, str) or not prompt.strip():
         raise ToolInputError("prompt must be a non-empty string")
 
-    # F-22-G4: CronCreate cannot set `permanent`. The flag is reserved for
+    # CronCreate cannot set `permanent`. The flag is reserved for
     # the assistant-mode installer (write_if_missing).
     if tool_input.get("permanent") is True:
         raise ToolInputError("permanent is a system-only flag and cannot be set via CronCreate")

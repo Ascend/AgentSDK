@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-# coding=utf-8
+# -*- coding: utf-8 -*-
+
 
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
@@ -7,7 +8,7 @@
 # Originally from the clawcodex project:
 #   https://github.com/agentforce314/clawcodex
 #   Copyright (c) 2026 Clawd Codex Team
-#   Licensed under the MIT License. See LICENSE-MIT-clawcodex in this directory.
+#   Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
 #
 # Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
 # Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
@@ -45,7 +46,7 @@ class ValidationError:
 
 
 def _effective_default_permission_mode(settings: SettingsSchema) -> str | None:
-    """Resolve the effective default permission mode from F-47 channels.
+    """Resolve the effective default permission mode from channels.
 
     Priority:
 
@@ -76,10 +77,10 @@ def validate_settings(settings: SettingsSchema) -> list[ValidationError]:
             )
         )
 
-    # F-47: permission default mode is read from ``permissions.default_mode``
+    # permission default mode is read from ``permissions.default_mode``
     # first, then the top-level ``permission_mode`` (back-compat). Empty
     # strings on both are treated as "unset" and skip the enum check --
-    # this avoids F-47 defaulting `permission_mode` to ``""`` from being
+    # this avoids defaulting `permission_mode` to ``""`` from being
     # reported as an invalid mode.
     effective_default_mode = _effective_default_permission_mode(settings)
     if effective_default_mode is not None and effective_default_mode not in VALID_PERMISSION_MODES:
@@ -168,7 +169,7 @@ def validate_settings(settings: SettingsSchema) -> list[ValidationError]:
             )
         )
 
-    # F-47: permissions.rules is a dict[str, list[str]] (allow/deny/ask).
+    # permissions.rules is a dict[str, list[str]] (allow/deny/ask).
     # The legacy list[PermissionRule] path is gone (Sub-H); rule strings
     # are kept verbatim on disk and validated as non-empty here.
     permissions = settings.permissions

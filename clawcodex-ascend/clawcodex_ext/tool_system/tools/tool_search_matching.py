@@ -1,3 +1,25 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 """ToolSearch scoring helpers — token-aware matching over tool metadata."""
 
 from __future__ import annotations
@@ -285,7 +307,7 @@ def _lifecycle_sort_key(
     tool_name: str,
     lifecycle_graph: Any | None,
 ) -> tuple[int, int, int]:
-    """Return a bias key from F-55 ``tool-dependencies.yaml`` metadata.
+    """Return a bias key from ``tool-dependencies.yaml`` metadata.
 
     Lower is better.  The key is intentionally coarse; normal ToolSearch scoring
     still decides relevance, while lifecycle metadata only breaks collisions and
@@ -400,7 +422,7 @@ def _direct_macro_route_names(
 ) -> tuple[list[str], list[str], bool]:
     """Return macro tools matched by direct route and excluded tools.
 
-    Macro routes are data-driven and independent of F-55 PriorityRoute.
+    Macro routes are data-driven and independent of PriorityRoute.
     Routes can actively recall a target tool that would not otherwise
     appear in normal ToolSearch results.
 
@@ -431,7 +453,7 @@ def _direct_macro_route_names(
             matched, exclusive = resolve_macro_route(query, tools, catalog=DEFAULT_MACRO_ROUTE_CATALOG)
             excluded = get_negative_keyword_exclusions(query, tools, catalog=DEFAULT_MACRO_ROUTE_CATALOG)
         except ImportError:
-            pass
+            pass  # Optional integration is unavailable; keep the fallback.
     else:
         try:
             from extensions.sop_converter.runtime.macros.routing import (
@@ -442,7 +464,7 @@ def _direct_macro_route_names(
             matched, exclusive = resolve_macro_route(query, tools, catalog=macro_route_catalog)
             excluded = get_negative_keyword_exclusions(query, tools, catalog=macro_route_catalog)
         except ImportError:
-            pass
+            pass  # Optional integration is unavailable; keep the fallback.
 
     return matched, excluded, exclusive
 
@@ -482,7 +504,7 @@ def rank_tools_by_lifecycle(
     query: str,
     lifecycle_graph: Any | None,
 ) -> list[str]:
-    """Sort ToolSearch match names using F-55 lifecycle metadata.
+    """Sort ToolSearch match names using lifecycle metadata.
 
     This implements the documented P2 hook: when ``priority_routes`` match the
     query, tools in the routed ``intent_group`` are lifted and ordered by the
@@ -685,7 +707,7 @@ def rank_tool_matches(
 ) -> list[str]:
     """Rank tools for a ToolSearch query and return tool names.
 
-    Order (F-57 §8.3):
+    Order (§8.3):
       direct macro route → lifecycle-chain → normal scoring → lifecycle reorder
     """
     macro_route_matches, excluded_tools, exclusive = _direct_macro_route_names(query, tools, macro_route_catalog)

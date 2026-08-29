@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 #  This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
@@ -16,27 +17,27 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""F-97 LODESTONE — renderer.
+"""LODESTONE — renderer.
 
 Three output sinks:
 
-*   ``text``     — anchor text passed through verbatim.
-*   ``markdown`` — ``[text](url)`` form.  Wrap in ``<…>`` when the URL
+* ``text``     — anchor text passed through verbatim.
+* ``markdown`` — ``[text](url)`` form.  Wrap in ``<…>`` when the URL
     itself contains brackets / pipes (CommonMark escape rule).
-*   ``osc8``     — ANSI escape ``\\x1b]8;;URL\\x1b\\\\TEXT\\x1b]8;;\\x1b\\\\``
+* ``osc8``     — ANSI escape ``\\x1b]8;;URL\\x1b\\\\TEXT\\x1b]8;;\\x1b\\\\``
     that modern terminals (iTerm2, WezTerm, VS Code) render as
     clickable hyperlinks.
 
 ``sink="auto"`` is resolved at first-render-time to one of the three
 concrete sinks, based on env hints:
 
-*   ``TERM_PROGRAM`` in {``iTerm.app``, ``WezTerm``, ``vscode``} → ``osc8``
-*   anything else → ``markdown``
+* ``TERM_PROGRAM`` in {``iTerm.app``, ``WezTerm``, ``vscode``} → ``osc8``
+* anything else → ``markdown``
 
 Public surface:
 
-*   :class:`AnchorRenderer` — stateless; ``render(anchor, target, sink, ctx)``
-*   :meth:`AnchorRenderer.render_text(text, ctx, sink)` — parse + render
+* :class:`AnchorRenderer` — stateless; ``render(anchor, target, sink, ctx)``
+* :meth:`AnchorRenderer.render_text(text, ctx, sink)` — parse + render
     mixed text without round-tripping through AnchorParser/Renderer
     manually.
 

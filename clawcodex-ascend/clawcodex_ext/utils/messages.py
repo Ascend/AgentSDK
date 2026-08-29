@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-# coding=utf-8
+# -*- coding: utf-8 -*-
+
 
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
@@ -7,7 +8,7 @@
 # Originally from the clawcodex project:
 #   https://github.com/agentforce314/clawcodex
 #   Copyright (c) 2026 Clawd Codex Team
-#   Licensed under the MIT License. See LICENSE-MIT-clawcodex in this directory.
+#   Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
 #
 # Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
 # Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
@@ -46,7 +47,7 @@ from src.types.messages import (
     create_assistant_message,
     create_system_message,
     create_user_message,
-    _get_field,
+    get_field as _get_field,
     NO_CONTENT_MESSAGE,
     SYNTHETIC_MODEL,
     SYNTHETIC_TOOL_RESULT_PLACEHOLDER,

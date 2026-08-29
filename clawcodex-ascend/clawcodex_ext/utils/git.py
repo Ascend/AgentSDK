@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-# coding=utf-8
+# -*- coding: utf-8 -*-
+
 
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
@@ -7,7 +8,7 @@
 # Originally from the clawcodex project:
 #   https://github.com/agentforce314/clawcodex
 #   Copyright (c) 2026 Clawd Codex Team
-#   Licensed under the MIT License. See LICENSE-MIT-clawcodex in this directory.
+#   Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
 #
 # Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
 # Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
@@ -60,6 +61,9 @@ def _run_git(
         return "", "git not found", -1
     except Exception as e:
         return "", str(e), -1
+
+
+run_git = _run_git
 
 
 def _run_git_ok(args: list[str], cwd: str | None = None) -> str:
@@ -427,3 +431,6 @@ async def get_session_diff_async(
 ) -> DiffResult:
     loop = asyncio.get_event_loop()
     return await loop.run_in_executor(None, lambda: get_session_diff(cwd, **kwargs))
+
+
+run_git = _run_git

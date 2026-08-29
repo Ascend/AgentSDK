@@ -1,3 +1,25 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 # pylint: disable=too-many-lines
 """User input processing matching TypeScript utils/input.ts and commands/parseInput.ts.
 
@@ -122,7 +144,7 @@ def parse_user_input(text: str, *, cwd: str | None = None) -> ParsedInput:
 
 
 def find_ultraplan_triggers(text: str):
-    """Return F-87 ultraplan trigger hits for UI integrations."""
+    """Return ultraplan trigger hits for UI integrations."""
 
     from clawcodex_ext.services.ultraplan.keyword_detector import (
         find_ultraplan_trigger_positions,
@@ -525,7 +547,7 @@ def _get_read_max_output_tokens() -> int:
             if val > 0:
                 return val
         except ValueError:  # nosec B110
-            pass
+            pass  # Invalid candidate; continue with the surrounding fallback.
     return 25_000
 
 

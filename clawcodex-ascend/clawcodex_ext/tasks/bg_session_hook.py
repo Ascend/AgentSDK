@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-# coding=utf-8
+# -*- coding: utf-8 -*-
+
 
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
@@ -17,15 +18,11 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""F-94 P94-B/C — 协调 ``launch_background_runner`` 写全局 index。
+"""Coordinate global-index updates after ``launch_background_runner``.
 
-按 CLAUDE.md 黄金法则 1（不侵入 ``src/``）与模式 B（猴补丁）：包装
-``launch_background_runner``，在原函数写完 ``.background-runner.json``
-marker 后追加 ``BgSessionManager.upsert_after_launch`` 写全局 index。
-
-**关键契约**（f-94-bg-sessions.md §1.9 / 验收标准 1）：
-``bg_sessions=off`` 时 ``upsert_after_launch`` 内部 no-op 返回 None，
-退化为现有 marker 行为，不写 ``index.json``。
+The wrapper calls ``BgSessionManager.upsert_after_launch`` after the original
+function writes its runner marker. When background sessions are disabled, the
+upsert remains a no-op and no global index is written.
 """
 
 from __future__ import annotations
@@ -40,9 +37,9 @@ _installed: bool = False
 
 
 def install_bg_session_index_hook() -> None:
-    """猴补丁 ``launch_background_runner`` — 写 marker 后 upsert 全局 index。
+    """Wrap ``launch_background_runner`` to update the global index.
 
-    幂等；失败仅记录日志，不阻断 background fork 主路径。
+    Installation is idempotent; failures are logged without blocking forks.
     """
     global _installed
     if _installed:
@@ -63,7 +60,7 @@ def install_bg_session_index_hook() -> None:
 
     def _wrapped(session, provider, tool_registry, tool_context, max_turns):  # type: ignore[no-untyped-def]
         pid = original(session, provider, tool_registry, tool_context, max_turns)
-        # 尽力 upsert；任何异常都不影响 fork 主路径
+        # Best-effort indexing must not interrupt the fork path.
         try:
             ws = _resolve_workspace(tool_context)
             mgr = BgSessionManager(registry=BgSessionRegistry())
@@ -84,7 +81,7 @@ def install_bg_session_index_hook() -> None:
 
     _wrapped._bg_session_wrapped = True  # type: ignore[attr-defined]
     br.launch_background_runner = _wrapped  # type: ignore[assignment]
-    # 同步 src.agent.background_runner facade 的引用（re-export）
+    # Keep the re-exported facade reference synchronized.
     try:
         import src.agent.background_runner as src_br
 

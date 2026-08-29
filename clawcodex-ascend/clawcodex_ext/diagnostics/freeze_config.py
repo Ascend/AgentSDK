@@ -1,10 +1,16 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -13,14 +19,8 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
-#
-# Copyright (c) 2026 Clawd Codex Team
-# SPDX-License-Identifier: MIT
-# Source: https://github.com/agentforce314/clawcodex
-# ClawCodex-derived portions remain licensed under the MIT License.
-# See clawcodex-ascend/LICENSE.clawcodex.
 
-"""Layer-2/Layer-1 freeze-configuration resolution (F-108 §十八 P108-E).
+"""Layer-2/Layer-1 freeze-configuration resolution.
 
 Centralises the env-var → settings dataclass resolution the freeze
 subsystem depends on, so a single import surface can answer:
@@ -44,11 +44,11 @@ from pathlib import Path
 from typing import Callable
 
 
-# F-108 §十八 acceptance §5: ``CLAWCODEX_FREEZE_DIAG=1`` flips the
+# §18 acceptance §5: ``CLAWCODEX_FREEZE_DIAG=1`` flips the
 # watchdog on from an existing run without code changes.
 DIAG_ENV_VAR = "CLAWCODEX_FREEZE_DIAG"
 
-# F-108 §十八 design decision #5: ``0`` disables the Layer-2 budget
+# §18 design decision #5: ``0`` disables the Layer-2 budget
 # without removing the watch — a fast-recovery escape hatch for users
 # who hit a known-false-positive.
 ENV_VAR_FOR: dict[str, str] = {
@@ -72,7 +72,7 @@ def env_var_for(field_name: str) -> str | None:
 
 @dataclass(frozen=True)
 class FreezeSettings:
-    """Frozen view of the F-108 freeze knobs.
+    """Frozen view of the freeze knobs.
 
     Kept distinct from :class:`clawcodex_ext.settings.types.FreezeSettings`
     so we don't import the full settings module in cold paths.
@@ -126,8 +126,7 @@ def resolve_freeze_settings(
     Resolution order per knob:
 
     1. Settings file (if ``settings_factory`` returns an object with a
-       ``freeze`` dataclass — the F-108 P108-E block we added to
-       :class:`SettingsSchema`).
+       ``freeze`` dataclass added to :class:`SettingsSchema`).
     2. Env var (from :data:`ENV_VAR_FOR`).
     3. :data:`DEFAULT_FREEZE_SETTINGS`.
 

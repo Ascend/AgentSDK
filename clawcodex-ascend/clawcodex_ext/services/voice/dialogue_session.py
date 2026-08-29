@@ -3,12 +3,14 @@
 
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
-# Copyright (c) 2026 Clawd Codex Team
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -18,49 +20,49 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""DialogueSessionManager — F-65 P65-B.
+"""Full-duplex voice dialogue session management.
 
 Owns the lifecycle of one full-duplex voice dialogue session:
 
 ```
 IDLE ──> LISTENING ──> SPEAKING ──> INTERRUPTED ──> LISTENING
- │          │             │           │
- │          │             │           └──► reset to LISTENING once
- │          │             │                barge-in clears
- │          │             └──► back to LISTENING when audio stream ends
- │          └──► recording microphone frames, agent idle
- └──► start() begins here; stop() returns here on shutdown
+ │ │ │ │
+ │ │ │ └──► reset to LISTENING once
+ │ │ │ barge-in clears
+ │ │ └──► back to LISTENING when audio stream ends
+ │ └──► recording microphone frames, agent idle
+ └──► start begins here; stop returns here on shutdown
 ```
 
 Responsibilities
 ----------------
-* Construct / tear down a :class:`FullDuplexDialogueProvider` (the
-  F-65 ABC). One manager per session.
-* Own the audio recorder + the audio player (via
-  :class:`AudioChunkQueue` + :class:`AudioOutQueue` + :class:`AudioPlayer`).
+* Construct and tear down a :class:`FullDuplexDialogueProvider` (the
+  provider interface). One manager is used per session.
+* Own the audio recorder and player through :class:`AudioChunkQueue`,
+  :class:`AudioOutQueue`, and :class:`AudioPlayer`.
 * Run an :class:`InterruptDetector` over the recorded PCM. When the user
   barges in, call :meth:`AudioPlayer.stop_nowait`,
-  :meth:`AudioOutQueue.clear`, and :meth:`FullDuplexDialogueProvider
-  .interrupt` in that order so the device falls silent within P65-C's
-  ≤ 100ms target before the server cancels the in-flight response.
-* Forward :class:`DialogueEvent`s to user-supplied listeners (the agent
-  pipeline): text → "transcript event" handler; audio → AudioOutQueue.
+  :meth:`AudioOutQueue.clear`, and
+  :meth:`FullDuplexDialogueProvider.interrupt` in that order so the device
+  falls silent before the server cancels the in-flight response.
+* Forward :class:`DialogueEvent` instances to user-supplied listeners (the
+  agent pipeline): text to the transcript-event handler and audio to
+  :class:`AudioOutQueue`.
 
 Design notes
 ------------
 * The manager is **session-scoped**, not process-scoped. A new instance
-  per ``/dialogue start`` keeps each conversation isolated. There's no
-  global session registry; the caller (``/dialogue`` command) stores the
-  handle.
+ per ``/dialogue start`` keeps each conversation isolated. There's no
+ global session registry; the caller (``/dialogue`` command) stores the
+ handle.
 * Audio *playback* and *recording* run on the same event loop the
-  provider's pump tasks use. PyAudio's blocking ``stream.write`` is
-  offloaded to the default executor inside :class:`AudioPlayer`
-  (``run_in_executor``) so the loop stays responsive to provider
-  events. This matches F-64 P64-E8 exactly.
-* The interrupt arbitration policy follows ``f-65-voice-dialogue.md``
-  §1.4 / §5: VAD speech-start + small cooldown, immediate stop+clear,
-  server ``response.cancel``. No semantic "stop word" detection in the
-  MVP (the doc marks that as a known future extension).
+ provider's pump tasks use. PyAudio's blocking ``stream.write`` is
+ offloaded to the default executor inside :class:`AudioPlayer`
+ (``run_in_executor``) so the loop stays responsive to provider
+ events.
+* The interrupt policy uses VAD speech-start, a short cooldown, immediate
+  stop and clear, and server ``response.cancel``. It does not perform
+  semantic stop-word detection.
 """
 
 from __future__ import annotations
@@ -245,13 +247,13 @@ class DialogueSessionManager:
             try:
                 await self._recorder_task
             except (asyncio.CancelledError, Exception):
-                pass
+                pass  # The task was explicitly cancelled; awaiting it only drains shutdown cleanup.
             self._recorder_task = None
         if self._recorder is not None:
             try:
                 self._recorder.stop()
             except Exception:  # nosec B110 - best-effort recorder stop during teardown
-                pass
+                pass  # Cleanup is best-effort and must not replace the primary operation result.
         await self._provider.close()
         self._set_state(DialogueSessionState.DONE)
         return " ".join(p for p in self._final_transcript_chunks if p).strip()
@@ -275,26 +277,26 @@ class DialogueSessionManager:
         try:
             await self._provider.close()
         except Exception:  # nosec B110 - best-effort cleanup; close() is idempotent
-            pass
+            pass  # Cleanup is best-effort and must not replace the primary operation result.
         try:
             await self._player.stop_and_close()
         except Exception:  # nosec B110 - best-effort cleanup; close() is idempotent
-            pass
+            pass  # Voice resource cleanup is best-effort during session shutdown.
         try:
             self._out_queue.clear()
         except Exception:  # nosec B110 - best-effort cleanup; close() is idempotent
-            pass
+            pass  # Cleanup is best-effort and must not replace the primary operation result.
         if self._recorder_task is not None and not self._recorder_task.done():
             self._recorder_task.cancel()
             try:
                 await self._recorder_task
             except (asyncio.CancelledError, Exception):
-                pass
+                pass  # The task was explicitly cancelled; awaiting it only drains shutdown cleanup.
         if self._recorder is not None:
             try:
                 self._recorder.stop()
             except Exception:  # nosec B110 - best-effort recorder stop during teardown
-                pass
+                pass  # Cleanup is best-effort and must not replace the primary operation result.
         if self._state != DialogueSessionState.DONE:
             self._set_state(DialogueSessionState.DONE)
 
@@ -329,7 +331,7 @@ class DialogueSessionManager:
                 return
             if event.type == "audio":
                 # Forward PCM into the player's queue. The queue drops the
-                # oldest frame on overflow (F-64 P64-E8 design) so a slow
+                # oldest frame on overflow, by design, so a slow
                 # device never blocks the provider's recv task.
                 if event.pcm:
                     self._has_agent_audio = True

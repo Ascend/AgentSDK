@@ -3,12 +3,14 @@
 
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
-# Copyright (c) 2026 Clawd Codex Team
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -18,7 +20,7 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""Interrupt detector — F-65 P65-B.
+"""Interrupt detector — P65-B.
 
 Watches an inbound PCM stream for *barge-in*: the user starts speaking
 while the agent is mid-reply. Triggered by a sustained rise in audio
@@ -26,10 +28,10 @@ energy above a configurable threshold, with a debounce window so a
 single noisy frame doesn't kill a fresh reply.
 
 The detector is intentionally simple — energy-based VAD on rolling PCM
-windows. The F-64 :class:`VoiceActivityDetector` in :mod:`detection`
+windows. The :class:`VoiceActivityDetector` in :mod:`detection`
 already does this for the speech/state machine; rather than wrap that
 class (which is session-lifecycle-coupled via ``start`` / ``stop``),
-:Class:`InterruptDetector` keeps its own numeric state and exposes
+:class:`InterruptDetector` keeps its own numeric state and exposes
 only the one decision the dialogue session manager needs:
 
 > "Did the user just start speaking in a way that should cancel the
@@ -96,8 +98,9 @@ class InterruptConfig:
     # from the speech threshold to introduce hysteresis — without it
     # a noisy room makes the trigger flap.
     silence_threshold_db: float = -45.0
-    # Minimum continuous speech duration before :data:`InterruptDecision
-    # SPEECH_START` fires. Suppresses single-frame noise spikes.
+    # Minimum continuous speech duration before
+    # :data:`InterruptDecision.SPEECH_START` fires. Suppresses single-frame
+    # noise spikes.
     min_speech_duration_ms: float = 200.0
     # Continuous silence required before ``SPEECH_STOP`` fires. Lets
     # the user pause mid-sentence without closing the turn.

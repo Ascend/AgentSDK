@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
-#  This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
 # Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
-#           http://license.coscl.org.cn/MulanPSL2
+#          http://license.coscl.org.cn/MulanPSL2
 #
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
@@ -18,9 +21,9 @@
 # -------------------------------------------------------------------------
 
 # pylint: disable=consider-using-in
-"""F-108 P108-H — ``clawcodex-dev diag`` CLI subcommand.
+"""``clawcodex-dev diag`` CLI subcommand.
 
-Layer 4 of the F-108 freeze detection plan. Subcommands:
+Layer 4 of the freeze detection plan. Subcommands:
 
 * ``clawcodex-dev diag freeze-report [--last N] [--dump-dir PATH]``
   — show the most recent N freeze dumps.
@@ -206,7 +209,7 @@ def _run_status(argv: list[str]) -> int:
         json.dump(payload, sys.stdout, indent=2, default=str)
         sys.stdout.write("\n")
         return 0
-    sys.stdout.write("F-108 Freeze detector status\n")
+    sys.stdout.write("Freeze detector status\n")
     sys.stdout.write(f"  diag env var ({DEFAULT_FREEZE_DIAG_ENV}): {diag_env}\n")
     sys.stdout.write(f"  watchdog alive: {detector_alive}\n")
     sys.stdout.write("  resolved settings:\n")
@@ -248,7 +251,7 @@ def _dump_sort_key(path: Path) -> tuple[int, int, int]:
 def _print_dump_text(path: Path) -> None:
     """Render one freeze dump in human-readable form to stdout."""
     try:
-        data = json.loads(path.read_text())
+        data = json.loads(path.read_text(encoding="utf-8"))
     except Exception as exc:
         sys.stdout.write(f"  - {path.name}: <unreadable: {exc}>\n")
         return

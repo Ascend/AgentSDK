@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
-#  This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
 # Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
-#           http://license.coscl.org.cn/MulanPSL2
+#          http://license.coscl.org.cn/MulanPSL2
 #
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
@@ -18,41 +21,41 @@
 # -------------------------------------------------------------------------
 
 # pylint: disable=try-except-raise
-"""JSON Schema → argparse adapter for F-53.
+"""JSON Schema → argparse adapter.
 
-F-53 maps a tool's ``input_schema`` (JSON Schema) to a CLI argument
+ maps a tool's ``input_schema`` (JSON Schema) to a CLI argument
 parser so the user can invoke ``/detect_modality --path /data/raw`` or
 ``clawcodex-dev tool detect_modality --path /data/raw`` instead of
 crafting raw JSON.
 
-Mapping rules (mirrors F-53 spec §1.5):
+Mapping rules (mirrors spec §1.5):
 
 ================================== ===========================================
-JSON Schema field                   argparse argument
+JSON Schema field argparse argument
 ================================== ===========================================
-``{"type": "string"}``              ``--name STR`` (or ``--name CHOICE`` when
-                                     ``enum`` present, or ``--name JSON`` when
-                                     ``format`` is ``"json"``)
-``{"type": "integer"}``/``number``  ``--name INT`` / ``--name FLOAT``
-``{"type": "boolean"}``             ``--name`` (store_true flag)
-``{"type": "array", "items": …}``   ``--name ITEM [ITEM ...]`` (nargs="+")
-``{"type": "object"}``              ``--name JSON`` (raw JSON string)
-``required: true``                  argument is required (no default)
-``required: false`` / absent        argument is optional; ``default`` used if
-                                     present in schema
-``enum: [a, b, c]``                 ``choices=[a, b, c]`` (string types only)
-``description: "..."``              argument ``help`` text
+``{"type": "string"}`` ``--name STR`` (or ``--name CHOICE`` when
+ ``enum`` present, or ``--name JSON`` when
+ ``format`` is ``"json"``)
+``{"type": "integer"}``/``number`` ``--name INT`` / ``--name FLOAT``
+``{"type": "boolean"}`` ``--name`` (store_true flag)
+``{"type": "array", "items": …}`` ``--name ITEM [ITEM...]`` (nargs="+")
+``{"type": "object"}`` ``--name JSON`` (raw JSON string)
+``required: true`` argument is required (no default)
+``required: false`` / absent argument is optional; ``default`` used if
+ present in schema
+``enum: [a, b, c]`` ``choices=[a, b, c]`` (string types only)
+``description: "..."`` argument ``help`` text
 ================================== ===========================================
 
 Edge cases
 ----------
 * ``properties`` empty / schema ``{}`` → no arguments (tool is a no-op
-  command, useful for status / info tools).
+ command, useful for status / info tools).
 * ``additionalProperties: true`` → no schema constraint enforced at CLI
-  level; we just expose the named properties.
+ level; we just expose the named properties.
 * Missing ``type`` → defaults to ``"string"`` (most permissive).
 * ``anyOf`` / ``oneOf`` / ``$ref`` → not supported in this slice; tools
-  with such schemas fall back to a single ``--input JSON`` argument.
+ with such schemas fall back to a single ``--input JSON`` argument.
 """
 
 from __future__ import annotations
@@ -117,7 +120,7 @@ def build_arg_parser(tool_name: str, schema: Mapping[str, Any] | None) -> argpar
     """
     parser = argparse.ArgumentParser(
         prog=f"/{tool_name}",
-        description=f"Auto-generated CLI for tool '{tool_name}' (F-53).",
+        description=f"Auto-generated CLI for tool '{tool_name}'.",
         add_help=True,
         exit_on_error=False,  # raise ``ArgumentError`` instead of sys.exit
     )

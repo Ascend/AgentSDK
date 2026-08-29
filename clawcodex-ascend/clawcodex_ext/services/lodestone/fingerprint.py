@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 #  This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
@@ -16,7 +17,7 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""F-97 LODESTONE — workspace fingerprint.
+"""LODESTONE — workspace fingerprint.
 
 Wraps the upstream ``clawcodex_ext.utils.git`` primitives to produce a
 ``WorkspaceFingerprint`` that the resolver consumes.
@@ -33,8 +34,8 @@ Detection ladder:
     fallback to ``main`` and ``master``.
 4.  Trackers — for now we sniff for known config files:
 
-    *   ``.clawcodex/orchestrator/gitcode.yaml``
-    *   ``.clawcodex/orchestrator/linear.yaml``
+    * ``.clawcodex/orchestrator/gitcode.yaml``
+    * ``.clawcodex/orchestrator/linear.yaml``
 
     The orchestrator's adapter files (see ``extensions/orchestrator``)
     are the source of truth — once they exist at the workspace root we
@@ -108,7 +109,7 @@ def parse_remote_url(raw: str) -> tuple[str, str, str] | None:
             repo = repo.removesuffix(".git")
             return host, owner, repo
     except Exception:  # nosec B110
-        pass
+        pass  # Intentional best-effort path; the surrounding fallback remains valid.
     # SSH fallback: ``git@gitcode.com:foo/bar.git``
     if "@" in raw and ":" in raw and "://" not in raw:
         user_host, path = raw.split(":", 1)

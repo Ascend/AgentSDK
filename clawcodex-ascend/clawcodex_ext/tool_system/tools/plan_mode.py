@@ -1,3 +1,25 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 """Plan-mode meta tools: EnterPlanMode / ExitPlanMode.
 
 Faithful port of ``typescript/src/tools/EnterPlanModeTool/`` and
@@ -20,7 +42,7 @@ the session plan FILE, not in the tool input):
 
 The permission-mode transition helper rebinds
 ``context.permission_context`` (the functional-update contract shared with
-``registry._apply_and_persist_updates``) and fires
+``registry.apply_and_persist_updates``) and fires
 ``context.on_permission_mode_change`` so the agent-server can push the new
 mode to the TUI footer mid-turn.
 """
@@ -75,7 +97,7 @@ def _set_permission_mode(context: ToolContext, to_mode: str) -> None:
         try:
             cb(to_mode)
         except Exception:  # noqa: BLE001  # nosec — a UI notification must not fail the tool
-            pass
+            pass  # Intentional best-effort path; the surrounding fallback remains valid.
 
 
 # ---------------------------------------------------------------------------

@@ -1,3 +1,25 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 from __future__ import annotations
 
 import threading
@@ -80,14 +102,14 @@ def _register_extended_tools(
     Imports are deferred to this function so they only fire when
     Stage B actually runs (background thread or blocking fallback).
     """
-    # Register extension tools (二开 tools that are not in upstream).
+    # Register extension tools that are not provided upstream.
     try:
         from extensions.tool_system_ext.registration import EXTENSION_TOOLS
 
         for t in EXTENSION_TOOLS:
             registry.register(t)
     except ImportError:
-        pass
+        pass  # Optional integration is unavailable; keep the fallback.
 
     # Load persisted agent-created tools on startup.
     if load_agent_tools:
@@ -101,7 +123,7 @@ def _register_extended_tools(
             for tool in list_tools():
                 registry.register(tool)
         except ImportError:
-            pass
+            pass  # Optional integration is unavailable; keep the fallback.
 
     # Dynamic workflows. Registered unconditionally (like the Agent tool, which
     # also needs the registry + provider); the tool's ``is_enabled`` is the

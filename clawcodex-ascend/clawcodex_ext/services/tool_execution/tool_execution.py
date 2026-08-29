@@ -1,26 +1,25 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
-#  This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# This file is part of the AgentSDK project.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
 #
-#           http://license.coscl.org.cn/MulanPSL2
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
 #
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
 
-# -------------------------------------------------------------------------
-# This file is derived from Clawd Codex (https://github.com/agentforce314/clawcodex),
-# which is licensed under the MIT License.
-# Copyright (c) 2026 Clawd Codex Team
-# -------------------------------------------------------------------------
-# -------------------------------------------------------------------------
 
 """Tool execution — mirrors TypeScript toolExecution.ts.
 
@@ -93,7 +92,7 @@ async def run_tool_use(
                 tool_name,
             )
         except Exception:  # nosec B110
-            pass
+            pass  # The compatibility registry is optional; preserve the normal unknown-tool result.
 
     if tool is None:
         logger.debug("Unknown tool %s: %s", tool_name, tool_use.id)
@@ -546,7 +545,7 @@ async def _check_permissions_and_call_tool(  # pylint: disable=too-many-boolean-
         try:
             tool_use_context.abort_controller.abort("tool_raised_abort_error")
         except Exception:  # nosec B110
-            pass
+            pass  # The tool failure is already active; cancellation notification is best-effort.
         error_text = f"Error: Tool execution aborted ({abort_error})"
         resulting_messages.append(
             MessageUpdateLazy(
@@ -615,8 +614,8 @@ async def _check_permissions_and_call_tool(  # pylint: disable=too-many-boolean-
             ):
                 if isinstance(hook_result, dict) and "message" in hook_result:
                     resulting_messages.append(MessageUpdateLazy(message=hook_result["message"]))
-        except Exception:  # nosec B110
-            pass
+        except Exception as exc:  # nosec B110
+            logger.warning("Post-tool failure hooks failed (%s)", type(exc).__name__)
 
         return resulting_messages
 

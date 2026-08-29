@@ -18,7 +18,7 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""Query middleware — 二开 request throttling and error policies.
+"""Downstream query middleware for request throttling and error policies.
 
 Extracted from ``src/query/query.py`` so that the upstream query loop
 remains free of orchestrator-specific rate-limiting and debugging
@@ -28,7 +28,7 @@ Architecture::
 
     src/query/query.py                    ← upstream query loop (calls hooks below)
         ↑ import
-    clawcodex_ext/query/query_middleware.py    ← this module (二开 middleware)
+    clawcodex_ext/query/query_middleware.py    ← this downstream module
 
 Two public hooks are exposed:
 

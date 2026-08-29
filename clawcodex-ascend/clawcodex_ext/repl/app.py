@@ -1,10 +1,16 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -13,12 +19,7 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
-#
-# Copyright (c) 2026 Clawd Codex Team
-# SPDX-License-Identifier: MIT
-# Source: https://github.com/agentforce314/clawcodex
-# ClawCodex-derived portions remain licensed under the MIT License.
-# See clawcodex-ascend/LICENSE.clawcodex.
+
 
 """Downstream-enhanced REPL (ClawCodexExtREPL).
 
@@ -58,7 +59,11 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from src.agent import Session
-from src.repl.core import ClawcodexREPL, _MessageHistoryCompleter, _SlashOnlyCompleter
+from src.repl.core import (
+    ClawcodexREPL,
+    MessageHistoryCompleter as _MessageHistoryCompleter,
+    SlashOnlyCompleter as _SlashOnlyCompleter,
+)
 from src.utils.abort_controller import AbortController
 
 if TYPE_CHECKING:
@@ -72,7 +77,7 @@ class _LazyProvider:
 
     ``build_provider_from_config`` pulls in ``src.providers.runtime`` (~573ms
     of provider-class imports including ``clawcodex_ext.providers`` package
-    init for the F-99 OAuth override registration) plus constructs the
+    init for the OAuth override registration) plus constructs the
     actual provider object (HTTP clients, model lookup). REPL cold start
     used to pay both costs eagerly.
 
@@ -115,7 +120,7 @@ class _LazyProvider:
             raise self._errored
         try:
             # Local import — ``src.providers.runtime`` triggers the
-            # F-99 provider-override side-effect import on first load.
+            # provider-override side-effect import on first load.
             from src.providers.runtime import build_provider_from_config
 
             self._resolved = build_provider_from_config(self._provider_name, self._model)
@@ -213,7 +218,7 @@ class ClawCodexExtREPL(ClawcodexREPL):
             # attribute access (e.g. ``self.provider.model`` in
             # ``Session.create`` below, or anywhere in the bottom toolbar).
             # This moves the ``src.providers.runtime`` import chain (~573ms
-            # of provider class imports + F-99 OAuth override side-effect)
+            # of provider class imports + OAuth override side-effect)
             # out of REPL cold start.
             self.provider = _LazyProvider(provider_name)
             # Cheap env-var pre-check preserves the ``_api_key_missing``
@@ -381,7 +386,7 @@ class ClawCodexExtREPL(ClawcodexREPL):
 
                 restore_goal_runtime_after_session_resume(self.tool_context)
             except Exception:  # nosec B110
-                pass
+                pass  # This optional feature is unavailable; continue with the core command path.
         self.tool_context.ask_user = self._ask_user_questions
         self._current_status = None
         if self._permission_mode == "bypassPermissions":
@@ -492,7 +497,7 @@ class ClawCodexExtREPL(ClawcodexREPL):
 
             start_summary_queue_worker()
         except Exception:  # nosec B110
-            pass
+            pass  # This optional feature is unavailable; continue with the core command path.
 
         # ---- Prompt toolkit (from upstream __init__ lines 529-713) ----
 
@@ -677,7 +682,7 @@ class ClawCodexExtREPL(ClawcodexREPL):
         try:
             sess.model = real_model
         except Exception:  # noqa: BLE001 — Session may be frozen, ignore  # nosec B110
-            pass
+            pass  # Provider warm-up is optional; keep the lazy provider when replacement fails.
 
     # ---- Override _ensure_command_system to pass downstream fields ----
 
@@ -723,7 +728,7 @@ class ClawCodexExtREPL(ClawcodexREPL):
         register_intent_forecast_commands(self.command_registry)
         register_intent_forecast_commands(None)
 
-        # F-53: auto-expose non-core tools as /<tool-name> slash commands
+        # auto-expose non-core tools as /<tool-name> slash commands
         # in the REPL command registry. Schemas are captured at
         # registration; the actual tool lookup is deferred to
         # invocation time via ``context.tool_registry``.
@@ -733,14 +738,14 @@ class ClawCodexExtREPL(ClawcodexREPL):
             register_tool_commands(self.command_registry)
             register_tool_commands(None)  # global registry mirror
         except Exception:  # nosec B110
-            pass
+            pass  # This optional feature is unavailable; continue with the core command path.
 
         try:
             from extensions.skills_ext import init_skills_ext
 
             init_skills_ext()
         except Exception:  # nosec B110
-            pass
+            pass  # The optional extension is unavailable; continue with core commands.
 
         # Keep the private REPL registry and the global async-dispatch registry
         # on the same workspace-scoped skill catalog. Both are required: the
@@ -755,7 +760,7 @@ class ClawCodexExtREPL(ClawcodexREPL):
                 registry=None,
             )
         except Exception:  # nosec B110
-            pass
+            pass  # This optional feature is unavailable; continue with the core command path.
 
         from clawcodex_ext.repl.ui_host import ReplUIHost
 
@@ -820,12 +825,12 @@ class ClawCodexExtREPL(ClawcodexREPL):
             try:
                 status.update(f"mode: {mode}")
             except Exception:  # nosec B110
-                pass
+                pass  # This presentation update is best-effort and must not interrupt the user flow.
             return
         try:
             self.console.print(f"[success]Permission mode: {mode}[/success]")
         except Exception:  # nosec B110
-            pass
+            pass  # This presentation update is best-effort and must not interrupt the user flow.
 
     # ---- S-R4-M: session metadata management ----
 
@@ -863,7 +868,7 @@ class ClawCodexExtREPL(ClawcodexREPL):
             storage = SessionStorage(session_id=self.session.session_id)
             storage.update_metadata(last_user_input=text[:200])  # cap at 200 chars
         except Exception:  # nosec B110
-            pass
+            pass  # Session persistence is best-effort at this recovery or shutdown boundary.
 
     # ---- S-R4-A: agent metadata tracking ----
 
@@ -877,7 +882,7 @@ class ClawCodexExtREPL(ClawcodexREPL):
             storage = SessionStorage(session_id=self.session.session_id)
             storage.update_metadata(agent_name=agent_name)
         except Exception:  # nosec B110
-            pass
+            pass  # Session persistence is best-effort at this recovery or shutdown boundary.
 
     # ---- S-R4-M: track last_user_input in metadata (override chat) ----
 
@@ -908,13 +913,13 @@ class ClawCodexExtREPL(ClawcodexREPL):
                 try:
                     forecast.on_run_finish()
                 except Exception:  # nosec B110
-                    pass
+                    pass  # This optional turn sidecar must not alter the primary chat result.
             if im_reply is not None:
                 try:
                     im_reply.on_run_finish(getattr(self, "_last_chat_outcome", "failure"))
                     im_reply.on_assistant_turn_complete()
                 except Exception:  # nosec B110
-                    pass
+                    pass  # This optional turn sidecar must not alter the primary chat result.
 
     def _install_intent_forecast_controller(self) -> None:
         try:
@@ -930,14 +935,14 @@ class ClawCodexExtREPL(ClawcodexREPL):
             try:
                 old.close()
             except Exception:  # nosec B110
-                pass
+                pass  # Cleanup is best-effort and must not replace the primary operation result.
 
         def _display(result) -> None:
             try:
                 self.console.print()
                 self.console.print(Markdown(format_forecast_for_display(result)))
             except Exception:  # nosec B110
-                pass
+                pass  # This presentation update is best-effort and must not interrupt the user flow.
 
         self._intent_forecast_controller = IntentForecastController(
             provider_getter=lambda: self.provider,
@@ -954,4 +959,4 @@ class ClawCodexExtREPL(ClawcodexREPL):
             if getattr(self, "command_context", None) is not None:
                 self.command_context.intent_forecast_controller = self._intent_forecast_controller
         except Exception:  # nosec B110
-            pass
+            pass  # This optional feature is unavailable; continue with the core command path.

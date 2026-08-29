@@ -1,3 +1,25 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 """
 Command type system for Claw Codex.
 
@@ -23,7 +45,7 @@ class CommandType(Enum):
 
     PROMPT = "prompt"
     LOCAL = "local"
-    # Ports TS ``type: 'local-jsx'`` 鈥?a command that drives an interactive
+    # Ports TS ``type: 'local-jsx'`` — a command that drives an interactive
     # UI (via the surface-agnostic ``UIHost`` port) and returns an
     # ``InteractiveOutcome``. A *distinct* type (not a LocalCommand subtype)
     # so the engine routes it to ``_execute_interactive`` and the
@@ -104,7 +126,7 @@ class CommandContext:
 
 
 # ---------------------------------------------------------------------------
-# Downstream context extension 鈥?attach extra handles without modifying
+# Downstream context extension — attach extra handles without modifying
 # CommandContext's upstream signature.  Extensions call
 # ``attach_downstream_context(ctx, ...)`` after creating a CommandContext
 # to inject tool_registry / tool_context / runtime_context.
@@ -331,7 +353,7 @@ class UIHost(Protocol):
     The slice ships the primitives in-scope Class-B commands need:
     ``select`` (single choice), ``prompt_text`` (free-text line), plus
     read-only ``display``. ``prompt_text`` lands with its first consumer
-    ``/export``. ``confirm`` stays deferred 鈥?TS expresses it as a 2-option
+    ``/export``. ``confirm`` stays deferred — TS expresses it as a 2-option
     ``select`` over Yes/No, so it needs no new method. The port grows by
     adding a method here and one line per adapter.
     """
@@ -355,7 +377,7 @@ class UIHost(Protocol):
         placeholder: Optional[str] = None,
     ) -> Optional[str]:
         """Prompt for a single free-text line. Returns the submitted string,
-        which MAY be ``''`` 鈥?an empty submit is valid input, not a cancel
+        which MAY be ``''`` — an empty submit is valid input, not a cancel
         (mirrors TS ``TextInput.onSubmit('')``). Returns ``None`` *only* when
         cancelled (Esc / EOF / Ctrl-C).
 
@@ -371,9 +393,9 @@ class NullUIHost:
     """UIHost for surfaces without a UI (SDK / non-interactive).
 
     The *mutating* primitives :meth:`select` and :meth:`prompt_text` raise
-    :class:`InteractiveUnavailableError` 鈥?deliberately NOT returning a
+    :class:`InteractiveUnavailableError` — deliberately NOT returning a
     default/``current`` value, which would read as a false success. Only the
-    read-only :meth:`display` no-ops. (Resolved contract 鈥?see plan 搂4/搂7.)
+    read-only :meth:`display` no-ops. (Resolved contract — see plan §4/§7.)
     """
 
     _MSG = "This command needs an interactive surface (TUI or REPL)."
@@ -402,7 +424,7 @@ class NullUIHost:
 
 @dataclass(frozen=True)
 class InteractiveOutcome:
-    """What an interactive command returns to the engine 鈥?the Python
+    """What an interactive command returns to the engine — the Python
     analogue of the TS ``onDone`` payload (``command.ts:117-126``).
 
     The engine maps this onto a :class:`CommandResult`, propagating
@@ -410,7 +432,7 @@ class InteractiveOutcome:
     hardcodes away). ``display == "skip"`` signals "produce no output" (TS
     ``display: 'skip'``); use :meth:`skip` for the cancelled path.
 
-    ``scrollable`` (F-122-F) hints that the rendered body may exceed the
+    ``scrollable`` hints that the rendered body may exceed the
     terminal height and the surface should consider entering a paginated /
     keyboard-scrolled view. The engine transparently propagates the flag
     onto :class:`CommandResult`; surfaces that do not implement scroll
@@ -421,7 +443,7 @@ class InteractiveOutcome:
     display: str = "system"  # "skip" | "system" | "user"
     should_query: bool = False  # TS onDone.shouldQuery
     meta_messages: list[str] = field(default_factory=list)  # TS onDone.metaMessages
-    # F-122-F: surface should consider scrollable rendering for ``message``.
+    # surface should consider scrollable rendering for ``message``.
     # Defaults to False so existing interactive commands keep their current
     # behaviour (single block print).
     scrollable: bool = False
@@ -431,7 +453,7 @@ class InteractiveOutcome:
 
     @classmethod
     def skip(cls) -> "InteractiveOutcome":
-        """Cancelled / no-op outcome 鈥?the engine returns
+        """Cancelled / no-op outcome — the engine returns
         ``CommandResult.skip`` for it.
         """
         return cls(display="skip")
@@ -445,7 +467,7 @@ class InteractiveCommand(CommandBase):
     Reports ``CommandType.INTERACTIVE`` so the engine routes it to
     ``_execute_interactive`` and the remote-safety gate blocks it *by type*
     (``safe_commands.is_bridge_safe_command``). Concrete commands subclass
-    this and override :meth:`run` (the ``StatuslineCommand`` pattern 鈥?no new
+    this and override :meth:`run` (the ``StatuslineCommand`` pattern — no new
     dataclass fields required).
     """
 

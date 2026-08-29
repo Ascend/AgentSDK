@@ -1,3 +1,25 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 """Models for the downstream Cron execution engine."""
 
 from __future__ import annotations
@@ -29,7 +51,7 @@ MAX_ONE_SHOT_FLOOR_MS = 30 * 60 * 1000
 MAX_ONE_SHOT_MINUTE_MOD = 60
 MAX_RECURRING_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000
 ENV_CLAWCODEX_DISABLE_CRON = "CLAWCODEX_DISABLE_CRON"
-ENV_CLAUDE_CODE_DISABLE_CRON = "CLAUDE_CODE_DISABLE_CRON"  # F-22-I: CCB 兼容回退
+ENV_CLAUDE_CODE_DISABLE_CRON = "CLAUDE_CODE_DISABLE_CRON"  # CCB compatibility fallback
 
 
 def _default_jitter_config() -> "CronJitterConfig":
@@ -63,7 +85,7 @@ class CronJitterConfig:
 
     enabled: bool = True
     max_jitter_ms: int = DEFAULT_RECURRING_CAP_MS
-    # New F-22-G2 / G3 fields. Field names use snake_case for Python; readers
+    # New fields. Field names use snake_case for Python; readers
     # accept both snake_case and camelCase from JSON.
     recurring_frac: float = DEFAULT_RECURRING_FRAC
     recurring_cap_ms: int = DEFAULT_RECURRING_CAP_MS
@@ -240,13 +262,13 @@ def load_jitter_config(
 
 
 def is_cron_disabled(env: dict[str, str] | None = None) -> bool:
-    """Check ``CLAWCODEX_DISABLE_CRON`` (F-22-G1) at runtime,
-    with fallback to ``CLAUDE_CODE_DISABLE_CRON`` for CCB migration (F-22-I).
+    """Check ``CLAWCODEX_DISABLE_CRON`` at runtime,
+    with fallback to ``CLAUDE_CODE_DISABLE_CRON`` for CCB migration.
     """
     env_map = env if env is not None else os.environ
     raw = env_map.get(ENV_CLAWCODEX_DISABLE_CRON)
     if raw is None:
-        raw = env_map.get(ENV_CLAUDE_CODE_DISABLE_CRON)  # F-22-I: CCB 兼容回退
+        raw = env_map.get(ENV_CLAUDE_CODE_DISABLE_CRON)  # CCB compatibility fallback
     if raw is None:
         return False
     return raw.strip().lower() in {"1", "true", "yes", "on"}
@@ -266,8 +288,8 @@ class CronTask:
     expires_at: int | None = None
     jitter: CronJitterConfig = field(default_factory=_default_jitter_config)
     permanent: bool = False
-    agent_id: str | None = None  # F-22-F: 创建者 agent 标识；None 表示全局任务
-    team_id: str | None = None  # F-22-F: 团队标识（预留，用于多租户隔离）
+    agent_id: str | None = None  # creator agent; None means a global task
+    team_id: str | None = None  # reserved team identifier for tenant isolation
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> CronTask | None:
@@ -338,7 +360,7 @@ def _optional_int(value: Any) -> int | None:
 
 
 def _optional_str(value: Any) -> str | None:
-    """Convert a value to str or None (F-22-F helper)."""
+    """Convert a value to str or None (helper)."""
     if value is None:
         return None
     if not isinstance(value, str):

@@ -3,12 +3,14 @@
 
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
-# Copyright (c) 2026 Clawd Codex Team
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -17,6 +19,7 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
+
 """Independent, tool-free evaluator for Claude-style goal completion."""
 
 from __future__ import annotations
@@ -667,18 +670,18 @@ async def _call_sync_in_daemon(
             try:
                 loop.call_soon_threadsafe(_settle, None, exc)
             except RuntimeError:
-                pass
+                pass  # Optional runtime path is unavailable; keep the fallback.
         except BaseException as exc:  # Do not inject process-control exceptions.
             error = GoalEvaluationError(f"goal evaluator synchronous provider terminated with {type(exc).__name__}")
             try:
                 loop.call_soon_threadsafe(_settle, None, error)
             except RuntimeError:
-                pass
+                pass  # Optional runtime path is unavailable; keep the fallback.
         else:
             try:
                 loop.call_soon_threadsafe(_settle, result, None)
             except RuntimeError:
-                pass
+                pass  # Optional runtime path is unavailable; keep the fallback.
         finally:
             gate.release()
 

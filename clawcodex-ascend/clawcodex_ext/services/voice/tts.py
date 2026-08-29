@@ -3,12 +3,14 @@
 
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
-# Copyright (c) 2026 Clawd Codex Team
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -18,35 +20,7 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""Text-to-speech provider abstraction — F-64 P64-E1.
-
-Mirrors :mod:`clawcodex_ext.services.voice.stt` (the STT side): an abstract
-:class:`TTSProvider` + :class:`TTSConfig` + :class:`TTSChunk` +
-:class:`TTSSynthesis`. The shape is symmetric to the STT surface so the
-learning curve is short and the registry/queue patterns are reusable.
-
-Two paths
----------
-* **Streaming** — :meth:`TTSProvider.synthesize_stream` returns a
-  :class:`TTSSynthesis` handle; the caller pushes text via
-  :meth:`TTSSynthesis.feed_text` (LLM tokens can be forwarded as they
-  arrive) and receives PCM frames via the ``on_audio`` callback. This is
-  the agent-reply path.
-* **Batch** — :meth:`TTSProvider.synthesize` accepts a complete string
-  and returns the full PCM bytes. Used by the ``/tts <provider> say
-  "hello"`` 试听 command and tests.
-
-Design decisions (see f-64-voice-mode.md §5.7)
------------------------------------------------
-* **PCM16 at the boundary** — every provider decodes its native format
-  (mp3 / opus / hex-pcm / gRPC pcm16) to mono PCM16 before invoking
-  ``on_audio``; downstream (``AudioOutQueue`` / ``AudioPlayer``) only
-  deals with PCM. This keeps the player backend trivial.
-* **``TTSSynthesis`` is the symmetric of ``VoiceStreamConnection``** —
-  ``feed_text`` mirrors ``feed_audio``; ``cancel`` mirrors ``close``.
-* **Single-use** — one synthesis per agent reply, like STT connections
-  are one per push-to-talk press.
-"""
+"""P64-E1 Support for tts."""
 
 from __future__ import annotations
 
@@ -159,7 +133,7 @@ class TTSSynthesis:
         try:
             self._on_audio(chunk)
         except Exception:  # nosec B110 - provider callback must not kill the run task
-            pass
+            pass  # Intentional best-effort path; the surrounding fallback remains valid.
 
     def _emit_error(self, msg: str) -> None:
         if self._cancelled or self._done:
@@ -167,7 +141,7 @@ class TTSSynthesis:
         try:
             self._on_error(msg)
         except Exception:  # nosec B110 - provider callback must not kill the run task
-            pass
+            pass  # Intentional best-effort path; the surrounding fallback remains valid.
 
     async def feed_text(self, text: str) -> None:
         """Push a text fragment (LLM token / sentence) to the synthesizer.
@@ -211,11 +185,7 @@ class TTSProvider(ABC):
 
     @abstractmethod
     async def synthesize(self, text: str, config: Optional[TTSConfig] = None) -> bytes:
-        """One-shot batch synthesis → full PCM16 bytes.
-
-        Used by ``/tts <provider> say "..."`` 试听 and tests. Returns the
-        complete audio for the input text; not a streaming path.
-        """
+        """Synthesize speech with the configured provider."""
 
     @abstractmethod
     async def close(self) -> None:

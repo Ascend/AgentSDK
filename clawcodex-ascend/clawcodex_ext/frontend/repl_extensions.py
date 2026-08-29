@@ -1,10 +1,16 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -13,24 +19,18 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
-#
-# Copyright (c) 2026 Clawd Codex Team
-# SPDX-License-Identifier: MIT
-# Source: https://github.com/agentforce314/clawcodex
-# ClawCodex-derived portions remain licensed under the MIT License.
-# See clawcodex-ascend/LICENSE.clawcodex.
 
-"""F-43 extension hook for the REPL frontend.
+"""Extension hook for the REPL frontend.
 
-This module owns the downstream side of the F-43 ``/provider`` and
+This module owns the downstream side of the ``/provider`` and
 ``/model`` slash command wiring for :class:`src.repl.core.ClawcodexREPL`.
-The goal is to keep all F-43 knowledge in ``clawcodex_ext/`` so the
+The goal is to keep all knowledge in ``clawcodex_ext/`` so the
 upstream-shaped REPL core (``src/repl/core.py``) only sees a thin seam
 (``runtime_context`` field + observer notification on swap).
 
 Responsibilities
 ----------------
-1. Register the F-43 ``/provider`` and ``/model`` ``LocalCommand``
+1. Register the ``/provider`` and ``/model`` ``LocalCommand``
    objects on the REPL's command registry.
 2. Install a :class:`RuntimeObserver` that syncs the REPL's private
    ``provider`` / ``tool_registry`` / ``tool_context`` references after
@@ -588,7 +588,7 @@ class _ReplRuntimeObserver:
 
 
 def install_repl_extensions(repl: "ClawcodexREPL", ctx) -> None:
-    """Wire F-43 slash commands + observer into the REPL.
+    """Wire slash commands + observer into the REPL.
 
     Args:
         repl: A fully-constructed :class:`ClawcodexREPL`. The function
@@ -1016,7 +1016,7 @@ def _install_intent_forecast_controller(repl: "ClawcodexREPL") -> None:
         try:
             old.close()
         except Exception:  # nosec B110
-            pass
+            pass  # Intentional best-effort path; the surrounding fallback remains valid.
 
     session = getattr(repl, "session", None)
     conversation = getattr(session, "conversation", None)
@@ -1048,7 +1048,7 @@ def _install_intent_forecast_controller(repl: "ClawcodexREPL") -> None:
                 if _session is not None:
                     _session.save()
         except Exception:  # nosec B110
-            pass
+            pass  # Intentional best-effort path; the surrounding fallback remains valid.
 
     def _submit(prompt: str) -> None:
         chat = getattr(repl, "chat", None)
@@ -1068,7 +1068,7 @@ def _install_intent_forecast_controller(repl: "ClawcodexREPL") -> None:
     try:
         repl._intent_forecast_controller.on_mount()
     except Exception:  # nosec B110
-        pass
+        pass  # Intentional best-effort path; the surrounding fallback remains valid.
     if getattr(repl, "command_context", None) is not None:
         repl.command_context.intent_forecast_controller = repl._intent_forecast_controller
 
@@ -1115,7 +1115,7 @@ def _register_signal_session_save(repl: "ClawcodexREPL") -> None:
         try:
             session.save()
         except Exception:  # nosec B110
-            pass
+            pass  # Intentional best-effort path; the surrounding fallback remains valid.
         # Print via the canonical helper. Its process-wide latch
         # suppresses the duplicate if ``/exit`` already printed.
         try:
@@ -1123,6 +1123,6 @@ def _register_signal_session_save(repl: "ClawcodexREPL") -> None:
 
             print_resume_hint(getattr(session, "session_id", None))
         except Exception:  # nosec B110
-            pass
+            pass  # Intentional best-effort path; the surrounding fallback remains valid.
 
     register_cleanup(_cleanup)

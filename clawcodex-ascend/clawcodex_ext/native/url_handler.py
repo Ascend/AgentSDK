@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
-#  This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
 # Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
-#           http://license.coscl.org.cn/MulanPSL2
+#          http://license.coscl.org.cn/MulanPSL2
 #
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
@@ -19,20 +22,7 @@
 
 # pylint: disable=logging-too-few-args
 
-"""F-81.4: OS URL Scheme 注册与浏览器唤起模块.
-
-对标 CCB ``url-handler-napi``，用 Python 标准库 ``webbrowser`` + 平台
-特定机制注册 ``clawcodex://`` URL Scheme:
-
-* **Linux** — 写 ``~/.local/share/applications/<protocol>-handler.desktop``
-  并调用 ``xdg-mime default`` 关联 MimeType.
-* **macOS** — 写 ``~/Library/LaunchAgents`` 旁的 ``.plist`` 风格说明
-  （简化版：仅提示用 ``Swift`` / ``lsregister``，本模块返回 ``False``
-  且不抛异常，调用方可继续用 ``open_url``）.
-* **Windows** — 通过 ``reg`` 命令写 ``HKCU\\Software\\Classes\\<protocol>``.
-
-``webbrowser.open`` 在所有平台可用，故 ``is_available`` 恒 ``True``.
-"""
+"""Operating-system URL scheme registration and browser launching."""
 
 from __future__ import annotations
 
@@ -53,35 +43,27 @@ _logger = logging.getLogger("clawcodex_ext.native.url_handler")
 
 @NativeModuleRegistry.register("url_handler")
 class UrlHandlerModule:
-    """注册 ``clawcodex://`` URL Scheme 并打开外部 URL."""
+    """Register URL schemes and open external URLs."""
 
     name = "url_handler"
 
     # -- NativeModule protocol --------------------------------------------
 
     def is_available(self) -> bool:
-        # webbrowser 是标准库，永远可用；register_protocol 取决于平台工具.
+        # ``webbrowser`` is always available; registration needs platform tools.
         return True
 
     def get_version(self) -> str:
         return f"python-webbrowser/{sys.platform}"
 
-    # -- URL Scheme 注册 --------------------------------------------------
+    # -- URL scheme registration -----------------------------------------
 
     def register_protocol(
         self,
         protocol: str = "clawcodex",
         executable: str = "clawcodex",
     ) -> bool:
-        """注册 ``<protocol>://`` URL Scheme（按 OS 平台）.
-
-        Args:
-            protocol: 协议名，默认 ``"clawcodex"``.
-            executable: 接收 URL 参数的可执行命令，默认 ``"clawcodex"``.
-
-        Returns:
-            ``True`` 注册成功；``False`` 平台不支持或注册失败（不抛异常）.
-        """
+        """Register a URL scheme for the current operating system."""
         if sys.platform.startswith("linux"):
             return self._register_linux(protocol, executable)
         if sys.platform == "darwin":
@@ -116,7 +98,7 @@ class UrlHandlerModule:
         xdg_mime = shutil.which("xdg-mime")
         if not xdg_mime:
             _logger.warning("url_handler: xdg-mime not found; desktop file written only")
-            return True  # 文件已写，用户可手动关联
+            return True  # The file remains available for manual association.
         try:
             subprocess.run(
                 [
@@ -134,8 +116,8 @@ class UrlHandlerModule:
             return False
 
     def _register_macos(self, protocol: str, executable: str) -> bool:
-        # macOS 注册 URL Scheme 需要打包 .app bundle 并 lsregister，
-        # 纯 CLI 场景无法可靠注册。返回 False 让调用方走 fallback。
+        # macOS requires an application bundle and lsregister. A CLI-only
+        # process cannot register reliably, so callers receive ``False``.
         _logger.info(
             "url_handler: macOS protocol registration requires .app bundle; "
             "use `open %s://...` after manual registration"
@@ -143,7 +125,7 @@ class UrlHandlerModule:
         return False
 
     def _register_windows(self, protocol: str, executable: str) -> bool:
-        # 用 reg.exe 写 HKCU（无需管理员权限）
+        # Write HKCU with reg.exe without requiring administrator access.
         reg = shutil.which("reg")
         if not reg:
             _logger.warning("url_handler: reg.exe not found")
@@ -171,10 +153,10 @@ class UrlHandlerModule:
             _logger.warning("url_handler: reg add failed: %s", exc)
             return False
 
-    # -- 打开 URL ---------------------------------------------------------
+    # -- Opening URLs -----------------------------------------------------
 
     def open_url(self, url: str) -> bool:
-        """用默认浏览器打开 URL，返回 ``True`` 表示成功唤起."""
+        """Open a URL in the default browser."""
         try:
             return bool(webbrowser.open(url))
         except webbrowser.Error as exc:
@@ -182,9 +164,9 @@ class UrlHandlerModule:
             return False
 
     def open_clawcodex(self, path: str) -> bool:
-        """便捷包装：打开 ``clawcodex://<path>``."""
+        """Open a clawcodex URL for the supplied path."""
         path = path.lstrip("/")
         return self.open_url(f"clawcodex://{path}")
 
-    # -- F-81.6 fallback --------------------------------------------------
-    # 该模块基于标准库，永远可用，无需 fallback；load_or_fallback 直接返回本类实例.
+    # -- fallback --------------------------------------------------
+    # This standard-library implementation needs no fallback.

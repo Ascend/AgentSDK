@@ -1,3 +1,25 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 """Auto Mode LLM Classifier.
 
 This module extends the rule-based auto_mode_classify with LLM-based
@@ -42,14 +64,14 @@ def _extract_json_from_response(content: str) -> dict[str, Any] | None:
     try:
         return json.loads(cleaned)
     except json.JSONDecodeError:
-        pass
+        pass  # Invalid candidate; continue with the surrounding fallback.
 
     match = _JSON_OBJECT_RE.search(cleaned)
     if match:
         try:
             return json.loads(match.group())
         except json.JSONDecodeError:
-            pass
+            pass  # Invalid candidate; continue with the surrounding fallback.
 
     brace_start = cleaned.find("{")
     if brace_start != -1:
@@ -210,7 +232,7 @@ def llm_classify_tool_call(
         messages = [{"role": "user", "content": prompt}]
         response = provider.chat(messages)
         content = response.content.strip()
-        log.info("LLM classifier raw response: %s", content[:500])
+        log.info("LLM classifier response received (chars=%d)", len(content))
 
         result_data = _extract_json_from_response(content)
 

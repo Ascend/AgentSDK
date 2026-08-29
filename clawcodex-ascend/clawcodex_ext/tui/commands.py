@@ -1,10 +1,16 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -13,12 +19,6 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
-#
-# Copyright (c) 2026 Clawd Codex Team
-# SPDX-License-Identifier: MIT
-# Source: https://github.com/agentforce314/clawcodex
-# ClawCodex-derived portions remain licensed under the MIT License.
-# See clawcodex-ascend/LICENSE.clawcodex.
 
 """Slash-command adapter for the Textual TUI.
 
@@ -204,7 +204,7 @@ def build_command_suggestions(
         from clawcodex_ext.multimodel.runtime_command import register_multimodel_runtime_command
 
         # Use a fresh private registry so we don't clobber the global
-        # registry's LocalCommand for /model and /provider (F-43).
+        # registry's LocalCommand for /model and /provider.
         # register_builtin_commands(None) would overwrite them with
         # InteractiveCommand / PromptCommand variants that can't run
         # through execute_command_sync.
@@ -219,7 +219,7 @@ def build_command_suggestions(
         # registered on this private completion registry as well.
         register_multimodel_runtime_command(private_reg)
 
-        # F-53: auto-expose non-core tools as /<tool-name> slash commands
+        # auto-expose non-core tools as /<tool-name> slash commands
         # in the TUI command registry. Mirrors the REPL wiring in
         # ``clawcodex_ext/repl/app.py`` / ``clawcodex_ext/repl/core.py``.
         tool_command_names: set[str] = set()
@@ -234,7 +234,7 @@ def build_command_suggestions(
                 if command.name.lower() not in names_before_tools
             }
         except Exception:  # nosec B110
-            pass
+            pass  # Intentional best-effort path; the surrounding fallback remains valid.
         for cmd in private_reg.list_commands(include_disabled=True):
             if getattr(cmd, "is_hidden", False):
                 continue
@@ -256,7 +256,7 @@ def build_command_suggestions(
                 )
             )
     except Exception:  # nosec B110
-        pass
+        pass  # Intentional best-effort path; the surrounding fallback remains valid.
 
     try:
         from src.skills.loader import get_all_skills
@@ -271,7 +271,7 @@ def build_command_suggestions(
                 )
             )
     except Exception:  # nosec B110
-        pass
+        pass  # Intentional best-effort path; the surrounding fallback remains valid.
 
     return out
 

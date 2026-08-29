@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 #  This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
@@ -18,7 +19,7 @@
 
 """Cross-platform ``watch -n <sec> <cmd>`` normalisation.
 
-On Windows the ``watch`` utility is not generally available, so F-88 converts
+On Windows the ``watch`` utility is not generally available, so converts
 it to a PowerShell ``while(1)`` loop.  On POSIX/macOS the command is returned
 unchanged.
 """

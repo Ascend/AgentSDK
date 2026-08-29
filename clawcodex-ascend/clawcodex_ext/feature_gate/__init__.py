@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-# coding=utf-8
+# -*- coding: utf-8 -*-
+
 
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
@@ -97,7 +98,7 @@ _DEFAULT_FLAGS: list[FeatureFlag] = [
     FeatureFlag(
         name="AGENTIC_MODE",
         default=False,
-        description="Enable agentic multi-step planning mode (F-70 plugin dependent)",
+        description="Enable agentic multi-step planning mode (plugin dependent)",
         deps=[],
     ),
     FeatureFlag(
@@ -109,7 +110,7 @@ _DEFAULT_FLAGS: list[FeatureFlag] = [
     FeatureFlag(
         name="HOOK_PRE_LLM",
         default=True,
-        description="Enable pre-LLM agent loop hooks (F-102 prerequisite)",
+        description="Enable pre-LLM agent loop hooks (plugin prerequisite)",
     ),
     FeatureFlag(
         name="HOOK_POST_LLM",
@@ -120,7 +121,7 @@ _DEFAULT_FLAGS: list[FeatureFlag] = [
     FeatureFlag(
         name="PLUGIN_SYSTEM",
         default=False,
-        description="Enable the F-70 plugin loading system",
+        description="Enable the plugin loading system",
     ),
     # --- Tool gap bridging ---
     FeatureFlag(
@@ -133,30 +134,30 @@ _DEFAULT_FLAGS: list[FeatureFlag] = [
     FeatureFlag(
         name="MULTI_API_PROVIDER",
         default=False,
-        description="Enable multi-API provider routing (F-72)",
+        description="Enable multi-API provider routing",
     ),
     FeatureFlag(
         name="MULTIMODEL",
         default=False,
-        description="Enable F-157 multi-model parallel dispatch and model groups",
+        description="Enable multi-model parallel dispatch and model groups",
     ),
     # --- Sandbox ---
     FeatureFlag(
         name="SANDBOX_EXECUTION",
         default=False,
-        description="Enable sandboxed command execution (F-74)",
+        description="Enable sandboxed command execution",
     ),
     # --- Voice mode ---
     FeatureFlag(
         name="VOICE_MODE",
         default=False,
-        description="Enable voice input/output mode (F-64)",
+        description="Enable voice input/output mode",
     ),
     # --- Budget mode ---
     FeatureFlag(
         name="BUDGET_MODE",
         default=False,
-        description="Enable cost-aware budget-limited agent runs (F-69)",
+        description="Enable cost-aware budget-limited agent runs",
     ),
     # --- Goal mode ---
     FeatureFlag(
@@ -168,68 +169,68 @@ _DEFAULT_FLAGS: list[FeatureFlag] = [
     FeatureFlag(
         name="ACP_PROTOCOL",
         default=False,
-        description="Enable ACP (Agent Communication Protocol) for inter-agent messaging (F-66)",
+        description="Enable ACP (Agent Communication Protocol) for inter-agent messaging",
     ),
     # --- Native modules ---
     FeatureFlag(
         name="NATIVE_MODULES",
         default=False,
-        description="Enable loading of compiled native extension modules (F-81)",
+        description="Enable loading of compiled native extension modules",
     ),
     # --- Remote control ---
     FeatureFlag(
         name="REMOTE_CONTROL",
         default=False,
-        description="Enable remote CLI control via TCP/WebSocket (F-82)",
+        description="Enable remote CLI control via TCP/WebSocket",
     ),
-    # --- Daemon subsystem (F-84) ---
+    # --- Daemon subsystem ---
     # Defaults to False; enabling it registers the ``clawcodex-dev daemon``
     # CLI surface and allows supervisor + worker processes.
     FeatureFlag(
         name="DAEMON",
         default=False,
-        description=("Enable the long-running daemon supervisor that owns task_server / cron workers (F-84)"),
+        description=("Enable the long-running daemon supervisor that owns task_server / cron workers"),
     ),
     FeatureFlag(
         name="BRIDGE_MODE",
         default=False,
-        description=("Enable the multi-session bridge subsystem (F-84 P84-G, F-82 dependency)"),
+        description=("Enable the multi-session bridge subsystem"),
     ),
     # --- CI/CD ---
     FeatureFlag(
         name="CICD_MODE",
         default=False,
-        description="Enable CI/CD-optimized mode (batch processing, no TTY) (F-73)",
+        description="Enable CI/CD-optimized mode (batch processing, no TTY)",
     ),
     FeatureFlag(
         name="ULTRAPLAN_LLM_PLANNER",
         default=True,
-        description="Enable LLM-backed /ultraplan plan generation (F-87)",
+        description="Enable LLM-backed /ultraplan plan generation",
     ),
     FeatureFlag(
         name="ULTRAPLAN_REMOTE",
         default=False,
-        description="Enable /ultraplan remote CCR execution (F-87)",
+        description="Enable /ultraplan remote CCR execution",
     ),
     FeatureFlag(
         name="ULTRAPLAN_RAINBOW",
         default=True,
-        description="Enable /ultraplan trigger highlighting in prompt input (F-87)",
+        description="Enable /ultraplan trigger highlighting in prompt input",
     ),
     FeatureFlag(
         name="KAIROS",
         default=False,
-        description="Enable Kairos tick scheduling primitives (F-89)",
+        description="Enable Kairos tick scheduling primitives",
     ),
     FeatureFlag(
         name="PROACTIVE",
         default=False,
-        description="Enable proactive tick-driven autonomous mode (F-89)",
+        description="Enable proactive tick-driven autonomous mode",
     ),
     FeatureFlag(
         name="MONITOR_TOOL",
         default=False,
-        description="Enable the F-88 Monitor tool and /monitor slash command",
+        description="Enable the Monitor tool and /monitor slash command",
     ),
     FeatureFlag(
         name="LKB_PLAN_GRAPH",
@@ -245,7 +246,7 @@ _DEFAULT_FLAGS: list[FeatureFlag] = [
     FeatureFlag(
         name="SKILL_SEARCH_TFIDF",
         default=False,
-        description="Enable TF-IDF based skill search for smart skill ranking (F-92)",
+        description="Enable TF-IDF based skill search for smart skill ranking",
     ),
 ]
 

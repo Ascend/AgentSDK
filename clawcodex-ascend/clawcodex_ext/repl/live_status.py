@@ -1,10 +1,16 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -13,12 +19,7 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
-#
-# Copyright (c) 2026 Clawd Codex Team
-# SPDX-License-Identifier: MIT
-# Source: https://github.com/agentforce314/clawcodex
-# ClawCodex-derived portions remain licensed under the MIT License.
-# See clawcodex-ascend/LICENSE.clawcodex.
+
 
 """Live spinner + active input field for the REPL's ``chat()`` body.
 
@@ -305,7 +306,7 @@ class LiveStatus:
             try:
                 cb()
             except Exception:  # nosec B110
-                pass
+                pass  # The optional callback is isolated so it cannot interrupt the owning event loop.
 
         @bindings.add("c-b")
         def _on_background_key(event):  # type: ignore[no-untyped-def]
@@ -324,7 +325,7 @@ class LiveStatus:
             try:
                 cb()
             except Exception:  # nosec B110
-                pass
+                pass  # The optional callback is isolated so it cannot interrupt the owning event loop.
 
         @bindings.add("c-m")
         def _enter(event):  # type: ignore[no-untyped-def]
@@ -362,7 +363,7 @@ class LiveStatus:
                 try:
                     cb()
                 except Exception:  # nosec B110
-                    pass
+                    pass  # The optional callback is isolated so it cannot interrupt the owning event loop.
 
         @bindings.add("c-t")
         def _on_toggle_thinking(event):  # type: ignore[no-untyped-def]
@@ -382,7 +383,7 @@ class LiveStatus:
                     try:
                         repl.console.print(f"[dim]Thinking content: {label}[/dim]")
                     except Exception:  # nosec B110
-                        pass
+                        pass  # The optional callback is isolated so it cannot interrupt the owning event loop.
 
         @bindings.add("s-tab")
         def _cycle_permission_mode(event):  # type: ignore[no-untyped-def]
@@ -399,7 +400,7 @@ class LiveStatus:
                 try:
                     cb()
                 except Exception:  # nosec B110
-                    pass
+                    pass  # The optional UI callback is isolated from the status input loop.
                 return
 
             # Legacy fallback: ``getattr(on_submit, "__self__")`` reaches
@@ -446,7 +447,7 @@ class LiveStatus:
                                 repl.tool_context.allow_docs = False
                         self.update(f"[mode: {next_mode}]")
             except Exception:  # nosec B110
-                pass
+                pass  # The optional callback is isolated so it cannot interrupt the owning event loop.
 
         @bindings.add("up")
         def _history_backward(event):  # type: ignore[no-untyped-def]
@@ -475,7 +476,7 @@ class LiveStatus:
                 try:
                     cb(text)
                 except Exception:  # nosec B110
-                    pass
+                    pass  # The optional submit callback is isolated from the status input loop.
             buf.text = ""
             buf.cursor_position = 0
             self._invalidate()
@@ -598,7 +599,7 @@ class LiveStatus:
         try:
             loop.run_until_complete(self._app.run_async())
         except Exception:  # nosec B110
-            pass
+            pass  # The status UI owns this loop; teardown is best-effort after it exits.
         finally:
             # Cancel anything still pending before closing the loop. If an
             # exception ever reaches the loop's handler while the app is up,
@@ -615,11 +616,11 @@ class LiveStatus:
                 if pending:
                     loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
             except Exception:  # nosec B110
-                pass
+                pass  # The status UI owns this loop; teardown is best-effort after it exits.
             try:
                 loop.close()
             except Exception:  # nosec B110
-                pass
+                pass  # Cleanup is best-effort and must not replace the primary operation result.
 
     @staticmethod
     def _parse_rich_markup(text: str, base_style: str = "") -> list[tuple[str, str]]:
@@ -750,7 +751,7 @@ class LiveStatus:
         try:
             app.invalidate()
         except Exception:  # nosec B110
-            pass
+            pass  # This presentation update is best-effort and must not interrupt the user flow.
 
     def _stop(self) -> None:
         app = self._app
@@ -782,12 +783,12 @@ class LiveStatus:
                     if fut is not None and not fut.done():
                         app.exit()
                 except Exception:  # nosec B110
-                    pass
+                    pass  # The status application may already be exiting; stopping remains idempotent.
 
             try:
                 loop.call_soon_threadsafe(_exit_if_running)
             except RuntimeError:
-                pass
+                pass  # The status loop may already be closed; stopping remains idempotent.
         if self._thread is not None:
             self._thread.join(timeout=1.5)
         self._app = None

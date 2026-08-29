@@ -3,12 +3,14 @@
 
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
-# Copyright (c) 2026 Clawd Codex Team
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -18,9 +20,9 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""Async audio output queue — F-64 P64-E8.
+"""Async audio output queue.
 
-The mirror of :class:`AudioChunkQueue` (P64-C) for the playback direction.
+The playback-direction counterpart to :class:`AudioChunkQueue`.
 A TTS provider's background task *pushes* decoded PCM frames as they
 arrive from the backend; a player thread *pulls* frames at the device's
 realtime pace. The queue bridges the two timing domains without buffering
@@ -125,7 +127,7 @@ class AudioOutQueue:
             try:
                 self._q.get_nowait()
             except asyncio.QueueEmpty:
-                pass
+                pass  # The resource is already absent; cleanup is complete.
             try:
                 self._q.put_nowait(chunk)
             except asyncio.QueueFull:
@@ -134,7 +136,7 @@ class AudioOutQueue:
     def clear(self) -> int:
         """Drop every buffered frame without changing the closed state.
 
-        Used by the full-duplex dialogue interrupt path (F-65 P65-C): the
+        Used by the full-duplex dialogue interrupt path: the
         user barges in mid-playback, we cancel the response on the
         server side AND discard whatever PCM frames haven't been written
         to the device yet — otherwise the speaker would play a 200ms

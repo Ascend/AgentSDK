@@ -1,10 +1,16 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -13,12 +19,6 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
-#
-# Copyright (c) 2026 Clawd Codex Team
-# SPDX-License-Identifier: MIT
-# Source: https://github.com/agentforce314/clawcodex
-# ClawCodex-derived portions remain licensed under the MIT License.
-# See clawcodex-ascend/LICENSE.clawcodex.
 
 """Bridge between the agent loop and the Textual UI.
 
@@ -82,7 +82,7 @@ from .state import AppState
 
 
 def _resolve_permission_timeout_s() -> float:
-    """Layer-0 modal deadline (F-108 P108-A / P108-E).
+    """Layer-0 modal deadline (P108-A / P108-E).
 
     Resolved honouring ``FreezeSettings.permission_timeout_s`` →
     ``$CLAWCODEX_PERMISSION_TIMEOUT`` → the dataclass default
@@ -304,7 +304,7 @@ class AgentBridge:
             try:
                 unsubscribe()
             except Exception:  # nosec B110
-                pass
+                pass  # Intentional best-effort path; the surrounding fallback remains valid.
 
         runtime = self._goal_runtime
         service = self._goal_bound_service
@@ -312,7 +312,7 @@ class AgentBridge:
             try:
                 service.unregister_runtime(runtime)
             except Exception:  # nosec B110
-                pass
+                pass  # Intentional best-effort path; the surrounding fallback remains valid.
         if getattr(self._tool_context, "goal_runtime", None) is runtime:
             self._tool_context.goal_runtime = None
 
@@ -437,7 +437,7 @@ class AgentBridge:
                             )
                         )
             except Exception:  # nosec B110
-                pass
+                pass  # Intentional best-effort path; the surrounding fallback remains valid.
 
         loop = asyncio.new_event_loop()
         try:
@@ -559,7 +559,7 @@ class AgentBridge:
             ):
                 return 0
         except Exception:  # nosec B110
-            pass
+            pass  # Intentional best-effort path; the surrounding fallback remains valid.
         return self._max_turns
 
     def cancel(self, reason: str = "user_interrupt") -> bool:
@@ -728,7 +728,7 @@ class AgentBridge:
             try:
                 self._session.save_transcript()
             except Exception:  # nosec B110
-                pass
+                pass  # Intentional best-effort path; the surrounding fallback remains valid.
         except GoalEvaluationError as exc:
             # The explicit SystemNotice emitted above is the user-facing
             # failure. Preserve it and finish without a second generic error.
@@ -743,7 +743,7 @@ class AgentBridge:
             try:
                 self._session.save_transcript()
             except Exception:  # nosec B110
-                pass
+                pass  # Intentional best-effort path; the surrounding fallback remains valid.
             self._post(
                 AgentRunFinished(
                     response_text="",
@@ -802,7 +802,7 @@ class AgentBridge:
                     }
                 )
             except Exception:  # nosec B110
-                pass
+                pass  # Intentional best-effort path; the surrounding fallback remains valid.
         # Mirror the client-side advisor token counts from tool_context
         # into ``state.usage`` so the StatusLine widget can surface them
         # next to the worker tokens. ``tool_context.advisor_*`` is
@@ -823,7 +823,7 @@ class AgentBridge:
                 self._state.usage["advisor_input_tokens"] = adv_in
                 self._state.usage["advisor_output_tokens"] = adv_out
         except Exception:  # nosec B110
-            pass
+            pass  # Intentional best-effort path; the surrounding fallback remains valid.
         self._post(
             AgentRunFinished(
                 response_text=result.response_text,
@@ -1089,7 +1089,7 @@ class AgentBridge:
                 tool_input=None,
             )
         )
-        # F-108 P108-A: bound the wait so a stuck modal cannot hang the
+        # P108-A: bound the wait so a stuck modal cannot hang the
         # worker thread indefinitely (risk #2). After the timeout we
         # fall back to the safest default — deny without remembering —
         # which mirrors the legacy ESC behaviour.
@@ -1097,7 +1097,7 @@ class AgentBridge:
         if timeout_s > 0:
             done.wait(timeout=timeout_s)
             if not done.is_set():
-                # F-108 P108-A: UI never responded within the budget;
+                # P108-A: UI never responded within the budget;
                 # auto-deny. The pending modal is still in state — the
                 # eventual UI ``decide()`` call (or Escape) will call
                 # ``resolve_permission`` and drop it; that is idempotent.
@@ -1144,7 +1144,7 @@ class AgentBridge:
                 questions=list(questions),
             )
         )
-        # F-108 P108-A: bound the wait so a stuck AskUserQuestion modal
+        # P108-A: bound the wait so a stuck AskUserQuestion modal
         # cannot hang the worker thread indefinitely (risk #3). After
         # the timeout we return ``{}`` (parity with the Esc-cancel path)
         # so the agent loop can recover without a real answer.
@@ -1152,7 +1152,7 @@ class AgentBridge:
         if timeout_s > 0:
             done.wait(timeout=timeout_s)
             if not done.is_set():
-                # F-108 P108-A: UI never responded; return empty answers.
+                # P108-A: UI never responded; return empty answers.
                 # Same idempotency reasoning as ``_permission_handler`` —
                 # the modal's eventual decide() will still drain state.
                 outcome["answers"] = {}

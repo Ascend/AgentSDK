@@ -1,3 +1,25 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 """Bridge subsystem types.
 
 Ports ``typescript/src/bridge/types.ts``. Consolidated type module
@@ -8,7 +30,7 @@ shared across the bridge subsystem. The TS file mixes wire-format types
 Python keeps the same arrangement so callers see one type module per TS file.
 
 For wire-level message types (``SDKMessage``, ``SDKControlRequest`` etc.) see
-``src.bridge.sdk_types`` 鈥?those live separately because they cross multiple
+``src.bridge.sdk_types`` — those live separately because they cross multiple
 TS files.
 """
 
@@ -226,7 +248,7 @@ class BridgeApiClient(Protocol):
         """POST /v1/sessions/{sessionId}/archive."""
 
     async def reconnect_session(self, environment_id: str, session_id: str) -> None:
-        """POST .../bridge/reconnect 鈥?force-stop stale workers + re-queue."""
+        """POST .../bridge/reconnect — force-stop stale workers and re-queue."""
 
     async def heartbeat_work(self, environment_id: str, work_id: str, session_token: str) -> dict[str, Any]:
         """POST .../work/{workId}/heartbeat. Returns ``{lease_extended, state}``."""
@@ -237,7 +259,7 @@ class SessionHandle(Protocol):
 
     Mirrors TS ``SessionHandle`` on ``types.ts:178-190``. The TS version has
     a ``done: Promise<SessionDoneStatus>``; Python uses ``asyncio.Future`` or
-    ``asyncio.Task`` 鈥?Protocol method signatures express it as
+    ``asyncio.Task`` — Protocol method signatures express it as
     ``async def wait_done()``.
     """
 
@@ -488,6 +510,6 @@ __all__ = [
     "WorkResponse",
 ]
 
-# Re-affirm WorkDataType is exported (Literal alias 鈥?appears in WorkData).
+# Reaffirm that WorkDataType is exported; the Literal alias appears in WorkData.
 # Listed above explicitly so downstream consumers can write
 # ``from src.bridge.types import WorkDataType``.

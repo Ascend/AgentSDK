@@ -3,12 +3,14 @@
 
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
-# Copyright (c) 2026 Clawd Codex Team
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -17,7 +19,6 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
-
 """Interactive REPL for Claw Codex."""
 
 from __future__ import annotations
@@ -557,9 +558,8 @@ _CRON_PROMPT_PRELUDE = "This prompt was generated automatically from a scheduled
 def _wrap_cron_prompt(prompt: str, task_id: str = "", run_id: str = "") -> str:
     """Wrap a cron prompt with context so the LLM knows it's automated.
 
-    F-22-G-2: signature now matches the
-    ``Callable[[prompt, task_id, run_id], str]`` shape expected by
-    :class:`CronDispatchBridge`. ``run_id`` is currently unused but
+    The signature matches the ``Callable[[prompt, task_id, run_id], str]``
+    shape expected by :class:`CronDispatchBridge`. ``run_id`` is currently unused but
     is reserved for future runs-by-id display.
     """
     _ = run_id  # reserved for future display
@@ -654,7 +654,8 @@ class _HintedAutoSuggest(AutoSuggestFromHistory):
         self._hint = _ghost_hint_for(accept_key, has_tab_alias=has_tab_alias)
 
     def get_suggestion(self, buffer, document):
-        suggestion = super().get_suggestion(buffer, document)
+        # The real prompt_toolkit base provides this method; only the optional-dependency fallback omits it.
+        suggestion = super().get_suggestion(buffer, document)  # pylint: disable=no-member
         # Refresh the module-level visibility snapshot so the Tab
         # binding's filter can decide whether to fire.
         _ghost_state["suggestion"] = suggestion.text if suggestion else None
@@ -1571,7 +1572,7 @@ class ClawcodexREPL:
             try:
                 self._current_status.stop()
             except Exception:  # nosec B110
-                pass
+                pass  # Cleanup is best-effort and must not replace the primary operation result.
 
         answers: dict[str, str] = {}
         use_arrow = get_selection_mode() == "arrow"
@@ -1670,7 +1671,7 @@ class ClawcodexREPL:
             try:
                 self._current_status.start()
             except Exception:  # nosec B110
-                pass
+                pass  # Status restart is presentational and must not replace the question result.
 
         return answers
 
@@ -1699,7 +1700,7 @@ class ClawcodexREPL:
                 try:
                     self._current_status.stop()
                 except Exception:  # nosec B110
-                    pass
+                    pass  # Cleanup is best-effort and must not replace the primary operation result.
 
             self.console.print("")
             self.console.print("[bold][warning]⚠ Permission Required[/warning][/bold]")
@@ -1761,7 +1762,7 @@ class ClawcodexREPL:
                             options=options,
                         )
                     except Exception:  # nosec B110
-                        pass
+                        pass  # This side-channel notification is best-effort and must not alter the primary result.
 
                 if get_selection_mode() == "arrow":
                     opt_pairs: list[tuple[str, str]] = []
@@ -1848,7 +1849,7 @@ class ClawcodexREPL:
                 try:
                     self._current_status.stop()
                 except Exception:  # nosec B110
-                    pass
+                    pass  # Cleanup is best-effort and must not replace the primary operation result.
 
             self.console.print("")
             self.console.print("[bold][warning]⚠ Permission Required[/warning][/bold]")
@@ -1926,7 +1927,7 @@ class ClawcodexREPL:
                             options=options,
                         )
                     except Exception:  # nosec B110
-                        pass
+                        pass  # This side-channel notification is best-effort and must not alter the primary result.
 
                 if get_selection_mode() == "arrow":
                     opt_pairs = [(f"[{key}] {desc}", "") for key, desc in options]
@@ -2040,7 +2041,7 @@ class ClawcodexREPL:
                     allow_choices=allow_choices,
                 )
             except Exception:  # nosec B110
-                pass
+                pass  # This side-channel notification is best-effort and must not alter the primary result.
 
         try:
             timeout = float(os.environ.get("CLAWCODEX_IM_PERMISSION_TIMEOUT", "300"))
@@ -2121,9 +2122,9 @@ class ClawcodexREPL:
             register_intent_forecast_commands(None)
             register_intent_forecast_commands(self.command_registry)
         except Exception:  # nosec B110
-            pass
+            pass  # This optional feature is unavailable; continue with the core command path.
 
-        # F-53: auto-expose non-core tools as /<tool-name> slash commands.
+        # auto-expose non-core tools as /<tool-name> slash commands.
         # The runtime ``tool_registry`` is captured lazily at invocation
         # time via ``context.tool_registry`` (set by
         # ``attach_downstream_context`` below), so we only need a
@@ -2135,7 +2136,7 @@ class ClawcodexREPL:
             register_tool_commands(self.command_registry)
             register_tool_commands(None)  # also register in global registry
         except Exception:  # nosec B110
-            pass
+            pass  # This optional feature is unavailable; continue with the core command path.
 
         # Prompt skills must be present in both registries: the instance
         # registry drives REPL recognition/completion, while
@@ -2152,7 +2153,7 @@ class ClawcodexREPL:
                 registry=None,
             )
         except Exception:  # nosec B110
-            pass
+            pass  # This optional feature is unavailable; continue with the core command path.
 
         # Create cost tracker and history
         self.cost_tracker = CostTracker()
@@ -2203,7 +2204,7 @@ class ClawcodexREPL:
                     if alias_name not in self._built_in_commands:
                         self._built_in_commands.append(alias_name)
         except Exception:  # nosec B110
-            pass
+            pass  # Command completion enrichment is optional; retain the existing command list.
 
     def _try_execute_new_command(self, command: str, args: str) -> tuple[bool, str | None]:
         """Try to execute a command using the new command system (sync path for LocalCommand only).
@@ -2318,7 +2319,7 @@ class ClawcodexREPL:
                         result.text,
                         command=result.command_name,
                     )
-                # F-122-F: long /btw answers carry scrollable=True. Route
+                # long /btw answers carry scrollable=True. Route
                 # them through the keyboard-scrolled viewer so the user
                 # can navigate instead of seeing a wall of text scroll
                 # past. Falls back to a flat print when prompt_toolkit is
@@ -2490,7 +2491,7 @@ class ClawcodexREPL:
                 try:
                     status.update("[warning]Cancelling…[/warning]")
                 except Exception:  # nosec B110
-                    pass
+                    pass  # This presentation update is best-effort and must not interrupt the user flow.
 
         status_ref: list[LiveStatus] = []
 
@@ -2563,7 +2564,7 @@ class ClawcodexREPL:
                 try:
                     self.session.save_transcript()
                 except Exception:  # nosec B110
-                    pass
+                    pass  # Session persistence is best-effort at this recovery or shutdown boundary.
                 return False
             self._last_chat_outcome = "failure"
             self.console.print(f"\n[error]Error: {escape(str(exc))}[/error]")
@@ -2601,7 +2602,7 @@ class ClawcodexREPL:
         try:
             self.session.save_transcript()
         except Exception:  # nosec B110
-            pass
+            pass  # Session persistence is best-effort at this recovery or shutdown boundary.
         return True
 
     def _print_local_command_text(self, text: str, *, command: str = "") -> None:
@@ -2676,7 +2677,7 @@ class ClawcodexREPL:
             return
 
     # ------------------------------------------------------------------
-    # F-122-F: scrollable answer viewer for /btw side questions
+    # scrollable answer viewer for /btw side questions
     # ------------------------------------------------------------------
     # /btw answers can be long (multi-paragraph explanations). Dumping them
     # in a single block makes them scroll past unreadable. When the engine
@@ -2690,7 +2691,7 @@ class ClawcodexREPL:
     _SCROLL_VIEWER_MIN_WINDOW = 5  # never paginate fewer than this many lines
 
     def _print_scrollable_text(self, text: str, *, command: str = "") -> None:
-        """Render *text* in a keyboard-scrollable viewer (F-122-F).
+        """Render *text* in a keyboard-scrollable viewer.
 
         The viewer opens only if the body exceeds one terminal page; if the
         whole answer fits, we degrade to a flat print (no extra keystroke
@@ -2868,7 +2869,7 @@ class ClawcodexREPL:
             for s in get_all_skills(project_root=cwd):
                 words.append(f"/{s.name}")
         except Exception:  # nosec B110
-            pass
+            pass  # This optional feature is unavailable; continue with the core command path.
         deduped: list[str] = []
         seen: set[str] = set()
         for w in words:
@@ -3055,7 +3056,7 @@ class ClawcodexREPL:
                 alias_str = f" (aliases: {', '.join(cmd.aliases)})" if cmd.aliases else ""
                 add_command(f"{cmd_name}{alias_str}", cmd.description, "command")
         except Exception:  # nosec B110
-            pass
+            pass  # Palette enrichment is optional; retain the commands already collected.
 
         # Add skills
         try:
@@ -3068,7 +3069,7 @@ class ClawcodexREPL:
                 desc = (s.description or "").strip()
                 add_command(f"/{s.name}", desc, "skill")
         except Exception:  # nosec B110
-            pass
+            pass  # This optional feature is unavailable; continue with the core command path.
 
         # Sort and display
         all_commands.sort(key=lambda x: x[0].lower())
@@ -3223,7 +3224,7 @@ class ClawcodexREPL:
                 if not isinstance(parsed, dict):
                     parsed = None
             except Exception:  # nosec B110
-                pass
+                pass  # This probe is optional; preserve the existing conservative fallback.
 
         if tool_name == "Read":
             if parsed:
@@ -3710,7 +3711,7 @@ class ClawcodexREPL:
                     try:
                         controller.on_prompt_draft_changed(str(getattr(default_buffer, "text", "") or ""))
                     except Exception:  # nosec B110
-                        pass
+                        pass  # The optional callback is isolated so it cannot interrupt the owning event loop.
 
                 buffer_changed_handler = _on_text_changed
                 try:
@@ -3727,12 +3728,12 @@ class ClawcodexREPL:
                 try:
                     default_buffer.on_text_changed -= buffer_changed_handler
                 except Exception:  # nosec B110
-                    pass
+                    pass  # Prompt callback detachment is best-effort during watcher teardown.
             watch_task.cancel()
             try:
                 await watch_task
             except asyncio.CancelledError:
-                pass
+                pass  # The task was explicitly cancelled; awaiting it only drains shutdown cleanup.
 
     def _drain_cron_outbox(self) -> None:
         _load_cron_runtime()
@@ -3754,7 +3755,7 @@ class ClawcodexREPL:
         outbox pile-up when a recurring task's interval is shorter than
         its execution time.
 
-        F-22-G-2: the typed-or-dict parsing and prompt wrapping is now
+        The typed-or-dict parsing and prompt wrapping is now
         delegated to :class:`CronDispatchBridge.drain` /
         :meth:`CronDispatchBridge.drain_missed`. The accumulation
         guard stays here because it depends on the per-REPL-session
@@ -3834,7 +3835,7 @@ class ClawcodexREPL:
                 error=error,
             )
         except Exception:  # nosec B110
-            pass
+            pass  # This side-channel notification is best-effort and must not alter the primary result.
 
     def _finalize_cron_task(
         self,
@@ -3923,7 +3924,7 @@ class ClawcodexREPL:
 
                     return pt_prompt(prompt)
                 except Exception:  # nosec B110
-                    pass
+                    pass  # Prompt-toolkit input is optional here; use the existing plain-input fallback.
             return input(prompt)
 
         if live is not None:
@@ -4166,7 +4167,7 @@ class ClawcodexREPL:
         try:
             result = app.run()
         except KeyboardInterrupt:
-            pass
+            pass  # The handoff already handles the interrupt; preserve the caller's control flow.
         except Exception as exc:
             self.console.print(f"[error]TUI exited with error: {exc}[/error]")
         finally:
@@ -4177,7 +4178,7 @@ class ClawcodexREPL:
             for piece in snapshot:
                 try:
                     self.console.print(piece)
-                except Exception:  # nosec B110
+                except Exception:  # nosec B112 -- Skip one unrenderable snapshot item and continue.
                     continue
 
             # Ctrl+B → background exit (agent running in background)
@@ -4216,11 +4217,11 @@ class ClawcodexREPL:
         include background agent output. The JSONL transcript has the complete
         history and is used by TailFollower in TUI --resume mode.
 
-        F-49 Phase 0.4.2: if Session.resume() already populated messages
+        If ``Session.resume()`` already populated messages
         (via the core Phase 0.4.1 fix in session.py), this method is a
         quick-return no-op — kept as a defensive double-check.
         """
-        # F-49 Phase 0.4.2: quick-return if messages already populated
+        # Quick-return if messages are already populated
         # by Session.resume()'s JSONL back-fill (Phase 0.4.1).
         if self.session.conversation.messages:
             return
@@ -4244,7 +4245,7 @@ class ClawcodexREPL:
                     msg = message_from_dict(entry)
                     messages.append(msg)
                 except Exception:  # nosec B110
-                    pass
+                    pass  # This probe is optional; preserve the existing conservative fallback.
 
             if messages:
                 self.session.conversation.messages = messages
@@ -4326,7 +4327,7 @@ class ClawcodexREPL:
             content = getattr(msg, "content", None)
 
             if role == "system":
-                # F-103: Render away_summary (Recapitulate) system messages
+                # Render away_summary (Recapitulate) system messages
                 # instead of skipping them, matching live-chat behaviour where
                 # _print_local_command_text renders /recap output as Markdown.
                 subtype = getattr(msg, "subtype", None) or ""
@@ -4584,7 +4585,7 @@ class ClawcodexREPL:
 
         footer = Text("/help  •  /tools  •  /tui  •  /stream  •  /exit", style="dim")
 
-        # F-97 telemetry notice — show when both stats collection and error
+        # telemetry notice — show when both stats collection and error
         # reporting are enabled.  Best-effort & swallowed on failure so a
         # misconfigured telemetry package never blocks REPL startup.
         try:
@@ -4663,7 +4664,7 @@ class ClawcodexREPL:
                 },
             )
         except Exception:  # nosec B110
-            pass
+            pass  # Diagnostics are best-effort and must not affect the monitored operation.
 
         # Phase B-2 wake: spin up a long-lived asyncio loop on the
         # main thread so the in-loop cron watcher can call app.exit()
@@ -4676,7 +4677,7 @@ class ClawcodexREPL:
             try:
                 self._cron_loop.run_until_complete(im_init(self._cron_loop))
             except Exception:  # nosec B110
-                pass
+                pass  # The optional integration loop is unavailable; continue with the main REPL loop.
         try:
             self._run_main_loop()
         finally:
@@ -4686,11 +4687,11 @@ class ClawcodexREPL:
                 try:
                     self._cron_loop.run_until_complete(im_client.close())
                 except Exception:  # nosec B110
-                    pass
+                    pass  # Cleanup is best-effort and must not replace the primary operation result.
             try:
                 self._cron_loop.close()
             except Exception:  # nosec B110
-                pass
+                pass  # Cleanup is best-effort and must not replace the primary operation result.
 
     def _run_main_loop(self) -> None:
         """Inner body of the REPL main loop. Extracted so we can
@@ -4751,7 +4752,7 @@ class ClawcodexREPL:
                     try:
                         self.session.save()
                     except Exception:  # nosec B110
-                        pass
+                        pass  # Session persistence is best-effort at this recovery or shutdown boundary.
                     self._print_resume_hint()
                     self.console.print("\n[primary]Goodbye![/primary]")
                     break
@@ -4867,14 +4868,14 @@ class ClawcodexREPL:
                 try:
                     self.session.save()
                 except Exception:  # nosec B110
-                    pass
+                    pass  # Session persistence is best-effort at this recovery or shutdown boundary.
                 self.console.print("\n[warning]Interrupted. Type /exit or press Ctrl+D to quit.[/warning]")
                 continue
             except EOFError:
                 try:
                     self.session.save()
                 except Exception:  # nosec B110
-                    pass
+                    pass  # Session persistence is best-effort at this recovery or shutdown boundary.
                 self._print_resume_hint()
                 self.console.print("\n[primary]Goodbye![/primary]")
                 break
@@ -4975,7 +4976,7 @@ class ClawcodexREPL:
                 # TUI-only commands — keep only the truly TUI-specific ones here
                 "repl",
                 "theme",
-                # F-43 runtime commands: /provider and /model are routed via
+                # runtime commands: /provider and /model are routed via
                 # the new command system (clawcodex_ext/cli/runtime_commands.py)
                 # and work in both REPL and TUI; do NOT mark them TUI-only.
                 "",
@@ -5041,7 +5042,7 @@ class ClawcodexREPL:
                         self.console.print()
                         return
                 except Exception:  # nosec B110
-                    pass
+                    pass  # This presentation update is best-effort and must not interrupt the user flow.
 
                 # Use async path for PromptCommand / InteractiveCommand
                 # Run in a new event loop since we're in a sync context
@@ -5068,7 +5069,7 @@ class ClawcodexREPL:
                         self._handle_command_result(result)
                         return
                 except Exception:  # nosec B110
-                    pass
+                    pass  # This optional command path declined the request; continue with legacy dispatch.
 
         # Fall back to original command handling
         cmd = raw.lower()
@@ -5078,7 +5079,7 @@ class ClawcodexREPL:
             try:
                 self.session.save()
             except Exception:  # nosec B110
-                pass
+                pass  # Session persistence is best-effort at this recovery or shutdown boundary.
             self.console.print("[primary]Goodbye![/primary]")
             # Delegate to the centralised helper so the hint format matches
             # CCB's ``printResumeHint()`` and shares the process-wide
@@ -5250,7 +5251,7 @@ class ClawcodexREPL:
                     self.console.print(Markdown(result_text))
                     return
             except Exception:  # nosec B110
-                pass
+                pass  # This presentation update is best-effort and must not interrupt the user flow.
             self.console.print("[warning]/context analysis unavailable in this context.[/warning]")
 
         elif cmd == "/compact":
@@ -5265,7 +5266,7 @@ class ClawcodexREPL:
                     self.console.print("\n[success]" + result_text + "[/success]")
                     return
             except Exception:  # nosec B110
-                pass
+                pass  # This presentation update is best-effort and must not interrupt the user flow.
             # Simple fallback: just clear conversation
             self.session.conversation.clear()
             self._engine_messages = []
@@ -5273,7 +5274,7 @@ class ClawcodexREPL:
 
         elif cmd.startswith("/provider"):
             # Safety fallback: /provider may have failed through the new
-            # command system path (F-43). Try direct sync execution.
+            # command system path. Try direct sync execution.
             parts = raw.split(maxsplit=1)
             provider_args = parts[1] if len(parts) > 1 else ""
             try:
@@ -5349,7 +5350,7 @@ class ClawcodexREPL:
                     self.console.print()
                     return
             except Exception:  # nosec B110
-                pass
+                pass  # This presentation update is best-effort and must not interrupt the user flow.
             self.console.print("[dim]No pending diffs to display.[/dim]")
             return
 
@@ -5650,12 +5651,12 @@ class ClawcodexREPL:
             try:
                 status.update(f"mode: {mode}")
             except Exception:  # nosec B110
-                pass
+                pass  # This presentation update is best-effort and must not interrupt the user flow.
             return
         try:
             self.console.print(f"[dim]Permission mode: {mode}[/dim]")
         except Exception:  # nosec B110
-            pass
+            pass  # This presentation update is best-effort and must not interrupt the user flow.
 
     def _try_run_skill_slash(self, raw: str) -> bool:
         text = raw.strip()
@@ -5947,7 +5948,7 @@ class ClawcodexREPL:
                     self.session.conversation.add_assistant_message(full_response)
                     return full_response
             except NotImplementedError:
-                pass
+                pass  # Streaming is unsupported by this provider; use the existing non-streaming fallback.
 
             chunks: list[str] = []
             try:
@@ -5996,12 +5997,12 @@ class ClawcodexREPL:
             try:
                 goal_runtime.on_turn_error(turn_id, exc)
             except Exception:  # nosec B110
-                pass
+                pass  # Goal accounting is a sidecar and must not alter the primary turn result.
             return
         try:
             goal_runtime.on_turn_stop(turn_id)
         except Exception:  # nosec B110
-            pass
+            pass  # Goal accounting is a sidecar and must not alter the primary turn result.
 
     def _get_last_assistant_text(self) -> str | None:
         for message in reversed(self.session.conversation.messages):
@@ -6110,7 +6111,7 @@ class ClawcodexREPL:
 
             _sop_bundle_active = get_active_bundle() is not None
         except ImportError:
-            pass
+            pass  # The optional integration is unavailable; continue with the built-in path.
 
         agent_attachments = expand_agent_mentions(user_input, available_agents)
 
@@ -6212,7 +6213,7 @@ class ClawcodexREPL:
                     try:
                         self._current_status.stop()
                     except Exception:  # nosec B110
-                        pass
+                        pass  # Cleanup is best-effort and must not replace the primary operation result.
                 stream_started = True
 
             # Direct-stream skips the tool loop; it can only carry plain
@@ -6238,7 +6239,7 @@ class ClawcodexREPL:
                         try:
                             status.update("[warning]Cancelling…[/warning]")
                         except Exception:  # nosec B110
-                            pass
+                            pass  # This presentation update is best-effort and must not interrupt the user flow.
 
                 _direct_status_ref: list[LiveStatus] = []
 
@@ -6298,7 +6299,7 @@ class ClawcodexREPL:
                     try:
                         self.session.save_transcript()
                     except Exception:  # nosec B110
-                        pass
+                        pass  # Session persistence is best-effort at this recovery or shutdown boundary.
                     self._continue_goal_if_idle()
                     return True
                 # User pressed ESC/Ctrl+C during direct stream — skip the
@@ -6679,7 +6680,7 @@ class ClawcodexREPL:
                 try:
                     engine.interrupt()
                 except Exception:  # nosec B110
-                    pass
+                    pass  # Cancellation notification is best-effort because the primary failure is already active.
                 # Immediate visual feedback — update the LiveStatus message
                 # so the user sees "Cancelling…" without waiting for the
                 # abort to propagate through the provider stream.
@@ -6688,7 +6689,7 @@ class ClawcodexREPL:
                     try:
                         status.update("[warning]Cancelling…[/warning]")
                     except Exception:  # nosec B110
-                        pass
+                        pass  # This presentation update is best-effort and must not interrupt the user flow.
 
             _engine_status_ref: list[LiveStatus] = []
 
@@ -6710,7 +6711,7 @@ class ClawcodexREPL:
                 try:
                     engine.interrupt()
                 except Exception:  # nosec B110
-                    pass
+                    pass  # The optional callback is isolated so it cannot interrupt the owning event loop.
 
             self._im_active_cancel = _cancel_engine
             try:
@@ -6790,7 +6791,7 @@ class ClawcodexREPL:
             try:
                 self.session.save_transcript()
             except Exception:  # nosec B110
-                pass
+                pass  # Session persistence is best-effort at this recovery or shutdown boundary.
 
             # If Ctrl+B was pressed during the engine run, raise
             # BackgroundEscape *after* the LiveStatus is torn down
@@ -6868,7 +6869,7 @@ class ClawcodexREPL:
         try:
             self.session.save()
         except Exception:  # nosec B110
-            pass
+            pass  # Session persistence is best-effort at this recovery or shutdown boundary.
 
         # Determine max_turns for the background runner.  In interactive
         # mode there is no limit (None), matching the REPL's default.
@@ -7047,3 +7048,8 @@ class ClawcodexREPL:
                 if line is None:
                     continue
                 self.console.print(line)
+
+
+# Public aliases keep REPL consumers from depending on implementation names.
+SlashOnlyCompleter = _SlashOnlyCompleter
+MessageHistoryCompleter = _MessageHistoryCompleter

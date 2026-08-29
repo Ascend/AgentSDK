@@ -3,12 +3,14 @@
 
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Clawd Codex Team
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -18,11 +20,11 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""Load skills across global, project, policy, plugin, and compatibility sources."""
-
 # Skill discovery and policy parity intentionally share one compatibility
 # boundary; splitting it would duplicate ordering and cache invariants.
 # pylint: disable=too-many-lines
+
+"""Load skills across global, project, policy, plugin, and compatibility sources."""
 
 from __future__ import annotations
 
@@ -244,7 +246,7 @@ def _coerce_effort(value: Any) -> str | None:
         n = int(s, 10)
         return str(n)
     except (TypeError, ValueError):
-        pass
+        pass  # The candidate value is invalid; continue with the existing fallback.
     logger.warning(
         "skill frontmatter effort=%r is not a valid level (expected one of %s or an integer); dropping",
         value,
@@ -521,7 +523,7 @@ def _find_skill_markdown_files(base_path: str) -> list[str]:
                     if entry.resolve().is_dir():
                         child_dirs.append(entry)
                 except (OSError, ValueError):
-                    pass
+                    pass  # An inaccessible candidate directory is skipped during discovery.
 
         for d in child_dirs:
             _walk(d)
@@ -540,7 +542,7 @@ def _find_skill_markdown_files(base_path: str) -> list[str]:
                 if entry.resolve().is_dir():
                     top_dirs.append(entry)
             except (OSError, ValueError):
-                pass
+                pass  # An inaccessible candidate directory is skipped during discovery.
 
     for d in top_dirs:
         _walk(d)
@@ -1275,7 +1277,7 @@ def get_registered_skill(name: str) -> Skill | None:
         if bundle is not None and name not in bundle.skill_names:
             return None
     except ImportError:
-        pass
+        pass  # The optional integration is unavailable; continue with the built-in path.
     with _skill_registry_lock:
         found = _skill_registry.get(name)
     if found is not None:

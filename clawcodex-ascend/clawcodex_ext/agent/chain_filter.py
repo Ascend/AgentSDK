@@ -1,6 +1,28 @@
-"""F-103 chain filter — parentUuid chain walker and byte-level pruner.
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
-This module is the read-side counterpart of F-103. The write side lives
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
+"""Chain filter — parentUuid chain walker and byte-level pruner.
+
+This module is the read-side counterpart. The write side lives
 in :mod:`extensions.agent.session_persist` (``_inject_parent_uuids``).
 
 Design (mirrors docs/FEATURE_PLAN.md §1.4.6):
@@ -37,7 +59,7 @@ Two-stage gating:
 Backward compatibility:
 
     Transcripts without any ``"parentUuid":`` substring (legacy
-    sessions written before F-103) skip the filter automatically.
+    sessions without parent links) skip the filter automatically.
     Mixed transcripts created by resuming a legacy session retain
     every legacy message while newer, chain-aware lines can still
     be pruned to their active branch.
@@ -192,7 +214,7 @@ def walk_chain_before_parse(
         if PARENT_UUID_TOKEN in line:
             parent_indices.append(idx)
         elif b'"uuid"' in line:
-            # A resumed pre-F-103 transcript has a legacy prefix without
+            # A resumed transcript has a legacy prefix without
             # parentUuid followed by newly chained messages. Preserve every
             # valid legacy message: there is no topology with which to prune
             # that prefix safely, and a new message may point at its tail.

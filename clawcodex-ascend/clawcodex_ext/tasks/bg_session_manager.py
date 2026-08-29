@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-# coding=utf-8
+# -*- coding: utf-8 -*-
+
 
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
@@ -17,21 +18,14 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""F-94 P94-C — BG_SESSIONS 生命周期控制。
+"""Lifecycle operations for background sessions.
 
-``BgSessionManager`` 提供 list / inspect / attach / stop / cleanup /
-``background_current_session`` 与 ``upsert_after_launch`` 协调入口。
-
-设计要点（f-94-bg-sessions.md §1.6 / §1.8 / §1.9）：
-
-* **stop graceful-first** — 先 SIGTERM / TaskStop，失败才 SIGKILL（force）。
-* **跨 workspace attach 默认拒绝** — 需 ``allow_cross_workspace`` 或
-  ``--all``（§1.9 权限规则）。
-* **cleanup 不静默删除** — orphaned 标记后才清理；completed 按年龄清理。
-* **与 launch_background_runner 协调** — ``upsert_after_launch`` 在 marker
-  写完后追加 index upsert（黄金法则 1：不侵入 fork 路径）。
-* **bg_sessions=off 退化为现状** — 所有方法在 disabled 时抛
-  ``BgSessionsDisabledError`` 或 no-op（验收标准 1）。
+``BgSessionManager`` provides list, inspect, attach, stop, cleanup,
+``background_current_session``, and ``upsert_after_launch`` operations.
+Stopping is graceful-first, cross-workspace attachment is denied by default,
+and cleanup removes indexed terminal records without silently deleting files.
+Disabled mode raises ``BgSessionsDisabledError`` or performs the documented
+no-op for each operation.
 """
 
 from __future__ import annotations
@@ -61,13 +55,13 @@ from .bg_session_registry import BgSessionRegistry
 
 logger = logging.getLogger(__name__)
 
-#: graceful stop 后等待 PID 退出的最大秒数。
+#: Maximum time to wait for a process after requesting a graceful stop.
 _GRACEFUL_STOP_TIMEOUT_S = 5.0
 
 
 @dataclass(frozen=True)
 class AttachResult:
-    """``attach`` 返回 — 含 transcript tail 与恢复命令。"""
+    """Attachment result containing a transcript tail and resume command."""
 
     session: BgSession
     transcript_tail: str = ""
@@ -75,7 +69,7 @@ class AttachResult:
 
 
 class BgSessionManager:
-    """统一后台会话生命周期控制。"""
+    """Coordinate the background-session lifecycle."""
 
     def __init__(
         self,
@@ -89,7 +83,7 @@ class BgSessionManager:
         self._config = config if config is not None else registry.config
 
     # ------------------------------------------------------------------
-    # 属性
+    # Properties
     # ------------------------------------------------------------------
 
     @property
@@ -101,7 +95,7 @@ class BgSessionManager:
         return self._config
 
     # ------------------------------------------------------------------
-    # 启用性检查
+    # Enablement checks
     # ------------------------------------------------------------------
 
     def _require_enabled(self) -> None:
@@ -112,7 +106,7 @@ class BgSessionManager:
             )
 
     # ------------------------------------------------------------------
-    # 与 launch_background_runner 协调
+    # Coordination with launch_background_runner
     # ------------------------------------------------------------------
 
     def upsert_after_launch(
@@ -124,12 +118,10 @@ class BgSessionManager:
         agent_name: str | None = None,
         description: str = "",
     ) -> BgSession | None:
-        """在 ``launch_background_runner`` 写完 marker 后追加 index upsert。
+        """Upsert the index after ``launch_background_runner`` writes its marker.
 
-        **不修改** marker 文件（由 ``background_runner`` 拥有）。仅构造
-        ``BgSession`` 快照并 upsert 到 registry，然后 save index。
-
-        ``bg_sessions=off`` 时 no-op 返回 None（验收标准 1）。
+        The marker remains owned by ``background_runner``. Disabled mode is a
+        no-op that returns ``None``.
         """
         if not is_bg_sessions_enabled(self._config):
             return None
@@ -152,7 +144,7 @@ class BgSessionManager:
         return sess
 
     # ------------------------------------------------------------------
-    # 查询
+    # Queries
     # ------------------------------------------------------------------
 
     def list_sessions(
@@ -161,22 +153,22 @@ class BgSessionManager:
         include_completed: bool = False,
         workspace_root: Path | None = None,
     ) -> list[BgSession]:
-        """列出会话。``bg_sessions=off`` 时仍可查询（退化到 scan-only）。"""
+        """List sessions, using scan-only behavior when the feature is disabled."""
         sessions = self._registry.list(workspace_root=workspace_root)
         if not include_completed:
             sessions = [s for s in sessions if not s.is_terminal()]
         return sessions
 
     def inspect(self, bg_session_id: str) -> BgSession:
-        """返回最新健康评估后的快照。"""
+        """Return a snapshot after the latest health reconciliation."""
         sess = self._registry.get(bg_session_id)
         if sess is None:
-            # 尝试 scan 一次（可能 marker 存在但 registry 未加载）
+            # Scan once in case a marker exists before the registry is loaded.
             self._registry.scan()
             sess = self._registry.get(bg_session_id)
         if sess is None:
             raise BgSessionNotFoundError(f"BG session {bg_session_id!r} not found")
-        # 实时健康校正
+        # Reconcile health with current process and transcript state.
         h = assess(sess, stale_after_seconds=self._config.stale_after_seconds)
         if h.status != sess.status:
             sess = replace_session(sess, status=h.status)
@@ -195,12 +187,12 @@ class BgSessionManager:
         current_workspace: Path | None = None,
         allow_cross_workspace: bool | None = None,
     ) -> AttachResult:
-        """attach 到后台会话 — 返回 transcript tail 与恢复命令。
+        """Attach to a session and return its transcript tail and resume command.
 
-        跨 workspace attach 默认拒绝（§1.9）。
+        Cross-workspace attachment is denied by default.
         """
         sess = self.inspect(bg_session_id)
-        # 权限检查
+        # Permission check
         if current_workspace is not None:
             allow = allow_cross_workspace if allow_cross_workspace is not None else self._config.allow_cross_workspace
             if not allow and not _path_same_workspace(sess.workspace_root, current_workspace):
@@ -224,12 +216,11 @@ class BgSessionManager:
         *,
         force: bool = False,
     ) -> BgSession:
-        """graceful stop；失败时需用户显式 force。
+        """Stop gracefully unless the caller explicitly requests force.
 
-        优先级：
-        1. 若有对应 ``runtime_tasks`` 条目 → ``TaskStop`` 协作取消；
-        2. 否则 SIGTERM（force=True 时 SIGKILL）；
-        3. 等待 PID 退出后更新状态为 ``stopped``。
+        Prefer cooperative cancellation through ``runtime_tasks``. Otherwise
+        send SIGTERM, or SIGKILL when forced, and mark the session stopped only
+        after the process exits.
         """
         sess = self.inspect(bg_session_id)
         if sess.is_terminal():
@@ -238,7 +229,7 @@ class BgSessionManager:
         stopped_ok = False
         error: str | None = None
 
-        # 1. runtime_tasks 协作取消（若有 task_id）
+        # Prefer cooperative cancellation when a runtime task is available.
         if sess.task_id is not None and self._runtime_tasks is not None:
             try:
                 stopped_ok = _try_task_stop(self._runtime_tasks, sess.task_id)
@@ -246,7 +237,7 @@ class BgSessionManager:
                 logger.debug("TaskStop for %s failed: %s", bg_session_id, exc)
                 error = f"TaskStop: {exc}"
 
-        # 2. 信号停止
+        # Fall back to process signals.
         if not stopped_ok and pid is not None:
             try:
                 stopped_ok = _signal_stop(pid, force=force)
@@ -278,14 +269,11 @@ class BgSessionManager:
     # ------------------------------------------------------------------
 
     def cleanup(self, *, include_failed: bool = False) -> list[BgSession]:
-        """清理终态会话记录。
+        """Remove eligible terminal records from the index.
 
-        * ``completed`` 按 ``cleanup_completed_after_seconds`` 年龄清理；
-        * ``orphaned`` 标记后可清理（不静默删除 — 先 inspect 标记）；
-        * ``failed`` 仅当 ``include_failed=True`` 清理；
-        * 清理仅移除 **index 条目**，**不删除** marker / transcript 文件
-          （由 ``background_runner.cleanup_background_runner`` 在 resume
-          成功后负责文件清理）。
+        Completed records expire by age, orphaned records may be removed after
+        being marked, and failed records require ``include_failed=True``.
+        Marker and transcript files are never deleted here.
         """
         now = time.time()  # noqa: F841 - retained for the pending time-window cleanup policy
         removed: list[BgSession] = []
@@ -306,7 +294,7 @@ class BgSessionManager:
 
 
 # ---------------------------------------------------------------------------
-# 辅助
+# Helpers
 # ---------------------------------------------------------------------------
 
 
@@ -348,12 +336,15 @@ def _read_tail(path: Path | None, *, max_lines: int = 100) -> str:
         raise BgSessionAttachError(f"Cannot read transcript {path}: {exc}") from exc
 
 
+read_tail = _read_tail
+
+
 def _resume_hint(session_id: str) -> str:
     return f"Resume this session with: clawcodex --resume {session_id}"
 
 
 def _signal_stop(pid: int, *, force: bool) -> bool:
-    """发送 SIGTERM/SIGKILL 并等待退出。返回 True 表示进程已退出。"""
+    """Signal a process and return whether it exited within the timeout."""
     if not _pid_alive(pid):
         return True
     if force:
@@ -383,38 +374,41 @@ def _pid_alive(pid: int) -> bool:
 
 
 def _try_task_stop(runtime_tasks: Any, task_id: str) -> bool:
-    """尽力尝试通过 runtime_tasks 协作取消。
+    """Attempt cooperative cancellation through ``runtime_tasks``.
 
-    返回 True 表示 task 处于终态（已停止或本就终态）。不在本模块引入对
-    ``stop_task`` 的硬依赖（避免 clawcodex_ext.tasks → src.tasks.stop_task
-    的循环）。
+    Return ``True`` when the task is already terminal or was stopped. Avoid a
+    hard dependency on ``stop_task`` to prevent a package cycle.
     """
     state = runtime_tasks.get(task_id)
     if state is None:
         return False
-    # 终态视为已停止
+    # A terminal task is already stopped.
     # pylint: disable=no-name-in-module  # tasks_core: pending patch migration
     from clawcodex_ext.tasks_core import is_terminal_task_status
 
     if is_terminal_task_status(state.status):
         return True
-    # 尝试调用 task impl 的 kill（若存在）
+    # Ask the task implementation to stop when it provides a kill method.
     try:
         # pylint: disable=no-name-in-module  # task_registry: pending patch migration
         from clawcodex_ext.task_registry import get_task_by_type
 
         impl = get_task_by_type(state.type)
         if impl is not None and hasattr(impl, "kill"):
-            # kill 可能是协程；同步上下文里 best-effort 调用
+            # The kill hook may be asynchronous; this synchronous seam is best-effort.
             result = impl.kill(task_id, runtime_tasks)
-            # 协程未运行 — 仅做存在性检查，返回 True 让上层 fallback 到信号
+            # Let the caller fall back to process signalling for an unrun coroutine.
             return result is None or bool(result)
     except Exception as exc:  # noqa: BLE001 — defensive
         logger.debug("task impl kill failed: %s", exc)
     return False
 
 
+read_tail = _read_tail
+
+
 __all__ = [
     "AttachResult",
     "BgSessionManager",
+    "read_tail",
 ]

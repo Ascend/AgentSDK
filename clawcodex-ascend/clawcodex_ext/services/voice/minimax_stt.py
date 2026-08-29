@@ -3,12 +3,14 @@
 
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
-# Copyright (c) 2026 Clawd Codex Team
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -18,7 +20,7 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""MiniMax Realtime STT provider — F-64 P64-D1.
+"""MiniMax Realtime STT provider.
 
 Mirrors the Anthropic :class:`VoiceStreamConnection` surface but routes audio
 through MiniMax's Realtime WebSocket API, which exposes a voice-in / text-out
@@ -27,13 +29,14 @@ ASR/transcript surface). This avoids waiting on MiniMax's standalone ASR
 endpoint (not publicly exposed as of 2026-07-02) and lets users with an API
 key + ``group_id`` get voice input without Anthropic OAuth or doubao creds.
 
-Two sub-features converge here:
-* **P64-D1 (runtime integration)** — :class:`MiniMaxSTTProvider` implements
+Two concerns converge here:
+
+* **Runtime integration** — :class:`MiniMaxSTTProvider` implements
   :class:`STTProvider`; :meth:`connect_stream` returns a
-  :class:`MiniMaxStreamConnection` the push-to-talk controller drives.
+  :class:`MiniMaxStreamConnection` that the push-to-talk controller drives.
 * **Protocol adapter** — :meth:`_handle_message` parses MiniMax Realtime
   events. The event names follow OpenAI Realtime-API style as an alpha
-  assumption (MiniMax's exact names weren't fully published when this was
+  assumption (MiniMax's exact names were not fully published when this was
   written); the parser is the single file to edit when the real protocol
   is confirmed, so callers are unaffected.
 
@@ -48,7 +51,7 @@ as the doubao backend, so the user manages all voice credentials under
 
 Dependencies
 ------------
-``websockets`` is an optional dep (lazy-imported on connect). If absent,
+``websockets`` is an optional dependency (lazy-imported on connect). If absent,
 :meth:`start_streaming` raises ``ImportError`` with a clear install hint.
 """
 
@@ -170,8 +173,9 @@ class MiniMaxStreamConnection:
 
         Sends ``input_audio_buffer.commit`` so the server flushes its ASR
         buffer and emits the final transcript, then waits for the pump
-        tasks to drain. Mirrors Anthropic :meth:`VoiceStreamConnection.
-        finalize` semantics so the controller needs no per-provider branch.
+        tasks to drain. Mirrors Anthropic
+        :meth:`VoiceStreamConnection.finalize` semantics so the controller
+        needs no per-provider branch.
         """
         if self._closed:
             return self._final_text
@@ -201,7 +205,7 @@ class MiniMaxStreamConnection:
             try:
                 await self._ws.close()
             except Exception:  # nosec B110 - best-effort websocket close during shutdown
-                pass
+                pass  # Cleanup is best-effort and must not replace the primary operation result.
             self._ws = None
 
     async def _run(self, *, endpoint: str, api_key: str, group_id: str) -> None:
@@ -310,15 +314,22 @@ class MiniMaxStreamConnection:
         try:
             payload = json.loads(raw) if isinstance(raw, (str, bytes)) else {}
         except (json.JSONDecodeError, TypeError):
-            logger.debug("MiniMax stream non-JSON message: %r", raw)
+            logger.debug(
+                "MiniMax stream non-JSON message (type=%s, size=%d)",
+                type(raw).__name__,
+                len(raw) if isinstance(raw, (str, bytes)) else 0,
+            )
             return
         if not isinstance(payload, dict):
-            logger.debug("MiniMax stream non-object message: %r", raw)
+            logger.debug(
+                "MiniMax stream non-object message (type=%s)",
+                type(payload).__name__,
+            )
             return
 
         msg_type = payload.get("type") or payload.get("event")
         if msg_type is None:
-            logger.debug("MiniMax stream message without type: %r", payload)
+            logger.debug("MiniMax stream message without type (fields=%d)", len(payload))
             return
 
         # ── session lifecycle ───────────────────────────────────────────

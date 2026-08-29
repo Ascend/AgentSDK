@@ -1,3 +1,25 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 from __future__ import annotations
 
 import base64 as _base64
@@ -244,7 +266,7 @@ def _get_max_size_bytes() -> int:
             if val > 0:
                 return val
         except ValueError:
-            pass
+            pass  # Invalid candidate; continue with the surrounding fallback.
     return DEFAULT_MAX_SIZE_BYTES
 
 
@@ -257,7 +279,7 @@ def _get_max_output_tokens() -> int:
             if val > 0:
                 return val
         except ValueError:
-            pass
+            pass  # Invalid candidate; continue with the surrounding fallback.
     return DEFAULT_MAX_OUTPUT_TOKENS
 
 
@@ -285,7 +307,7 @@ def _find_similar_file(file_path: str) -> str | None:
             if entry_base == base_name and entry != os.path.basename(file_path):
                 return os.path.join(dir_path, entry)
     except OSError:
-        pass
+        pass  # Best-effort operation failed; keep the surrounding fallback.
     return None
 
 
@@ -829,7 +851,7 @@ def _read_check_permissions(tool_input: dict[str, Any], context: ToolContext):
         if getattr(guard, "behavior", None) == "deny":
             return guard
     except ImportError:
-        pass
+        pass  # Optional integration is unavailable; keep the fallback.
 
     from src.permissions.filesystem import check_read_permission_for_tool
 

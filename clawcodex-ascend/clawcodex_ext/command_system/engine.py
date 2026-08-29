@@ -1,3 +1,25 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 """
 Command execution engine for Claw Codex.
 
@@ -38,7 +60,7 @@ class CommandResult:
     should_query: bool = False
     display: str = "system"  # "skip" | "system" | "user" | "assistant"
     meta_messages: list[str] = field(default_factory=list)
-    # F-122-F: propagated from InteractiveOutcome.scrollable — surfaces that
+    # propagated from InteractiveOutcome.scrollable — surfaces that
     # recognise scrollable rendering (currently: REPL) branch off their
     # normal text path; others ignore the flag and print ``text`` as usual.
     scrollable: bool = False
@@ -322,7 +344,7 @@ class CommandEngine:
             should_query=outcome.should_query,
             display=outcome.display,
             meta_messages=list(outcome.meta_messages),
-            # F-122-F: thread the scrollable hint onto the result so
+            # thread the scrollable hint onto the result so
             # surface adapters (REPL _handle_command_result) can branch
             # into a keyboard-scrolled view instead of a flat print.
             scrollable=outcome.scrollable,

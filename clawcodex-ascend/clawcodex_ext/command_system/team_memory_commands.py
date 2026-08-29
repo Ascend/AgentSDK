@@ -1,20 +1,42 @@
-"""F-93 TeamMem — ``/team memory`` debug command family (P93-F).
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
+"""TeamMem — ``/team memory`` debug command family (P93-F).
 
 Human-facing CLI for inspecting and mutating team shared memory. The
 agent uses the :class:`TeamMemoryTool`; this command is for developers
 debugging the store live.
 
-Subcommands (F-93 §1.9)::
+Subcommands::
 
-    /team memory status
-    /team memory recall "deployment checklist"
-    /team memory remember --tag build "Run stability gate before commit."
-    /team memory list --tag review
-    /team memory compact
-    /team memory delete <entry_id> [reason]
+ /team memory status
+ /team memory recall "deployment checklist"
+ /team memory remember --tag build "Run stability gate before commit."
+ /team memory list --tag review
+ /team memory compact
+ /team memory delete <entry_id> [reason]
 
 The command is a :class:`LocalCommand` (no UI surface needed — all
-output is plain text). It is gated by ``is_team_memory_enabled()`` via
+output is plain text). It is gated by ``is_team_memory_enabled`` via
 ``is_enabled`` so it disappears from ``/help`` when team memory is off.
 """
 
@@ -310,7 +332,7 @@ class TeamMemoryCommand(LocalCommand):
 
 TEAM_MEMORY_COMMAND = TeamMemoryCommand(
     name="team memory",
-    description="Inspect and mutate the team's shared memory (F-93).",
+    description="Inspect and mutate the team's shared memory.",
     argument_hint="[status|recall|remember|list|delete|compact] ...",
     supports_non_interactive=True,
     is_enabled=is_team_memory_enabled,

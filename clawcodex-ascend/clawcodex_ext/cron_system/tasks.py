@@ -1,3 +1,25 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 """File-backed Cron task storage."""
 
 from __future__ import annotations
@@ -24,7 +46,7 @@ from .models import (
 from .parser import parse_cron_expression
 
 
-# F-22-H: mtime-based incremental read cache
+# mtime-based incremental read cache
 # Entry shape: (cached_at_monotonic, cached_file_mtime, tasks).
 # Both timestamps must be tracked separately: the monotonic value drives
 # the TTL gate (clock-independent of file-system mtime changes); the file
@@ -83,7 +105,7 @@ def read_cron_tasks(workspace_root: Path) -> list[CronTask]:
 
 
 def read_cron_tasks_cached(workspace_root: Path) -> list[CronTask]:
-    """F-22-H: mtime-based incremental read of durable cron tasks.
+    """Mtime-based incremental read of durable cron tasks.
 
     Skips full file re-read when either:
 
@@ -182,7 +204,7 @@ def add_cron_task(
     jitter: CronJitterConfig | None = None,
     created_at: int | None = None,
     session_store: MutableMapping[str, CronTask | dict] | None = None,
-    agent_id: str | None = None,  # F-22-F: agent ownership
+    agent_id: str | None = None,  # agent ownership
 ) -> CronTask:
     fields = parse_cron_expression(cron)
     if fields is None:
@@ -246,7 +268,7 @@ def write_permanent_task_if_missing(
     created_at: int | None = None,
     task_id: str | None = None,
 ) -> tuple[CronTask, bool]:
-    """F-22-G4 installer entry point.
+    """Installer entry point.
 
     Idempotent: writes the task only if no existing task matches the
     ``cron`` expression AND ``prompt`` (case-insensitive trimmed match).
@@ -495,7 +517,7 @@ def prune_expired_recurring_tasks(
 ) -> list[CronTask]:
     """Remove recurring tasks past their expiry.
 
-    ``max_age_ms`` (F-22-G2) lets the scheduler pass a live config value
+    ``max_age_ms`` lets the scheduler pass a live config value
     so an operator tightening ``recurringMaxAgeMs`` mid-session prunes
     stale tasks immediately. When None, the per-task ``expires_at`` is
     used (the value baked at creation time). ``max_age_ms == 0`` disables
@@ -539,7 +561,7 @@ def prune_expired_recurring_tasks(
 
     with acquire_cron_storage_lock(workspace_root, f"prune-{uuid.uuid4().hex}"):
         tasks = read_cron_tasks(workspace_root)
-        # F-22-G4: permanent tasks are exempt from auto-expiry. The
+        # permanent tasks are exempt from auto-expiry. The
         # assistant-mode installer writes them directly; they must survive
         # restart loops (write_if_missing skips existing files, so a
         # deleted permanent task cannot be recreated).
@@ -556,7 +578,7 @@ def cleanup_orphaned_tasks(
     *,
     session_store: MutableMapping[str, CronTask | dict] | None = None,
 ) -> list[CronTask]:
-    """F-22-F-5: Find and mark tasks whose owning agent is no longer active.
+    """Find and mark tasks whose owning agent is no longer active.
 
     Tasks with ``agent_id`` not in ``active_agents`` are returned as
     orphaned. The caller decides whether to delete them (default behaviour:

@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+# pylint: disable=too-many-lines
+
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Clawd Codex Team
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -19,10 +23,6 @@
 # -------------------------------------------------------------------------
 
 """Publish or verify the immutable repository pin created at audit start."""
-
-# This bundled executable is intentionally self-contained so the skill can copy
-# and run it without depending on ClawCodex package internals.
-# pylint: disable=too-many-lines
 
 from __future__ import annotations
 
@@ -594,7 +594,7 @@ def _write_json_exclusive(path: Path, value: dict[str, Any]) -> None:
         try:
             path.unlink()
         except OSError:
-            pass
+            pass  # Best-effort operation failed; keep the surrounding fallback.
         raise
 
 

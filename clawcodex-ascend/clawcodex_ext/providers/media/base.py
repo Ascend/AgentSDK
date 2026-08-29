@@ -1,27 +1,30 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 """Abstract base classes for media generation providers.
 
-Media providers are **decoupled from the chat provider hierarchy**
-(:class:`~clawcodex_ext.providers.base.BaseProvider`).  They serve a
-fundamentally different purpose 鈥?generating images, videos, and other
-media 鈥?and have a different API surface (task creation, polling,
-result retrieval).
-
-Architecture::
-
-    BaseProvider (chat)              MediaProvider (media generation)
-        鈹溾攢鈹€ AnthropicProvider            鈹溾攢鈹€ ImageProvider
-        鈹溾攢鈹€ OpenAIProvider               鈹?    鈹溾攢鈹€ AgnesImageProvider
-        鈹溾攢鈹€ GeminiProvider               鈹?    鈹溾攢鈹€ (future: DalleProvider)
-        鈹斺攢鈹€ ...                          鈹?    鈹斺攢鈹€ (future: StableDiffusionProvider)
-                                         鈹斺攢鈹€ VideoProvider
-                                               鈹溾攢鈹€ AgnesVideoProvider
-                                               鈹溾攢鈹€ (future: RunwayVideoProvider)
-                                               鈹斺攢鈹€ (future: PikaVideoProvider)
-
-Media providers are registered via :class:`MediaProviderRegistry` (see
-:mod:`clawcodex_ext.providers.media.registry`), *not* via
-:func:`~clawcodex_ext.providers.factory.register_provider` which is
-reserved for chat providers.
+Media providers are independent of the chat provider hierarchy and expose
+task creation, polling, and result retrieval APIs. They register through
+``MediaProviderRegistry`` rather than the chat-provider factory.
 """
 
 from __future__ import annotations
@@ -32,7 +35,7 @@ from typing import Any
 
 
 # ---------------------------------------------------------------------------
-# Result / status dataclasses 鈥?shared across all media providers
+# Result and status dataclasses shared by all media providers
 # ---------------------------------------------------------------------------
 
 
@@ -72,7 +75,7 @@ class VideoStatus:
     #: Current status string (``"queued"``, ``"processing"``,
     #: ``"completed"``, ``"failed"``).
     status: str
-    #: Optional progress indicator (0.0 鈥?1.0).
+    #: Optional progress indicator from 0.0 to 1.0.
     progress: float | None = None
     #: Error message when status is ``"failed"`.
     error: str | None = None
@@ -160,9 +163,9 @@ class VideoProvider(MediaProvider):
 
     Video generation is inherently asynchronous.  The typical flow is:
 
-    1. :meth:`generate_video` 鈥?create a task, return a :class:`VideoTask`.
-    2. :meth:`get_video_status` 鈥?poll for progress.
-    3. :meth:`get_video_result` 鈥?retrieve the completed video URL.
+    1. :meth:`generate_video` creates and returns a :class:`VideoTask`.
+    2. :meth:`get_video_status` polls for progress.
+    3. :meth:`get_video_result` retrieves the completed video URL.
 
     The :meth:`generate_video` *may* return a completed task
     (``status == "completed"``) if the provider is fast enough, but

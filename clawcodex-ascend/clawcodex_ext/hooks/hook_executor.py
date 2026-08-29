@@ -1,3 +1,27 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
+# pylint: disable=too-many-lines
+
 """Hook execution engine — mirrors TypeScript utils/hooks.ts.
 
 Core hook execution with shell command protocol, JSON stdin/stdout,
@@ -10,7 +34,7 @@ Exit code semantics:
 
 Security invariant: hooks cannot lower security level.
 Hook 'allow' does not bypass settings deny/ask rules.
-"""  # pylint: disable=too-many-lines
+"""
 
 from __future__ import annotations
 
@@ -257,7 +281,7 @@ def _matchable_values_for_tool(tool_name: str, tool_input: dict[str, Any]) -> li
             if contains_unquoted_chaining(cmd):
                 cands.extend(split_chained_command(cmd) or [])
         except Exception:  # noqa: BLE001  # nosec B110
-            pass
+            pass  # Command splitting is optional; retain the original command as the match candidate.
         return cands
     if tool_name in _IF_FILE_PATH_TOOLS:
         val = tool_input.get("file_path") or tool_input.get("notebook_path")
@@ -498,7 +522,7 @@ async def _execute_command_hook(
             try:
                 process.kill()
             except Exception:  # nosec B110
-                pass
+                pass  # Cleanup is best-effort and must not replace the primary operation result.
             duration_ms = int((time.monotonic() - start_time) * 1000)
             return HookResult(
                 blocking_error=f"Hook timed out after {duration_ms}ms",

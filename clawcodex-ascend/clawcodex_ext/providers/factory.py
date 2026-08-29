@@ -1,5 +1,27 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 # pylint: disable=cyclic-import
-"""Provider factory — 二开 provider construction and registration.
+"""Extension provider construction and registration.
 
 Moved from ``src/providers/__init__.py`` so that the upstream package
 remains a clean registry of built-in providers.  All call sites that
@@ -11,7 +33,7 @@ Architecture::
 
     src/providers/__init__.py                       ← upstream built-in registry (get_provider_class, PROVIDER_INFO)
         ↑ import                                    ← _EXTRA_PROVIDER_CLASSES dict lives here
-    clawcodex_ext/providers/factory.py              ← this module (二开 factory + registration)
+    clawcodex_ext/providers/factory.py              ← extension factory and registration
         ↑ import
     clawcodex_ext/providers/_litellm_adapter.py     ← LiteLLM fallback provider (canonical)
     extensions/providers_ext/                       ← deprecated re-export shim (backward compat)
@@ -27,12 +49,12 @@ if TYPE_CHECKING:
     from src.providers import ProviderInfo
 
 
-# __getattr__ / __dir__ 模式见下。
-# ``_EXTRA_PROVIDER_CLASSES``、``PROVIDER_INFO``、``get_provider_class``
-# 由各函数在调用时惰性导入，避免
-# ``src.providers``（通过 openai_compatible facade）→
+# See the ``__getattr__`` and ``__dir__`` implementation below.
+# ``_EXTRA_PROVIDER_CLASSES``, ``PROVIDER_INFO``, and ``get_provider_class``
+# are imported lazily by callers to avoid this cycle:
+# ``src.providers`` (through the openai_compatible facade) →
 # ``clawcodex_ext.providers`` → ``factory`` →
-# ``from src.providers import _EXTRA_PROVIDER_CLASSES`` 循环导入。
+# ``from src.providers import _EXTRA_PROVIDER_CLASSES``.
 
 
 # ---------------------------------------------------------------------------
@@ -97,7 +119,7 @@ def register_provider(name: str, info: "ProviderInfo", cls: type | callable) -> 
     Idempotent: calling twice with the same *name* is a no-op
     (first registration wins).
     """
-    from src.providers import _EXTRA_PROVIDER_CLASSES
+    from src.providers import EXTRA_PROVIDER_CLASSES as _EXTRA_PROVIDER_CLASSES
 
     register_provider_info(name, info)
     if name not in _EXTRA_PROVIDER_CLASSES:
@@ -135,7 +157,7 @@ __all__ = [
 ]
 
 
-# F-99 fix (defense-in-depth): trigger the cancel-latency provider
+# fix (defense-in-depth): trigger the cancel-latency provider
 # registration as a side-effect of importing this module. We place the
 # import at the bottom (after ``register_provider`` /
 # ``register_provider_info`` are defined) so that

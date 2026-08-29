@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
-#  This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
 # Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
-#           http://license.coscl.org.cn/MulanPSL2
+#          http://license.coscl.org.cn/MulanPSL2
 #
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
@@ -47,6 +50,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
 import signal as _signal
 import sys
@@ -94,6 +98,7 @@ from src.tool_system.context import ToolContext
 from src.tool_system.defaults import build_default_registry
 from src.utils.abort_controller import AbortController, AbortError
 
+_LOGGER = logging.getLogger(__name__)
 
 OUTPUT_FORMATS = ("text", "json", "stream-json")
 INPUT_FORMATS = ("text", "stream-json")
@@ -167,7 +172,7 @@ class HeadlessOptions:
     # tokens — because nothing outside can reach the internal controller.
     abort_controller: Any | None = None
 
-    # F-125: resume / fork support. Three pieces:
+    # resume / fork support. Three pieces:
     # * ``resume_session_id`` — load history from this session and
     #   reuse its session_id (the next ``--resume <sid>`` invocation
     #   sees the new messages too).
@@ -187,7 +192,7 @@ class HeadlessOptions:
     # ``persist_on_exit`` defaults to True so headless writes the
     # accumulated transcript back to disk at the end of the run — the
     # minimum bar for ``--resume`` to actually accumulate history
-    # across runs (F-125 Phase 2 / C6). Set to False in tests that
+    # across runs. Set to False in tests that
     # want to exercise the in-memory path only.
     persist_on_exit: bool = True
 
@@ -197,7 +202,7 @@ class HeadlessOptions:
     record_height: int | None = None
     capture: Any | None = None
 
-    # F-129 Phase 4: agent identity for pending_messages drain.
+    # agent identity for pending_messages drain.
     # When set, ToolContext gets this agent_id + runtime_tasks so
     # _drain_pending_user_messages fires at ToolResult boundaries.
     agent_id: str | None = None
@@ -234,8 +239,8 @@ def run_headless(options: HeadlessOptions) -> int:
 def _run_headless_core(options: HeadlessOptions) -> int:
     """Original ``run_headless`` body, split so recording can wrap it."""
 
-    # F-108 P108-D: start the opt-in freeze-detection watchdog when the
-    # env var is set. Headless runs are the primary failure mode F-108
+    # start the opt-in freeze-detection watchdog when the
+    # env var is set. Headless runs are the primary failure-mode
     # targets (provider streams that stop emitting chunks, tools that
     # hang forever). Placed at the top of the entry point so direct API
     # callers (e.g. ``extensions.api.query.QueryRunner`` via
@@ -246,7 +251,7 @@ def _run_headless_core(options: HeadlessOptions) -> int:
 
         FreezeDetector.maybe_start_from_env()
     except Exception:  # nosec B110
-        pass
+        pass  # Freeze diagnostics are optional and must not block headless startup.
 
     if options.output_format not in OUTPUT_FORMATS:
         cli_error(f"error: --output-format must be one of {', '.join(OUTPUT_FORMATS)}", 2)
@@ -306,7 +311,7 @@ def _run_headless_core(options: HeadlessOptions) -> int:
     else:
         model = options.model or getattr(provider, "model", None)
 
-    # F-125 Phase 1+2: session assembly. Three input sources, in priority
+    # session assembly. Three input sources, in priority
     # order:
     #   1. ``options.external_session`` — the canonical headless path
     #      via ``RuntimeContext.build()`` already produced a session
@@ -317,7 +322,7 @@ def _run_headless_core(options: HeadlessOptions) -> int:
     #      for legacy callers (e.g. ``run_print_mode`` in
     #      ``clawcodex_ext/cli/runners.py``) that bypass RuntimeContext.
     #      The session_id is reused so subsequent ``--resume`` sees
-    #      the new messages (closes C2 + C6 from f-125 §4.1).
+    #      the newly appended messages.
     #   3. Fresh ``Session.create()`` — unchanged behaviour.
     if options.external_session is not None:
         session = options.external_session
@@ -337,7 +342,7 @@ def _run_headless_core(options: HeadlessOptions) -> int:
     else:
         session = Session.create(provider_name, getattr(provider, "model", model or ""))
 
-    # F-125 Phase 1: ``resume_session_at`` truncation. Run after session
+    # ``resume_session_at`` truncation. Run after session
     # assembly so it applies uniformly to both ``external_session`` and
     # direct ``Session.resume()`` paths. ``fork_session_id`` always
     # mints a fresh ID (RuntimeContext handles that — this branch only
@@ -373,7 +378,7 @@ def _run_headless_core(options: HeadlessOptions) -> int:
                     2,
                 )
 
-    # F-97: best-effort session_start. The session id is the same one
+    # best-effort session_start. The session id is the same one
     # the conversation persists under so the per-day aggregator can
     # cross-link events to a known session. Failures are swallowed.
     try:
@@ -386,9 +391,9 @@ def _run_headless_core(options: HeadlessOptions) -> int:
             is_non_interactive=True,
         )
     except Exception:  # nosec B110
-        pass
+        pass  # Telemetry is optional and must not affect command execution.
 
-    # F-125 Phase 3: resume-time checks (C8 / C11 / R8). All best-effort
+    # resume-time checks (C8 / C11 / R8). All best-effort
     # and non-fatal — a missing metadata file or unreadable transcript
     # is silently skipped. Warnings go to stderr so structured stdout
     # output stays clean. Only fires when a session was actually
@@ -408,7 +413,7 @@ def _run_headless_core(options: HeadlessOptions) -> int:
     if deny is not None:
         _filter_registry(tool_registry, keep=lambda n: n.lower() not in deny)
 
-    # F-125 C5: warn when ``--allowed-tools`` / ``--disallowed-tools``
+    # warn when ``--allowed-tools`` / ``--disallowed-tools``
     # silently strips a tool that the resumed conversation's history
     # already references. Without this warning the LLM sees a
     # ``tool_use`` block in context but the registry has no matching
@@ -448,18 +453,14 @@ def _run_headless_core(options: HeadlessOptions) -> int:
                     kept_by_name[alias.lower()] = t
             tool_registry._tools = kept_tools
             tool_registry._by_name = kept_by_name
-            import logging as _logging
-
-            _logging.getLogger(__name__).info(
+            _LOGGER.info(
                 "Coordinator mode: tool registry filtered to %d tools: %s",
                 len(kept_tools),
                 sorted(allowed_names),
             )
     except Exception as _exc:
         # Never block the headless run on coordinator-mode setup failure.
-        import logging as _logging
-
-        _logging.getLogger(__name__).warning(
+        _LOGGER.warning(
             "Coordinator-mode tool filter setup failed (continuing without): %s",
             _exc,
         )
@@ -513,7 +514,7 @@ def _run_headless_core(options: HeadlessOptions) -> int:
         agent_type=getattr(options.startup_agent, "agent_type", None),
         bundle_context=getattr(options, "bundle_context", None),
     )
-    # F-129 Phase 4: wire agent_id + runtime_tasks so the
+    # wire agent_id + runtime_tasks so the
     # pending_messages drain fires for the orchestrator's top-level
     # agent (enables real-time inject at ToolResult boundaries).
     if getattr(options, "agent_id", None):
@@ -552,17 +553,13 @@ def _run_headless_core(options: HeadlessOptions) -> int:
             _team_data = json.loads(_team_file.read_text(encoding="utf-8"))
             _team_data["sender_name"] = _agent_name
             tool_context.team = _team_data
-            import logging as _log
-
-            _log.getLogger(__name__).info(
+            _LOGGER.info(
                 "MVP peer multi-agent: tool_context.team set (team=%s, sender_name=%s)",
                 _team_data.get("team_name"),
                 _agent_name,
             )
     except Exception as _exc:
-        import logging as _log
-
-        _log.getLogger(__name__).warning(
+        _LOGGER.warning(
             "Failed to auto-wire team context (non-fatal): %s",
             _exc,
         )
@@ -574,7 +571,7 @@ def _run_headless_core(options: HeadlessOptions) -> int:
 
         init_builtin_plugins()
     except Exception:  # noqa: BLE001  # nosec B110
-        pass
+        pass  # This optional feature is unavailable; continue with the core command path.
 
     from src.outputStyles import output_style_from_settings
 
@@ -595,9 +592,7 @@ def _run_headless_core(options: HeadlessOptions) -> int:
 
         tool_context.workspace_trusted = check_trust_accepted(workspace_root)
     except Exception:  # noqa: BLE001
-        import logging as _logging
-
-        _logging.getLogger(__name__).debug("headless trust check failed", exc_info=True)
+        _LOGGER.debug("headless trust check failed", exc_info=True)
 
     try:
         from src.services.compact.autocompact import AutoCompactTracking
@@ -629,7 +624,7 @@ def _run_headless_core(options: HeadlessOptions) -> int:
     # AskUserQuestion has no terminal to read from in headless mode.
     tool_context.ask_user = _noop_ask_user
 
-    # F-22: wire persistent cron scheduler to the headless tool context.
+    # wire persistent cron scheduler to the headless tool context.
     # is_loading polls the in-agent-loop flag so cron fires are deferred
     # while a query is in flight (busy gate), matching REPL/TUI behavior.
     attach_cron_runtime(
@@ -638,7 +633,7 @@ def _run_headless_core(options: HeadlessOptions) -> int:
         is_loading=lambda: in_agent_loop.value,
     )
 
-    # F-125 C9 / R9: seed ``read_file_fingerprints`` from the resumed
+    # seed ``read_file_fingerprints`` from the resumed
     # conversation's historical Read tool_use blocks. Without this,
     # Edit/Write/NotebookEdit staleness checks (``was_file_read_and_unchanged``)
     # reject edits with "file must be read first" even though the model
@@ -662,10 +657,8 @@ def _run_headless_core(options: HeadlessOptions) -> int:
                 workspace_root=workspace_root,
             )
         except Exception:
-            import logging as _log
-
-            _log.getLogger(__name__).debug(
-                "F-125: read-file-state seeding failed (non-fatal)",
+            _LOGGER.debug(
+                "read-file-state seeding failed (non-fatal)",
                 exc_info=True,
             )
 
@@ -719,7 +712,7 @@ def _run_headless_core(options: HeadlessOptions) -> int:
     # signal state to embedders.
     restore_sigint = _install_sigint_handler(abort_controller, in_agent_loop, stderr)
     try:
-        # F-22: track active cron tasks for run claim/finalize lifecycle.
+        # track active cron tasks for run claim/finalize lifecycle.
         active_tasks: dict[str, str] = {}
 
         def _run_cron_prompt(prompt: str, task_id: str, run_id: str) -> bool:
@@ -761,11 +754,11 @@ def _run_headless_core(options: HeadlessOptions) -> int:
 
         try:
             for user_msg in inputs:
-                # F-22: drain any cron prompts that fired while waiting for
+                # drain any cron prompts that fired while waiting for
                 # the next input and run them before the user prompt.
                 _process_cron_outbox(tool_context, active_tasks, _run_cron_prompt)
 
-                # F-89: expand @agent-name mentions before sending to LLM.
+                # expand @agent-name mentions before sending to LLM.
                 text = user_msg.text
                 command_tokens = text.strip().split(maxsplit=1)
                 is_goal_command_input = bool(command_tokens and command_tokens[0].lower() == "/goal")
@@ -977,7 +970,7 @@ def _run_headless_core(options: HeadlessOptions) -> int:
                             else:
                                 _skip_agent_loop = True
 
-                        # F-120: ``/dashboard`` is an InteractiveCommand, but
+                        # ``/dashboard`` is an InteractiveCommand, but
                         # it has no UI dependencies (pure read-only text
                         # rendering). ``execute_command_sync`` would reject it,
                         # so we special-case it here and emit the rendered
@@ -1019,7 +1012,7 @@ def _run_headless_core(options: HeadlessOptions) -> int:
                                     aggregate_text.append(dash_text)
                             _skip_agent_loop = True
 
-                        # F-122-G: ``/btw`` is an InteractiveCommand, but it
+                        # ``/btw`` is an InteractiveCommand, but it
                         # has no UI dependencies (pure read-only single-turn
                         # query). ``execute_command_sync`` would reject it as
                         # "not implemented for sync execution", so we special
@@ -1158,7 +1151,7 @@ def _run_headless_core(options: HeadlessOptions) -> int:
                     if isinstance(failed_usage, dict):
                         for key, value in failed_usage.items():
                             usage_total[key] = usage_total.get(key, 0) + int(value or 0)
-                    # F-97: best-effort error event with stable
+                    # best-effort error event with stable
                     # fingerprint. The session_id lets the aggregator
                     # correlate the crash with the same conversation
                     # that emitted the assistant / tool events.
@@ -1167,7 +1160,7 @@ def _run_headless_core(options: HeadlessOptions) -> int:
 
                         record_error(session_id=session.session_id, exc=exc)
                     except Exception:  # nosec B110
-                        pass
+                        pass  # Telemetry is optional and must not affect command execution.
                     if writer is not None:
                         writer.write(
                             ResultEvent(
@@ -1195,10 +1188,10 @@ def _run_headless_core(options: HeadlessOptions) -> int:
                     writer.write(AssistantEvent(text=result.response_text))
                 aggregate_text.append(result.response_text)
 
-                # F-22: drain cron prompts that fired while the agent was
+                # drain cron prompts that fired while the agent was
                 # busy with the user turn and run them before the next input.
                 _process_cron_outbox(tool_context, active_tasks, _run_cron_prompt)
-            # F-22: one last drain after the input stream ends so cron
+            # one last drain after the input stream ends so cron
             # prompts that fired during the final turn are not dropped.
             _process_cron_outbox(tool_context, active_tasks, _run_cron_prompt)
         except (AbortError, KeyboardInterrupt) as exc:
@@ -1213,7 +1206,7 @@ def _run_headless_core(options: HeadlessOptions) -> int:
             # signal, and pairing ``is_error=False`` with a populated
             # ``error`` field would confuse consumers.
             exit_code = 130
-            # F-97: best-effort cancellation record. Distinguishes
+            # best-effort cancellation record. Distinguishes
             # user cancellation (KeyboardInterrupt / AbortError) from
             # a real provider/tool crash by passing the exception
             # instance — the recorder's fingerprint path picks up
@@ -1225,7 +1218,7 @@ def _run_headless_core(options: HeadlessOptions) -> int:
 
                 record_error(session_id=session.session_id, exc=exc)
             except Exception:  # nosec B110
-                pass
+                pass  # Telemetry is optional and must not affect command execution.
             if writer is not None:
                 writer.write(
                     ResultEvent(
@@ -1246,8 +1239,8 @@ def _run_headless_core(options: HeadlessOptions) -> int:
         try:
             tool_context.task_manager.shutdown(timeout=2.0)
         except Exception:  # nosec B110
-            pass
-        # F-22: stop the cron scheduler background thread. The scheduler
+            pass  # Cleanup is best-effort and must not replace the primary operation result.
+        # stop the cron scheduler background thread. The scheduler
         # registers its own atexit hooks, but explicit stop prevents the
         # thread from outliving the headless run in long-lived embedders.
         scheduler = getattr(tool_context, "cron_scheduler", None)
@@ -1255,12 +1248,12 @@ def _run_headless_core(options: HeadlessOptions) -> int:
             try:
                 scheduler.stop()
             except Exception:  # nosec B110
-                pass
-        # F-125 Phase 2: persist accumulated transcript at end-of-run so
+                pass  # Cleanup is best-effort and must not replace the primary operation result.
+        # persist accumulated transcript at end-of-run so
         # the next ``--resume <sid>`` sees the messages we just generated.
         # Without this, headless resume is "load history, run once,
-        # discard" — which is exactly the C6 认知陷阱 described in
-        # f-125 §4.2. ``Session.save()`` writes both the transcript
+        # discard" — the resume-history trap described in
+        # ``Session.save`` writes both the transcript
         # (via ``save_to_session_storage``) AND the trailing
         # ``session_snapshot`` line (cost block for next resume).
         # Best-effort: a save failure must not mask the user's exit code.
@@ -1268,10 +1261,8 @@ def _run_headless_core(options: HeadlessOptions) -> int:
             try:
                 session.save()
             except Exception:
-                import logging
-
-                logging.getLogger(__name__).debug(
-                    "F-125: failed to persist headless session transcript",
+                _LOGGER.debug(
+                    "failed to persist headless session transcript",
                     exc_info=True,
                 )
 
@@ -1334,7 +1325,7 @@ def _run_headless_core(options: HeadlessOptions) -> int:
             )
         )
 
-    # F-97: best-effort session_end + command_run. The session id is
+    # best-effort session_end + command_run. The session id is
     # the same one the conversation persists under so the per-day
     # aggregator can cross-link events to a known session. Failures
     # are swallowed — telemetry must never block the user's exit.
@@ -1356,7 +1347,7 @@ def _run_headless_core(options: HeadlessOptions) -> int:
             exit_status=exit_code,
         )
     except Exception:  # nosec B110
-        pass
+        pass  # Telemetry is optional and must not affect command execution.
 
     return exit_code
 
@@ -1579,10 +1570,8 @@ def _try_run_provider_free_goal_summary(
         try:
             session.save()
         except Exception:
-            import logging
-
-            logging.getLogger(__name__).debug(
-                "F-125: failed to persist provider-free headless command session",
+            _LOGGER.debug(
+                "failed to persist provider-free headless command session",
                 exc_info=True,
             )
     return 0
@@ -1750,7 +1739,7 @@ def _install_sigint_handler(
         try:
             _signal.signal(_signal.SIGINT, previous)
         except (ValueError, OSError):
-            pass
+            pass  # Signal restoration is best-effort during teardown.
 
     return _restore
 
@@ -1781,8 +1770,12 @@ def _filter_registry(registry, *, keep) -> None:
             if not keep(name):
                 try:
                     remover(name)
-                except Exception:  # nosec B110
-                    pass
+                except Exception as exc:  # nosec B110
+                    _LOGGER.warning(
+                        "Failed to remove filtered tool %s (%s)",
+                        name,
+                        type(exc).__name__,
+                    )
         return
 
     # Fallback for legacy/opaque test registries with no removal API. Touch
@@ -1814,7 +1807,7 @@ def _auto_deny_permission_handler(stderr: IO[str]):
         try:
             stderr.flush()
         except Exception:  # nosec B110
-            pass
+            pass  # Cleanup is best-effort and must not replace the primary operation result.
         return PermissionAskReply(behavior="deny")
 
     return handler
@@ -1843,7 +1836,7 @@ def _noop_ask_user(questions):  # type: ignore[override]
 
 
 # ---------------------------------------------------------------------------
-# F-120: /dashboard in headless / --print mode
+# /dashboard in headless / --print mode
 # ---------------------------------------------------------------------------
 # /dashboard is an ``InteractiveCommand`` so the REPL can render long snapshots
 # in a keyboard-scrolled viewer. It does not need a UI surface, so in headless
@@ -1884,7 +1877,7 @@ def _run_dashboard_headless(
 
 
 # ---------------------------------------------------------------------------
-# F-122-G: /btw side-question in headless / --print mode
+# /btw side-question in headless / --print mode
 # ---------------------------------------------------------------------------
 # /btw is an ``InteractiveCommand`` (it drives a UI surface for scrollable
 # viewing in the REPL). ``execute_command_sync`` rejects anything that
@@ -1892,7 +1885,7 @@ def _run_dashboard_headless(
 # dispatcher can't route it through the standard path. We special-case
 # ``btw`` here: it is the only InteractiveCommand that makes sense in a
 # non-interactive flow (it's a pure read-only single-turn query that does
-# not need a UI surface), and the planning doc F-122-G calls out exactly
+# not need a UI surface), and the planning doc calls out exactly
 # this degradation — "non-interactive mode /btw falls back to synchronous
 # stdout print".
 #
@@ -1905,7 +1898,7 @@ def _run_dashboard_headless(
 #     a normal CLI error stream.
 #
 # The function is intentionally side-effect-free on the *session* — no
-# messages are appended to ``conversation`` (matches the F-122 isolation
+# messages are appended to ``conversation`` (matches the isolation
 # invariant: a side question must never leak into the main transcript).
 
 
@@ -2052,7 +2045,7 @@ def _run_one_agent_loop(
             try:
                 _ext_cb(event)
             except Exception:  # nosec B110
-                pass
+                pass  # The optional callback is isolated so it cannot interrupt the owning event loop.
 
     # F-REC-H: bridge tool events and text chunks to the asciicast recorder.
     _recorder = options.capture
@@ -2064,7 +2057,7 @@ def _run_one_agent_loop(
             try:
                 _recorder.emit_tool_event(event)
             except Exception:  # nosec B110
-                pass
+                pass  # The optional callback is isolated so it cannot interrupt the owning event loop.
 
         _orig_text_chunk = on_text_chunk
 
@@ -2074,7 +2067,7 @@ def _run_one_agent_loop(
             try:
                 _recorder.emit_text(chunk)
             except Exception:  # nosec B110
-                pass
+                pass  # This side-channel notification is best-effort and must not alter the primary result.
 
         on_text_chunk = _rec_text_chunk
 
@@ -2160,9 +2153,7 @@ def _run_one_agent_loop(
                         )
                     )
         except Exception:
-            import logging
-
-            logging.getLogger(__name__).exception(
+            _LOGGER.exception(
                 "Failed to persist message into conversation: role=%s",
                 getattr(msg, "role", "?"),
             )
@@ -2184,9 +2175,7 @@ def _run_one_agent_loop(
         try:
             save_transcript()
         except Exception:
-            import logging
-
-            logging.getLogger(__name__).exception("Failed to persist headless input before agent loop")
+            _LOGGER.exception("Failed to persist headless input before agent loop")
 
     in_agent_loop.value = True
     try:
@@ -2240,8 +2229,8 @@ def _run_one_agent_loop(
 def _wrap_cron_prompt(prompt: str, task_id: str, run_id: str) -> str:
     """Wrap a cron prompt with context so the LLM knows it's automated.
 
-    F-22-G-2: kept as the headless-side prompt wrapper passed to
-    :class:`CronDispatchBridge`. Mirrors the previous module-level
+    This is the headless-side prompt wrapper passed to
+    :class:`CronDispatchBridge`. It mirrors the previous module-level
     ``_wrap_cron_prompt(prompt, *, task_id=...)`` signature by
     accepting positional args in the new (prompt, task_id, run_id)
     order expected by the bridge.
@@ -2264,8 +2253,8 @@ def _drain_cron_outbox(
 ) -> list[tuple[str, str, str]]:
     """Drain cron_prompt events from ``tool_context.outbox``.
 
-    F-22-G-2: delegates the typed-or-dict parsing and prompt
-    wrapping to :class:`CronDispatchBridge`. The accumulation guard
+    This delegates the typed-or-dict parsing and prompt wrapping to
+    :class:`CronDispatchBridge`. The accumulation guard
     (duplicate task_id in ``active_tasks`` → cancel run) stays here
     because it depends on the per-run-loop closure dictionary, not
     on the bridge.
@@ -2291,7 +2280,7 @@ def _drain_cron_outbox(
             try:
                 finalize_cron_run(tool_context.workspace_root, event.run_id, "cancelled")
             except Exception:  # nosec B110
-                pass
+                pass  # This side-channel notification is best-effort and must not alter the primary result.
             continue
         if event.task_id and event.run_id:
             active_tasks[event.task_id] = event.run_id
@@ -2340,7 +2329,7 @@ def _finalize_cron_task(
     try:
         finalize_cron_run(workspace_root, run_id, status, error=error)  # type: ignore[arg-type]
     except Exception:  # nosec B110
-        pass
+        pass  # This side-channel notification is best-effort and must not alter the primary result.
 
 
 def _process_cron_outbox(
@@ -2385,7 +2374,7 @@ def _run_resume_checks(
     provider: Any,
     stderr: IO[str],
 ) -> None:
-    """F-125 Phase 3: run resume-time checks (C8 / C11 / R8).
+    """Run resume-time checks (C8 / C11 / R8).
 
     All checks are best-effort and non-fatal — failures are swallowed
     so a corrupt transcript or missing metadata file never blocks the
@@ -2439,10 +2428,8 @@ def _run_resume_checks(
                 agent_name=agent_name,
             )
     except Exception:
-        import logging as _log
-
-        _log.getLogger(__name__).debug(
-            "F-125 Phase 3: resume checks failed (non-fatal)",
+        _LOGGER.debug(
+            "resume checks failed (non-fatal)",
             exc_info=True,
         )
 
@@ -2453,7 +2440,7 @@ def _warn_history_tool_conflicts(
     tool_registry: Any,
     stderr: IO[str],
 ) -> None:
-    """F-125 C5: warn when ``--allowed-tools`` strips a tool the resumed
+    """Warn when ``--allowed-tools`` strips a tool the resumed
     history already references.
 
     Only fires when a session was actually resumed (``external_session``
@@ -2507,7 +2494,7 @@ def _warn_history_tool_conflicts(
             file=stderr,
         )
     except Exception:  # nosec B110
-        pass
+        pass  # Warning output is best-effort and must not block startup.
 
 
 def _block_tool_use_name(block: Any) -> str | None:
