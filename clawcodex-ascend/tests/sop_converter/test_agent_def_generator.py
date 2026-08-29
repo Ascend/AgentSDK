@@ -25,7 +25,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from extensions.sop_converter.skill_grouper import GroupStrategy, SkillSpec, group_source_components
-from extensions.sop_converter.source_parser import SourceCodeParser
+from extensions.sop_converter.core.source_parser import SourceCodeParser
 from extensions.sop_converter.workflow_mode.capability import (
     StageCapabilityMapper,
     ensure_arc_stage_skills,
@@ -44,6 +44,41 @@ FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 
 
 class TestAgentDefinitionGenerator:
+    def _render_stage_agent_with_tools(
+        self,
+        tmp_path: Path,
+        monkeypatch,
+        *,
+        recommended_tools: list[str],
+        fallback_tool_name: str | None = None,
+    ) -> str:
+        path = FIXTURES / "fixture_fwa_project"
+        scan = SourceScanContext.build(path)
+        graph = GenericPipelineExtractor(scan=scan, mode="fwa").extract(path)
+        components = SourceCodeParser(str(path)).parse()
+        skills = group_source_components(components, strategy=GroupStrategy.COMPONENT_GROUP).skills
+        agent_map = StageCapabilityMapper().map(graph, components, skills, scan=scan)
+        stage = graph.stages[0]
+        profile = agent_map.profile_for_stage(stage.id)
+        assert profile is not None
+        profile.recommended_tools = list(recommended_tools)
+
+        from extensions.sop_converter.workflow_mode.generator import agent_def_gen
+
+        monkeypatch.setattr(agent_def_gen, "stage_agent_tool_names", lambda sdk_tools: list(sdk_tools))
+        gen = AgentDefinitionGenerator()
+        gen.generate_stage_agents(
+            graph,
+            agent_map,
+            tmp_path,
+            project_name="fwa-test",
+            fallback_tool_name=fallback_tool_name,
+        )
+
+        stage_agent = agent_map.by_stage_id[stage.id].mapped_agent
+        assert stage_agent is not None
+        return (tmp_path / ".claude" / "agents" / f"{stage_agent}.md").read_text(encoding="utf-8")
+
     def test_generate_stage_agents(self, tmp_path: Path):
         path = FIXTURES / "fixture_fwa_project"
         scan = SourceScanContext.build(path)
@@ -58,6 +93,40 @@ class TestAgentDefinitionGenerator:
         for p in paths:
             assert p.exists()
             assert "Agent:" in p.read_text(encoding="utf-8")
+
+    def test_stage_agent_uses_injected_fallback_tool_name(self, tmp_path: Path, monkeypatch):
+        body = self._render_stage_agent_with_tools(
+            tmp_path,
+            monkeypatch,
+            recommended_tools=[],
+            fallback_tool_name="custom-stage-tool",
+        )
+
+        assert "ToolSearch 找到主工具：`custom-stage-tool`" in body
+        assert "workflow-execute-stage" not in body
+        assert "researchclaw-pipeline-execute-stage" not in body
+
+    def test_stage_agent_prefers_actual_tool_over_fallback(self, tmp_path: Path, monkeypatch):
+        body = self._render_stage_agent_with_tools(
+            tmp_path,
+            monkeypatch,
+            recommended_tools=["actual-stage-tool"],
+            fallback_tool_name="custom-stage-tool",
+        )
+
+        assert "ToolSearch 找到主工具：`actual-stage-tool`" in body
+        assert "custom-stage-tool" not in body
+
+    def test_stage_agent_without_tools_does_not_invent_tool_name(self, tmp_path: Path, monkeypatch):
+        body = self._render_stage_agent_with_tools(
+            tmp_path,
+            monkeypatch,
+            recommended_tools=[],
+        )
+
+        assert "ToolSearch 查找与当前阶段匹配的主工具" in body
+        assert "workflow-execute-stage" not in body
+        assert "researchclaw-pipeline-execute-stage" not in body
 
     def test_control_flow_markdown(self):
         path = FIXTURES / "fixture_fwa_project"
@@ -172,7 +241,7 @@ class TestAgentDefinitionGenerator:
         assert "`normalized.json`" in preprocess
 
     def test_stage_agent_survives_coarse_write(self, tmp_path: Path):
-        """Coarse write_agent must not replace the stage agent markdown."""
+        """Coarse write_agent must not replace stage agent markdown."""
         from extensions.sop_converter.agent_md_writer import AgentMarkdownWriter
 
         path = FIXTURES / "fixture_fwa_project"
