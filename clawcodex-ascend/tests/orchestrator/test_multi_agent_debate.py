@@ -28,6 +28,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from extensions.orchestrator.multi_agent.modes.debate import DebateModeRunner
+from extensions.orchestrator.provider_routing import provider_name
 
 
 def test_debate_exposes_configured_roles() -> None:
@@ -55,15 +56,23 @@ def _session(tmp_path) -> SimpleNamespace:
 
 @pytest.mark.asyncio
 async def test_debate_model_selection_does_not_mutate_shared_config(tmp_path) -> None:
-    agent_config = SimpleNamespace(model="default")
-    calls: list[tuple[str, str, str]] = []
+    agent_config = SimpleNamespace(model="default", provider="deepseek", stage_overrides={})
+    calls: list[tuple[str, str, str, str, str]] = []
 
     class RecordingRunner:
         def __init__(self) -> None:
             self.agent_config = agent_config
 
-        async def run(self, session, workflow, **_hooks) -> None:
-            calls.append((session.run_kind, self.agent_config.model, workflow.agent.model))
+        async def run(self, session, workflow, **hooks) -> None:
+            calls.append(
+                (
+                    session.run_kind,
+                    self.agent_config.model,
+                    workflow.agent.model,
+                    provider_name(hooks["provider_override"]),
+                    hooks["model_override"],
+                )
+            )
             session.status = "completed"
             session.output_text = "done"
 
@@ -80,8 +89,8 @@ async def test_debate_model_selection_does_not_mutate_shared_config(tmp_path) ->
     await runner.run(_session(tmp_path), workflow)
 
     assert calls == [
-        ("debate:proposal", "proposal-model", "proposal-model"),
-        ("debate:judge", "judge-model", "judge-model"),
+        ("debate:proposal", "default", "default", "deepseek", "proposal-model"),
+        ("debate:judge", "default", "default", "deepseek", "judge-model"),
     ]
     assert shared_runner.agent_config is agent_config
     assert workflow.agent.model == "default"

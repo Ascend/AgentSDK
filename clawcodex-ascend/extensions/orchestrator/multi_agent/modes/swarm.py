@@ -62,6 +62,7 @@ from .coordinator import CoordinatorModeRunner
 if TYPE_CHECKING:
     from extensions.orchestrator.agent_runner import AgentRunner, AgentSession
     from extensions.orchestrator.config.schema import WorkflowConfig
+    from extensions.orchestrator.contracts.provider_routing import ProviderRouter
     from extensions.orchestrator.workflow_engine.cost import CostTracker
 
 logger = logging.getLogger(__name__)
@@ -84,12 +85,17 @@ class SwarmModeRunner:
         max_parallel: int = 3,
         max_waves: int = 6,
         cost_tracker: "CostTracker | None" = None,
+        provider_router: "ProviderRouter | None" = None,
     ) -> None:
         self.max_subtasks = max(1, int(max_subtasks))
         self.max_parallel = max(1, int(max_parallel))
         self.max_waves = max(1, int(max_waves))
         self._agent_runner = agent_runner
-        self._coordinator = CoordinatorModeRunner(agent_runner)
+        self._coordinator = CoordinatorModeRunner(
+            agent_runner,
+            provider_router=provider_router,
+            route_stage="swarm",
+        )
         self._decomposer = TaskDecomposer(
             max_subtasks=self.max_subtasks,
             max_parallel=self.max_parallel,

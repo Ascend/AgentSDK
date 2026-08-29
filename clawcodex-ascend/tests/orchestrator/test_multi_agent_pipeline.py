@@ -27,6 +27,7 @@ from types import SimpleNamespace
 import pytest
 
 from extensions.orchestrator.multi_agent.modes.pipeline import PipelineModeRunner
+from extensions.orchestrator.provider_routing import provider_name
 
 
 def test_pipeline_normalizes_stage_overrides() -> None:
@@ -57,18 +58,20 @@ def test_pipeline_rejects_invalid_configuration(kwargs, message) -> None:
 
 @pytest.mark.asyncio
 async def test_stage_overrides_do_not_mutate_shared_runtime(tmp_path) -> None:
-    agent_config = SimpleNamespace(model="default")
+    agent_config = SimpleNamespace(model="default", provider="deepseek", stage_overrides={})
 
     class RecordingRunner:
         def __init__(self) -> None:
             self.agent_config = agent_config
             self.max_turns = 20
 
-        async def run(self, session, workflow, **_hooks) -> None:
+        async def run(self, session, workflow, **hooks) -> None:
             session.seen_runtime = (
                 self.agent_config.model,
                 self.max_turns,
                 workflow.agent.model,
+                provider_name(hooks["provider_override"]),
+                hooks["model_override"],
             )
             session.status = "completed"
 
@@ -97,7 +100,7 @@ async def test_stage_overrides_do_not_mutate_shared_runtime(tmp_path) -> None:
 
     await pipeline.run(session, shared_workflow)
 
-    assert session.seen_runtime == ("stage-model", 4, "stage-model")
+    assert session.seen_runtime == ("default", 4, "default", "deepseek", "stage-model")
     assert shared_runner.agent_config is agent_config
     assert shared_runner.max_turns == 20
     assert shared_workflow.agent.model == "default"

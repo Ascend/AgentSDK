@@ -31,6 +31,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from .provider_routing import RoutingSnapshot
+
 if TYPE_CHECKING:
     from .issue import Issue
     from .issue_state_cache import IssueStateCache
@@ -281,8 +283,7 @@ class AgentSession:
     # by PromptBuilder.render() to inject a hint into the agent's prompt
     # so it can Read() past transcripts.
     previous_run_ids: list[str] = field(default_factory=list)
-    _snapshot_provider: str = ""
-    _snapshot_model: str = ""
+    _routing_snapshot: RoutingSnapshot | None = None
     # F-129: threading.Event used as a "pause gate" — when cleared,
     # the headless session's on_event callback blocks, preventing
     # further LLM API calls while paused. Set = running, clear = paused.
@@ -368,10 +369,11 @@ class AgentSession:
             # already initialised.
             # Phase 3: Conversation wrapper is no longer needed (we
             # just persist messages+metadata directly).
+            routing = self._routing_snapshot or RoutingSnapshot("", "")
             snapshot_data = {
                 "session_id": self.run_id,
-                "provider": self._snapshot_provider or "",
-                "model": self._snapshot_model or "",
+                "provider": routing.provider_name,
+                "model": routing.model,
                 "conversation": {"messages": messages, "max_history": 0},
                 "created_at": datetime.now(timezone.utc).isoformat(),
                 "updated_at": datetime.now(timezone.utc).isoformat(),

@@ -116,8 +116,14 @@ async def test_run_enters_requested_coordinator_mode() -> None:
         calls.append((session, workflow))
 
     runner._run_impl = MethodType(_run_impl, runner)
-    session = SimpleNamespace(coordinator_mode=True)
-    workflow = object()
+    session = SimpleNamespace(coordinator_mode=True, run_kind="single")
+    workflow = SimpleNamespace(
+        agent=SimpleNamespace(
+            provider="deepseek",
+            model="default-model",
+            stage_overrides={},
+        )
+    )
     await runner.run(session, workflow)
     assert entered == [True]
     assert calls == [(session, workflow)]
