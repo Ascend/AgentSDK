@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 #  This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
@@ -19,7 +20,7 @@
 """Generic text tail-follower for monitor task logs.
 
 Mirrors ``tail -f`` behaviour for plain text files (not JSONL).  Used by the
-F-88 Monitor TUI panel and by ``MonitorController.tail`` to stream the latest
+Monitor TUI panel and by ``MonitorController.tail`` to stream the latest
 output of a background monitor task without re-reading the whole file.
 """
 

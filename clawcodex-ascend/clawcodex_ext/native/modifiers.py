@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
-#  This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
 # Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
-#           http://license.coscl.org.cn/MulanPSL2
+#          http://license.coscl.org.cn/MulanPSL2
 #
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
@@ -17,20 +20,7 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""F-81.5: 键盘修饰键状态检测模块.
-
-对标 CCB ``modifiers-napi``，检测 Shift / Ctrl / Alt / Meta (Cmd/Win) 的
-当前按下状态。后端按平台选择:
-
-* **Linux** — 优先 ``evdev``（直接读 ``/dev/input/event*``），fallback
-  ``pynput``.
-* **macOS / Windows** — ``pynput``.
-
-缺失可选依赖时 :func:`clawcodex_ext.native.load_or_fallback` 返回
-:class:`ModifiersFallback`，所有状态恒为 ``False``（"未按下"）。
-
-辅助依赖: F-61 Computer Use（修饰键作为快捷键触发信号）.
-"""
+"""Keyboard modifier-state detection."""
 
 from __future__ import annotations
 
@@ -46,7 +36,7 @@ _logger = logging.getLogger("clawcodex_ext.native.modifiers")
 
 
 class ModifierState:
-    """修饰键瞬时状态快照（值含义：``True`` = 当前按下）."""
+    """Snapshot of the current keyboard modifier state."""
 
     __slots__ = ("shift", "ctrl", "alt", "meta")
 
@@ -77,14 +67,14 @@ class ModifierState:
 
 
 def _detect_backend() -> Optional[str]:
-    """返回可用后端名：``"pynput"`` / ``"evdev"`` / ``None``."""
+    """Return the first available modifier backend."""
     if sys.platform.startswith("linux"):
         try:
             import evdev  # noqa: F401
 
             return "evdev"
         except ImportError:
-            pass
+            pass  # Optional integration is unavailable; keep the fallback.
     try:
         import pynput  # noqa: F401
 
@@ -95,7 +85,7 @@ def _detect_backend() -> Optional[str]:
 
 @NativeModuleRegistry.register("modifiers")
 class ModifiersModule:
-    """键盘修饰键状态检测."""
+    """Detect current keyboard modifier state."""
 
     name = "modifiers"
 
@@ -124,14 +114,10 @@ class ModifiersModule:
                 return "unavailable"
         return "unavailable"
 
-    # -- 状态读取 ---------------------------------------------------------
+    # -- State reads -------------------------------------------------------
 
     def current_state(self) -> ModifierState:
-        """返回四个修饰键的当前瞬时状态.
-
-        Raises:
-            NativeModuleError: 后端不可用.
-        """
+        """Return the current keyboard modifier state."""
         if self._backend is None:
             from clawcodex_ext.native import NativeModuleError
 
@@ -141,9 +127,8 @@ class ModifiersModule:
         return self._state_pynput()
 
     def _state_pynput(self) -> ModifierState:
-        # pynput 的 keyboard.Controller 不直接暴露修饰键状态快照；
-        # 这里用一个本地的 listener 累积状态。注意：listener 是后台线程，
-        # 首次调用会启动它并保持进程生命周期内活跃。
+        # pynput does not expose modifier snapshots, so a process-lifetime
+        # background listener accumulates state after the first call.
         global _pynput_state
         if _pynput_state is None:
             _pynput_state = _PynputStateTracker()
@@ -156,14 +141,13 @@ class ModifiersModule:
         )
 
     def _state_evdev(self) -> ModifierState:
-        # evdev 路径：读 /dev/input/event* 的 KEY_LEFTSHIFT 等事件需要 root
-        # 或 input 组权限。这里采用保守策略：扫描可读设备，若全部不可读则
-        # 抛 NativeModuleError，让调用方走 fallback。
+        # Reading evdev events requires root or input-group access. Fail
+        # conservatively when no keyboard device is readable.
         import evdev
         from evdev import ecodes
 
         shift = ctrl = alt = meta = False
-        # 找一个可读的 keyboard 设备（capability 含 KEY_LEFTSHIFT）
+        # Find a readable keyboard advertising KEY_LEFTSHIFT.
         for path in evdev.list_devices():
             try:
                 dev = evdev.InputDevice(path)
@@ -173,8 +157,8 @@ class ModifiersModule:
             keys = cap.get(ecodes.EV_KEY, [])
             if ecodes.KEY_LEFTSHIFT not in keys:
                 continue
-            # 可读设备 —— 抓取当前状态（evdev 不直接给"当前状态"，需要
-            # 监听；这里降级为 pynput 风格的后台 reader）
+            # evdev has no snapshot API, so maintain state in a
+            # pynput-style background reader.
             global _evdev_state
             if _evdev_state is None or _evdev_state.device_path != path:
                 _evdev_state = _EvdevStateTracker(path)
@@ -186,7 +170,7 @@ class ModifiersModule:
             break
         return ModifierState(shift=shift, ctrl=ctrl, alt=alt, meta=meta)
 
-    # -- F-81.6 fallback --------------------------------------------------
+    # -- fallback --------------------------------------------------
 
     @classmethod
     def fallback(cls) -> "ModifiersFallback":
@@ -194,7 +178,7 @@ class ModifiersModule:
 
 
 # ---------------------------------------------------------------------------
-# 后台状态追踪器（模块级单例，避免每次 current_state() 重启线程）
+# Module-level trackers avoid restarting threads for every state read.
 # ---------------------------------------------------------------------------
 
 
@@ -203,7 +187,7 @@ _evdev_state: "Optional[_EvdevStateTracker]" = None
 
 
 class _PynputStateTracker:
-    """pynput 后台 listener，累积修饰键 up/down 事件."""
+    """Track modifier state from pynput key events."""
 
     def __init__(self) -> None:
         self.shift = False
@@ -250,7 +234,7 @@ class _PynputStateTracker:
 
 
 class _EvdevStateTracker:
-    """evdev 后台 reader，从指定设备读 KEY 事件维护状态."""
+    """Track modifier state from evdev key events."""
 
     def __init__(self, device_path: str) -> None:
         self.device_path = device_path
@@ -296,12 +280,12 @@ class _EvdevStateTracker:
                 # value: 0=up, 1=down, 2=repeat
                 setattr(self, attr, event.value != 0)
         except OSError:
-            # 设备断开 —— 状态保留最后值
+            # Retain the last state if the device disconnects.
             pass
 
 
 class ModifiersFallback:
-    """F-81.6 fallback: 后端缺失时所有修饰键恒为 ``False``."""
+    """Report all modifiers as released when no backend is available."""
 
     name = "modifiers"
 
@@ -312,4 +296,4 @@ class ModifiersFallback:
         return "fallback-noop"
 
     def current_state(self) -> ModifierState:
-        return ModifierState()  # 全 False
+        return ModifierState()  # Every modifier is released.

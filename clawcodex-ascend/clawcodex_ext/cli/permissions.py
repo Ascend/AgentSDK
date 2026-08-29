@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
-#  This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
 # Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
-#           http://license.coscl.org.cn/MulanPSL2
+#          http://license.coscl.org.cn/MulanPSL2
 #
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
@@ -43,7 +46,7 @@ def resolve_permission_state(args) -> None:
         initial_permission_mode_from_cli,
     )
 
-    # F-47: plumb ``settings.permissions.default_mode`` into the mode
+    # plumb ``settings.permissions.default_mode`` into the mode
     # resolver. Import lazily so the CLI module stays importable in tests
     # that never touch settings (e.g. permission-only unit tests).
     try:
@@ -60,7 +63,7 @@ def resolve_permission_state(args) -> None:
         bypass_requested=dangerously or allow_dangerously,
     )
 
-    # F-47: resolve settings-side default mode from the structured
+    # resolve settings-side default mode from the structured
     # ``permissions.default_mode`` field. The legacy top-level
     # ``settings.permission_mode`` channel has been removed; on-disk
     # values at that key are no longer consulted at startup.

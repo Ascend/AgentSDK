@@ -1,25 +1,23 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
-#  This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# This file is part of the AgentSDK project.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
 #
-#           http://license.coscl.org.cn/MulanPSL2
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
 #
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
-
-# -------------------------------------------------------------------------
-# This file is derived from Clawd Codex (https://github.com/agentforce314/clawcodex),
-# which is licensed under the MIT License.
-# Copyright (c) 2026 Clawd Codex Team
-# -------------------------------------------------------------------------
 # -------------------------------------------------------------------------
 
 """Cost-state restore orchestrator.
@@ -30,7 +28,7 @@ the persisted cost snapshot for a given session ID and dispatches
 ``/resume`` path picks up where the last session left off, rather than
 silently starting from zero.
 
-F-49 P5-C: primary source is the **trailing** ``session_snapshot`` line
+P5-C: primary source is the **trailing** ``session_snapshot`` line
 in ``transcript.jsonl`` (written by :meth:`Session.save`). The reader
 walks the transcript once and remembers the latest line whose ``type``
 is ``session_snapshot`` (new format) or ``cost_block`` (legacy format
@@ -186,7 +184,7 @@ def _restore_from_cost_block(cost_block: dict[str, Any]) -> None:
 
 
 def _restore_from_jsonl_tail(session_id: str) -> bool:
-    """F-49 P5-C: read the trailing cost line from ``transcript.jsonl``.
+    """P5-C: read the trailing cost line from ``transcript.jsonl``.
 
     Walks ``~/.clawcodex/sessions/<sid>/transcript.jsonl`` once and
     remembers the LAST line whose ``type`` is either ``session_snapshot``
@@ -243,7 +241,7 @@ def restore_cost_state_for_session(session_id: SessionId | str) -> bool:
     whether ``switch_session(sid)`` was called first — the resume path
     can call restore-then-switch or switch-then-restore.
 
-    F-49 P5-C: primary source is the trailing ``session_snapshot`` /
+    P5-C: primary source is the trailing ``session_snapshot`` /
     ``cost_block`` line in ``transcript.jsonl``. Falls back to
     ``session.json`` when no snapshot line is present (e.g. very new
     sessions or pre-Phase-5 saves that have not yet been migrated).
@@ -251,7 +249,7 @@ def restore_cost_state_for_session(session_id: SessionId | str) -> bool:
     target = str(session_id)
     transcript_path = _sessions_dir() / target / "transcript.jsonl"
 
-    # F-49 P5-C: prefer the transcript tail. This is the path taken
+    # P5-C: prefer the transcript tail. This is the path taken
     # by ``Session.save()`` after Phase 5 — every save appends a
     # ``session_snapshot`` line, and cost_restore picks the latest.
     if transcript_path.exists() and _restore_from_jsonl_tail(target):

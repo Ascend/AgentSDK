@@ -3,12 +3,14 @@
 
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Clawd Codex Team
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -470,6 +472,9 @@ def _effective_skill_root(skill: Any) -> str | None:
     return str(root) if root else None
 
 
+effective_skill_root = _effective_skill_root
+
+
 def _skill_source_path(skill: Any, command_name: str) -> str:
     """Return the concrete source path used for compaction recovery."""
 
@@ -804,7 +809,7 @@ def _register_skill_hooks(
     context: "ToolContext",
 ) -> None:
     """Validate and atomically register skill hooks on the active context."""
-    from clawcodex_ext.hooks.config_manager import _parse_hook_config  # pylint: disable=no-name-in-module
+    from clawcodex_ext.hooks.config_manager import parse_hook_config
     from clawcodex_ext.hooks.hook_types import ALL_HOOK_EVENTS, HookSource  # pylint: disable=no-name-in-module
 
     raw_hooks = getattr(skill, "hooks", None)
@@ -842,7 +847,7 @@ def _register_skill_hooks(
                 required = required_fields.get(hook_type)
                 if required is None or not any(raw_hook.get(field) for field in required):
                     raise ValueError(f"invalid {hook_type} hook for {event}")
-                config = _parse_hook_config(dict(raw_hook), HookSource.SKILL)
+                config = parse_hook_config(dict(raw_hook), HookSource.SKILL)
                 config = replace(
                     config,
                     matcher=matcher or config.matcher,
@@ -952,6 +957,9 @@ DEFAULT_SKILL_INVOCATION_SERVICE = SkillInvocationService(
 )
 
 
+effective_skill_root = _effective_skill_root
+
+
 __all__ = [
     "DEFAULT_SKILL_INVOCATION_SERVICE",
     "ForkExecutor",
@@ -965,4 +973,5 @@ __all__ = [
     "SkillInvocationService",
     "apply_skill_context_modifier",
     "build_request_context_modifier",
+    "effective_skill_root",
 ]

@@ -1,3 +1,25 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 # pylint: disable=redefined-outer-name,reimported,useless-return
 """Sidechain JSONL transcript writer + reader — Chunk C / WI-2.2.
 
@@ -475,7 +497,7 @@ class TranscriptWriter:
         model: str = "",
         created_at: str | None = None,
     ) -> None:
-        """F-49 P5-G: write a ``session_init`` line as the first transcript entry.
+        """P5-G: write a ``session_init`` line as the first transcript entry.
 
         The line carries session-level metadata (provider, model, created_at)
         so ``Session.load()`` can reconstruct these fields from the JSONL
@@ -675,12 +697,12 @@ def nested_session_path_resolver(
     agent_id: str,
     parent_session_id: str | None = None,
 ) -> str | None:
-    """当有 *parent_session_id* 时，嵌套到 sessions/<id>/subagents/ 下。
+    """Nest transcripts under ``sessions/<id>/subagents`` for child sessions.
 
-    返回绝对路径字符串，或 ``None`` 回退到核心默认 flat 目录。
+    Return an absolute path, or ``None`` to use the core flat directory.
     """
     if not parent_session_id:
-        return None  # 回退到 flat ~/.clawcodex/transcripts/
+        return None  # Fall back to the flat ~/.clawcodex/transcripts/ directory.
 
     _safe_session = _sanitize_for_path(parent_session_id)
     root = _sessions_root() / _safe_session / "subagents"
@@ -689,7 +711,7 @@ def nested_session_path_resolver(
 
 
 def _sanitize_for_path(name: str) -> str:
-    """轻量 sanitize — 只允许字母数字、连字符、下划线。"""
+    """Allow only alphanumeric characters, hyphens, and underscores."""
     if not name or not all(c.isalnum() or c in "_-" for c in name):
         raise ValueError(f"invalid component for session path: {name!r} (allowed: alphanumeric + '_' + '-')")
     if len(name) > 128:
@@ -698,9 +720,9 @@ def _sanitize_for_path(name: str) -> str:
 
 
 def init() -> None:
-    """在扩展加载入口点注册嵌套路径解析器。
+    """Register the nested-path resolver at extension startup.
 
-    调用方式（在 ``clawcodex_ext/__init__.py`` 中）::
+    Called from ``clawcodex_ext/__init__.py``::
 
         from clawcodex_ext.agent.transcript import init
         init()

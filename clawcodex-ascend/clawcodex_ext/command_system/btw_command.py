@@ -1,3 +1,25 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 """/btw side-question command implementation.
 
 Mirrors ``typescript/src/commands/btw/btw.tsx``.
@@ -25,7 +47,7 @@ __all__ = ["BTW_COMMAND", "btw_command_run", "BtwCommand"]
 logger = logging.getLogger(__name__)
 
 
-# F-122-F: when the answer body (excluding the 💡 prefix) exceeds this many
+# when the answer body (excluding the 💡 prefix) exceeds this many
 # lines we mark the InteractiveOutcome as scrollable so the REPL enters its
 # keyboard-scrolled view. Below the threshold, a flat print is friendlier —
 # the spinner-then-scrollable-modal would feel heavy for one-line replies.
@@ -68,7 +90,7 @@ async def btw_command_run(args: str, context: CommandContext) -> InteractiveOutc
         InteractiveOutcome with the answer text or usage help. Long
         answers (more than :data:`_SCROLLABLE_LINE_THRESHOLD` lines) carry
         ``scrollable=True`` so the REPL enters a keyboard-scrolled view
-        instead of dumping a wall of text (F-122-F).
+        instead of dumping a wall of text.
     """
     question = args.strip()
     if not question:
@@ -77,7 +99,7 @@ async def btw_command_run(args: str, context: CommandContext) -> InteractiveOutc
             display="user",
         )
 
-    # F-122-I: record this /btw invocation in the persistent use-count
+    # record this /btw invocation in the persistent use-count
     # before any further work. Counting happens at the command layer so
     # every UI path (REPL/TUI/headless) flows through the same gate; the
     # counter increments regardless of whether the side question itself
@@ -167,7 +189,7 @@ async def _build_cache_safe_params(
     except Exception:
         logger.exception("btw: failed to rebuild context")
 
-    # 确保 _active_provider 已设置（回退路径时可能尚未通过 query 循环设置）
+    # Ensure _active_provider exists; fallback paths may bypass the query loop.
     active_provider = getattr(tool_context, "_active_provider", None)
     if active_provider is None:
         provider = getattr(context, "provider", None)

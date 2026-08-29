@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 #  This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
@@ -16,7 +17,7 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""F-65 P65-A — Langfuse observability integration.
+"""P65-A — Langfuse observability integration.
 
 A plug-in :class:`AnalyticsSink` that translates :class:`AnalyticsEvent`
 records into Langfuse traces / spans / generations. Implements CCB's

@@ -1,3 +1,25 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 # pylint: disable=redefined-builtin
 from __future__ import annotations
 
@@ -134,6 +156,9 @@ def _apply_and_persist_updates(context: ToolContext, updates: tuple[PermissionUp
         log.exception("failed to persist accepted permission updates")
 
 
+apply_and_persist_updates = _apply_and_persist_updates
+
+
 def _one_shot_directory_updates(
     decision: PermissionAskDecision,
 ) -> tuple[PermissionUpdate, ...]:
@@ -178,7 +203,7 @@ def _is_temp_path(tool_name: str, tool_input: dict[str, Any], context: ToolConte
         p.relative_to(_SYSTEM_TEMP_DIR)
         return True
     except ValueError:
-        pass
+        pass  # The path is outside this candidate root; test the next allowed scope.
 
     # Worktree root — a short-lived scratch copy of a repository.
     if context.worktree_root is not None:
@@ -186,7 +211,7 @@ def _is_temp_path(tool_name: str, tool_input: dict[str, Any], context: ToolConte
             p.relative_to(context.worktree_root)
             return True
         except ValueError:
-            pass
+            pass  # The path is outside this candidate root; test the next allowed scope.
 
     # Path contains ".clawcodex" as a path component
     # (e.g. /home/user/project/.clawcodex/plan.md).

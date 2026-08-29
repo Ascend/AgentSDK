@@ -1,26 +1,25 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
-#  This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# This file is part of the AgentSDK project.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
 #
-#           http://license.coscl.org.cn/MulanPSL2
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
 #
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
 
-# -------------------------------------------------------------------------
-# This file is derived from Clawd Codex (https://github.com/agentforce314/clawcodex),
-# which is licensed under the MIT License.
-# Copyright (c) 2026 Clawd Codex Team
-# -------------------------------------------------------------------------
-# -------------------------------------------------------------------------
 
 """Leader permission bridge — Chunk H / WI-9.1.
 
@@ -297,12 +296,16 @@ def _reset_callbacks() -> None:
         _callbacks.clear()
 
 
+reset_callbacks = _reset_callbacks
+
+
 __all__ = [
     "PermissionRequest",
     "create_permission_request",
     "deliver_permission_decision",
     "get_pending_request_ids",
     "register_permission_callback",
+    "reset_callbacks",
     "send_permission_request_via_mailbox",
     "unregister_permission_callback",
 ]

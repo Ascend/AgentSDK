@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 #  This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
@@ -16,7 +17,7 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""F-62 P62-D — :class:`RecordingChromeController` wrapper.
+"""Recording wrapper for :class:`RecordingChromeController`.
 
 A recording wrapper is *not* a standalone controller: it accepts
 any :class:`ChromeController` and layers GIF capture on top of it.
@@ -310,7 +311,7 @@ class RecordingChromeController:
                 try:
                     img.close()
                 except Exception:  # noqa: BLE001  # nosec B110
-                    pass
+                    pass  # Cleanup is best-effort and must not replace the primary operation result.
             anchor.close()
         finally:
             Path(tmp_path).unlink(missing_ok=True)
@@ -320,7 +321,7 @@ class RecordingChromeController:
                 try:
                     leftover.unlink(missing_ok=True)
                 except Exception:  # noqa: BLE001  # nosec B110
-                    pass
+                    pass  # Cleanup is best-effort and must not replace the primary operation result.
 
     # ------------------------------------------------------------------
     # Recording-metadata sidecar

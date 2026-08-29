@@ -1,3 +1,25 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 # pylint: disable=redefined-outer-name,reimported,possibly-used-before-assignment
 """Grep tool — ripgrep-backed search with Python fallback."""
 
@@ -493,7 +515,7 @@ def _build_result_from_ripgrep(
                     total_matches += int(count_str)
                     file_count += 1
                 except ValueError:
-                    pass
+                    pass  # Invalid candidate; continue with the surrounding fallback.
             else:
                 count_lines.append(line)
         content = "\n".join(count_lines)
@@ -638,7 +660,7 @@ def _grep_check_permissions(tool_input: dict, context):
         if getattr(guard, "behavior", None) == "deny":
             return guard
     except ImportError:
-        pass
+        pass  # Optional integration is unavailable; keep the fallback.
 
     import os
     from pathlib import Path

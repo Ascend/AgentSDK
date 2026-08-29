@@ -1,3 +1,25 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -115,7 +137,7 @@ class QueryState:
     # continuation_nudge_count, this survives successful tool rounds.
     exhaustive_audit_performed: bool = False
     transition: Transition | None = None
-    # P102-E: 逐 turn 回调注册。外部消费者（如 F-69 Budget Mode）可以
-    # 在 turn 开始/结束时注入自定义逻辑，无需修改 query() 函数体。
+    # P102-E: External consumers such as Budget Mode can register
+    # callbacks at turn boundaries without modifying ``query()``.
     on_turn_start_callbacks: list[Callable[["QueryState"], None]] = field(default_factory=list)
     on_turn_end_callbacks: list[Callable[["QueryState"], None]] = field(default_factory=list)

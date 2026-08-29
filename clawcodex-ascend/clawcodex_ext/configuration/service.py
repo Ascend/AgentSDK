@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-# coding=utf-8
+# -*- coding: utf-8 -*-
+
 
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
@@ -221,14 +222,14 @@ def _atomic_write_json(path: Path, data: dict[str, Any]) -> None:
         try:
             os.unlink(temporary)
         except OSError:
-            pass
+            pass  # Cleanup is best-effort and must not replace the primary operation result.
         raise
 
 
 def _workspace_root(cwd: Path) -> Path:
-    from src.config import _find_git_root
+    from src.config import find_git_root
 
-    return (_find_git_root(cwd) or cwd).resolve()
+    return (find_git_root(cwd) or cwd).resolve()
 
 
 def _paths(cwd: Path) -> tuple[Path, list[tuple[ConfigScope, Path, Path]]]:

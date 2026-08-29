@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
-#  This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
 # Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
-#           http://license.coscl.org.cn/MulanPSL2
+#          http://license.coscl.org.cn/MulanPSL2
 #
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
@@ -17,21 +20,21 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""Registration hooks for F-53.
+"""Registration hooks.
 
-This module glues F-53 to the two existing command surfaces:
+This module glues to the two existing command surfaces:
 
 1. **CLI argv level** (:mod:`clawcodex_ext.cli.subcommand_registry`):
-   A single ``tool`` subcommand is registered that dispatches to any
-   discoverable tool by name. See :mod:`clawcodex_ext.cli.tool_cmd.runtime`.
+ A single ``tool`` subcommand is registered that dispatches to any
+ discoverable tool by name. See :mod:`clawcodex_ext.cli.tool_cmd.runtime`.
 
 2. **REPL/TUI level** (:mod:`clawcodex_ext.command_system.registry`):
-   Individual :class:`LocalCommand` objects are registered for each
-   discoverable tool, so the user can invoke ``/detect_modality …`` in
-   the REPL. See :func:`register_tool_commands` below.
+ Individual :class:`LocalCommand` objects are registered for each
+ discoverable tool, so the user can invoke ``/detect_modality …`` in
+ the REPL. See :func:`register_tool_commands` below.
 
 The CLI hook is wired from ``subcommand_registry.load_builtin_subcommands``
-(per the F-53 spec §1.6). The REPL/TUI hook is exposed as a public
+(per the spec §1.6). The REPL/TUI hook is exposed as a public
 function and called from the REPL/TUI startup code in the same place
 ``register_runtime_commands`` is called.
 """
@@ -57,7 +60,7 @@ def install_tool_subcommand() -> None:
 
     Idempotent — calling more than once is a no-op. Wired from
     :func:`clawcodex_ext.cli.subcommand_registry.load_builtin_subcommands`
-    per F-53 spec §1.6.
+    per spec §1.6.
     """
     global _INSTALLED
     if _INSTALLED:
@@ -72,7 +75,7 @@ def install_tool_subcommand() -> None:
         return run_tool_subcommand(args)
 
     _INSTALLED = True
-    log.debug("F-53: installed 'tool' CLI subcommand")
+    log.debug("installed 'tool' CLI subcommand")
 
 
 def register_tool_commands(
@@ -103,21 +106,21 @@ def register_tool_commands(
     registered = 0
     for local_cmd in disc.discover():
         # Skip if a command with this name is already registered (e.g.
-        # by a skill, plugin, or F-49 agent command). F-53 is purely
+        # by a skill, plugin, or agent command). is purely
         # additive — it never overwrites an existing handler.
         try:
             if command_registry.has(local_cmd.name):
                 log.debug(
-                    "F-53: skipping %r — already registered in command registry",
+                    "skipping %r — already registered in command registry",
                     local_cmd.name,
                 )
                 continue
         except Exception:  # noqa: BLE001  # nosec B110
-            pass
+            pass  # Diagnostics are best-effort and must not affect the monitored operation.
         try:
             command_registry.register(local_cmd)
         except Exception as exc:  # noqa: BLE001
-            log.debug("F-53: failed to register %r: %s", local_cmd.name, exc)
+            log.debug("failed to register %r: %s", local_cmd.name, exc)
             continue
         registered += 1
     return registered

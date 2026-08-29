@@ -1,10 +1,32 @@
-"""dialogue — ``/dialogue`` command (F-65 Voice Dialogue Mode).
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
-Symmetric to ``/voice`` (F-64) and ``/tts`` (F-64 P64-E): toggles
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
+"""Implement the ``/dialogue`` command for full-duplex voice sessions.
+
+Symmetric to ``/voice`` and ``/tts`` (P64-E): toggles
 full-duplex voice dialogue mode on/off, selects the dialogue backend,
 sets voice / modality preferences, and reports status.
 
-F-65 differs from F-64 in two important ways:
+Dialogue mode differs from half-duplex voice mode in two important ways:
 
 * **No "say" or one-shot preview** — dialogue is session-only; an MVP
   preview would require spinning up a WebSocket, sending fake audio,
@@ -22,16 +44,16 @@ Persisted state lives in ``settings.dialogue_enabled`` /
 ``settings.dialogue_modality``, written via :func:`src.config
 .set_dialogue_*` which invalidate the settings cache so the next
 ``get_settings()`` reflects the change mid-session — same pattern as
-the F-64 ``/voice`` and F-64 ``/tts`` commands.
+the ``/voice`` and ``/tts`` commands.
 
 Usage
 -----
 * ``/dialogue`` — toggle dialogue mode on/off (current provider kept).
 * ``/dialogue minimax`` — enable dialogue mode + select MiniMax Realtime
-  (the only current P65-A adapter).
+ (the only current P65-A adapter).
 * ``/dialogue off`` — disable dialogue mode (provider retained).
 * ``/dialogue mode <text|audio>`` — set output modality for the next
-  session.
+ session.
 * ``/dialogue voice <name>`` — set the backend-specific TTS voice id.
 * ``/dialogue start`` — open a live session, route audio.
 * ``/dialogue stop`` — end the session.
@@ -41,19 +63,19 @@ Usage
 Design decisions
 ----------------
 * ``/dialogue <provider>`` flips the master switch and the provider
-  atomically, mirroring ``/voice anthropic`` semantics. ``/dialogue off``
-  only flips the switch.
+ atomically, mirroring ``/voice anthropic`` semantics. ``/dialogue off``
+ only flips the switch.
 * ``start`` / ``stop`` carry no business logic in this MVP beyond
-  composing the provider from the registry and reporting success /
-  failure. A full implementation would tie into the agent loop (push
-  transcripts to the agent, write replies via ``send_text``); that
-  integration is the responsibility of the dialogue session manager
-  (P65-B) coupled with the REPL transport. Here we surface a clean
-  error if the session can't be assembled (missing credentials, etc.).
+ composing the provider from the registry and reporting success /
+ failure. A full implementation would tie into the agent loop (push
+ transcripts to the agent, write replies via ``send_text``); that
+ integration is the responsibility of the dialogue session manager
+ (P65-B) coupled with the REPL transport. Here we surface a clean
+ error if the session can't be assembled (missing credentials, etc.).
 * Follows the project's :class:`LocalCommand` convention (same shape
-  as ``/voice``, ``/tts``, ``/cost``): a plain ``LocalCommand`
-  bound to a free ``dialogue_command_call`` function via
-  :meth:`set_call`.
+ as ``/voice``, ``/tts``, ``/cost``): a plain ``LocalCommand`
+ bound to a free ``dialogue_command_call`` function via
+ :meth:`set_call`.
 """
 
 from __future__ import annotations
@@ -180,7 +202,7 @@ def _status_text() -> str:
 
 
 def dialogue_command_call(args: str, context: CommandContext) -> LocalCommandResult:
-    """``/dialogue`` handler — toggle / configure / start / stop the F-65 path."""
+    """``/dialogue`` handler — toggle / configure / start / stop the path."""
     raw = (args or "").strip()
     a = raw.lower()
 
@@ -188,7 +210,7 @@ def dialogue_command_call(args: str, context: CommandContext) -> LocalCommandRes
     if a in ("help", "-h", "--help"):
         return LocalCommandResult(type="text", value=_HELP)
 
-    # 2. status (headless) — diagnostics for the F-65 gate layers.
+    # 2. status (headless) — diagnostics for the gate layers.
     if a in ("status", "current", "show"):
         return LocalCommandResult(type="text", value=_status_text())
 
@@ -299,7 +321,7 @@ def dialogue_command_call(args: str, context: CommandContext) -> LocalCommandRes
 # ── session lifecycle helpers ─────────────────────────────────────────────
 #
 # These are intentionally thin wrappers in the MVP. A full integration
-# would hand off to a long-lived session manager (F-65 P65-B) that
+# would hand off to a long-lived session manager (P65-B) that
 # lives across multiple REPL turns; the command-path integration with
 # the dialogue session manager is the next iteration's work. Here we
 # validate that a session *can* be assembled (provider is registered,

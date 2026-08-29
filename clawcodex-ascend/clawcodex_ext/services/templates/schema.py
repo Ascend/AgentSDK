@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 #  This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
@@ -69,7 +70,7 @@ TEMPLATE_TOP_LEVEL_KEYS: frozenset[str] = frozenset(
         "fields",
         "metadata",
         "source",
-        # F-95 convenience keys. They are normalized into metadata/fields
+        # convenience keys. They are normalized into metadata/fields
         # before constructing Template so the storage model remains stable.
         "kind",
         "variables",

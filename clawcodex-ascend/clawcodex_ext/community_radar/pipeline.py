@@ -1,3 +1,25 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 # pylint: disable=relative-beyond-top-level
 """End-to-end pipeline orchestrator for SR-5.1.
 
@@ -213,7 +235,7 @@ def _llm_classify_importance_cached(
                         _log.info("LLM classification cache hit (age=%.0fs)", age_s)
                         return result
         except Exception:  # noqa: BLE001  # nosec B110
-            pass
+            pass  # An unreadable cache entry is treated as a cache miss.
 
     # ── Call LLM ──
     result = _llm_classify_importance(scored)
@@ -227,7 +249,7 @@ def _llm_classify_importance_cached(
                 try:
                     existing = json.loads(cache_path.read_text(encoding="utf-8"))
                 except Exception:  # noqa: BLE001  # nosec B110
-                    pass
+                    pass  # An unreadable cache entry is treated as a cache miss.
             if not isinstance(existing, dict):
                 existing = {}
             existing[fingerprint] = {
@@ -295,7 +317,7 @@ def _resolve_api_key_for_model(model: str) -> tuple[str | None, str | None]:
     try:
         from src.config import load_config as _load_clawcodex_config
     except Exception:  # noqa: BLE001  # nosec B110
-        pass
+        pass  # This probe is optional; preserve the existing conservative fallback.
     else:
         try:
             cfg = _load_clawcodex_config()
@@ -322,7 +344,7 @@ def _resolve_api_key_for_model(model: str) -> tuple[str | None, str | None]:
                         if isinstance(value, dict) and value.get("api_key"):
                             return str(value["api_key"]), key
         except Exception:  # noqa: BLE001  # nosec B110
-            pass
+            pass  # This configuration source is unavailable; continue through the credential fallbacks.
 
     # 2. Standard env vars — only check the one matching this provider
     env_var = _PROVIDER_ENV_MAP.get(provider)
@@ -460,7 +482,7 @@ def _parse_truncated_json_objects(text: str) -> list[dict[str, Any]]:
                     if isinstance(obj, dict):
                         objects.append(obj)
                 except json.JSONDecodeError:
-                    pass
+                    pass  # This candidate is not valid JSON; continue with the documented parsing fallback.
                 start = -1
     return objects
 
@@ -479,7 +501,7 @@ def _parse_llm_importance_response(raw: str) -> dict[str, dict[str, str]]:
         if isinstance(parsed, list):
             return _normalize_llm_result(parsed)
     except json.JSONDecodeError:
-        pass
+        pass  # This candidate is not valid JSON; continue with the documented parsing fallback.
 
     # Strategy 2: extract JSON array from markdown code fences
     fence_match = re.search(r"```(?:json)?\s*(\[.*?\])\s*```", text, re.DOTALL)
@@ -489,7 +511,7 @@ def _parse_llm_importance_response(raw: str) -> dict[str, dict[str, str]]:
             if isinstance(parsed, list):
                 return _normalize_llm_result(parsed)
         except json.JSONDecodeError:
-            pass
+            pass  # This candidate is not valid JSON; continue with the documented parsing fallback.
 
     # Strategy 3: find outermost [...] in the text
     bracket_match = re.search(r"\[.*\]", text, re.DOTALL)
@@ -499,7 +521,7 @@ def _parse_llm_importance_response(raw: str) -> dict[str, dict[str, str]]:
             if isinstance(parsed, list):
                 return _normalize_llm_result(parsed)
         except json.JSONDecodeError:
-            pass
+            pass  # This candidate is not valid JSON; continue with the documented parsing fallback.
 
     # Strategy 4: handle truncated JSON array (common when max_tokens is
     #     reached before all features are serialised)

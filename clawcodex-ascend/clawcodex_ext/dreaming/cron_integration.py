@@ -3,12 +3,14 @@
 
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Clawd Codex Team
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -20,17 +22,16 @@
 
 # pylint: disable=cyclic-import
 
-"""Cron integration for auto-dream — F-100 / 100.5.
+"""Cron integration for auto-dream.
 
 Wires the dreaming subsystem into the downstream cron system as a
-**permanent** cron task, completing the "三件套" alongside
-catch-up / morning-checkin.
+**permanent** cron task alongside catch-up and morning check-in.
 
 * :func:`install_dream_permanent_cron_task` — idempotent installer.
   Adds a ``permanent=True`` cron task that fires daily at 3 AM (the
-  ``DreamConfig.min_hours=24`` gate is the second line of defence:
-  the task may be installed, but ``execute_auto_dream`` won't run
-  more than once per 24h).
+ ``DreamConfig.min_hours=24`` gate is the second line of defence:
+ the task may be installed, but ``execute_auto_dream`` won't run
+ more than once per 24h).
 * :func:`wire_dream_fire_handler` — wraps the scheduler's
   ``on_fire_task`` so the dream task is handled **locally** (calls
   :func:`execute_auto_dream`) instead of being routed to the model
@@ -41,27 +42,26 @@ catch-up / morning-checkin.
 
 Why a *local* fire handler (not a model prompt)?
 
-* Dream is a forked-agent operation (F-100) — the model should never
-  see the consolidation prompt. Routing it via the cron outbox would
-  hand a 24h background task to whatever model the user has
-  configured, including cheap / non-Anthropic providers, and would
-  race the in-flight dream lock with whatever the model decides to
-  do.
+* Dream is a forked-agent operation — the model should never
+ see the consolidation prompt. Routing it via the cron outbox would
+ hand a 24h background task to whatever model the user has
+ configured, including cheap / non-Anthropic providers, and would
+ race the in-flight dream lock with whatever the model decides to
+ do.
 * Upstream mirrors the same shape: ``runForkedAgent`` is invoked
-  from the cron fire path, not the model's prompt stream.
+ from the cron fire path, not the model's prompt stream.
 
 Usage at startup::
 
-    from clawcodex_ext.cron_system.runtime import attach_cron_runtime  # pylint: disable=no-name-in-module
-    from clawcodex_ext.dreaming import init_auto_dream
-    from clawcodex_ext.dreaming.cron_integration import (
-        install_and_wire_dream,
-    )
+ from clawcodex_ext.cron_system.runtime import attach_cron_runtime # pylint: disable=no-name-in-module
+ from clawcodex_ext.dreaming import init_auto_dream
+ from clawcodex_ext.dreaming.cron_integration import (
+ install_and_wire_dream,)
 
-    init_auto_dream(registry=shared_registry)  # service init
-    scheduler = attach_cron_runtime(ctx, autostart=False)
-    task, created = install_and_wire_dream(workspace_root, scheduler)
-    scheduler.start()  # safe to fire tasks now
+ init_auto_dream(registry=shared_registry) # service init
+ scheduler = attach_cron_runtime(ctx, autostart=False)
+ task, created = install_and_wire_dream(workspace_root, scheduler)
+ scheduler.start # safe to fire tasks now
 """
 
 from __future__ import annotations
@@ -109,7 +109,7 @@ def install_dream_permanent_cron_task(
             :data:`DREAM_DEFAULT_CRON` (3 AM daily).
         prompt: Prompt label. Defaults to :data:`DREAM_PERMANENT_PROMPT`.
         task_id: Task id. Defaults to :data:`DREAM_PERMANENT_TASK_ID`.
-        jitter: Optional :class:`CronJitterConfig` — see F-22-G2.
+        jitter: Optional :class:`CronJitterConfig`.
 
     Returns:
         ``(task, created)`` from

@@ -1,3 +1,25 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 from __future__ import annotations
 
 import logging
@@ -177,9 +199,9 @@ def has_allow_bypass_permissions_mode() -> bool:
     user, local, flag, and policy settings — projectSettings is intentionally
     excluded because a malicious project could otherwise auto-enable bypass.
 
-    F-47: read through :func:`_settings_perms` which aggregates the
+    read through :func:`_settings_perms` which aggregates the
     structured ``PermissionsConfig`` field + the legacy
-    ``settings.extra["permissions"]`` path. Pre-F-47 binaries that wrote
+    ``settings.extra["permissions"]`` path. Pre-binaries that wrote
     the dict into ``extra`` keep working.
     """
     try:

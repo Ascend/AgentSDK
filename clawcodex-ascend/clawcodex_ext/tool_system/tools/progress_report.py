@@ -1,20 +1,26 @@
-"""ProgressReportTool - Agent 阶段性进度汇报工具。
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
-Port of the phase-based progress reporting design from FEATURE_PLAN.md F-20.
-Provides a dedicated tool for agents to report stage-based progress to the task board,
-complementing the existing TaskUpdateTool with a progress-specific interface.
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSE.clawcodex.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
 
-Architecture:
-    Agent 执行到检查点 (方式一：检查点触发)
-        ↓
-    调用 ProgressReportTool (方式二：专用工具)
-        ↓
-    数据存入 ToolContext.tasks (方式三：持久化)
-
-The tool updates task metadata with progress information rather than creating
-a separate storage, keeping data in ToolContext.tasks for downstream consumers
-like StatusDashboard.
-"""
+"""Agent progress-reporting tool."""
 
 from __future__ import annotations
 
@@ -170,6 +176,9 @@ def _progress_report_call(tool_input: dict[str, Any], context: ToolContext) -> T
             "recordedAt": progress_record["timestamp"],
         },
     )
+
+
+progress_report_call = _progress_report_call
 
 
 # ---------------------------------------------------------------------------

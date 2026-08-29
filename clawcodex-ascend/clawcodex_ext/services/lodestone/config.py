@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 #  This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
@@ -16,15 +17,15 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""F-97 LODESTONE — configuration loading & persistence.
+"""LODESTONE — configuration loading & persistence.
 
-*   ``LodestoneConfig`` is the only source of truth (declared in
+* ``LodestoneConfig`` is the only source of truth (declared in
     :mod:`clawcodex_ext.services.lodestone.models`).
-*   :func:`load_config` reads ``~/.clawcodex/lodestone.json``; missing
-    or invalid files fall back to :func:`default_config`.
-*   :func:`save_config` writes back atomically (write to ``.tmp``
+* :func:`load_config` reads ``~/.clawcodex/lodestone.json``; missing
+  or invalid files fall back to :func:`default_config`.
+* :func:`save_config` writes back atomically (write to ``.tmp``
     + :func:`os.replace`).
-*   The ``LODESTONE`` environment variable acts as a kill-switch:
+* The ``LODESTONE`` environment variable acts as a kill-switch:
     ``LODESTONE=off`` forces :attr:`LodestoneConfig.enabled` to ``False``
     on load, regardless of what's persisted.
 """
@@ -116,7 +117,7 @@ def save_config(cfg: LodestoneConfig, path: Path | None = None) -> Path:
             try:
                 os.unlink(tmp.name)
             except OSError:
-                pass
+                pass  # Best-effort operation failed; keep the surrounding fallback.
     return target
 
 

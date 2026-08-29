@@ -1,3 +1,25 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 from __future__ import annotations
 
 import json
@@ -163,7 +185,7 @@ def _tavily_search(query: str, num: int = 15) -> list[dict[str, str]]:
         try:
             detail = exc.read(2000).decode("utf-8", errors="replace")
         except Exception:  # nosec
-            pass
+            pass  # Intentional best-effort path; the surrounding fallback remains valid.
         raise ToolInputError(f"Tavily search error {exc.code}: {detail[:300]}") from exc
     except urllib.error.URLError as exc:
         raise ToolInputError(f"Tavily search failed: {exc.reason}") from exc

@@ -3,12 +3,14 @@
 
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Clawd Codex Team
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -57,8 +59,8 @@ __all__ = [
 def is_kairos_active() -> bool:
     """Whether the KAIROS feature gate is active for this session.
 
-    clawcodex does not yet implement KAIROS (deferred — F-100 design
-    decision #1 in PROGRESS.md §十三). Returns ``False`` unless
+    clawcodex does not yet implement KAIROS (deferred — design
+    decision #1 in PROGRESS.md §13). Returns ``False`` unless
     explicitly opted in via the ``CLAWCODEX_KAIROS`` env var so
     dream can still be tested in isolation.
 

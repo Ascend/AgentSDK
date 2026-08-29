@@ -1,3 +1,25 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 """Session management with persistence.
 
 The session ID is authoritative-from-bootstrap: ``Session.create`` reads
@@ -15,6 +37,7 @@ to reconstruct the per-conversation Persistence record.
 from __future__ import annotations
 
 import json
+import logging
 import os
 from pathlib import Path
 from datetime import datetime
@@ -27,6 +50,8 @@ from src.bootstrap.state import (
 from src.utils.clawcodex_dirs import get_sessions_dir
 
 from .conversation import Conversation
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def _get_sessions_dir() -> Path:
@@ -50,10 +75,10 @@ class Session:
     def save(self):
         """Save session to disk, appending a ``session_snapshot`` line.
 
-        F-49 P5-A: ``session.json`` is no longer written. Instead, a
+        ``session.json`` is no longer written. Instead, a
         ``session_snapshot`` line carrying the cost block is appended
         to ``transcript.jsonl`` (via the ``save_to_session_storage``
-        hook). ``Session.load()`` and ``cost_restore`` read this line
+        hook). ``Session.load`` and ``cost_restore`` read this line
         via ``tail -1`` rather than parsing a separate snapshot file.
 
         The JSONL transcript remains the single source of truth:
@@ -65,7 +90,7 @@ class Session:
         Backward compat: if an old ``session.json`` exists from a
         pre-P5 save, it is left untouched on disk. The migration
         script (``clawcodex-dev session migrate --from-3-file``)
-        converts it to the new format on demand. ``Session.load()``
+        converts it to the new format on demand. ``Session.load``
         auto-detects legacy ``session.json`` and falls back to reading
         it when ``transcript.jsonl`` lacks a ``session_init`` line.
         """
@@ -86,9 +111,9 @@ class Session:
 
             save_to_session_storage(self)
         except ImportError:
-            pass
+            pass  # The optional integration is unavailable; continue with the built-in path.
 
-        # F-49 P5-A: append a ``session_snapshot`` line carrying the
+        # append a ``session_snapshot`` line carrying the
         # cost block. ``cost_restore`` reads ``tail -1`` from the
         # transcript to recover counters, so the snapshot MUST be the
         # final line of the file at the time of save. We append after
@@ -117,14 +142,14 @@ class Session:
                 "provider": self.provider,
                 "model": self.model,
             }
-            # F-125 C13: serialise snapshot appends across processes
+            # serialise snapshot appends across processes
             # via flock so two concurrent ``--resume <sid>`` runs
             # don't interleave their snapshot lines with message
-            # flushes from SessionStorage. ``_locked_append`` is a
+            # flushes from SessionStorage. ``locked_append`` is a
             # no-op on Windows (no fcntl).
-            from clawcodex_ext.services.session_storage import _locked_append
+            from clawcodex_ext.services.session_storage import locked_append
 
-            with _locked_append(transcript_path) as f:
+            with locked_append(transcript_path) as f:
                 f.write(json.dumps(payload, ensure_ascii=False, separators=(",", ":")) + "\n")
         except OSError:
             # Best-effort: the in-memory session state is still valid
@@ -148,20 +173,20 @@ class Session:
 
             save_to_session_storage(self)
         except ImportError:
-            pass
+            pass  # The optional integration is unavailable; continue with the built-in path.
 
     @classmethod
     def load(cls, session_id: str) -> Optional["Session"]:
         """Load session from disk.
 
-        F-49 P5-B: primary source is the **enhanced transcript JSONL**
+        The primary source is the **enhanced transcript JSONL**
         introduced by Phase 5. The transcript's structure is::
 
-            line 1      {"type": "session_init", "session_id": ..., "provider": ..., "model": ..., "cwd": ..., "created_at": ...}
-            lines 2..N  message entries (one per agent turn)
-            last line   {"type": "session_snapshot", "cost": {...}, "updated_at": ...}
+        line 1 {"type": "session_init", "session_id":..., "provider":..., "model":..., "cwd":..., "created_at":...}
+        lines 2..N message entries (one per agent turn)
+        last line {"type": "session_snapshot", "cost": {...}, "updated_at":...}
 
-        ``Session.load()`` walks the transcript once, pulling provider /
+        ``Session.load`` walks the transcript once, pulling provider /
         model / created_at from the init line and building the
         conversation from the message lines. The cost block is left to
         ``cost_restore`` (which reads ``tail -1`` at resume time).
@@ -177,7 +202,7 @@ class Session:
         transcript_path = session_dir / "transcript.jsonl"
         session_file = session_dir / "session.json"
 
-        # F-49 P5-B: prefer the new enhanced-transcript format.
+        # prefer the new enhanced-transcript format.
         # ``_load_from_enhanced_transcript`` returns None when the
         # transcript lacks a session_init marker — in that case the
         # file is either legacy (no marker by design) or empty, and
@@ -228,7 +253,7 @@ class Session:
                 created_at = str(md.get("start_time", ""))
                 updated_at = str(md.get("last_updated", ""))
             except (OSError, json.JSONDecodeError):
-                pass
+                pass  # This candidate is not valid JSON; continue with the documented parsing fallback.
 
         from src.services.session_storage import SessionStorage
 
@@ -251,8 +276,11 @@ class Session:
                 from clawcodex_ext.types.messages import message_from_dict
 
                 messages.append(message_from_dict(entry))
-            except Exception:  # nosec
-                pass
+            except Exception as exc:  # nosec
+                _LOGGER.warning(
+                    "Skipping an invalid session transcript entry (%s)",
+                    type(exc).__name__,
+                )
 
         return cls(
             session_id=session_id,
@@ -294,9 +322,9 @@ class Session:
 
         Order matters: ``switch_session`` fires BEFORE
         ``restore_cost_state_for_session`` so any subscriber that reads
-        ``get_session_id()`` during the cost restore sees the loaded id.
+        ``get_session_id`` during the cost restore sees the loaded ID.
 
-        F-49 Phase 0.2: also accepts sessions stored in the
+        This also accepts sessions stored in the
         :class:`SessionStorage` directory format
         (``~/.clawcodex/sessions/<sid>/transcript.jsonl`` + ``metadata.json``).
         This is the on-disk shape the orchestrator's
@@ -312,7 +340,7 @@ class Session:
 
         loaded = cls.load(session_id)
         if loaded is None:
-            # F-49 P5-D: Session.load() now reads transcript.jsonl
+            # Session.load now reads transcript.jsonl
             # directly (P5-B), so it returns a fully-populated Session
             # with messages for both new-format transcripts AND legacy
             # session.json / metadata.json + JSONL combinations. The
@@ -342,13 +370,13 @@ def _load_from_enhanced_transcript(
     *,
     chain_filter: bool = True,
 ) -> Optional[Session]:
-    """F-49 P5-B: load a session from the enhanced transcript JSONL format.
+    """Load a session from the enhanced transcript JSONL format.
 
     Reads ``transcript_path`` and reconstructs a :class:`Session` from:
 
     * Line 1: ``session_init`` — provider / model / created_at /
-      cwd. The init marker signals "this transcript is in the new
-      format"; absence of it triggers the legacy ``session.json``
+    cwd. The init marker signals "this transcript is in the new
+    format"; absence of it triggers the legacy ``session.json``
       fallback in :meth:`Session.load`.
     * Middle / tail lines: ``message`` entries — the conversation.
 
@@ -356,9 +384,8 @@ def _load_from_enhanced_transcript(
     are skipped here; their cost block is consumed by ``cost_restore``
     at resume time so this method stays a pure conversation reader.
 
-    F-103 P103-D: when ``chain_filter`` is True (default), the
-    transcript is first run through
-    :func:`clawcodex_ext.agent.chain_filter.walk_chain_before_parse`,
+    When ``chain_filter`` is True (default), the transcript is first run
+    through :func:`clawcodex_ext.agent.chain_filter.walk_chain_before_parse`,
     which byte-level prunes any dead-branch messages left over from
     ``/rewind`` / fork. Legacy transcripts (no ``parentUuid``
     fields) skip the filter automatically — see the chain_filter
@@ -384,7 +411,7 @@ def _load_from_enhanced_transcript(
 
     from clawcodex_ext.types.messages import message_from_dict
 
-    # F-103: byte-level chain pruning. ``walk_chain_before_parse``
+    # byte-level chain pruning. ``walk_chain_before_parse``
     # short-circuits on legacy transcripts (no parentUuid tokens)
     # and on small / low-dead-branch-ratio files, in which case
     # ``result.raw_bytes`` equals the input and parsing cost is
@@ -460,7 +487,7 @@ def _load_from_enhanced_transcript(
                 # remains valid overall.
                 continue
     except Exception:  # nosec
-        # F-103: any failure while iterating filtered bytes is
+        # any failure while iterating filtered bytes is
         # treated as "transcript unreadable" so the caller falls
         # back to ``session.json`` rather than silently returning
         # a partially-reconstructed Session.
@@ -474,7 +501,7 @@ def _load_from_enhanced_transcript(
     if not found_init:
         return None
 
-    # F-103 P103-C: rebuild the conversation chain from the leaf so
+    # rebuild the conversation chain from the leaf so
     # the returned messages are guaranteed to follow the
     # ``parentUuid`` topology (rather than the on-disk append
     # order, which may include dead-branch lines if the gate did

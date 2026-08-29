@@ -3,12 +3,14 @@
 
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
-# Copyright (c) 2026 Clawd Codex Team
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -17,6 +19,8 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
+
+# pylint: disable=too-many-lines
 
 """WeChat / Weixin iLink channel adapter (personal WeChat, v1).
 
@@ -36,7 +40,6 @@ circuit breaker stops polling on sustained errors; 401/session-expiry marks
 the account as session_expired (permanent until QR re-scan) and rate-limit
 responses enter a short cooldown without consuming the breaker budget.
 """
-# pylint: disable=too-many-lines
 # Sibling clawcodex_ext packages (utils, im_gateway) are migrated in separate
 # branches; suppress E0611 until the full series lands.
 # pylint: disable=no-name-in-module
@@ -981,7 +984,7 @@ class WeChatIlinkChannelAdapter(ChannelAdapter):
             try:
                 await self._poll_task
             except asyncio.CancelledError:
-                pass
+                pass  # The task was explicitly cancelled; awaiting it only drains shutdown cleanup.
             self._poll_task = None
 
     async def _poll_loop(self) -> None:
@@ -1560,10 +1563,16 @@ def _media_size(raw: dict[str, Any]) -> int | None:
     return None
 
 
+IlinkHttpError = _IlinkHttpError
+IlinkPlatformError = _IlinkPlatformError
+
+
 __all__ = [
     "DEFAULT_LONG_POLL_TIMEOUT_MS",
     "DEFAULT_MAX_CONSECUTIVE_FAILURES",
     "ILINK_CHANNEL_ID",
+    "IlinkHttpError",
+    "IlinkPlatformError",
     "PAIRING_CODE_TTL_SECONDS",
     "TEXT_CHUNK_SIZE",
     "WeChatAuthRecord",

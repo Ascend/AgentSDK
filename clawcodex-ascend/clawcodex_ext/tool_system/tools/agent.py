@@ -1,3 +1,25 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 # pylint: disable=redefined-outer-name,ungrouped-imports,reimported,too-many-lines
 """Agent tool — launches subagents with context isolation.
 
@@ -57,7 +79,7 @@ from clawcodex_ext.utils.abort_controller import AbortController, AbortError
 logger = logging.getLogger(__name__)
 
 
-# F-88 P88-D: helper to persist Explore / Plan reports to disk after the
+# P88-D: helper to persist Explore / Plan reports to disk after the
 # one-shot agent completes. Best-effort: any I/O error is logged and
 # swallowed so the user's in-session output is never disrupted by a
 # report-store failure.
@@ -386,7 +408,7 @@ def make_agent_tool(
 
             agents = refresh_domain_agent_sop_prompts(agents)
         except ImportError:
-            pass
+            pass  # Optional integration is unavailable; keep the fallback.
         return agents
 
     def _agent_call(tool_input: dict[str, Any], context: ToolContext) -> ToolResult:
@@ -426,7 +448,7 @@ def make_agent_tool(
         # - subagent_type omitted, fork gate on → implicit fork via FORK_AGENT.
         # - subagent_type omitted, fork gate off → default to general-purpose.
         #
-        # F-88 P88-C: BEFORE the explicit-type check, run a phrase-based
+        # P88-C: BEFORE the explicit-type check, run a phrase-based
         # classifier over the prompt. If the classifier picks Explore /
         # Plan and those are available, we fill in the missing
         # ``subagent_type`` so the existing dispatch (below) selects the
@@ -461,7 +483,7 @@ def make_agent_tool(
             if delegation_error:
                 raise ToolInputError(delegation_error)
         except ImportError:
-            pass
+            pass  # Optional integration is unavailable; keep the fallback.
 
         is_fork_path = force_fork or (subagent_type is None and is_fork_subagent_enabled(context))
 
@@ -601,7 +623,7 @@ def make_agent_tool(
         # Spawn-attribution record: the Agent tool is the ONLY place that
         # knows both the child's ``agent_id`` and the ``description`` at
         # the spawn moment. Persist the mapping so the visualizer can
-        # attach each spawn bar to its exact sub-agent lane (the F-45
+        # attach each spawn bar to its exact sub-agent lane (the
         # call row cannot carry the id — it's minted here, after the
         # event is emitted — and the result event only carries rendered
         # text). Best-effort; never affects the spawn.
@@ -626,7 +648,7 @@ def make_agent_tool(
                         + "\n"
                     )
         except Exception:  # nosec
-            pass
+            pass  # Intentional best-effort path; the surrounding fallback remains valid.
 
         if provider is None:
             return ToolResult(
@@ -953,7 +975,7 @@ def make_agent_tool(
                                 try:
                                     transcript_writer.close()
                                 except Exception:  # nosec
-                                    pass
+                                    pass  # Intentional best-effort path; the surrounding fallback remains valid.
                                 transcript_writer = None
 
                 loop.run_until_complete(_go())
@@ -1035,7 +1057,7 @@ def make_agent_tool(
         sync_state.completed_at = time.time()
         sync_state.result_text = result_text
 
-        # F-88 P88-D: persist Explore / Plan reports to disk for
+        # P88-D: persist Explore / Plan reports to disk for
         # later-session reference. Best-effort — never raises.
         if agent_type in ONE_SHOT_BUILTIN_AGENT_TYPES and result_text:
             _persist_agent_report(
@@ -1271,7 +1293,7 @@ def make_agent_tool(
                         },
                         registry=context.runtime_tasks,
                     )
-                    # F-88 P88-D: persist Explore / Plan reports to disk
+                    # P88-D: persist Explore / Plan reports to disk
                     # for later-session reference. Best-effort — never
                     # raises. Mirrors the sync-path hook in
                     # ``_run_sync_agent``.

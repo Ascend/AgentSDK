@@ -1,57 +1,33 @@
-"""``/btw`` 使用统计 (F-122-I).
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
-记录用户每次 ``/btw`` 调用的次数与最近一次问题文本，存储于
-``$CLAWCODEX_DATA_DIR/btw_stats.json``（默认 ``~/.clawcodex/btw_stats.json``），
-与 sidechain transcript 共用同一根目录约定。
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
 
-设计动机
---------
+"""Usage statistics for ``/btw``.
 
-规划文档 §1.3 / §2.3 Phase 7 指出，F-122-I 是 P3 可选特性，用于「记录
-``/btw`` 使用次数（类似 TS 的 ``btwUseCount`` config）」。该计数可在
-后续 /settings 面板、usage report 或 telemetry 仪表盘中展示，让用户
-直观看到自己侧边问答的使用频率。
-
-存储格式
---------
-
-单个 JSON 文件::
-
-    {
-      "use_count":        5,
-      "first_used":       "2026-07-02T12:34:56",
-      "first_used_epoch": 1751475296.123,
-      "last_used":        "2026-07-02T13:00:00",
-      "last_used_epoch":  1751478000.456,
-      "last_question":    "what is X?"
-    }
-
-字段语义：
-
-* ``use_count`` — 累计调用次数（含失败调用；只要 ``/btw`` 触发即 +1）
-* ``first_used`` / ``first_used_epoch`` — 首次调用的时间戳（秒精度 + epoch）
-* ``last_used`` / ``last_used_epoch`` — 最近一次调用的时间戳
-* ``last_question`` — 最近一次问题文本的前 80 字符（截断以避免巨型字段）
-
-原子写
-------
-
-read-modify-write 通过 ``<file>.tmp`` + ``os.replace`` 实现原子替换。OS 层面
-保证看到的是旧文件或新文件，不会出现半写状态。与 sidechain transcript
-的 O_APPEND 不同，本模块每次写入都是完整文件，因此使用替换策略而非追加。
-
-失败语义
---------
-
-fire-and-forget —— 任何 IO / JSON 错误仅记录 WARNING，绝不向上抛出。
-``/btw`` 用户流程必须永远观察不到统计模块的副作用。
-
-环境变量
---------
-
-* ``CLAWCODEX_DISABLE_BTW_STATS=1`` (或 ``true`` / ``yes`` / ``on``) —
-  禁用统计；所有写入变为 no-op，``get_btw_stats()`` 仍返回零值快照。
-* ``CLAWCODEX_DATA_DIR=/path/to/root`` — 覆盖统计文件根目录。
+The module stores call timestamps, a call count, and a truncated copy of the
+latest question in ``$CLAWCODEX_DATA_DIR/btw_stats.json`` (defaulting to
+``~/.clawcodex/btw_stats.json``). Writes use a temporary file and
+``os.replace`` for atomic replacement. I/O and JSON failures are logged but do
+not interrupt the command flow. ``CLAWCODEX_DISABLE_BTW_STATS`` disables
+writes, while ``CLAWCODEX_DATA_DIR`` overrides the data root.
 """
 
 from __future__ import annotations
@@ -147,14 +123,14 @@ def _load_existing_stats(path: Path) -> dict[str, Any]:
             data = json.load(f)
     except (OSError, json.JSONDecodeError) as exc:
         logger.warning(
-            "F-122-I: failed to read existing btw stats at %s (%s); starting from zero",
+            "failed to read existing btw stats at %s (%s); starting from zero",
             path,
             exc,
         )
         return dict(_DEFAULT_STATS)
     if not isinstance(data, dict):
         logger.warning(
-            "F-122-I: existing btw stats at %s is not a JSON object; starting from zero",
+            "existing btw stats at %s is not a JSON object; starting from zero",
             path,
         )
         return dict(_DEFAULT_STATS)
@@ -188,7 +164,7 @@ def increment_btw_use_count(*, question: str | None = None) -> dict[str, Any] | 
     swallowed. Returns the updated stats dict on success, ``None`` when
     recording is skipped (disabled) or unrecoverably failed.
 
-    F-122-I: this is the single source of truth for the ``/btw`` use
+    This is the single source of truth for the ``/btw`` use
     counter. The increment happens at the **command layer** (every UI path
     — REPL, TUI, headless — flows through ``btw_command_run``) so the
     counter is incremented exactly once per invocation regardless of
@@ -235,7 +211,7 @@ def increment_btw_use_count(*, question: str | None = None) -> dict[str, Any] | 
         return stats
     except Exception:
         logger.warning(
-            "F-122-I: failed to record /btw usage stat (question=%r)",
+            "failed to record /btw usage stat (question=%r)",
             (question or "")[:60],
             exc_info=True,
         )

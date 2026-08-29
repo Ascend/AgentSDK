@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
-#  This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
 # Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
-#           http://license.coscl.org.cn/MulanPSL2
+#          http://license.coscl.org.cn/MulanPSL2
 #
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
@@ -32,7 +35,7 @@ Usage::
     clawcodex-dev sop convert docker_build,k8s_apply \\
         --out ./.clawcodex --requirements "CI/CD pipeline" --name cicd-agent
 
-    # Source directory auto-detection (默认筛选外部接口，加 --all 包含全部方法):
+    # Source auto-detection defaults to public interfaces; --all includes all methods:
     clawcodex-dev sop convert ./src \\
         --out ./.clawcodex --strategy component --skills ./skills
 
@@ -89,15 +92,15 @@ class ConvertOptions:
     strict_workflow_yaml: bool = False
     json_output: bool = False
     validate_only: bool = False
-    interactive: bool = False  # F-50.11.4: generate TODO templates on empty extraction
+    interactive: bool = False  # generate TODO templates on empty extraction
     # F-REC: optional .cast output path. When set, the convert call is
     # wrapped in a :class:`SopStageProjector` so the SOP CLI's stdout
     # (and the start/done markers) land in an asciicast file. Default
     # empty string keeps the existing behaviour (no recording).
     record_path: str = ""
-    # F-57 Phase 4: explicit handwritten macro manifests (repeatable).
+    # explicit handwritten macro manifests (repeatable).
     macro_manifests: list[str] | None = None
-    # F-57: directory of handwritten macros (globs *.yaml/*.yml).
+    # directory of handwritten macros (globs *.yaml/*.yml).
     macros_dir: str = ""
 
 
@@ -323,7 +326,7 @@ def _handle_convert(args: list[str]) -> int:
         try:
             capture.close()
         except Exception:  # nosec B110
-            pass
+            pass  # Cleanup is best-effort and must not replace the primary operation result.
 
     # If --out is specified, write the output files to the target directory
     if opts.output_dir:
@@ -511,7 +514,7 @@ def _handle_convert_from_source(opts: ConvertOptions) -> int:
     except Exception:
         tool_deps_index = None
 
-    # F-57 Phase 4: preview / validate handwritten macros without writing
+    # preview / validate handwritten macros without writing
     if opts.preview or opts.validate_only:
         try:
             from extensions.sop_converter.runtime.macros import (
@@ -579,7 +582,7 @@ def _handle_convert_from_source(opts: ConvertOptions) -> int:
                 )
                 if composite_registered:
                     print(f"   Registered composite tools: {len(composite_registered)}")
-                # F-55: auto-promote lifecycle recovery composite tools into
+                # auto-promote lifecycle recovery composite tools into
                 # skills whose allowed_tools intersect the agent_lifecycle group.
                 try:
                     from extensions.sop_converter.runtime.composite_tools.builtin import (
@@ -626,7 +629,7 @@ def _handle_convert_from_source(opts: ConvertOptions) -> int:
                     file=sys.stderr,
                 )
 
-            # F-57 Phase 4: handwritten / template macros (sop-macros/ + --macro-manifest)
+            # handwritten / template macros (sop-macros/ + --macro-manifest)
             try:
                 from extensions.sop_converter.runtime.macros import (
                     MacroConvertError,
@@ -718,7 +721,7 @@ def _handle_convert_from_source(opts: ConvertOptions) -> int:
                     profile.recommended_tools = list(skill_tool_map[profile.mapped_skill])
 
     # Build per-skill AgentComponentInfo for the overview agent.
-    # Macro tools belong in the overview「宏工具意图」table only — do not list
+    # Macro tools belong only in the overview's macro-tool-intent table; do not list
     # them under every (or even the owner) domain agent's capabilities.
     macro_tool_names: set[str] = set()
     try:
@@ -730,7 +733,7 @@ def _handle_convert_from_source(opts: ConvertOptions) -> int:
                 if target:
                     macro_tool_names.add(target)
     except Exception:  # nosec B110
-        pass
+        pass  # Macro-route enrichment is optional; keep the converted bundle without it.
 
     overview_info: list[AgentComponentInfo] = []
     for skill in grouped_skills:
@@ -811,7 +814,7 @@ def _handle_convert_from_source(opts: ConvertOptions) -> int:
     )
     if workflow_graph and agent_map and out_path and not emit_workflow_bundle:
         print(
-            "   Warning: workflow artifacts skipped (no mapped stages; use fwa/hybrid mode or fix F-50-C mapping)",
+            "   Warning: workflow artifacts skipped (no mapped stages; use fwa/hybrid mode or fix the mapping)",
             file=sys.stderr,
         )
     elif workflow_graph and agent_map and not agent_map.has_mapped_stages and emit_workflow_bundle:
@@ -949,7 +952,7 @@ def _handle_convert_from_source(opts: ConvertOptions) -> int:
                 sdk_source_dir=sdk_path,
             )
 
-        # F-50-E: write hybrid/wrapper/native stage agents last so coarse write_agent cannot overwrite them
+        # write hybrid/wrapper/native stage agents last so coarse write_agent cannot overwrite them
         if workflow_graph and agent_map and emit_workflow_bundle and emit_stage_agents:
             from extensions.sop_converter.workflow_mode.generator import stage_agent_existing_names
 

@@ -1,21 +1,27 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 # pylint: disable=relative-beyond-top-level
-"""Post-LLM 恢复策略注册表（P102-B）。
-
-将 ``query()`` 中 max_tokens/PTL/media_size 的硬编码恢复链改为注册式
-``RecoveryStrategy`` 列表，使新错误恢复策略无需修改 ``query.py`` 即可注入。
-
-用法::
-
-    from clawcodex_ext.query.recovery_strategies import register_recovery_strategy, RecoveryContext
-
-    def my_recovery(ctx: RecoveryContext) -> tuple[QueryState | None, list[Message]] | None:
-        if ctx.error_type != "my_custom_error":
-            return None
-        # 构建新状态或返回终止消息
-        return (new_state, [])
-
-    register_recovery_strategy("my_recovery", my_recovery, priority=20)
-"""
+"""P102-B Agent-loop recovery strategy registry."""
 
 from __future__ import annotations
 
@@ -35,10 +41,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class RecoveryContext:
-    """恢复策略执行时传入的上下文。
-
-    包含当前 turn 的全部状态，策略可以读取任何字段并决定如何响应。
-    """
+    """Context passed to a recovery strategy."""
 
     state: QueryState
     last_message: Message | None
@@ -54,17 +57,17 @@ RecoveryStrategyFn = Callable[[RecoveryContext], tuple["QueryState | None", list
 
 @dataclass
 class RecoveryStrategy:
-    """单个恢复策略的元数据。"""
+    """Metadata and handler for one recovery strategy."""
 
     name: str
     fn: RecoveryStrategyFn
     priority: int = 0
 
 
-# 全局策略列表，按优先级排序
+# Global strategy list ordered by priority.
 _STRATEGIES: list[RecoveryStrategy] = []
 
-# 内置策略名称常量，方便测试和注销
+# Stable built-in names support testing and unregistration.
 MAX_OUTPUT_TOKENS_ESCALATE = "max_output_tokens_escalate"
 MAX_OUTPUT_TOKENS_RECOVERY = "max_output_tokens_recovery"
 MAX_OUTPUT_TOKENS_EXHAUSTED = "max_output_tokens_exhausted"
@@ -74,7 +77,7 @@ MEDIA_SIZE_FALLBACK = "media_size_fallback"
 PROMPT_TOO_LONG_FALLBACK = "prompt_too_long_fallback"
 
 
-# ── 公共 API ─────────────────────────────────────────────────────────
+# -- Public API -----------------------------------------------------------
 
 
 def register_recovery_strategy(
@@ -82,10 +85,7 @@ def register_recovery_strategy(
     fn: RecoveryStrategyFn,
     priority: int = 0,
 ) -> None:
-    """注册一个恢复策略。
-
-    同名策略会先被注销，再重新注册，避免重复。
-    """
+    """Register an agent-loop recovery strategy."""
     unregister_recovery_strategy(name)
     _STRATEGIES.append(RecoveryStrategy(name=name, fn=fn, priority=priority))
     _STRATEGIES.sort(key=lambda s: s.priority)
@@ -93,7 +93,7 @@ def register_recovery_strategy(
 
 
 def unregister_recovery_strategy(name: str) -> None:
-    """注销指定名称的恢复策略。"""
+    """Unregister an agent-loop recovery strategy."""
     before = len(_STRATEGIES)
     _STRATEGIES[:] = [s for s in _STRATEGIES if s.name != name]
     if len(_STRATEGIES) < before:
@@ -104,27 +104,22 @@ def find_recovery_strategies(
     error_type: str,
     state: QueryState,  # noqa: ARG001
 ) -> list[RecoveryStrategy]:
-    """返回所有已注册策略（按优先级排序）。
-
-    当前不根据 ``error_type`` 预过滤——每个策略的 ``fn`` 内部自行判断
-    是否适用。这样策略可以基于更复杂的条件（如 ``state`` 字段、
-    ``params`` 配置）做出决策。
-    """
+    """Return recovery strategies that support the failure."""
     return list(_STRATEGIES)
 
 
 def clear_recovery_strategies() -> None:
-    """清空所有策略。主要用于测试隔离。"""
+    """Clear recovery strategies for test isolation."""
     _STRATEGIES.clear()
 
 
-# ── 内置策略实现 ─────────────────────────────────────────────────────
+# -- Built-in strategies -------------------------------------------------
 
 
 def _max_output_tokens_escalate(
     ctx: RecoveryContext,
 ) -> tuple[QueryState | None, list[Message]] | None:
-    """首次 max_output_tokens 错误：提升到 ESCALATED_MAX_TOKENS 并重试。"""
+    """Increase the output-token limit for one retry."""
     if ctx.error_type != "max_output_tokens":
         return None
     from .transitions import QueryState, Transition
@@ -154,7 +149,7 @@ def _max_output_tokens_escalate(
 def _max_output_tokens_recovery(
     ctx: RecoveryContext,
 ) -> tuple[QueryState | None, list[Message]] | None:
-    """max_output_tokens 恢复：注入恢复提示并重试。"""
+    """Retry after an output-token limit failure."""
     if ctx.error_type != "max_output_tokens":
         return None
     from .transitions import QueryState, Transition
@@ -192,7 +187,7 @@ def _max_output_tokens_recovery(
 def _max_output_tokens_exhausted(
     ctx: RecoveryContext,
 ) -> tuple[QueryState | None, list[Message]] | None:
-    """max_output_tokens 恢复次数用尽：yield 错误消息并终止。"""
+    """Stop recovery after output-token retries are exhausted."""
     if ctx.error_type != "max_output_tokens":
         return None
     s = ctx.state
@@ -204,7 +199,7 @@ def _max_output_tokens_exhausted(
 def _collapse_engine_recovery(
     ctx: RecoveryContext,
 ) -> tuple[QueryState | None, list[Message]] | None:
-    """PTL 错误 + CollapseEngine 配置时，优先走引擎恢复路径。"""
+    """Recover through the context-collapse engine."""
     if ctx.error_type != "prompt_too_long":
         return None
     s = ctx.state
@@ -254,7 +249,7 @@ def _collapse_engine_recovery(
 async def _reactive_compact_recovery(
     ctx: RecoveryContext,
 ) -> tuple[QueryState | None, list[Message]] | None:
-    """PTL/media_size 错误 + reactive_compact 启用时，走 LLM 驱动的压缩恢复。"""
+    """Recover by compacting the active context."""
     if ctx.error_type not in ("prompt_too_long", "media_size"):
         return None
     s = ctx.state
@@ -306,19 +301,19 @@ async def _reactive_compact_recovery(
 
 
 def _media_size_fallback(ctx: RecoveryContext) -> tuple[QueryState | None, list[Message]] | None:
-    """media_size 错误且所有恢复策略都已耗尽：终止并返回 image_error。"""
+    """Retry media generation with a supported size."""
     if ctx.error_type != "media_size":
         return None
     if not ctx.state.has_attempted_reactive_compact:
         return None
-    # 返回 None state + 非空 yield 表示终止
+        # A ``None`` state and non-empty output terminate recovery.
     return (None, [ctx.last_message] if ctx.last_message is not None else [])
 
 
 def _prompt_too_long_fallback(
     ctx: RecoveryContext,
 ) -> tuple[QueryState | None, list[Message]] | None:
-    """PTL 错误且所有恢复策略都已耗尽：终止并返回 prompt_too_long。"""
+    """Recover from an overlong prompt."""
     if ctx.error_type != "prompt_too_long":
         return None
     if not ctx.state.has_attempted_reactive_compact:
@@ -326,7 +321,7 @@ def _prompt_too_long_fallback(
     return (None, [ctx.last_message] if ctx.last_message is not None else [])
 
 
-# 注册内置策略（优先级数值越小越靠前）
+# Register built-ins; lower values run first.
 def _register_builtin_strategies() -> None:
     register_recovery_strategy(MAX_OUTPUT_TOKENS_ESCALATE, _max_output_tokens_escalate, priority=10)
     register_recovery_strategy(MAX_OUTPUT_TOKENS_RECOVERY, _max_output_tokens_recovery, priority=20)

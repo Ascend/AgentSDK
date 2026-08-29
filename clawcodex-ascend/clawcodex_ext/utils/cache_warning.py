@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-# coding=utf-8
+# -*- coding: utf-8 -*-
+
 
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
@@ -33,7 +34,7 @@ from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Optional
 
-# F-12: Maximum number of source entries before oldest eviction.
+# Maximum number of source entries before oldest eviction.
 # Set to a large value (10 000) so normal usage is unaffected while
 # still bounding memory in long-running daemon/swarm scenarios.
 MAX_SOURCE_ENTRIES = 10_000

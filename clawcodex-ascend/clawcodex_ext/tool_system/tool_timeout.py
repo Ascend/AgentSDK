@@ -1,28 +1,50 @@
-"""Per-tool timeout resolution + gap-watchdog helpers (F-108 P108-C / P108-G).
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
+"""Per-tool timeout resolution + gap-watchdog helpers.
 
 The canonical tool execution lives in ``src/tool_system/`` which
 this fork cannot modify. The practical Layer-2 mechanism is:
 
 * **Tool timeout** — observe the ``tool_use`` → ``tool_result`` gap
-  inside the agent-loop message stream (already exposed by
-  :mod:`extensions.api.query` and :mod:`clawcodex_ext.query.agent_loop_compat`).
+  inside the agent-loop message stream (already exposed in
+  :mod:`extensions.api.query` and
+  :mod:`clawcodex_ext.query.agent_loop_compat`).
   When the gap exceeds ``tool_timeout_s`` for the called tool the
   watching code trips the existing ``AbortController`` so the next
-  boundary unwinds the loop. Observable effect: the user sees the
-  same outcome (``SessionComplete(reason="timeout")`` /
-  ``ToolResult(is_error=True, error="…timed out…")``) as a true
-  ``asyncio.wait_for(tool_exec, 120)``.
+ boundary unwinds the loop. Observable effect: the user sees the
+ same outcome (``SessionComplete(reason="timeout")`` /
+ ``ToolResult(is_error=True, error="…timed out…")``) as a true
+ ``asyncio.wait_for(tool_exec, 120)``.
 
 * **Auto-recovery** — the trip target is always the
-  :class:`AbortController` the parent loop already owns. Layer-3
-  always wins Layer-1: the watchdog never kills the process, it
+  :class:`AbortController` the parent loop already owns. Layer 3
+  always wins Layer 1: the watchdog never kills the process, it
   only signals so the canonical handlers can clean up.
 
 This module houses the *policy* (per-tool timeout table, gap
-detector). The actual wiring lives in
-:mod:`extensions.api.query` (headless) and
-:mod:`clawcodex_ext.query.agent_loop_compat` (TUI / cutover). Both
-call sites consume :func:`resolve_tool_timeout` and
+detector). The actual wiring lives in :mod:`extensions.api.query`
+(headless) and :mod:`clawcodex_ext.query.agent_loop_compat` (TUI /
+cutover). Both call sites consume :func:`resolve_tool_timeout` and
 :class:`ToolGapWatchdog`.
 """
 
@@ -41,7 +63,7 @@ from clawcodex_ext.diagnostics.freeze_config import (
 )
 
 
-# F-108 §十八 acceptance §3: tool timeout default 120 s. ``0`` (via
+# acceptance §3: tool timeout default 120 s. ``0`` (via
 # env or settings) disables the watchdog for a specific tool.
 DEFAULT_TOOL_TIMEOUT_S = 120.0
 
@@ -51,13 +73,13 @@ DEFAULT_TOOL_TIMEOUT_S = 120.0
 _FAST_TOOL_TIMEOUT_S = 30.0
 _LONG_RUNNING_TOOL_TIMEOUT_S = 600.0
 
-# F-108 §十八 — the triage table. ``Bash`` is the canonical
+# the triage table. ``Bash`` is the canonical
 # "tool that can hang forever if a child process is wedged" entry
 # (risk #6 in the audit table). WebFetch is bumped to 30 s so the
 # 5-min default doesn't cover an obviously-stalled HTTP socket;
 # most healthy WebFetch calls return inside the budget. The
 # ``Agent`` subagent dispatcher already has its own watchdog via
-# F-99 — keep its timeout at the default so we don't double-fire.
+# keep its timeout at the default so we don't double-fire.
 _TOOL_TIMEOUT_S: dict[str, float] = {
     "Bash": DEFAULT_TOOL_TIMEOUT_S,
     "Edit": _FAST_TOOL_TIMEOUT_S,
@@ -307,7 +329,7 @@ class ToolGapWatchdog:
                         try:
                             self.logger.exception("AbortController.abort failed during tool_timeout trip")
                         except Exception:  # nosec
-                            pass
+                            pass  # The failure is already recorded; keep this resilience loop running.
         if self.on_trip is not None:
             try:
                 self.on_trip(resolution, elapsed, tool_use_id)
@@ -316,7 +338,7 @@ class ToolGapWatchdog:
                     try:
                         self.logger.exception("tool_timeout on_trip callback raised")
                     except Exception:  # nosec
-                        pass
+                        pass  # The optional callback is isolated so it cannot interrupt the owning event loop.
 
     def _heartbeat_freeze_detector(self) -> None:
         """Keep Layer-1 alive while the gap-watchdog is healthy.
@@ -332,7 +354,7 @@ class ToolGapWatchdog:
             if det is not None:
                 det.heartbeat()
         except Exception:  # nosec
-            pass
+            pass  # Diagnostics are best-effort and must not affect the monitored operation.
 
 
 __all__ = [

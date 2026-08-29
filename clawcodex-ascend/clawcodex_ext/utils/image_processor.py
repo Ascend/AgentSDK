@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-# coding=utf-8
+# -*- coding: utf-8 -*-
+
 
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
@@ -7,7 +8,7 @@
 # Originally from the clawcodex project:
 #   https://github.com/agentforce314/clawcodex
 #   Copyright (c) 2026 Clawd Codex Team
-#   Licensed under the MIT License. See LICENSE-MIT-clawcodex in this directory.
+#   Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
 #
 # Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
 # Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
@@ -258,7 +259,7 @@ def _resize_to_envelope(img: Any, max_w: int, max_h: int) -> tuple[Any, int, int
     scale = min(max_w / w, max_h / h)
     new_w = max(1, int(w * scale))
     new_h = max(1, int(h * scale))
-    resized = img.resize((new_w, new_h), Image.LANCZOS)
+    resized = img.resize((new_w, new_h), Image.LANCZOS)  # pylint: disable=no-member
     return resized, new_w, new_h
 
 
@@ -428,7 +429,9 @@ def compress_image_to_byte_budget(
     for scale in (1.0, 0.75, 0.5, 0.25):
         target_w = max(1, int(orig_w * scale))
         target_h = max(1, int(orig_h * scale))
-        scaled = img if scale == 1.0 else img.resize((target_w, target_h), Image.LANCZOS)
+        scaled = (
+            img if scale == 1.0 else img.resize((target_w, target_h), Image.LANCZOS)  # pylint: disable=no-member
+        )
         for quality in (80, 50):
             try:
                 attempt = _encode_image(scaled, "image/jpeg", quality=quality)
@@ -454,7 +457,12 @@ def compress_image_to_byte_budget(
     if sniffed_media == "image/png":
         try:
             palette_source, pw, ph = _resize_to_envelope(img, 800, 800)
-            palette_img = palette_source.convert("P", palette=Image.ADAPTIVE, colors=64)
+            palette_img = palette_source.convert(
+                "P",
+                # Pillow exposes this compatibility constant at runtime, but its module stub omits it.
+                palette=Image.ADAPTIVE,  # pylint: disable=no-member
+                colors=64,
+            )
             attempt = _encode_image(palette_img, "image/png")
             if len(attempt) <= max_bytes:
                 return ResizeResult(

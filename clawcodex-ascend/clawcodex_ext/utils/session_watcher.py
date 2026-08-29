@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-# coding=utf-8
+# -*- coding: utf-8 -*-
+
 
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
@@ -162,7 +163,7 @@ class _INotifyImpl:
             try:
                 await self._task
             except asyncio.CancelledError:
-                pass
+                pass  # The task was explicitly cancelled; awaiting it only drains shutdown cleanup.
 
 
 class _FSEventsImpl:
@@ -204,7 +205,7 @@ class _PollingImpl:
             try:
                 await self._task
             except asyncio.CancelledError:
-                pass
+                pass  # The task was explicitly cancelled; awaiting it only drains shutdown cleanup.
 
     async def _poll_loop(self) -> None:
         while not self._stopping:

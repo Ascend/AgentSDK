@@ -1,3 +1,25 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 """Side question execution wrapper.
 
 Mirrors ``typescript/src/utils/sideQuestion.ts``.
@@ -5,14 +27,14 @@ Mirrors ``typescript/src/utils/sideQuestion.ts``.
 Wraps ``run_forked_agent`` with the constraints specific to a /btw
 side-question:
 
-* max_turns = 1  (single-shot answer, no follow-up)
-* can_use_tool = deny-all  (no tool execution)
+* max_turns = 1 (single-shot answer, no follow-up)
+* can_use_tool = deny-all (no tool execution)
 * query_source = "side_question"
-* skip_cache_write = True  (don't pollute the parent's prompt cache)
+* skip_cache_write = True (don't pollute the parent's prompt cache)
 * Injects a <system-reminder> wrapped directive so the model knows it is
   an independent instance with no tools and no interruption semantics.
 
-F-122-H: every invocation also writes a one-line JSONL record to the
+Every invocation also writes a one-line JSONL record to the
 sidechain transcript under ``$CLAWCODEX_DATA_DIR/sidechains/`` so the
 question + answer + usage have a paper trail independent of the main
 session transcript. The record write is fire-and-forget — IO failures
@@ -40,7 +62,7 @@ logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# F-122-H: sidechain transcript helpers (local, not exported)
+# sidechain transcript helpers (local, not exported)
 # ---------------------------------------------------------------------------
 
 
@@ -104,7 +126,7 @@ def _record_btw_to_sidechain(
         # exception-safe, but belt-and-braces: sidechain writes must
         # NEVER escape into the /btw user flow.
         logger.warning(
-            "F-122-H: sidechain record wrapper crashed unexpectedly",
+            "sidechain record wrapper crashed unexpectedly",
             exc_info=True,
         )
 
@@ -158,13 +180,13 @@ async def run_side_question(
     """Run a side question in an isolated fork.
 
     Args:
-        question: The user's question text (already stripped).
-        cache_safe_params: Frozen snapshot of the parent's API prefix.
+    question: The user's question text (already stripped).
+    cache_safe_params: Frozen snapshot of the parent's API prefix.
 
     Returns:
         SideQuestionResult with the text response and usage info.
 
-    F-122-H: as a side effect, appends a JSONL record to the sidechain
+    As a side effect, this appends a JSONL record to the sidechain
     transcript so ``/btw`` invocations are auditable. Recording happens
     on *both* success and failure paths — an API error leaves an
     ``error`` field in the record so a session can be replayed/rebuilt

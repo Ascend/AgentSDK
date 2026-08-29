@@ -1,10 +1,16 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -13,12 +19,6 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
-#
-# Copyright (c) 2026 Clawd Codex Team
-# SPDX-License-Identifier: MIT
-# Source: https://github.com/agentforce314/clawcodex
-# ClawCodex-derived portions remain licensed under the MIT License.
-# See clawcodex-ascend/LICENSE.clawcodex.
 
 """Status line widget — parity with ``StatusLine.tsx`` + ``SpinnerWithVerb``.
 
@@ -284,7 +284,7 @@ class StatusLine(Static):
                 if total_cost > 0:
                     right_bits.append(f"cost {format_cost_usd(total_cost)}")
             except Exception:  # nosec B110
-                pass
+                pass  # Intentional best-effort path; the surrounding fallback remains valid.
         right = " · ".join(right_bits)
         proactive_text = ""
         try:
@@ -329,7 +329,7 @@ def _goal_status_segment(goal: dict | None, *, now: float | None = None) -> str 
             current = time.time() if now is None else now
             elapsed = max(int(current - float(active_since)), 0)
     except (TypeError, ValueError):
-        pass
+        pass  # Invalid candidate; continue with the surrounding fallback.
     return f"◎ /goal {status} ({_format_goal_elapsed_seconds(elapsed)})"
 
 

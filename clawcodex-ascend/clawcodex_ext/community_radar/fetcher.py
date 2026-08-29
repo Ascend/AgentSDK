@@ -1,3 +1,25 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 # pylint: disable=relative-beyond-top-level
 """Fetcher for the Community Feature Radar — shallow-clone releases, REST API for commits/PRs."""
 
@@ -311,7 +333,7 @@ class Fetcher:
             try:
                 self._client.close()
             except Exception:  # noqa: BLE001  # nosec B110
-                pass
+                pass  # Cleanup is best-effort and must not replace the primary operation result.
 
     def __enter__(self) -> Fetcher:  # noqa: PYI034
         return self
@@ -659,7 +681,7 @@ class Fetcher:
                         remaining,
                     )
         except (ValueError, AttributeError):
-            pass
+            pass  # The candidate value is invalid; continue with the existing fallback.
 
     # Commits / PRs (lightweight, optional)
 
@@ -744,11 +766,11 @@ class Fetcher:
     @staticmethod
     def _git_clone(repo_url: str, clone_dir: Path) -> None:
         """Shallow-clone *repo_url* to *clone_dir* (--depth 30)."""
-        from clawcodex_ext.utils.git import _run_git  # type: ignore
+        from clawcodex_ext.utils.git import run_git
 
         clone_dir.parent.mkdir(parents=True, exist_ok=True)
         _log.info("cloning %s (--depth 30) into %s", repo_url, clone_dir)
-        _stdout, stderr, rc = _run_git(
+        _stdout, stderr, rc = run_git(
             ["clone", "--depth", "30", repo_url, str(clone_dir)],
             timeout=120.0,
         )
@@ -758,13 +780,13 @@ class Fetcher:
     @staticmethod
     def _git_fetch(clone_dir: Path) -> None:
         """Shallow-fetch latest and reset (--depth 30 stays shallow)."""
-        from clawcodex_ext.utils.git import _run_git  # type: ignore
+        from clawcodex_ext.utils.git import run_git
 
         _log.info("fetching --depth 30 in %s", clone_dir)
-        _stdout, stderr, rc = _run_git(["fetch", "--depth", "30", "origin"], cwd=str(clone_dir), timeout=60.0)
+        _stdout, stderr, rc = run_git(["fetch", "--depth", "30", "origin"], cwd=str(clone_dir), timeout=60.0)
         if rc != 0:
             raise RuntimeError(f"git fetch failed: {stderr}")
-        _run_git(["reset", "--hard", "origin/HEAD"], cwd=str(clone_dir), timeout=30.0)
+        run_git(["reset", "--hard", "origin/HEAD"], cwd=str(clone_dir), timeout=30.0)
 
     @staticmethod
     def _read_changelog(clone_dir: Path, source: WatchSource) -> str | None:

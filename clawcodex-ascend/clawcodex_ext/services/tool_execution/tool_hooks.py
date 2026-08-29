@@ -1,25 +1,23 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
-#  This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# This file is part of the AgentSDK project.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
 #
-#           http://license.coscl.org.cn/MulanPSL2
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
 #
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
-
-# -------------------------------------------------------------------------
-# This file is derived from Clawd Codex (https://github.com/agentforce314/clawcodex),
-# which is licensed under the MIT License.
-# Copyright (c) 2026 Clawd Codex Team
-# -------------------------------------------------------------------------
 # -------------------------------------------------------------------------
 
 """Tool hooks — mirrors TypeScript toolHooks.ts.
@@ -314,7 +312,7 @@ async def resolve_hook_permission_decision(
     tool_use_id: str,
 ) -> dict[str, Any]:
     if hook_permission_result is None:
-        # 只在 auto 模式下进行完整权限检查（包括分类器）
+        # Run the full permission check, including classification, only in auto mode.
         if getattr(tool_use_context.permission_context, "mode", None) == "auto":
             try:
                 from src.permissions.check import has_permissions_to_use_tool
@@ -334,9 +332,9 @@ async def resolve_hook_permission_decision(
                     if full_check.behavior == "allow":
                         return {"behavior": "allow"}
             except ImportError:
-                pass
+                pass  # Optional integration is unavailable; keep the fallback.
 
-        # 其他模式保持原有逻辑
+        # Preserve the existing behavior for other modes.
         if can_use_tool is not None and callable(can_use_tool):
             try:
                 import inspect
@@ -435,7 +433,7 @@ async def resolve_hook_permission_decision(
                         return {**decision, "input": hook_input}
                     return {"behavior": getattr(decision, "behavior", "allow"), "input": hook_input}
         except ImportError:
-            pass
+            pass  # Optional integration is unavailable; keep the fallback.
 
         return {"behavior": "allow", "input": hook_input}
 

@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
-#  This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
 # Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
-#           http://license.coscl.org.cn/MulanPSL2
+#          http://license.coscl.org.cn/MulanPSL2
 #
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
@@ -581,7 +584,7 @@ def restart_channel(name: str, *, state_dir: str | None = None) -> int:
     """Rebuild a channel adapter live via the running daemon (P4).
 
     If the daemon is running, send a ``control.reload`` IPC frame so the
-    adapter is rebuilt in-process (即时生效). Otherwise validate config and
+    adapter is rebuilt in-process immediately. Otherwise validate config and
     advise starting the daemon.
     """
     import asyncio
@@ -739,7 +742,7 @@ def _feishu_scan_login(input_fn: InputFn) -> dict[str, str]:
 def _feishu_manual_login(channel: ChannelConfig, ui: InteractiveInput) -> ChannelConfig | None:
     """Manual edit of login fields; masks app_secret, keeps existing values.
 
-    Returns ``None`` when the user ESCs out mid-way (channel未修改)。
+    Return ``None`` when the user presses ESC; the channel remains unchanged.
     """
     extra = dict(channel.extra or {})
     current_app_id = str(extra.get("app_id") or "")
@@ -877,7 +880,7 @@ def _wizard_edit_feishu(cfg, path, channel: ChannelConfig, ui: InteractiveInput)
                 print("登录配置已更新。退出 setup 后 Gateway 将自动重启生效。")
             elif sub == 1:
                 updated = _feishu_manual_login(channel, ui)
-                if updated is None:  # ESC 中断：保留原 channel，回 feishu 编辑菜单
+                if updated is None:  # Keep the channel and return to the Feishu edit menu.
                     continue
                 channel = updated
                 cfg.replace_channel(channel)
@@ -947,7 +950,7 @@ def wechat_login_status(name: str, *, state_dir: str | None = None) -> str:
 
 
 def _feishu_is_logged_in(channel: ChannelConfig) -> bool:
-    """Feishu 视为已登录当 app_id + app_secret 齐全（兼容纯手动配置，bot_open_id 可缺）。"""
+    """Treat Feishu as logged in when app_id and app_secret are present."""
     extra = dict(channel.extra or {})
     return bool(extra.get("app_id") and extra.get("app_secret"))
 
@@ -983,8 +986,8 @@ def wechat_login(name: str, *, state_dir: str | None = None) -> int:
     from clawcodex_ext.services.channels.wechat_ilink import (
         WeChatIlinkAuthStore,
         WeChatIlinkChannelAdapter,
-        _IlinkHttpError,
-        _IlinkPlatformError,
+        IlinkHttpError,
+        IlinkPlatformError,
     )
     from clawcodex_ext.services.channels.exceptions import TransportError
     from extensions.im_gateway.server import DaemonPaths
@@ -1033,7 +1036,7 @@ def wechat_login(name: str, *, state_dir: str | None = None) -> int:
 
     try:
         data = asyncio.run(_do())
-    except _IlinkHttpError as exc:
+    except IlinkHttpError as exc:
         print(
             f"iLink 登录失败: HTTP {exc.status} (base_url={extra.get('base_url', 'https://ilinkai.weixin.qq.com')})",
             file=sys.stderr,
@@ -1045,7 +1048,7 @@ def wechat_login(name: str, *, state_dir: str | None = None) -> int:
                 file=sys.stderr,
             )
         return 1
-    except _IlinkPlatformError as exc:
+    except IlinkPlatformError as exc:
         print(f"iLink 登录失败: 平台错误 {exc.code}: {exc.msg}", file=sys.stderr)
         return 1
     except TransportError as exc:
@@ -1094,11 +1097,11 @@ def wechat_login(name: str, *, state_dir: str | None = None) -> int:
 
 
 def run_wizard(path: str | None = None, *, input_fn: InputFn | None = None) -> int:
-    """箭头键菜单驱动的 setup 向导。
+    """Run the arrow-key-driven channel setup wizard.
 
-    频道选择菜单列出 feishu / wechat 为主选项（带 [已登录]/[未登录] 标注），
-    已配置的 slack/discord 作为"存量"项追加可编辑/移除。选择 feishu/wechat 时
-    按登录态路由到新增或编辑流程。频道选择层 ESC 退出 setup；所有子菜单 ESC 返回上一步。
+    Feishu and WeChat are primary options with login-state labels. Existing
+    Slack and Discord channels remain editable or removable. ESC exits the
+    top-level wizard and returns from nested menus.
     """
     ui = InteractiveInput(input_fn)
     cfg = load_config(path)
@@ -1259,7 +1262,7 @@ def _edit_fields(cfg, path, channel: ChannelConfig, ui: InteractiveInput) -> Non
         )
         raw = ui.prompt(f"{label} [{current}] (回车保留，ESC 中断): ")
         if raw is None:
-            return  # ESC: 中断，已改字段不保存
+            return  # ESC discards field edits made in this form.
         if raw == "":
             continue
         if field_name == "webhook_url":

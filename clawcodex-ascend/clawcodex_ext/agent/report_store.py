@@ -1,4 +1,26 @@
-"""F-88 P88-D — disk-backed Explore/Plan report store.
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
+"""P88-D — disk-backed Explore/Plan report store.
 
 The Agent tool's one-shot agents (Explore, Plan) emit a high-leverage
 markdown report. Without this store, that report lives only in the
@@ -127,7 +149,7 @@ def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
         try:
             os.unlink(tmp_path)
         except OSError:
-            pass
+            pass  # Best-effort operation failed; keep the surrounding fallback.
         raise
 
 
@@ -143,7 +165,7 @@ def _atomic_write_text(path: Path, text: str) -> None:
         try:
             os.unlink(tmp_path)
         except OSError:
-            pass
+            pass  # Best-effort operation failed; keep the surrounding fallback.
         raise
 
 

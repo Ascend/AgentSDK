@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 #  This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
@@ -16,7 +17,7 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""F-65 P65-B — :class:`LangfuseSink` analytics sink.
+"""P65-B — :class:`LangfuseSink` analytics sink.
 
 Translates :class:`AnalyticsEvent` records into Langfuse traces,
 spans, and generations, and keeps a local in-memory buffer of the

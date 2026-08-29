@@ -3,12 +3,14 @@
 
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Clawd Codex Team
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -18,7 +20,7 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""Consolidation lock — F-100 / 100.3 (with Phase B TTL enhancement).
+"""Consolidation lock (with Phase B TTL enhancement).
 
 Mirrors ``typescript/src/services/autoDream/consolidationLock.ts``.
 The lock file lives in the auto-memory dir and its mtime *is*
@@ -424,7 +426,7 @@ def _iter_candidates(base: Path) -> Iterable[Path]:
             if child.is_dir() or child.suffix == ".jsonl":
                 yield child
     except OSError:
-        pass
+        pass  # Best-effort operation failed; keep the surrounding fallback.
 
 
 # ---------------------------------------------------------------------------

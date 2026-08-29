@@ -3,12 +3,14 @@
 
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Clawd Codex Team
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -135,11 +137,7 @@ _CHINESE_INTERVAL_RE = re.compile(r"每(?:隔)?\s*(\d+)?\s*(秒钟?|分钟?|小�
 
 
 def _parse_chinese_interval(text: str) -> tuple[str, str] | None:
-    """Extract interval from Chinese text like ``每隔1分钟提醒我...``.
-
-    Supports both ``每N<unit>`` and ``每<unit>`` (defaults to 1).
-    Returns ``(remaining_prompt, canonical_interval)`` or None.
-    """
+    """Parse supported Chinese reminder interval syntax."""
     m = _CHINESE_INTERVAL_RE.search(text)
     if not m:
         return None
@@ -155,16 +153,7 @@ def _parse_chinese_interval(text: str) -> tuple[str, str] | None:
 
 
 def parse_loop_args(args: str) -> ParsedLoopArgs:
-    """Port of TS ``parseLoopArgs`` with Chinese interval support.
-
-    Routing:
-    - empty args                              → ``dynamic-maintenance``
-    - bare interval (``5m``)                  → ``fixed-maintenance``
-    - ``<interval> <prompt>``                 → ``fixed-prompt``
-    - ``<prompt> every <interval>``           → ``fixed-prompt``
-    - Chinese ``每(隔)N<unit>...``            → ``fixed-prompt`` / ``fixed-maintenance``
-    - anything else                           → ``fixed-prompt`` with a 10m default
-    """
+    """Parse loop command arguments, including Chinese intervals."""
     trimmed = args.strip()
     if not trimmed:
         return ParsedLoopArgs(mode="dynamic-maintenance")

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-# coding=utf-8
+# -*- coding: utf-8 -*-
+
 
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
@@ -96,10 +97,11 @@ def test_reload_if_stale_returns_false_when_file_unchanged(installed_patch, regi
     from extensions.orchestrator.issue_registry import IssueRegistry
 
     registry = IssueRegistry(registry_path)
-    assert registry_path.exists() is False or registry._mtime_ns >= 0
+    # The fixture installs these IssueRegistry members dynamically at runtime.
+    assert registry_path.exists() is False or registry._mtime_ns >= 0  # pylint: disable=no-member
 
     # No external write yet — reload must be a no-op.
-    assert registry.reload_if_stale() is False
+    assert registry.reload_if_stale() is False  # pylint: disable=no-member
 
 
 def test_reload_if_stale_returns_true_when_file_changes(installed_patch, registry_path: Path, monkeypatch) -> None:
@@ -112,7 +114,7 @@ def test_reload_if_stale_returns_true_when_file_changes(installed_patch, registr
     registry = IssueRegistry(registry_path)
     # Register one issue so we can prove the reload re-reads records.
     registry.register("42", "#42")
-    cached_mtime = registry._mtime_ns
+    cached_mtime = registry._mtime_ns  # pylint: disable=no-member
 
     # Simulate a separate CLI process writing the file: bump mtime into the
     # future so the cached value is strictly less.
@@ -132,7 +134,8 @@ def test_reload_if_stale_returns_true_when_file_changes(installed_patch, registr
 
     raw = json.loads(registry_path.read_text(encoding="utf-8"))
     raw["42"]["status"] = IssueStatus.FAILED.value
-    raw["42"]["intent"] = Intent.RETRY.value
+    # Preserve the target-branch package API usage; changing its exports is a runtime change.
+    raw["42"]["intent"] = Intent.RETRY.value  # pylint: disable=no-member
     raw["42"]["intent_source"] = "cli"
     # Write atomically using the same tmp-rename pattern IssueRegistry uses
     # so the test mirrors real behaviour.
@@ -144,15 +147,15 @@ def test_reload_if_stale_returns_true_when_file_changes(installed_patch, registr
     bumped = future + 10_000_000_000
     os.utime(registry_path, ns=(bumped, bumped))
 
-    reloaded = registry.reload_if_stale()
+    reloaded = registry.reload_if_stale()  # pylint: disable=no-member
     assert reloaded is True, "expected reload after on-disk mutation"
 
     record = registry.get("42")
     assert record is not None
     assert record.status is IssueStatus.FAILED
-    assert record.intent is Intent.RETRY
+    assert record.intent is Intent.RETRY  # pylint: disable=no-member
     assert record.intent_source == "cli"
-    assert registry._mtime_ns == bumped
+    assert registry._mtime_ns == bumped  # pylint: disable=no-member
 
 
 def test_load_initializes_mtime(installed_patch, registry_path: Path) -> None:
@@ -160,11 +163,11 @@ def test_load_initializes_mtime(installed_patch, registry_path: Path) -> None:
 
     registry = IssueRegistry(registry_path)
     # No file on disk yet — _load is a no-op, mtime stays 0.
-    assert registry._mtime_ns == 0
+    assert registry._mtime_ns == 0  # pylint: disable=no-member
 
     # First save creates the file and must record its mtime.
     registry.register("1", "#1")
-    assert registry._mtime_ns > 0
+    assert registry._mtime_ns > 0  # pylint: disable=no-member
 
 
 def test_save_refreshes_mtime(installed_patch, registry_path: Path, monkeypatch) -> None:
@@ -172,14 +175,14 @@ def test_save_refreshes_mtime(installed_patch, registry_path: Path, monkeypatch)
 
     registry = IssueRegistry(registry_path)
     registry.register("1", "#1")
-    mtime_after_register = registry._mtime_ns
+    mtime_after_register = registry._mtime_ns  # pylint: disable=no-member
     assert mtime_after_register > 0
 
     # A subsequent mutation + _save must update mtime so the next
     # reload_if_stale does NOT trigger a redundant reload.
     registry.mark_abandoned("1")
-    assert registry._mtime_ns >= mtime_after_register
-    assert registry.reload_if_stale() is False
+    assert registry._mtime_ns >= mtime_after_register  # pylint: disable=no-member
+    assert registry.reload_if_stale() is False  # pylint: disable=no-member
 
 
 # ---------------------------------------------------------------------------
@@ -205,9 +208,9 @@ def test_no_reload_when_unchanged(installed_patch, registry_path: Path) -> None:
     ir_mod.IssueRegistry._load = counting_load
     try:
         # Three consecutive polls with no external change must not re-load.
-        assert registry.reload_if_stale() is False
-        assert registry.reload_if_stale() is False
-        assert registry.reload_if_stale() is False
+        assert registry.reload_if_stale() is False  # pylint: disable=no-member
+        assert registry.reload_if_stale() is False  # pylint: disable=no-member
+        assert registry.reload_if_stale() is False  # pylint: disable=no-member
     finally:
         ir_mod.IssueRegistry._load = original_load
 

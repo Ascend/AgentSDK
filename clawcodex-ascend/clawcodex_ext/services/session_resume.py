@@ -1,26 +1,25 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
-#  This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# This file is part of the AgentSDK project.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
 #
-#           http://license.coscl.org.cn/MulanPSL2
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
 #
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
 
-# -------------------------------------------------------------------------
-# This file is derived from Clawd Codex (https://github.com/agentforce314/clawcodex),
-# which is licensed under the MIT License.
-# Copyright (c) 2026 Clawd Codex Team
-# -------------------------------------------------------------------------
-# -------------------------------------------------------------------------
 
 """Session resume — read JSONL, reconstruct typed Messages.
 
@@ -240,7 +239,7 @@ def _adjust_paths(msg: Message, old_cwd: str, new_cwd: str) -> Message:
                     try:
                         block.input = inp  # mutate in-place
                     except Exception:  # nosec B110
-                        pass
+                        pass  # This probe is optional; preserve the existing conservative fallback.
 
     # ---- Tool-result content with path references ----
     if msg.role == "user" and isinstance(msg.content, list):
@@ -252,7 +251,7 @@ def _adjust_paths(msg: Message, old_cwd: str, new_cwd: str) -> Message:
                     try:
                         block.content = content.replace(old_cwd, new_cwd)
                     except Exception:  # nosec B110
-                        pass
+                        pass  # This probe is optional; preserve the existing conservative fallback.
                 elif isinstance(content, list):
                     _rewrite_content_list(content, old_cwd, new_cwd)
 
@@ -262,7 +261,7 @@ def _adjust_paths(msg: Message, old_cwd: str, new_cwd: str) -> Message:
         try:
             msg.content = content.replace(old_cwd, new_cwd)  # type: ignore[assignment]
         except Exception:  # nosec B110
-            pass
+            pass  # This probe is optional; preserve the existing conservative fallback.
     elif isinstance(content, list):
         _rewrite_content_list(content, old_cwd, new_cwd)
 
@@ -276,14 +275,14 @@ def _rewrite_content_list(blocks: list, old_cwd: str, new_cwd: str) -> None:  # 
             try:
                 blocks[blocks.index(item)] = item.replace(old_cwd, new_cwd)
             except Exception:  # nosec B110
-                pass
+                pass  # This probe is optional; preserve the existing conservative fallback.
         elif isinstance(item, dict):
             for key, val in item.items():
                 if isinstance(val, str) and old_cwd in val:
                     try:
                         item[key] = val.replace(old_cwd, new_cwd)
                     except Exception:  # nosec B110
-                        pass
+                        pass  # This probe is optional; preserve the existing conservative fallback.
 
 
 def _handle_snip_boundaries(messages: list[Message]) -> list[Message]:

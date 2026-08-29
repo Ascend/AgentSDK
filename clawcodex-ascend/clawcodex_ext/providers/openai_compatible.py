@@ -1,3 +1,25 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 # pylint: disable=too-many-lines
 """OpenAI-compatible provider base class.
 
@@ -536,6 +558,11 @@ def _convert_to_openai_tool_schema(anthropic_tool: dict[str, Any]) -> dict[str, 
             "parameters": input_schema,
         },
     }
+
+
+# Public aliases keep cross-module callers on the supported provider surface.
+convert_anthropic_messages_to_openai = _convert_anthropic_messages_to_openai
+convert_to_openai_tool_schema = _convert_to_openai_tool_schema
 
 
 def _close_truncated_json(s: str) -> str:

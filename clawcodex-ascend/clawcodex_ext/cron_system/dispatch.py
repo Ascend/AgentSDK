@@ -1,14 +1,36 @@
-"""Typed dispatch bridge for cron fire events (F-22-G-2).
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
+"""Typed dispatch bridge for cron fire events.
 
 Replaces ad-hoc outbox-drain logic in REPL, headless, and TUI
 frontends with a unified :class:`CronDispatchBridge`.
 
 The bridge maps directly to ``CronPromptEvent`` (fire) and
 ``CronMissedEvent`` (missed one-shot) from
-``clawcodex_ext/query/outbox_types.py``.  The ``drain()`` method
+``clawcodex_ext/query/outbox_types.py``. The ``drain`` method
 pops ``CronPromptEvent`` entries from the outbox; callers are
 responsible for reading ``CronMissedEvent`` separately via
-``drain_missed()``.
+``drain_missed``.
 """
 
 from __future__ import annotations
@@ -204,3 +226,6 @@ class CronDispatchBridge:
     ) -> None:
         """Mark a run as completed/failed/cancelled."""
         finalize_cron_run(self._workspace_root, run_id, status, error=error)
+
+
+default_wrap_prompt = _default_wrap_prompt

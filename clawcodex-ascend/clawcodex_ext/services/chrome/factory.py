@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 #  This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
@@ -16,7 +17,10 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""F-62 P62-A/B/C — :func:`build_chrome_controller` and :func:`build_chrome_tools`.
+"""Build Chrome controllers and tools.
+
+The public entry points are :func:`build_chrome_controller` and
+:func:`build_chrome_tools`.
 
 The factory resolves the best available :class:`ChromeController`
 based on the runtime environment:
@@ -24,8 +28,8 @@ based on the runtime environment:
 1. ``CHROME_MCP_URL`` / ``CHROME_MCP_COMMAND`` set →
    :class:`MCPChromeController` (reuses the existing
    ``MCPConnectionManager``).
-2. ``playwright`` importable →
-   :class:`PlaywrightChromeController` (standalone browser).
+2. ``playwright`` importable → :class:`PlaywrightChromeController`
+   (standalone browser).
 3. otherwise → :class:`NullChromeController` (graceful no-op).
 
 The factory caches the resolved controller in a module-level
@@ -38,7 +42,7 @@ to fill in the standard hook defaults — the raw ``Tool(...)``
 constructor in the spec sketch would skip ``is_enabled=True`` and
 friends. Each tool's ``call`` bridges the sync ``Tool`` interface
 to the async controller using the same loop-detection pattern as
-:mod:`clawcodex_ext.services.mcp.tool_wrapper` (lines 213-232).
+:mod:`clawcodex_ext.services.mcp.tool_wrapper`.
 """
 
 from __future__ import annotations

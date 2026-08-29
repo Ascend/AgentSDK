@@ -1,12 +1,34 @@
-"""Native Gemini provider wrapper for F-72 (P72-B).
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
+"""Native Gemini provider wrapper.
 
 The :class:`~src.providers.gemini_provider.GeminiProvider` in
 ``src/providers/`` is already a fully native implementation built on
 ``google-genai`` — it converts the Anthropic-style message format into
-the Gemini ``contents``/``parts`` shape and back. The F-72 plan asks
+the Gemini ``contents``/``parts`` shape and back. The plan asks
 for a ``native/gemini_adapter.py`` entrypoint that:
 
-* sits in the ``native/`` subpackage so the F-72 factory and the
+* sits in the ``native/`` subpackage so the factory and the
   capability registry see it as a first-class native adapter;
 * re-exports the existing provider's behaviour under a class that
   carries the :class:`NativeProvider` capabilities contract;
@@ -20,7 +42,7 @@ for a ``native/gemini_adapter.py`` entrypoint that:
 ``chat_stream`` methods would be inherited. That made the module
 unimportable on machines that don't have ``google-genai`` installed —
 the ``from ..gemini_provider import GeminiProvider`` line raised
-``ImportError`` at module-load time, and the F-72 factory's "soft
+``ImportError`` at module-load time, and the factory's "soft
 fallback" contract (return ``None`` instead of raising) couldn't
 even reach the import stage. Composition sidesteps the issue: the
 wrapper class can be *defined* regardless of SDK availability; the
@@ -50,13 +72,13 @@ if TYPE_CHECKING:
 
 
 class NativeGeminiProvider(NativeProvider):
-    """Native Gemini adapter (F-72) — composition over ``GeminiProvider``.
+    """Native Gemini adapter composition over ``GeminiProvider``.
 
     The wrapper holds a :class:`GeminiProvider` instance and delegates
     the chat / streaming / model-listing surface to it. The wrapping
     layer exists for two reasons:
 
-    1. The F-72 capability registry needs a class that descends from
+    1. The capability registry needs a class that descends from
        :class:`NativeProvider` so callers can ask
        ``NativeGeminiProvider.has_capability("safety_settings")``.
        The underlying ``GeminiProvider`` does not expose that
@@ -155,8 +177,7 @@ class NativeGeminiProvider(NativeProvider):
         inner = self._ensure_inner()
         # Splice the native configuration into the kwargs the inner
         # provider already understands. ``inner`` does not yet read
-        # these — wiring them through is a P72-E follow-up — but
-        # surfacing them on the kwargs means the values are
+        # these yet, but wiring them through makes the values
         # discoverable from logs and tracing.
         merged: dict[str, Any] = dict(kwargs)
         if self._native_safety_settings is not None:

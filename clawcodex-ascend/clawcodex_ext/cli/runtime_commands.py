@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
-#  This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
 # Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
-#           http://license.coscl.org.cn/MulanPSL2
+#          http://license.coscl.org.cn/MulanPSL2
 #
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
@@ -252,7 +255,7 @@ def _format_configured_model_list(provider: str | None = None) -> str:
         try:
             reg_models = list(registry.configured_models(provider_name) or [])
         except Exception:  # nosec B110
-            pass
+            pass  # This probe is optional; preserve the existing conservative fallback.
 
         # Merge in models from config's ``models`` list
         cfg_models: list[str] = []
@@ -265,13 +268,13 @@ def _format_configured_model_list(provider: str | None = None) -> str:
                 cfg_models = list(pc.get("models", []) or [])
                 default_model = pc.get("default_model")
         except Exception:  # nosec B110
-            pass
+            pass  # This probe is optional; preserve the existing conservative fallback.
 
         if default_model is None:
             try:
                 default_model = registry.provider_default_model(provider_name)
             except Exception:  # nosec B110
-                pass
+                pass  # This probe is optional; preserve the existing conservative fallback.
 
         all_models = list(dict.fromkeys(reg_models + cfg_models))  # dedup, preserve order
 
@@ -334,7 +337,7 @@ def _provider_call(args: str, context: Any) -> LocalCommandResult:
     try:
         provider = registry.validate_provider(provider)
     except UnknownProviderError:
-        pass
+        pass  # Registry validation is optional here; preserve the configured-name fallback.
     runtime = _runtime(context)
     if runtime is None:
         return _text("Runtime context is not available — cannot switch provider.")
@@ -401,7 +404,7 @@ def _model_call(args: str, context: Any) -> LocalCommandResult:
     try:
         provider = registry.validate_provider(provider)
     except UnknownProviderError:
-        pass
+        pass  # Registry validation is optional here; preserve the configured-name fallback.
 
     # ---- Try prefix matching / spelling suggestions on validation failure ----
     # Unique prefix matches are auto-corrected with a Note; multiple matches

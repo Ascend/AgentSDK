@@ -1,85 +1,26 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
-#  This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# This file is part of the AgentSDK project.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
 #
-#           http://license.coscl.org.cn/MulanPSL2
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
 #
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
-
-# -------------------------------------------------------------------------
-# This file is derived from Clawd Codex (https://github.com/agentforce314/clawcodex),
-# which is licensed under the MIT License.
-# Copyright (c) 2026 Clawd Codex Team
-# -------------------------------------------------------------------------
 # -------------------------------------------------------------------------
 
-"""Mailbox poller daemon — Chunk H / WI-9.1 + plan-mode receiver-side
-defense-in-depth (deferred from Chunk-F D1).
-
-Periodically reads each tracked recipient's inbox file and dispatches
-structured envelopes back into runtime state:
-
-* ``shutdown_request`` → set ``shutdown_requested=True`` on the
-  recipient's ``InProcessTeammateTaskState``. The teammate's run
-  loop checks the flag at natural stopping points and winds down
-  cooperatively.
-* ``shutdown_response`` → fire the teammate's shutdown callback
-  (deferred — Phase 9 doesn't wire a callback registry; flagged for
-  the run-loop integration ticket).
-* ``plan_approval_response`` → **verify envelope ``from`` claims
-  ``lead_agent_id``** (chapter §"Plan-mode lifecycle" + critic
-  concern C3 from refactoring-plan review + Chunk-F D1 deferral).
-  On match: clear ``awaiting_plan_approval``, set
-  ``permission_mode``. On mismatch: log-and-drop (non-leader trying
-  to forge an approval is a real attack vector — drop silently
-  rather than crash).
-* ``permission_request`` → routed to the leader bridge's
-  ``deliver_permission_decision`` upstream when the leader UI
-  surfaces the decision; this poller passes the request on to the
-  registry of the agent that's running on the leader's side. (See
-  ``leader_permission_bridge.py``.)
-
-Cursor file
------------
-
-Per inbox file we track a read offset in
-``<inbox_path>.read_offset``. The poller advances the offset after
-each successful dispatch. Restarts pick up where they left off; new
-messages aren't replayed.
-
-Threading
----------
-
-Daemon thread, started lazily on first ``start_mailbox_poller`` call,
-joinable via ``stop_mailbox_poller``. Tick rate ~1s by default
-(faster than eviction's 5s — permission-request latency matters
-more than eviction lag for swarm UX).
-
-The poller is a SEPARATE daemon from the eviction sweeper (per the
-brief — SRP-clean: eviction = cleanup, mailbox = inbound dispatch).
-Both are short-lived ticks over ``runtime_tasks``; co-locating their
-threads as a future optimization is fine but not in this chunk.
-
-Decoupling note
----------------
-
-Per the project's ``clawcodex_ext/ → 禁止导入 src/`` rule, this
-module does NOT ``from src.tasks.in_process_teammate import ...``.
-Instead, ``_looks_like_teammate_task_state`` duck-types on the
-attributes we actually read (``shutdown_requested`` /
-``awaiting_plan_approval`` / ``permission_mode`` /
-``pending_user_messages``). ``InProcessTeammateTaskState`` has all
-four, so behavior is unchanged; the check is just less rigid.
-"""
+"""Periodic mailbox polling for swarm agents."""
 
 from __future__ import annotations
 

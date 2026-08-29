@@ -1,3 +1,25 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 # pylint: disable=too-many-lines,ungrouped-imports
 """
 Built-in commands for Claw Codex.
@@ -44,7 +66,7 @@ from clawcodex_ext.command_system.proactive_command import PROACTIVE_COMMAND
 from clawcodex_ext.command_system.btw_command import BTW_COMMAND
 from clawcodex_ext.command_system.monitor_command import MONITOR_COMMAND
 
-# F-120 Agent Dashboard — ``/dashboard`` cross-system read-only view.
+# Agent Dashboard — ``/dashboard`` cross-system read-only view.
 from clawcodex_ext.command_system.dashboard_command import DASHBOARD_COMMAND
 
 # Upstream 0573f4c new slash commands. The implementations live in
@@ -1456,20 +1478,19 @@ def _sync_compact_fallback(context: CommandContext) -> LocalCommandResult:
 
 
 def telemetry_command_call(args: str, context: CommandContext) -> LocalCommandResult:
-    """
-    Handle /telemetry command — show & manage telemetry configuration.
+    """Handle /telemetry command — show & manage telemetry configuration.
 
-    Delegates to the F-97 telemetry.cli module, capturing its stdout
-    output into the command result.  Best-effort: failures (missing
+    Delegates to the telemetry.cli module, capturing its stdout
+    output into the command result. Best-effort: failures (missing
     telemetry package, config errors) return a clear text message
     instead of crashing.
 
     Subcommands (mirror ``telemetry.cli.main``):
-      status   — show config, recorder kind, today's summary (default)
-      preview  — dry-run the reporter output for today
-      flush    — run the aggregator and emit to reporters
-      enable   — print the config snippet to enable telemetry
-      disable  — print the config snippet to disable telemetry
+    status — show config, recorder kind, today's summary (default)
+    preview — dry-run the reporter output for today
+    flush — run the aggregator and emit to reporters
+    enable — print the config snippet to enable telemetry
+    disable — print the config snippet to disable telemetry
     """
     import io
 
@@ -1823,7 +1844,7 @@ def get_builtin_commands() -> list[Command]:
         PROACTIVE_COMMAND,
         RESUME_COMMAND,
         BTW_COMMAND,
-        # F-120 Agent Dashboard — cross-system read-only view.
+        # Agent Dashboard — cross-system read-only view.
         DASHBOARD_COMMAND,
         # Upstream 0573f4c new slash commands
         DOCTOR_COMMAND,
@@ -1837,11 +1858,11 @@ def get_builtin_commands() -> list[Command]:
         RENAME_COMMAND,
         LOGO_COMMAND,
         MCP_COMMAND,
-        # F-64 Voice Mode — /voice toggle + STT backend selection.
+        # Voice Mode — /voice toggle + STT backend selection.
         VOICE_COMMAND,
-        # F-64 P64-E TTS — /tts toggle + TTS backend selection + 试听.
+        # TTS — /tts toggle, backend selection, and preview.
         TTS_COMMAND,
-        # F-65 Voice Dialogue — /dialogue full-duplex mode.
+        # Voice Dialogue — /dialogue full-duplex mode.
         DIALOGUE_COMMAND,
     ]
     try:
@@ -1849,13 +1870,13 @@ def get_builtin_commands() -> list[Command]:
 
         cmds.append(GOAL_COMMAND)
     except Exception:  # nosec B110
-        pass
+        pass  # This optional feature is unavailable; continue with the core command path.
     try:
         from clawcodex_ext.command_system.ultraplan_command import ULTRAPLAN_COMMAND
 
         cmds.append(ULTRAPLAN_COMMAND)
     except Exception:  # nosec B110
-        pass
+        pass  # This optional feature is unavailable; continue with the core command path.
     try:
         from extensions.skills_ext.bundled.dream import get_dream_command
 
@@ -1875,7 +1896,7 @@ def get_builtin_commands() -> list[Command]:
 
         cmds.append(LKB_COMMAND)
     except Exception:  # nosec B110
-        pass
+        pass  # This optional feature is unavailable; continue with the core command path.
 
     # Bundled dynamic-workflow slash commands (/workflows list + /deep-research).
     # Gated by is_workflows_enabled() (env CLAUDE_CODE_DISABLE_WORKFLOWS or
@@ -1892,7 +1913,7 @@ def get_builtin_commands() -> list[Command]:
 
             cmds.extend(bundled_workflow_commands())
     except Exception:  # noqa: BLE001 — never let a bad file break the command list  # nosec B110
-        pass
+        pass  # This optional feature is unavailable; continue with the core command path.
 
     return cmds
 
@@ -1910,7 +1931,7 @@ def register_builtin_commands(registry: CommandRegistry | None = None) -> None:
 
         register_multimodel_runtime_command(reg)
     except Exception:  # nosec B110
-        pass
+        pass  # This optional feature is unavailable; continue with the core command path.
     for cmd in get_builtin_commands():
         reg.register(cmd)
     try:
@@ -1920,8 +1941,8 @@ def register_builtin_commands(registry: CommandRegistry | None = None) -> None:
         register_away_summary_commands(reg)
         register_intent_forecast_commands(reg)
     except Exception:  # nosec B110
-        pass
-    # F-94 BG_SESSIONS — /bg command family. Self-gates on
+        pass  # This optional feature is unavailable; continue with the core command path.
+    # BG_SESSIONS — /bg command family. Self-gates on
     # CLAWCODEX_BG_SESSIONS (returns disabled message when off), so
     # unconditional registration is safe.
     try:
@@ -1929,8 +1950,8 @@ def register_builtin_commands(registry: CommandRegistry | None = None) -> None:
 
         register_bg_commands(reg)
     except Exception:  # nosec B110
-        pass
-    # F-97 LODESTONE — /link command family. Self-gates on
+        pass  # This optional feature is unavailable; continue with the core command path.
+    # LODESTONE — /link command family. Self-gates on
     # ``LODESTONE=off`` (renderer falls back to plain text), so the
     # command stays harmless when the feature is disabled.
     try:
@@ -1938,14 +1959,14 @@ def register_builtin_commands(registry: CommandRegistry | None = None) -> None:
 
         register_lodestone_commands(reg)
     except Exception:  # nosec B110
-        pass
-    # F-95 TEMPLATES — productized template catalogue/render/create surface.
+        pass  # This optional feature is unavailable; continue with the core command path.
+    # TEMPLATES — productized template catalogue/render/create surface.
     try:
         from clawcodex_ext.command_system.template_commands import register_template_commands
 
         register_template_commands(reg)
     except Exception:  # nosec B110
-        pass
+        pass  # This optional feature is unavailable; continue with the core command path.
 
 
 async def execute_command_async(

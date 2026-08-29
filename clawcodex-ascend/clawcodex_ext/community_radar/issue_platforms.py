@@ -1,3 +1,25 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 """Multi-platform issue registry and HTTP client for Community Radar.
 
 Defines :class:`IssuePlatform` configurations for GitCode, GitHub, and
@@ -513,13 +535,15 @@ class IssueClient:
             return resp.json()
         except httpx.HTTPStatusError as exc:
             _log.warning(
-                "issue client HTTP %d for %s %s: %s",
+                "issue client HTTP %d for %s request",
                 exc.response.status_code,
                 method,
-                url,
-                exc.response.text[:500],
             )
             return None
         except Exception as exc:  # noqa: BLE001
-            _log.warning("issue client request failed: %s %s: %s", method, url, exc)
+            _log.warning(
+                "issue client %s request failed (%s)",
+                method,
+                type(exc).__name__,
+            )
             return None

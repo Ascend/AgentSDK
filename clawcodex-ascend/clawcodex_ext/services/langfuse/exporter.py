@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 #  This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
@@ -16,7 +17,7 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""F-65 P65-C — training-data exporter for LangfuseSink buffer.
+"""P65-C — training-data exporter for LangfuseSink buffer.
 
 The :class:`LangfuseSink` keeps a bounded in-memory copy of every
 event it forwards to Langfuse (see

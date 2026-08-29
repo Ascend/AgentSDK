@@ -3,12 +3,14 @@
 
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
-# Copyright (c) 2026 Clawd Codex Team
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -90,7 +92,7 @@ class GlobLimits:
 
 @dataclass(slots=True)
 class RetrievalPlan:
-    """Turn-local F-157 decision for macro / atomic tool exposure."""
+    """Turn-local decision for macro / atomic tool exposure."""
 
     query: str = ""
     intent_key: str | None = None
@@ -305,7 +307,7 @@ class ToolContext:
     startup_agent: Any | None = None
     bundle_context: Any | None = None
     workflow_stack: list[str] = field(default_factory=list)
-    # F-157 layered ToolSearch.  Suppression is reversible and scoped to the
+    # layered ToolSearch. Suppression is reversible and scoped to the
     # current search/dispatch decision; it never unregisters or deletes tools.
     retrieval_plan: RetrievalPlan | None = None
     retrieval_hidden_tools: list[Any] = field(default_factory=list)
@@ -333,7 +335,7 @@ class ToolContext:
     # refresher. ToolContext uses slots, so the integration cannot attach
     # this state dynamically at runtime.
     _lkb_repl_status_state: dict[str, Any] | None = None
-    # F-122 goal-mode model tools. ``session_id`` is the normal persisted
+    # goal-mode model tools. ``session_id`` is the normal persisted
     # thread id; ``goal_thread_id`` lets tests or protocol adapters pin the
     # recoverable thread explicitly. ``goal_service`` is injected when a
     # caller needs an isolated GoalStore, otherwise tools construct the
@@ -342,7 +344,7 @@ class ToolContext:
     goal_service: Any | None = None
     goal_runtime: Any | None = None
 
-    # F-57 Phase 5 session macros — overlay snapshot + registration gates.
+    # session macros — overlay snapshot + registration gates.
     # Declared early (slots=True) so later tasks can construct real contexts.
     session_macro_overlay: Any | None = None
     confirm_session_macro_plan: Callable | None = None
@@ -406,6 +408,16 @@ class ToolContext:
     rendered_system_prompt: "str | list[dict[str, Any]] | None" = None
 
     plan_mode: bool = False
+
+    @property
+    def lkb_task_cutover_initialized(self) -> bool:
+        """Expose LKB cutover state without leaking its private storage field."""
+
+        return self._lkb_task_cutover_initialized
+
+    @lkb_task_cutover_initialized.setter
+    def lkb_task_cutover_initialized(self, value: bool) -> None:
+        self._lkb_task_cutover_initialized = value
 
     def __post_init__(self) -> None:
         self.workspace_root = Path(self.workspace_root).resolve()
@@ -495,7 +507,7 @@ class ToolContext:
             if is_session_plan_file(str(p)):
                 return p
         except Exception:  # noqa: BLE001  # nosec
-            pass
+            pass  # Plan-file detection failed; retain the normal deny-by-default path.
         roots_str = ", ".join(str(r) for r in roots)
         raise ToolPermissionError(f"path is outside allowed working directories: {p} (allowed: {roots_str})")
 

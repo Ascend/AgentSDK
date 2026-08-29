@@ -3,12 +3,19 @@
 
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Clawd Codex Team
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Includes code derived from NousResearch/hermes-agent:
+# https://github.com/NousResearch/hermes-agent
+# Copyright (c) 2025 Nous Research
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Hermes-Agent-MIT.txt.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -1602,6 +1609,9 @@ def _build_skill_section(
     return SystemPromptSection(id="skills", content=content, cache_scope=CacheScope.SESSION, order=50)
 
 
+build_skill_section = _build_skill_section
+
+
 _OUTPUT_STYLE_PROMPTS: dict[str, str] = {
     "default": "",
     "concise": "Be concise in your responses. Avoid verbose explanations unless asked.",
@@ -1709,8 +1719,11 @@ def _build_tool_restrictions_section(
 
 
 def _build_iteration_meta_section(runtime_ctx: dict[str, Any] | None = None) -> SystemPromptSection | None:
-    """P119-D: 自迭代元 prompt 段。纯 builder 驱动，无默认内容。
+    """Build the iteration-metadata prompt section from registered builders.
 
-    如果没有任何 builder 注册，返回 ``None``，该段不出现。
+    Return ``None`` when no builder contributes content.
     """
     return consult_section_builders("iteration_meta", runtime_ctx)
+
+
+build_skill_section = _build_skill_section

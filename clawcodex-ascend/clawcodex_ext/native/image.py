@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
-#  This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
 # Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
-#           http://license.coscl.org.cn/MulanPSL2
+#          http://license.coscl.org.cn/MulanPSL2
 #
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
@@ -17,20 +20,7 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""F-81.3: 图像差异对比与处理模块.
-
-对标 CCB ``color-diff-napi`` + ``image-processor-napi``，用 ``Pillow`` +
-``numpy`` 实现:
-
-* :meth:`ImageProcessorModule.compute_diff` —— 像素 MSE 差异比率 (0.0 ~ 1.0)
-* :meth:`ImageProcessorModule.crop_and_resize` —— 裁剪 + 缩放 + JPEG 编码
-
-缺失 ``Pillow`` 或 ``numpy`` 时，:func:`clawcodex_ext.native.load_or_fallback`
-返回 :class:`ImageFallback`，后者用纯 Python 字节比较给出 *近似* 差异
-（字节级 ``hashlib`` 比较，不区分像素）。
-
-前置依赖: F-61 Computer Use.
-"""
+"""Image comparison and processing support."""
 
 from __future__ import annotations
 
@@ -58,7 +48,7 @@ def _pil_numpy_available() -> bool:
 
 @NativeModuleRegistry.register("image_processor")
 class ImageProcessorModule:
-    """截图差异对比与图像处理（Pillow + NumPy 实现）."""
+    """Compare, crop, resize, and encode images."""
 
     name = "image_processor"
 
@@ -81,17 +71,10 @@ class ImageProcessorModule:
         except ImportError:
             return "unavailable"
 
-    # -- 差异对比 ---------------------------------------------------------
+    # -- Image comparison -------------------------------------------------
 
     def compute_diff(self, img1_path: str, img2_path: str) -> float:
-        """计算两张截图的像素差异比率 (0.0 完全相同 ~ 1.0 完全不同).
-
-        Returns:
-            ``MSE / 255**2``，归一化到 [0, 1] 区间.
-
-        Raises:
-            NativeModuleError: 依赖缺失或图像无法打开.
-        """
+        """Return the normalized pixel difference between two images."""
         if not self._available:
             from clawcodex_ext.native import NativeModuleError
 
@@ -101,7 +84,7 @@ class ImageProcessorModule:
 
         im1 = Image.open(img1_path).convert("RGB")
         im2 = Image.open(img2_path).convert("RGB")
-        # 尺寸不一致 → 取最小公共尺寸对齐（避免广播报错）
+        # Align mismatched images to their smallest common dimensions.
         if im1.size != im2.size:
             w = min(im1.width, im2.width)
             h = min(im1.height, im2.height)
@@ -112,10 +95,10 @@ class ImageProcessorModule:
         return float(np.mean((arr1 - arr2) ** 2) / (255.0**2))
 
     def images_equal(self, img1_path: str, img2_path: str, threshold: float = 0.01) -> bool:
-        """便捷包装：差异 < ``threshold`` 视为相等."""
+        """Return whether two images differ less than the threshold."""
         return self.compute_diff(img1_path, img2_path) < threshold
 
-    # -- 裁剪 + 缩放 ------------------------------------------------------
+    # -- Cropping and resizing --------------------------------------------
 
     def crop_and_resize(
         self,
@@ -125,18 +108,7 @@ class ImageProcessorModule:
         output_path: Optional[str] = None,
         quality: int = 85,
     ) -> bytes:
-        """裁剪 ``box`` 区域，可选缩放到 ``size``，返回 JPEG 字节.
-
-        Args:
-            image_path: 输入图像路径.
-            box: 裁剪框 ``(left, upper, right, lower)``.
-            size: 可选目标尺寸 ``(width, height)``；``None`` 保持原尺寸.
-            output_path: 可选落盘路径；同时返回字节.
-            quality: JPEG 质量 (1-100).
-
-        Returns:
-            JPEG 编码字节.
-        """
+        """Return cropped and optionally resized image bytes."""
         if not self._available:
             from clawcodex_ext.native import NativeModuleError
 
@@ -146,7 +118,7 @@ class ImageProcessorModule:
         im = Image.open(image_path)
         cropped = im.crop(box)
         if size is not None:
-            cropped = cropped.resize(size, Image.LANCZOS)
+            cropped = cropped.resize(size, Image.LANCZOS)  # pylint: disable=no-member
         if output_path:
             cropped.save(output_path, "JPEG", quality=quality)
         buf = io.BytesIO()
@@ -160,7 +132,7 @@ class ImageProcessorModule:
         quality: int = 85,
         output_path: Optional[str] = None,
     ) -> bytes:
-        """重编码图像为指定格式."""
+        """Encode an image in the requested format."""
         if not self._available:
             from clawcodex_ext.native import NativeModuleError
 
@@ -174,7 +146,7 @@ class ImageProcessorModule:
         im.save(buf, fmt, quality=quality)
         return buf.getvalue()
 
-    # -- F-81.6 fallback --------------------------------------------------
+    # -- fallback --------------------------------------------------
 
     @classmethod
     def fallback(cls) -> "ImageFallback":
@@ -182,11 +154,7 @@ class ImageProcessorModule:
 
 
 class ImageFallback:
-    """F-81.6 fallback: Pillow/NumPy 缺失时的兜底实现.
-
-    差异对比降级为字节级 ``sha256`` 比较（完全相同 → 0.0，否则 → 1.0），
-    失去像素级精度但能区分"完全相同 / 完全不同"两种极端.
-    """
+    """Compare images without optional imaging dependencies."""
 
     name = "image_processor"
 
@@ -213,7 +181,7 @@ class ImageFallback:
         output_path: Optional[str] = None,
         quality: int = 85,
     ) -> bytes:
-        """fallback 不支持裁剪/缩放，返回原始字节."""
+        """Return cropped and optionally resized image bytes."""
         with open(image_path, "rb") as f:
             data = f.read()
         if output_path:

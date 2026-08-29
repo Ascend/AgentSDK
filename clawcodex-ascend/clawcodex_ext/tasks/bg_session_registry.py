@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-# coding=utf-8
+# -*- coding: utf-8 -*-
+
 
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
@@ -17,21 +18,15 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""F-94 P94-B — BG_SESSIONS 全局 registry。
+"""Cross-process background-session registry.
 
-跨进程后台会话索引。扫描 ``~/.clawcodex/sessions/*/.background-runner.json``
-重建内存视图，并持久化缓存到 ``~/.clawcodex/bg_sessions/index.json``。
+The registry scans ``~/.clawcodex/sessions/*/.background-runner.json`` to
+rebuild its in-memory view and caches that view in
+``~/.clawcodex/bg_sessions/index.json``.
 
-设计要点（f-94-bg-sessions.md §1.6 / §3 风险"index 与真实 session 目录不一致"）：
-
-* **``scan()`` 为事实源** — index.json 仅是缓存，损坏时通过 scan 重建
-  （验收标准 10）。
-* **纯增量** — 不修改现有 ``.background-runner.json`` marker；marker 由
-  ``background_runner._write_runner_marker`` / ``_update_runner_status``
-  继续管理。
-* **线程安全** — RLock 保护内存 dict；磁盘 I/O 在锁外（save 时持有快照副本）。
-* **性能** — 100 个 session scan < 100ms（验收标准 8）：只 stat + 读 marker，
-  不解析整个 transcript。
+``scan`` is the source of truth; ``index.json`` is only a recoverable cache.
+The registry does not modify runner markers, protects its in-memory mapping
+with an ``RLock``, and avoids parsing full transcripts during scans.
 """
 
 from __future__ import annotations
@@ -57,9 +52,10 @@ logger = logging.getLogger(__name__)
 
 
 class BgSessionRegistry:
-    """跨进程后台会话索引。
+    """Thread-safe cross-process background-session index.
 
-    线程安全；磁盘 I/O 尽量在锁外。``scan()`` 是事实源，``save()`` 写缓存。
+    Disk I/O is kept outside the lock where possible. ``scan`` rebuilds the
+    source-of-truth view, while ``save`` writes the cache.
     """
 
     def __init__(self, *, config: BgSessionConfig | None = None) -> None:
@@ -68,7 +64,7 @@ class BgSessionRegistry:
         self._sessions: dict[str, BgSession] = {}
 
     # ------------------------------------------------------------------
-    # 属性
+    # Properties
     # ------------------------------------------------------------------
 
     @property
@@ -84,14 +80,14 @@ class BgSessionRegistry:
         return self._config.sessions_dir
 
     # ------------------------------------------------------------------
-    # 事实源 — scan
+    # Source-of-truth scan
     # ------------------------------------------------------------------
 
     def scan(self) -> list[BgSession]:
-        """扫描 ``sessions_dir/*/.background-runner.json`` 重建视图。
+        """Rebuild the view from ``sessions_dir/*/.background-runner.json``.
 
-        对每个 marker 读取并经 ``bg_session_health.reconcile`` 多信号校正。
-        返回校正后的列表，并就地替换内存视图。
+        Each marker is reconciled by ``bg_session_health.reconcile``. The
+        reconciled list replaces the in-memory view and is returned.
         """
         sessions: list[BgSession] = []
         sessions_dir = self.sessions_dir
@@ -117,7 +113,7 @@ class BgSessionRegistry:
             if sess is not None:
                 sessions.append(sess)
 
-        # 应用 max_sessions 上限（保留最新 started_at）
+        # Enforce max_sessions while retaining the most recently started sessions.
         if len(sessions) > self._config.max_sessions:
             sessions.sort(key=lambda s: s.started_at or "", reverse=True)
             sessions = sessions[: self._config.max_sessions]
@@ -132,7 +128,7 @@ class BgSessionRegistry:
         marker_path: Path,
         sessions_dir: Path,
     ) -> BgSession | None:
-        """从 marker JSON 构造 ``BgSession`` 并做健康校正。"""
+        """Build and health-reconcile a ``BgSession`` from marker JSON."""
         try:
             data = json.loads(marker_path.read_text(encoding="utf-8"))
         except Exception:
@@ -162,14 +158,14 @@ class BgSessionRegistry:
         return bg_session_health.reconcile(sess, stale_after_seconds=self._config.stale_after_seconds)
 
     # ------------------------------------------------------------------
-    # 查询
+    # Queries
     # ------------------------------------------------------------------
 
     def list(self, *, workspace_root: Path | None = None) -> list[BgSession]:
-        """列出会话；可选按 workspace 过滤。
+        """List the in-memory sessions, optionally filtered by workspace.
 
-        不触发 scan（用内存视图）；若从未 scan 则返回空。调用方负责在
-        需要最新数据时显式 ``scan()``。
+        This method does not scan. Callers that need current disk state must
+        call ``scan`` explicitly.
         """
         with self._lock:
             sessions = list(self._sessions.values())
@@ -183,11 +179,11 @@ class BgSessionRegistry:
             return self._sessions.get(bg_session_id)
 
     # ------------------------------------------------------------------
-    # 变更
+    # Mutations
     # ------------------------------------------------------------------
 
     def upsert(self, session: BgSession) -> None:
-        """插入或更新单个会话。返回前不自动 save（调用方决定持久化时机）。"""
+        """Insert or update one session without persisting automatically."""
         with self._lock:
             self._sessions[session.id] = session
 
@@ -202,7 +198,7 @@ class BgSessionRegistry:
         *,
         error: str | None = None,
     ) -> BgSession | None:
-        """就地更新某会话状态（不触发 scan）。"""
+        """Update a session status in place without scanning."""
         with self._lock:
             sess = self._sessions.get(bg_session_id)
             if sess is None:
@@ -218,14 +214,14 @@ class BgSessionRegistry:
             return updated
 
     # ------------------------------------------------------------------
-    # 持久化 — index.json 缓存
+    # index.json cache persistence
     # ------------------------------------------------------------------
 
     def save(self) -> Path | None:
-        """持久化内存视图到 ``index_path``。
+        """Persist the in-memory view to ``index_path``.
 
-        ``enabled=False`` 时 **不写**（验收标准 1）。
-        返回写入路径；未写返回 None。
+        Return the written path, or ``None`` when persistence is disabled or
+        the write fails.
         """
         if not self._config.enabled:
             return None
@@ -250,10 +246,10 @@ class BgSessionRegistry:
         return target
 
     def load(self) -> list[BgSession]:
-        """从 ``index_path`` 加载缓存（不触发 scan）。
+        """Load the cache from ``index_path`` without scanning.
 
-        损坏时记录 audit 日志并返回空列表（验收标准 10 要求能重建；
-        重建由 ``scan()`` 完成，本方法仅读缓存）。
+        A corrupt cache is logged and treated as empty; ``scan`` performs the
+        recovery when requested.
         """
         target = self.index_path
         if not target.exists():
@@ -270,14 +266,14 @@ class BgSessionRegistry:
         return sessions
 
     def rebuild_and_save(self) -> list[BgSession]:
-        """scan + save 组合 — index 损坏后的恢复入口。"""
+        """Rebuild the registry from markers and persist the recovered view."""
         sessions = self.scan()
         self.save()
         return sessions
 
 
 # ---------------------------------------------------------------------------
-# 辅助
+# Helpers
 # ---------------------------------------------------------------------------
 
 

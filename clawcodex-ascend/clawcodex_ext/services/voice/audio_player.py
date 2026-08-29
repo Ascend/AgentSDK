@@ -3,12 +3,14 @@
 
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
-# Copyright (c) 2026 Clawd Codex Team
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -18,7 +20,7 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""Cross-platform PCM audio player — F-64 P64-E8.
+"""Cross-platform PCM audio player.
 
 Plays mono PCM16 bytes through the system audio device. Three backends
 with graceful fallback (mirrors :mod:`audio_recorder`'s PyAudio→SoX
@@ -29,10 +31,10 @@ strategy):
    is the most fragile across distros.
 2. **SoX** ``play`` — pipes PCM via stdin; available on most macOS/Linux
    installs without a Python build toolchain.
-3. **ffplay** (fallback / 试听 path) — writes the PCM to a temp WAV and
+3. **ffplay** (fallback / preview path) — writes the PCM to a temp WAV and
    plays it once. Highest latency (process spawn + file I/O) but the
    most universally available (bundled with ffmpeg). Used by the
-   ``/tts say`` 试听 path when neither PyAudio nor SoX is present.
+   ``/tts say`` preview path when neither PyAudio nor SoX is present.
 
 The ``play_pcm(pcm, sample_rate=...)`` convenience function tries the
 backends in order and raises ``RuntimeError`` if none are available —
@@ -41,10 +43,10 @@ ffmpeg" message.
 
 Design
 ------
-* :class:`AudioPlayer` — streaming player backed by :class:`AudioOutQueue`
-  (provider pushes frames, player drains at device pace). Used by the
-  agent-reply path (P64-E9 future).
-* :func:`play_pcm` — one-shot batch player for the 试听 command. Writes
+* :class:`AudioPlayer` — streaming player backed by
+  :class:`AudioOutQueue` (provider pushes frames, player drains at device
+  pace). Used by the agent-reply path.
+* :func:`play_pcm` — one-shot batch player for the preview command. Writes
   the whole clip to the device; no queueing. Simpler and good enough
   for a few seconds of audio.
 """
@@ -97,7 +99,7 @@ def has_ffplay() -> bool:
     return shutil.which("ffplay") is not None
 
 
-# ── one-shot batch player (试听 path) ─────────────────────────────────────
+# ── one-shot batch player (preview path) ─────────────────────────────────
 
 
 def _write_wav(path: Path, pcm: bytes, sample_rate: int, channels: int = 1) -> None:
@@ -162,7 +164,7 @@ def _play_sox(pcm: bytes, sample_rate: int, channels: int = 1) -> None:
         proc.stdin.write(pcm)
         proc.stdin.close()
     except BrokenPipeError:
-        pass
+        pass  # Cleanup is best-effort and must not replace the primary operation result.
     proc.wait(timeout=60)
 
 
@@ -187,14 +189,14 @@ def _play_ffplay(pcm: bytes, sample_rate: int, channels: int = 1) -> None:
         try:
             tmp_path.unlink()
         except OSError:
-            pass
+            pass  # Cleanup is best-effort and must not replace the primary operation result.
 
 
 def play_pcm(pcm: bytes, *, sample_rate: int = 24000, channels: int = 1) -> None:
     """Play a complete PCM16 clip through the first available backend.
 
     Tries PyAudio → SoX → ffplay in order. Raises ``RuntimeError`` if
-    none are available. Used by the ``/tts say`` 试听 path.
+    none are available. Used by the ``/tts say`` preview path.
     """
     if not pcm:
         return
@@ -226,7 +228,7 @@ class AudioPlayer:
     device and returns.
 
     Single-use: one player per synthesis session. Construct, ``run``,
-    discard. The controller (future P64-E9) owns the lifecycle.
+    discard. The controller owns the lifecycle.
     """
 
     def __init__(
@@ -293,7 +295,7 @@ class AudioPlayer:
                 stream.stop_stream()
                 stream.close()
             except Exception:  # nosec B110 - best-effort audio stream release during drain teardown
-                pass
+                pass  # Cleanup is best-effort and must not replace the primary operation result.
             pa.terminate()
 
     async def stop(self) -> None:
@@ -304,9 +306,9 @@ class AudioPlayer:
         the queue (so any further ``push`` is a no-op) and cancels the
         drain task.
 
-        For F-65 P65-C full-duplex barge-in we instead want
-        :meth:`stop_nowait` — cancel without closing the queue so the
-        same player can be reused for the next turn.
+        For full-duplex barge-in we instead want :meth:`stop_nowait` —
+        cancel without closing the queue so the same player can be reused
+        for the next turn.
         """
         await self._queue.close()
         await self._cancel_task()
@@ -314,7 +316,7 @@ class AudioPlayer:
     async def stop_nowait(self) -> None:
         """Cancel the drain task immediately, keep the queue alive.
 
-        Used by the F-65 P65-C interrupt path: the user barges in while
+        Used by the interrupt path: the user barges in while
         the agent is still speaking. The provider will send more
         :class:`TTSChunk` frames on the next response turn, so we only
         stop *this* one without closing the underlying
@@ -326,10 +328,10 @@ class AudioPlayer:
     async def stop_and_close(self) -> None:
         """Cancel the drain task, close the queue, and release the device.
 
-        Equivalent to the old combined ``stop()`` for code paths that
-        do want full teardown at session end (F-65 dialogue session
-        ``close()``). :meth:`stop` keeps its original semantic so the
-        F-64 P64-E8 agent-reply integration is unchanged.
+        Equivalent to the old combined ``stop`` for code paths that
+        do want full teardown at dialogue session end (``close``).
+        :meth:`stop` keeps its original semantic so the
+        agent-reply integration is unchanged.
         """
         await self._queue.close()
         await self._cancel_task()
@@ -341,5 +343,5 @@ class AudioPlayer:
             try:
                 await self._task
             except asyncio.CancelledError:
-                pass
+                pass  # The task was explicitly cancelled; awaiting it only drains shutdown cleanup.
         self._task = None

@@ -1,10 +1,16 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -13,12 +19,7 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
-#
-# Copyright (c) 2026 Clawd Codex Team
-# SPDX-License-Identifier: MIT
-# Source: https://github.com/agentforce314/clawcodex
-# ClawCodex-derived portions remain licensed under the MIT License.
-# See clawcodex-ascend/LICENSE.clawcodex.
+
 
 """LRU cache for ``rich.markdown.Markdown`` renders + fast-path detection.
 
@@ -252,6 +253,9 @@ def _hash(content: str) -> str:
     return hashlib.sha256(content.encode("utf-8")).hexdigest()[:16]
 
 
+content_hash = _hash
+
+
 _DEFAULT_CACHE: MarkdownCache | None = None
 _DEFAULT_CACHE_LOCK = threading.Lock()
 
@@ -277,6 +281,7 @@ def reset_markdown_cache_for_tests() -> None:
 
 __all__ = [
     "MarkdownCache",
+    "content_hash",
     "get_markdown_cache",
     "has_markdown_syntax",
     "reset_markdown_cache_for_tests",

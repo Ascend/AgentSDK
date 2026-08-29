@@ -1,10 +1,16 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -13,12 +19,7 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
-#
-# Copyright (c) 2026 Clawd Codex Team
-# SPDX-License-Identifier: MIT
-# Source: https://github.com/agentforce314/clawcodex
-# ClawCodex-derived portions remain licensed under the MIT License.
-# See clawcodex-ascend/LICENSE.clawcodex.
+
 
 """Main REPL screen, rebuilt on top of :class:`FullscreenLayout`.
 
@@ -172,7 +173,7 @@ class REPLScreen(Screen):
         if hasattr(app, "app_state"):
             self.status_bar.bind_state(app.app_state)
         # Drive the footer's "esc to interrupt" hint off the same busy
-        # signal as the spinner (single source of truth — F-38).
+        # signal as the spinner (the single source of truth).
         self.status_bar.bind_footer(self.prompt_input._footer)
         # Set the initial permission mode on the status bar.
         try:
@@ -183,7 +184,7 @@ class REPLScreen(Screen):
                 mode = to_external_permission_mode(ctx.permission_context.mode or "default")
                 self.status_bar.set_permission_mode(mode)
         except Exception:  # nosec B110
-            pass
+            pass  # Permission-mode display is optional; retain the screen default.
         # Attach the live region to the app's announcer so every
         # cross-screen announcement mirrors into this REPL.
         if hasattr(app, "announcer"):
@@ -257,7 +258,7 @@ class REPLScreen(Screen):
             else:
                 self.transcript.append_system("Failed to save memory note", style="error")
             return
-        # F-89: expand @agent-name mentions in TUI.
+        # expand @agent-name mentions in TUI.
         try:
             from clawcodex_ext.agent.load_agents_dir import get_agents_for_mentions
             from src.command_system.input_processing import (
@@ -326,14 +327,14 @@ class REPLScreen(Screen):
         controller = getattr(app, "_away_summary_controller", None)
         if controller is not None:
             controller.on_run_start()
-        # F-9: start the goal controller so it knows a new assistant
+        # start the goal controller so it knows a new assistant
         # turn is about to begin.
         goal_controller = getattr(app, "_goal_controller", None)
         if goal_controller is not None:
             try:
                 goal_controller.on_run_start()
             except Exception:  # nosec B110
-                pass
+                pass  # Goal UI accounting is a sidecar and must not block the agent run.
         forecast = getattr(app, "_intent_forecast_controller", None)
         if forecast is not None:
             forecast.on_run_start()
@@ -399,7 +400,7 @@ class REPLScreen(Screen):
                 )
         elif controller is not None:
             controller.on_assistant_turn_complete()
-        # F-9: drain the goal controller's continuation/budget_limit
+        # drain the goal controller's continuation/budget_limit
         # injection and enqueue it so the queued-prompt drain feeds it
         # to the next agent run (auto-continuation).
         goal_controller = getattr(app, "_goal_controller", None)
@@ -416,7 +417,7 @@ class REPLScreen(Screen):
                         self.post_message(QueuedPromptReady())
                     goal_controller.drain_pending_injection()
             except Exception:  # nosec B110
-                pass
+                pass  # This presentation update is best-effort and must not interrupt the user flow.
         self.prompt_input.set_enabled(True)
         self.call_after_refresh(self.prompt_input.focus_input)
 

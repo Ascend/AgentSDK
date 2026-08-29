@@ -1,17 +1,31 @@
-"""F-94 P94-E1 — BgSessionTool — 面向 Agent 的后台会话查询/控制工具。
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
-设计（f-94-bg-sessions.md §1.8 BgSessionTool 表）：
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
 
-| action   | 输入                                  | 输出                       |
-|----------|---------------------------------------|----------------------------|
-| list     | include_completed, workspace_only     | sessions summary           |
-| inspect  | bg_session_id                         | status + pid + transcript  |
-| attach   | bg_session_id, follow                 | attach metadata / tail     |
-| stop     | bg_session_id, force                  | stopped session status     |
-| cleanup  | include_failed                        | cleanup event list         |
+"""Agent-facing tool for inspecting and controlling background sessions.
 
-工具是同步的（与 TaskInspect 同风格），因为 BgSessionManager 的方法都是
-同步函数。``bg_sessions=off`` 时返回 disabled + fallback 提示（§1.10）。
+Supported actions are ``list``, ``inspect``, ``attach``, ``stop``, and
+``cleanup``. The tool is synchronous because ``BgSessionManager`` exposes
+synchronous operations. When background sessions are disabled, it returns a
+disabled result with a runtime-task fallback hint.
 """
 
 from __future__ import annotations
@@ -34,21 +48,21 @@ from clawcodex_ext.tasks.bg_session_registry import BgSessionRegistry
 
 
 # ---------------------------------------------------------------------------
-# Manager 解析 — 从 ToolContext 获取或新建一个 registry-bound manager
+# Resolve or create a registry-bound manager from ToolContext
 # ---------------------------------------------------------------------------
 
 
 def _get_manager(context: ToolContext) -> BgSessionManager:
-    """从 context 缓存或新建 BgSessionManager。
+    """Return a cached manager or create one for the context.
 
-    registry 实例缓存在 ``context`` 的私有属性上，避免每次调用都 scan。
-    runtime_tasks 来自 context（若存在）。
+    The manager is cached on the context to avoid a scan on every call. Runtime
+    tasks are forwarded when the context exposes them.
     """
     cached = getattr(context, "_bg_session_manager", None)
     if cached is not None:
         return cached  # type: ignore[no-any-return]
     registry = BgSessionRegistry()
-    # 首次惰性 scan — 让 list/inspect 能看到现有 marker
+    # The first list or inspect performs a lazy scan of existing markers.
     runtime_tasks = getattr(context, "runtime_tasks", None)
     mgr = BgSessionManager(
         registry=registry,
@@ -57,7 +71,7 @@ def _get_manager(context: ToolContext) -> BgSessionManager:
     try:
         object.__setattr__(context, "_bg_session_manager", mgr)
     except (AttributeError, TypeError):
-        pass
+        pass  # The candidate value is invalid; continue with the existing fallback.
     return mgr
 
 
@@ -69,7 +83,7 @@ def _safe_workspace(context: ToolContext) -> Any:
 
 
 # ---------------------------------------------------------------------------
-# 各 action 实现
+# Action implementations
 # ---------------------------------------------------------------------------
 
 
@@ -79,7 +93,7 @@ def _action_list(tool_input: dict[str, Any], context: ToolContext) -> ToolResult
     include_completed = bool(tool_input.get("include_completed", False))
     workspace_only = bool(tool_input.get("workspace_only", False))
     mgr = _get_manager(context)
-    # 惰性 scan + load
+    # Lazily scan and load the current marker state.
     mgr.registry.scan()
     ws = _safe_workspace(context) if workspace_only else None
     sessions = mgr.list_sessions(include_completed=include_completed, workspace_root=ws)
@@ -197,7 +211,7 @@ def _action_cleanup(tool_input: dict[str, Any], context: ToolContext) -> ToolRes
 
 
 # ---------------------------------------------------------------------------
-# 输出格式化
+# Output formatting
 # ---------------------------------------------------------------------------
 
 
@@ -252,7 +266,7 @@ def _require_str(tool_input: dict[str, Any], key: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Tool 入口
+# Tool entry point
 # ---------------------------------------------------------------------------
 
 
@@ -340,7 +354,7 @@ Actions:
 
 When BG_SESSIONS is off, returns {disabled: true} — fall back to TaskList/TaskInspect.
 """,
-    description="Query and control background agent sessions (F-94 BG_SESSIONS).",
+    description="Query and control background agent sessions.",
     strict=True,
     max_result_size_chars=8000,
     is_read_only=lambda inp: (inp or {}).get("action") in ("list", "inspect"),

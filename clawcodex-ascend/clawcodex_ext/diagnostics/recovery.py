@@ -1,10 +1,16 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -13,41 +19,35 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
-#
-# Copyright (c) 2026 Clawd Codex Team
-# SPDX-License-Identifier: MIT
-# Source: https://github.com/agentforce314/clawcodex
-# ClawCodex-derived portions remain licensed under the MIT License.
-# See clawcodex-ascend/LICENSE.clawcodex.
 
-"""Layer-3 auto-recovery policy (F-108 §十八 P108-G).
+"""Layer-3 auto-recovery policy (§18 P108-G).
 
 Catalogues the five recovery paths the freeze-detection plan
 promises, and routes them to the existing AbortController
 harness. Each path is named in the plan's recovery table::
 
-    Permission 弹窗超时 → auto-deny → 继续 agent loop | 无感知
-    AskUser      超时    → 空 dict  → 继续 agent loop | 模型可能重试
-    单 LLM turn 超时    → abort    → 下一 turn        | 短暂提示
-    工具执行   超时    → abort    → agent 继续       | 工具超时提示
-    Agent loop 总超时  → abort    → SessionComplete  | 完整的结果输出
+ Permission prompt timeout → auto-deny → continue agent loop | transparent
+ AskUser timeout → empty dict → continue agent loop | model may retry
+ LLM turn timeout → abort → next turn | brief notice
+ Tool timeout → abort → continue agent | timeout notice
+ Agent loop timeout → abort → SessionComplete | complete result
 
 The actual mechanisms are wired by:
 
 * :mod:`clawcodex_ext.tui.agent_bridge` — Permission / AskUser
-  auto-deny (``done.wait(timeout=…)`` → fall back).
+ auto-deny (``done.wait(timeout=…)`` → fall back).
 * :mod:`clawcodex_ext.query.agent_loop_compat` — per-turn
-  ``asyncio.wait_for(_drain_turn, timeout=turn_timeout_s)`` that
-  trips ``AbortController`` on expiry.
+ ``asyncio.wait_for(_drain_turn, timeout=turn_timeout_s)`` that
+ trips ``AbortController`` on expiry.
 * :mod:`extensions.api.query` — ``ToolGapWatchdog`` + outer
-  ``agent_loop_timeout_s`` budget.
+ ``agent_loop_timeout_s`` budget.
 * :mod:`clawcodex_ext.diagnostics.freeze_detector` — Layer-1
-  watchdog that only DUMPS (never aborts), so a frozen run gets a
-  stack trace even if the other layers don't fire.
+ watchdog that only DUMPS (never aborts), so a frozen run gets a
+ stack trace even if the other layers don't fire.
 
 This module exists to:
 1. Provide a single ``recovery_actions()`` helper that callers
-   integrate with (so tests can assert coverage), and
+ integrate with (so tests can assert coverage), and
 2. Document the policy so future contributions don't drift.
 """
 

@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
-#  This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
 # Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
-#           http://license.coscl.org.cn/MulanPSL2
+#          http://license.coscl.org.cn/MulanPSL2
 #
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
@@ -17,7 +20,7 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""DynamicToolCommand — F-53 adapter from a single ``Tool`` to a REPL/TUI
+"""DynamicToolCommand — adapter from a single ``Tool`` to a REPL/TUI
 ``LocalCommand``.
 
 Each ``DynamicToolCommand`` wraps a tool's *snapshot* (name, schema,
@@ -113,7 +116,7 @@ class DynamicToolCommand:
         except Exception:  # noqa: BLE001
             desc = ""
         if not isinstance(desc, str) or not desc.strip():
-            desc = f"Dynamically exposed tool '{tool.name}' (F-53)."
+            desc = f"Dynamically exposed tool '{tool.name}'."
         return textwrap.shorten(desc, width=200, placeholder="…")
 
     @staticmethod
@@ -206,7 +209,7 @@ class DynamicToolCommand:
                 )
             result = registry.dispatch(call, tool_context)
         except Exception as exc:  # noqa: BLE001
-            log.exception("tool %r raised during F-53 dispatch", self._tool_name)
+            log.exception("tool %r raised during dispatch", self._tool_name)
             return _text_result(self._tool_name, _format_error(self._tool_name, str(exc)))
 
         if getattr(result, "is_error", False):
@@ -264,7 +267,7 @@ class DynamicToolCommand:
         try:
             result = tool_registry.dispatch(call, tool_context)
         except Exception as exc:  # noqa: BLE001
-            log.exception("tool %r raised during F-53 CLI dispatch", self._tool_name)
+            log.exception("tool %r raised during CLI dispatch", self._tool_name)
             print(_format_error(self._tool_name, str(exc)), flush=True)
             return 1
 
@@ -318,7 +321,7 @@ def _default_tool_resolver(name: str, registry: "ToolRegistry | None") -> "Tool 
             if tool is not None:
                 return tool
         except Exception:  # noqa: BLE001  # nosec B110
-            pass
+            pass  # This registry lookup is optional; continue to the next tool-resolution source.
 
     try:
         from clawcodex_ext.tool_system.defaults import build_default_registry

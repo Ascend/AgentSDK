@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
-#  This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
 # Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
-#           http://license.coscl.org.cn/MulanPSL2
+#          http://license.coscl.org.cn/MulanPSL2
 #
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
@@ -61,10 +64,10 @@ def load_builtin_subcommands() -> None:
     # and `clawcodex-dev gateway setup|status|restart|disconnect|login [<name>]` (channel config).
     from clawcodex_ext.cli.gateway_cmd import commands as _gateway_commands  # noqa: F401
 
-    # F-88: ``clawcodex auth logout|status|zeroize``
+    # ``clawcodex auth logout|status|zeroize``
     from clawcodex_ext.cli import auth_cmd as _auth_cmd  # noqa: F401
 
-    # F-85 P85-D: `clawcodex template list|show|create` subcommand.
+    # `clawcodex template list|show|create` subcommand.
     # Some downstream checkouts do not ship the CLI wrapper yet even though
     # the template service modules are present. Treat it as optional so a
     # missing template command cannot break unrelated entry points such as
@@ -74,12 +77,12 @@ def load_builtin_subcommands() -> None:
     except ImportError:
         _template_cmd = None
 
-    # F-49 P5-H: ``clawcodex-dev session migrate`` subcommand for
+    # ``clawcodex-dev session migrate`` subcommand for
     # converting legacy 3-file sessions to the unified 2-file format.
     from clawcodex_ext.cli import session_migrate_cmd as _session_migrate_cmd  # noqa: F401
 
-    # F-94-A: ``clawcodex viz`` subcommand for the Multi-Session Visualizer
-    # F-167-F: wrapped in try/except so a partial checkout that lacks
+    # ``clawcodex viz`` subcommand for the Multi-Session Visualizer
+    # wrapped in try/except so a partial checkout that lacks
     # the visualizer package (e.g. CI smoke that runs only the core CLI
     # surfaces) does not break unrelated subcommand discovery. The
     # inner ``register_viz_subcommand()`` already self-contains a
@@ -90,15 +93,15 @@ def load_builtin_subcommands() -> None:
 
         register_viz_subcommand()
     except Exception:  # nosec B110
-        pass
+        pass  # This optional feature is unavailable; continue with the core command path.
 
-    # F-75: ``clawcodex stats`` subcommand for tool/skill usage statistics
+    # ``clawcodex stats`` subcommand for tool/skill usage statistics
     from clawcodex_ext.cli import stats_cmd as _stats_cmd  # noqa: F401
 
-    # F-123: ``clawcodex forecast`` Intent Forecast subcommand.
+    # ``clawcodex forecast`` Intent Forecast subcommand.
     from clawcodex_ext.intent_forecast import cli as _intent_forecast_cli  # noqa: F401
 
-    # F-68: ``clawcodex feature`` subcommand for runtime feature-gate management
+    # ``clawcodex feature`` subcommand for runtime feature-gate management
     from clawcodex_ext.feature_gate.cli import run_feature_command  # noqa: F401
 
     from extensions.remote_api.cli import register_api_subcommand
@@ -110,13 +113,13 @@ def load_builtin_subcommands() -> None:
 
     register_community_radar_subcommand()
 
-    # F-108 P108-H: ``clawcodex-dev diag freeze-report|viewer|status`` subcommand
+    # ``clawcodex-dev diag freeze-report|viewer|status`` subcommand
     # for Layer-4 freeze-detection diagnostics. Imports the module so the
     # ``@register('diag')`` decorator fires; the handler is looked up
     # by name in the sieve above.
     from clawcodex_ext.cli import diag_cmd as _diag_cmd  # noqa: F401  # noqa: F401
 
-    # F-53: ``clawcodex-dev tool <name> [--args]`` subcommand that
+    # ``clawcodex-dev tool <name> [--args]`` subcommand that
     # auto-dispatches to any discoverable tool. Idempotent: a single
     # subcommand name is registered (``tool``) — per-tool name routing
     # happens inside the handler to keep the sieve deterministic.

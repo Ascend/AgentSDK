@@ -1,3 +1,25 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 # pylint: disable=reimported,too-many-lines
 """Core bash tool definition -- execution, permissions, and result mapping."""
 
@@ -120,7 +142,7 @@ def _run_bash_with_abort(
         "encoding": "utf-8",
         "errors": "replace",
     }
-    # F-40 root-cause fix: ensure /root/Conda/bin is in PATH for every
+    # root-cause fix: ensure /root/Conda/bin is in PATH for every
     # bash subprocess.  The daemon's own PATH includes it; we re-prepend
     # it here as a defense-in-depth so the agent's most-used command
     # interpreter (``python3``) keeps working even if a downstream hook
@@ -214,7 +236,7 @@ def _run_bash_with_abort(
                 try:
                     pipe.close()
                 except OSError:
-                    pass
+                    pass  # Cleanup is best-effort and must not replace the primary operation result.
 
     return _BashRunResult(
         returncode=proc.returncode if proc.returncode is not None else -1,
@@ -314,7 +336,7 @@ def _bash_check_permissions(
         if getattr(guard, "behavior", None) == "deny":
             return guard
     except ImportError:
-        pass
+        pass  # The optional integration is unavailable; continue with the built-in path.
 
     shell_kind, _argv = _resolve_shell_from_input(tool_input)
     if shell_kind in {"powershell", "pwsh"}:
@@ -749,7 +771,7 @@ def _bash_call(tool_input: dict[str, Any], context: ToolContext) -> ToolResult:
         try:
             _os.unlink(cwd_path)
         except OSError:
-            pass
+            pass  # Cleanup is best-effort and must not replace the primary operation result.
 
     if final_cwd_text:
         try:
@@ -815,6 +837,9 @@ def _bash_call(tool_input: dict[str, Any], context: ToolContext) -> ToolResult:
         output=output,
         is_error=interpretation.is_error,
     )
+
+
+bash_call = _bash_call
 
 
 def _assemble_bash_body(stdout: str, stderr: str) -> str:
@@ -1056,7 +1081,7 @@ BashTool: Tool = build_tool(
         },
         "required": ["command"],
     },
-    call=_bash_call,
+    call=bash_call,
     prompt=_bash_prompt_fn,
     description="Execute a shell command.",
     max_result_size_chars=30_000,

@@ -1,3 +1,25 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 """``/buddy`` command — hatch / pet / status / mute / unmute / help.
 
 Port of the TypeScript buddy command. ``PET_REACTIONS`` lives here (not in
@@ -22,7 +44,7 @@ from src.command_system.types import (
     LocalCommand,
     LocalCommandResult,
 )
-from src.config import _get_default_manager
+from src.config import get_default_manager
 from src.constants.xml import COMMON_HELP_ARGS, COMMON_INFO_ARGS
 
 
@@ -58,13 +80,13 @@ def _title_case(s: str) -> str:
 
 
 def _save_companion(stored: dict) -> None:
-    mgr = _get_default_manager()
+    mgr = get_default_manager()
     mgr.set_global("companion", stored)
     mgr.set_global("companion_muted", False)
 
 
 def _set_companion_muted(muted: bool) -> None:
-    _get_default_manager().set_global("companion_muted", muted)
+    get_default_manager().set_global("companion_muted", muted)
 
 
 def buddy_command_call(args: str, context: CommandContext) -> LocalCommandResult:
@@ -131,7 +153,7 @@ def buddy_command_call(args: str, context: CommandContext) -> LocalCommandResult
         PET_REACTIONS,
         f"{now_ms}:{companion.name}",
     )
-    _get_default_manager().set_global("companion_pet_at", now_ms)
+    get_default_manager().set_global("companion_pet_at", now_ms)
     return LocalCommandResult(
         type="text",
         value=f"{companion.name} {reaction}",

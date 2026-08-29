@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 #  This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
@@ -16,12 +17,12 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""Computer Use service primitives (F-61 first iteration).
+"""Computer Use service primitives (first iteration).
 
 This package ships the cross-platform ABCs, a safety-gated Linux backend, a
 null backend for tests and unsupported platforms, and a thin factory used by
 later Tool integration work. See ``docs/FEATURE_PLAN.md`` §7.2 for the full
-F-61 scope; macOS / Windows backends, the real ``build_computer_use_tools``
+scope; macOS / Windows backends, the real ``build_computer_use_tools``
 Tool factory, and the consent modal are explicitly deferred to later
 iterations.
 """

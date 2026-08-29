@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
-#  This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
 # Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
-#           http://license.coscl.org.cn/MulanPSL2
+#          http://license.coscl.org.cn/MulanPSL2
 #
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
@@ -90,9 +93,9 @@ class RuntimeContext:
     session: Any | None
     workspace_root: Path
     options: RuntimeOptions
-    # F-157 selection resolved by the CLI or a runtime slash command.
+    # selection resolved by the CLI or a runtime slash command.
     multimodel_group: str = ""
-    # F-125 C14: ``resume_session_with_tail`` returns a TailFollower that
+    # ``resume_session_with_tail`` returns a TailFollower that
     # headless never iterates. Without an explicit release the follower
     # holds a reference to the session transcript path and keeps the
     # ``_offset`` / asyncio event state alive for the lifetime of the
@@ -135,7 +138,7 @@ class RuntimeContext:
         options.provider_name = provider_name
         options.model = resolution.model
 
-        # F-157: replace the ordinary provider only after resolving the base
+        # replace the ordinary provider only after resolving the base
         # runtime settings, keeping the core query loop unaware of ensembles.
         if options.multimodel_group:
             from clawcodex_ext.multimodel.config import default_config_path, load_config
@@ -179,12 +182,12 @@ class RuntimeContext:
             tool_context.allow_docs = True
         tool_context.options.is_non_interactive_session = False
 
-        # Wire persistent cron scheduler to the tool context (F-22).
+        # Wire persistent cron scheduler to the tool context.
         # Runs a background daemon thread that checks for due tasks
         # every second and pushes cron_prompt events to the outbox.
         attach_cron_runtime(tool_context, autostart=True)
 
-        # F-100: Wire the dreaming system (background memory consolidation).
+        # Wire the dreaming system (background memory consolidation).
         try:
             from clawcodex_ext.dreaming.runner import wire_real_dream_runner
             from clawcodex_ext.dreaming.service import init_auto_dream
@@ -266,12 +269,12 @@ class RuntimeContext:
         return runtime
 
     def close_tail_follower(self) -> None:
-        """F-125 C14: release the TailFollower obtained during resume.
+        """Release the TailFollower obtained during resume.
 
         ``resume_session_with_tail`` returns a follower that headless
         never iterates — without an explicit release the follower keeps
         a reference to the transcript path and asyncio event state for
-        the lifetime of the RuntimeContext. Best-effort: ``stop()`` is
+        the lifetime of the RuntimeContext. Best-effort: ``stop`` is
         async so we run it on a fresh event loop; any failure is
         swallowed.
         """
@@ -294,7 +297,7 @@ class RuntimeContext:
                 loop.close()
         except Exception:
             logging.getLogger(__name__).debug(
-                "F-125 C14: tail follower release failed (non-fatal)",
+                "tail follower release failed (non-fatal)",
                 exc_info=True,
             )
 
@@ -462,7 +465,7 @@ def _bootstrap_mcp_sync(tool_context: Any) -> Any | None:
         try:
             loop.close()
         except Exception:  # nosec B110
-            pass
+            pass  # Cleanup is best-effort and must not replace the primary operation result.
         return None
 
     # Attach the loop so tool calls can run on the same loop that owns the
@@ -500,5 +503,9 @@ def _filter_registry(
             except Exception:
                 try:
                     del registry._tools[name]  # type: ignore[attr-defined]
-                except Exception:  # nosec B110
-                    pass
+                except Exception as exc:  # nosec B110
+                    logging.getLogger(__name__).warning(
+                        "Failed to remove filtered tool %s (%s)",
+                        name,
+                        type(exc).__name__,
+                    )

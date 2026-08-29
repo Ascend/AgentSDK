@@ -1,3 +1,25 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 # pylint: disable=consider-using-with
 """Ripgrep subprocess wrapper shared by Grep and Glob tools."""
 
@@ -73,7 +95,7 @@ def _get_timeout() -> float:
         if parsed > 0:
             return float(parsed)
     except ValueError:
-        pass
+        pass  # Invalid candidate; continue with the surrounding fallback.
     if "microsoft" in platform.uname().release.lower():
         return 60.0
     return 20.0
@@ -154,7 +176,7 @@ def _run_rg_with_abort(
             for chunk in iter(lambda: stream.read(8192), ""):
                 buf.append(chunk)
         except Exception:  # nosec  # nosec
-            pass
+            pass  # Intentional best-effort path; the surrounding fallback remains valid.
 
     drains = []
     for stream, buf in ((proc.stdout, out_chunks), (proc.stderr, err_chunks)):
@@ -186,12 +208,12 @@ def _run_rg_with_abort(
             try:
                 proc.wait(timeout=_KILL_GRACE_S)
             except subprocess.TimeoutExpired:
-                pass
+                pass  # Intentional best-effort path; the surrounding fallback remains valid.
 
     try:
         proc.wait(timeout=_KILL_GRACE_S)
     except subprocess.TimeoutExpired:
-        pass
+        pass  # Intentional best-effort path; the surrounding fallback remains valid.
     for thread in drains:
         thread.join(timeout=_KILL_GRACE_S)
 

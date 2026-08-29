@@ -1,3 +1,25 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 """Typed message hierarchy mirroring TypeScript src/types/message.ts and src/utils/messages.ts."""
 
 from __future__ import annotations
@@ -803,6 +825,9 @@ def _get_field(message: MessageLike, name: str, default: Any = None) -> Any:
     return getattr(message, name, default)
 
 
+get_field = _get_field
+
+
 __all__ = [
     "CANCEL_MESSAGE",
     "INTERRUPT_MESSAGE",
@@ -834,6 +859,7 @@ __all__ = [
     "create_user_interruption_message",
     "create_user_message",
     "get_last_assistant_message",
+    "get_field",
     "get_tool_use_ids",
     "is_tool_use_request_message",
     "is_tool_use_result_message",

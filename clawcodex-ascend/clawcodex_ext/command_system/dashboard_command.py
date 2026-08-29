@@ -1,4 +1,26 @@
-"""F-120 ``/dashboard`` slash command.
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
+"""``/dashboard`` slash command.
 
 Provides a Rich-markup snapshot of every ``DashboardEntry`` currently
 visible in the cross-system aggregator. Pure read-only — never
@@ -35,7 +57,7 @@ Design notes:
     plain-text terminal.
   * The command is registered as an :class:`InteractiveCommand`
     so the REPL can route long snapshots through its
-    keyboard-scrolled viewer (F-122-F). Headless / non-interactive
+    keyboard-scrolled viewer. Headless / non-interactive
     surfaces degrade to a flat text print.
 """
 
@@ -71,7 +93,7 @@ logger = logging.getLogger(__name__)
 
 __all__ = ["DASHBOARD_COMMAND", "DashboardCommand", "dashboard_command_call"]
 
-# F-122-F: when the formatted snapshot exceeds this many lines we mark the
+# when the formatted snapshot exceeds this many lines we mark the
 # InteractiveOutcome as scrollable so the REPL enters its keyboard-scrolled
 # view. Below the threshold a flat print is friendlier.
 _SCROLLABLE_LINE_THRESHOLD = 8
@@ -99,7 +121,7 @@ def _format_entry_line(entry: DashboardEntry, indent: int = 2) -> str:
             pct = float(entry.progress_pct) * 100.0
             bits.append(f"[dim]({pct:.0f}%)[/dim]")
         except (TypeError, ValueError):
-            pass
+            pass  # Invalid candidate; continue with the surrounding fallback.
     if entry.owner:
         bits.append(f"[dim] @{entry.owner}[/dim]")
     line = " ".join(bits)
@@ -311,7 +333,7 @@ class DashboardCommand(InteractiveCommand):
     """``/dashboard`` — cross-system task progress dashboard (read-only).
 
     Implemented as an :class:`InteractiveCommand` so the REPL can route long
-    snapshots through its keyboard-scrolled viewer (F-122-F). On headless or
+    snapshots through its keyboard-scrolled viewer. On headless or
     non-interactive surfaces the command degrades to a flat text print; it
     never calls ``ctx.ui``.
     """

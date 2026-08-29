@@ -1,4 +1,26 @@
-"""Native SDK adapter factory for F-72 (P72-D).
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
+"""Native SDK adapter factory for (P72-D).
 
 This package re-implements a slim set of provider classes that talk
 directly to vendor SDKs (``openai``, ``google-genai``) rather than
@@ -7,8 +29,7 @@ features (Gemini's ``SafetySetting``, OpenAI's ``response_format``
 JSON-Schema mode, Grok's tool-calling variant) that the universal
 LiteLLM facade tends to flatten.
 
-The factory follows the resolution order spelled out in the F-72
-plan:
+The factory follows the resolution order spelled out in the plan:
 
 1. If the caller passed an explicit provider class, build it.
 2. Otherwise, look up the provider name in the native registry
@@ -21,7 +42,7 @@ plan:
 
 The :func:`create_native_provider` helper is the public entry point;
 :func:`get_native_provider_class` is a thin wrapper around the
-internal registry that the F-72 wiring code in
+internal registry that the wiring code in
 ``clawcodex_ext.providers.factory`` uses when a caller asks for a
 native adapter by name.
 """
@@ -118,7 +139,7 @@ def create_native_provider(
 
     The factory is deliberately permissive: any failure (unknown
     name, missing SDK, bad config) returns ``None`` so the caller
-    can fall back to LiteLLM without a try/except. The F-72 plan
+    can fall back to LiteLLM without a try/except. The plan
     calls this "soft fallback" — the native path is an
     *optimisation*, not a requirement.
 

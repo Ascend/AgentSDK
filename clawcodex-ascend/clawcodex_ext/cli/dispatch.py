@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
-#  This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
 # Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
-#           http://license.coscl.org.cn/MulanPSL2
+#          http://license.coscl.org.cn/MulanPSL2
 #
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
@@ -31,7 +34,7 @@ from typing import Any
 
 
 def _telemetry_record_session(*, session_id: str, entrypoint: str, is_non_interactive: bool) -> None:
-    """Best-effort F-97 session_start.
+    """Best-effort session_start.
 
     Local import keeps ``telemetry`` out of the CLI dispatch
     module surface for ``--help`` cold start.
@@ -76,7 +79,7 @@ def _telemetry_record_end(
             exit_status=exit_status,
         )
     except Exception:  # nosec B110
-        pass
+        pass  # Telemetry is optional and must not affect command execution.
 
 
 def _derive_session_id() -> str:
@@ -88,7 +91,7 @@ def _derive_session_id() -> str:
         if isinstance(sid, str) and sid:
             return sid
     except Exception:  # nosec B110
-        pass
+        pass  # Bootstrap state is optional here; use the existing generated session identifier.
     return uuid.uuid4().hex
 
 
@@ -193,7 +196,7 @@ def _maybe_argcomplete_top_level(argv: list[str]) -> None:
 
 def run_cli(argv: list[str] | None = None) -> int:
     """CLI main entry point, parameterized to avoid sys.argv mutation in tests."""
-    # F-22 (Stage 2 stability gate): print a diagnostic Provider/Model line
+    # (Stage 2 stability gate): print a diagnostic Provider/Model line
     # at the VERY START of run_cli so it survives the 12s kill when
     # RuntimeContext.build() takes ~10s. Config reads are cheap (~ms) so
     # this is safe to do before any heavy initialization. Without this
@@ -258,7 +261,7 @@ def run_cli(argv: list[str] | None = None) -> int:
 
     _apply_agent_debug_if_requested(argv)
 
-    # F-97: emit session_start as early as possible. The session id
+    # emit session_start as early as possible. The session id
     # is best-effort and never blocks the CLI; failures are swallowed
     # inside the helper.
     _telemetry_session_id = _derive_session_id()
@@ -310,7 +313,7 @@ def run_cli(argv: list[str] | None = None) -> int:
         # Import src_cli late so monkeypatches to src.cli.* take effect.
         import src.cli as src_cli
 
-        # F-97: each fast-path return is wrapped to record command_run
+        # each fast-path return is wrapped to record command_run
         # + session_end. The helper swallows any telemetry failure.
         if token == "login":  # nosec B105
             rc = src_cli.handle_login()
@@ -595,7 +598,7 @@ def run_cli(argv: list[str] | None = None) -> int:
     # ``--dangerously-skip-permissions`` consistently. Mirrors
     # ``typescript/src/main.tsx:1383-1389``.
     from clawcodex_ext.cli.permissions import resolve_permission_state
-    from clawcodex_ext.cli.runners import _split_csv
+    from clawcodex_ext.cli.runners import split_csv
     from clawcodex_ext.frontend import get_frontend
     from clawcodex_ext.runtime.context import RuntimeContext, RuntimeOptions
 
@@ -635,7 +638,7 @@ def run_cli(argv: list[str] | None = None) -> int:
         if candidate.is_dir():
             bundle_path = candidate
 
-    # F-157: command-line selection wins over an in-process runtime choice,
+    # command-line selection wins over an in-process runtime choice,
     # which in turn wins over config.yaml's default_group.
     from clawcodex_ext.multimodel.config import MultiModelConfigError  # fmt: skip
 
@@ -670,8 +673,8 @@ def run_cli(argv: list[str] | None = None) -> int:
         include_partial_messages=getattr(args, "include_partial_messages", False),
         max_turns=getattr(args, "max_turns", 20),
         max_turns_explicit=any(token == "--max-turns" or token.startswith("--max-turns=") for token in argv[1:]),  # nosec B105
-        allowed_tools=tuple(_split_csv(getattr(args, "allowed_tools", None))),
-        disallowed_tools=tuple(_split_csv(getattr(args, "disallowed_tools", None))),
+        allowed_tools=tuple(split_csv(getattr(args, "allowed_tools", None))),
+        disallowed_tools=tuple(split_csv(getattr(args, "disallowed_tools", None))),
         stream=getattr(args, "stream", False),
         permission_mode=getattr(args, "_resolved_permission_mode", "default"),
         is_bypass_permissions_mode_available=getattr(args, "_resolved_is_bypass_available", False),
@@ -757,7 +760,7 @@ def run_cli(argv: list[str] | None = None) -> int:
 
     # Select frontend by name; dispatch stays as the thin orchestration layer.
     if args.print:
-        # F-97 telemetry notice — shown once on stderr for headless/CLI mode
+        # telemetry notice — shown once on stderr for headless/CLI mode
         # so users know when collection + reporting are active.
         try:
             from telemetry.config import load_config as _load_telemetry_cfg
@@ -773,7 +776,7 @@ def run_cli(argv: list[str] | None = None) -> int:
                     file=sys.stderr,
                 )
         except Exception:  # nosec B110
-            pass
+            pass  # Telemetry is optional and must not affect command execution.
         profile_checkpoint("mode_dispatch_print")
         profile_checkpoint("phase4_dispatch")
         frontend = get_frontend("headless")
@@ -932,7 +935,7 @@ def _apply_sop_startup(
 
                 get_all_skills(project_root=workspace)
             except Exception:  # nosec B110
-                pass
+                pass  # This optional feature is unavailable; continue with the core command path.
         bundle_ctx = build_bundle_context(
             bundle_path=bundle_path,
             skill_names=load_result.skill_names,
@@ -962,7 +965,7 @@ def _apply_sop_startup(
 
             register_resource_catalog_tool(getattr(ctx, "tool_registry", None))
         except Exception:  # nosec B110
-            pass
+            pass  # This optional feature is unavailable; continue with the core command path.
 
     body = (agent.get("system_prompt_body") or "").strip()
     sdk_source_dir = bundle_ctx.sdk_source_dir if bundle_ctx is not None else None

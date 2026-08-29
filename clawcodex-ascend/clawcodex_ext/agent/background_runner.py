@@ -1,3 +1,25 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 # pylint: disable=redefined-outer-name,consider-using-with
 """Background agent runner — manages the forked child process that
 continues the agent loop after Ctrl+B.
@@ -166,7 +188,7 @@ def cleanup_background_runner(session_id: str) -> None:
     try:
         log_path.unlink(missing_ok=True)
     except Exception:  # nosec
-        pass
+        pass  # Intentional best-effort path; the surrounding fallback remains valid.
 
 
 # ---------------------------------------------------------------------------
@@ -206,7 +228,7 @@ def _run_agent_headless(
             storage.write_message(msg)
             storage.flush()
         except Exception:  # nosec
-            pass
+            pass  # Intentional best-effort path; the surrounding fallback remains valid.
 
     # Background mode: auto-approve all permissions.
     # The user's Ctrl+B action is explicit consent for the agent to
@@ -214,7 +236,7 @@ def _run_agent_headless(
     try:
         tool_context.permission_context.mode = "bypassPermissions"  # type: ignore[union-attr]
     except Exception:  # nosec
-        pass
+        pass  # Intentional best-effort path; the surrounding fallback remains valid.
 
     loop = asyncio.new_event_loop()
     try:
@@ -235,18 +257,18 @@ def _run_agent_headless(
         _update_runner_status(session.session_id, "failed", error=str(exc))
     finally:
         loop.close()
-        # F-49 Phase 0.4.5: write .json snapshot so --resume can
+        # Phase 0.4.5: write .json snapshot so --resume can
         # fast-path via Session.load() instead of replaying JSONL.
         try:
             session.save()
         except Exception:  # nosec
-            pass
+            pass  # Intentional best-effort path; the surrounding fallback remains valid.
         # Write completion marker so the resume side can detect it
         try:
             storage.write_raw({"role": "system", "content": "__background_complete__"})
             storage.flush()
         except Exception:  # nosec
-            pass
+            pass  # Intentional best-effort path; the surrounding fallback remains valid.
 
 
 # ---------------------------------------------------------------------------
@@ -270,7 +292,7 @@ def launch_background_runner(
     try:
         session.save()
     except Exception:  # nosec
-        pass
+        pass  # Intentional best-effort path; the surrounding fallback remains valid.
 
     # ---- Check for an existing runner on the same session ----
     existing = get_background_runner_status(session.session_id)
@@ -307,7 +329,7 @@ def _launch_via_fork(session, provider, tool_registry, tool_context, max_turns: 
         try:
             sys.stdin.close()
         except Exception:  # nosec
-            pass
+            pass  # Intentional best-effort path; the surrounding fallback remains valid.
 
         # Redirect stdout/stderr to a log file
         log_path = _runner_log_path(session.session_id)
@@ -317,7 +339,7 @@ def _launch_via_fork(session, provider, tool_registry, tool_context, max_turns: 
             sys.stdout = log_file
             sys.stderr = log_file
         except Exception:  # nosec
-            pass
+            pass  # Intentional best-effort path; the surrounding fallback remains valid.
 
         # Reset signal handlers so the child doesn't react to
         # terminal-originated signals meant for the parent
@@ -325,7 +347,7 @@ def _launch_via_fork(session, provider, tool_registry, tool_context, max_turns: 
             try:
                 signal.signal(sig, signal.SIG_DFL)
             except (OSError, ValueError):
-                pass
+                pass  # Invalid candidate; continue with the surrounding fallback.
 
         _run_agent_headless(session, provider, tool_registry, tool_context, max_turns)
     except Exception:  # nosec

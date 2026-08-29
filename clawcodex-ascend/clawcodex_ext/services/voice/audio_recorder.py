@@ -3,12 +3,14 @@
 
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
-# Copyright (c) 2026 Clawd Codex Team
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -18,7 +20,7 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""Cross-platform audio recorder — F-64 P64-B.
+"""Cross-platform audio recorder.
 
 Mirrors TS ``src/hooks/useVoice.ts`` audio-capture backend: prefer
 PyAudio (low latency, cross-platform) and fall back to SoX (Sound
@@ -191,13 +193,13 @@ class PyAudioRecorder(AudioRecorder):
                 self._stream.stop_stream()
                 self._stream.close()
             except Exception:  # nosec B110 - best-effort audio stream release during stop
-                pass
+                pass  # Intentional best-effort path; the surrounding fallback remains valid.
             self._stream = None
         if self._pyaudio is not None:
             try:
                 self._pyaudio.terminate()
             except Exception:  # nosec B110 - best-effort PyAudio release during stop
-                pass
+                pass  # Intentional best-effort path; the surrounding fallback remains valid.
             self._pyaudio = None
         self._is_recording = False
 
@@ -305,7 +307,7 @@ class SoXRecorder(AudioRecorder):
                 try:
                     self._proc.kill()
                 except Exception:  # nosec B110 - last-resort kill during recorder stop; nothing left to do
-                    pass
+                    pass  # Intentional best-effort path; the surrounding fallback remains valid.
             self._proc = None
         if self._thread is not None:
             self._thread.join(timeout=2.0)

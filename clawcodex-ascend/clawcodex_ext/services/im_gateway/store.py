@@ -3,12 +3,14 @@
 
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
-# Copyright (c) 2026 Clawd Codex Team
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -90,7 +92,7 @@ def _atomic_write_json(path: Path, data: Any) -> None:
         try:
             tmp.unlink()
         except FileNotFoundError:
-            pass
+            pass  # The resource is already absent; cleanup is complete.
 
 
 def _read_json(path: Path, default: dict[str, Any]) -> dict[str, Any]:
@@ -221,7 +223,7 @@ def _has_valid_optional_timestamp(entry: dict[str, Any], fields: tuple[str, ...]
 
 
 def _rewrite_ndjson(path: Path, entries: list[dict[str, Any]]) -> None:
-    """原子重写 NDJSON:写 tmp + os.replace。调用方需持锁。"""
+    """Rewrite an NDJSON file with selected records."""
     fd, tmp = _private_temp_file(path)
     try:
         with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as fh:
@@ -233,17 +235,11 @@ def _rewrite_ndjson(path: Path, entries: list[dict[str, Any]]) -> None:
         try:
             tmp.unlink()
         except FileNotFoundError:
-            pass
+            pass  # The resource is already absent; cleanup is complete.
 
 
 def _rotate_ndjson(path: Path, max_bytes: int, backup_count: int) -> None:
-    """日志式轮转:若 path 大小超 max_bytes,则滚动备份。
-
-    仿 logging.handlers.RotatingFileHandler:
-    - 删除最旧备份 path.{backup_count}
-    - 从 {backup_count-1} 到 1 依次重命名为下一个编号
-    - 当前文件重命名为 path.1
-    """
+    """Rotate an NDJSON file when it exceeds its size limit."""
     _ensure_private_directory(path.parent)
     for candidate in [
         path,
@@ -461,7 +457,7 @@ class ReliabilityStore:
 
     # -- cron retention --------------------------------------------------
     def purge_processed_inbound(self, ttl_seconds: int, max_entries: int) -> int:
-        """删过期 + 截断到 max_entries(保留最新)。返回清理条数。"""
+        """Delete processed inbound records older than the retention limit."""
         return self._purge_ndjson_ttl_cap(
             "processed_inbound.ndjson",
             ttl_seconds,

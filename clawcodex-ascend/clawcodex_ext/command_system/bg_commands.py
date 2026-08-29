@@ -1,22 +1,35 @@
-"""F-94 P94-E2 — ``/bg`` 命令族。
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
-面向用户的后台会话命令（f-94-bg-sessions.md §1.8）::
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
 
-    /bg                       — 等价 /bg list
-    /bg list [--all]          — 列出后台会话（--all 含终态）
-    /bg inspect <id>          — 详细状态
-    /bg attach <id> [--all-ws]— tail transcript + 恢复命令
-    /bg stop <id> [--force]   — 停止（graceful-first）
-    /bg cleanup [--failed]    — 清理终态/orphaned 记录
-    /bg logs <id> [--tail N]  — 仅查看 transcript 尾部
+"""User-facing ``/bg`` command family.
 
-注册方式（黄金法则 5）：通过 ``register_bg_commands(registry)`` 注册到
-全局 ``CommandRegistry``，由 ``builtins.register_builtin_commands`` 调用，
-不修改上游命令枚举。
+``/bg`` defaults to ``/bg list``. The remaining subcommands inspect, attach,
+stop, clean up, or read the transcript tail of background sessions. Commands
+are registered through ``register_bg_commands``.
 """
 
 from __future__ import annotations
 
+import logging
 import shlex
 from pathlib import Path
 from typing import Any
@@ -35,12 +48,15 @@ from clawcodex_ext.tasks.bg_session_registry import BgSessionRegistry  # pylint:
 from .types import CommandAvailability, LocalCommand, LocalCommandResult
 
 
-def _get_manager(context: Any) -> BgSessionManager:
-    """从 CommandContext 构造 manager。
+logger = logging.getLogger(__name__)
 
-    ``CommandContext`` 不像 ``ToolContext`` 有私有属性缓存位，这里每次
-    命令调用新建（命令频率低，可接受）。``runtime_tasks`` 从 context
-    的 tool_context 取（若存在）。
+
+def _get_manager(context: Any) -> BgSessionManager:
+    """Build a manager from a command context.
+
+    Command contexts have no private manager cache, so infrequent command
+    calls create a fresh manager. ``runtime_tasks`` is taken from the nested
+    tool context when present.
     """
     registry = BgSessionRegistry()
     runtime_tasks = None
@@ -64,7 +80,7 @@ def _cmd_list(mgr: BgSessionManager, args: list[str]) -> str:
 
 
 def _workspace_arg(_mgr: BgSessionManager) -> Any:
-    return None  # 占位；命令侧用 _workspace(context)
+    return None  # Commands resolve the workspace from their context.
 
 
 def _workspace(context: Any) -> Path | None:
@@ -146,14 +162,14 @@ def _cmd_logs(mgr: BgSessionManager, args: list[str]) -> str:
         s = mgr.inspect(sid)
     except BgSessionNotFoundError as exc:
         return f"Not found: {exc}"
-    from clawcodex_ext.tasks.bg_session_manager import _read_tail  # pylint: disable=no-name-in-module  # 复用
+    from clawcodex_ext.tasks.bg_session_manager import read_tail
 
-    tail = _read_tail(s.transcript_path, max_lines=tail_n)
+    tail = read_tail(s.transcript_path, max_lines=tail_n)
     return f"--- {s.id} transcript (tail {tail_n}) ---\n{tail or '(empty)'}"
 
 
 # ---------------------------------------------------------------------------
-# 参数解析辅助
+# Argument parsing helpers
 # ---------------------------------------------------------------------------
 
 
@@ -175,7 +191,7 @@ def _tail_count(args: list[str], *, default: int) -> int:
 
 
 # ---------------------------------------------------------------------------
-# 主分发
+# Main dispatch
 # ---------------------------------------------------------------------------
 
 
@@ -195,7 +211,7 @@ _SUBCOMMANDS = {
 
 
 def _bg_run(args: str, context: Any) -> LocalCommandResult:
-    """``/bg <sub> [args...]`` 主分发。"""
+    """Dispatch ``/bg <subcommand> [arguments...]``."""
     if not is_bg_sessions_enabled():
         return LocalCommandResult(
             type="text",
@@ -249,7 +265,7 @@ def _bg_run(args: str, context: Any) -> LocalCommandResult:
 
 
 # ---------------------------------------------------------------------------
-# 命令对象
+# Command object
 # ---------------------------------------------------------------------------
 
 BG_COMMAND: LocalCommand = LocalCommand(
@@ -265,24 +281,25 @@ BG_COMMAND: LocalCommand = LocalCommand(
     supports_non_interactive=True,
     user_invocable=True,
 )
-# LocalCommand 契约：必须 set_call 以通过 test_all_builtins_have_call_impl。
+# LocalCommand requires a call implementation.
 BG_COMMAND.set_call(_bg_run)
 
 
 # ---------------------------------------------------------------------------
-# 注册入口
+# Registration entry point
 # ---------------------------------------------------------------------------
 
 
 def register_bg_commands(registry: Any) -> None:
-    """将 ``/bg`` 注册到命令 registry。
+    """Register ``/bg`` with the command registry.
 
-    由 ``builtins.register_builtin_commands`` 调用。失败不阻断其他命令注册。
+    Registration failures must not prevent other built-in commands from
+    registering.
     """
     try:
         registry.register(BG_COMMAND)
-    except Exception:  # noqa: BLE001 # nosec B110 — defensive, never break command registration
-        pass
+    except Exception:  # noqa: BLE001 — defensive, never break command registration
+        logger.debug("Failed to register the /bg command", exc_info=True)
 
 
 __all__ = [

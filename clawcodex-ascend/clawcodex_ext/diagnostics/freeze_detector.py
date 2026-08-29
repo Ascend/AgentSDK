@@ -1,10 +1,16 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -13,17 +19,12 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
-#
-# Copyright (c) 2026 Clawd Codex Team
-# SPDX-License-Identifier: MIT
-# Source: https://github.com/agentforce314/clawcodex
-# ClawCodex-derived portions remain licensed under the MIT License.
-# See clawcodex-ascend/LICENSE.clawcodex.
 
-"""Layer-1 freeze-detection watchdog (F-108 §十八 P108-D).
+
+"""Layer-1 freeze-detection watchdog.
 
 A daemon thread polls every ``check_interval_s`` and, if the last
-``heartbeat()`` was more than ``threshold_s`` ago, dumps the captured
+``heartbeat`` was more than ``threshold_s`` ago, dumps the captured
 Python thread stacks to disk and emits an ``append_debug_event``
 ``freeze_detected`` row (mirroring the existing headless-runner debug
 log convention).
@@ -58,13 +59,13 @@ from .freeze_config import (
 )
 
 
-# F-108 §十八 P108-D default poll cadence. 10 s is well under the
+# default poll cadence. 10 s is well under the
 # 60 s default threshold (the detector must tick at least once
 # within the threshold window) and far above the syscall cost of
 # reading ``time.monotonic()``.
 DEFAULT_FREEZE_CHECK_INTERVAL_S = 10.0
 
-# F-108 §十八 acceptance §5: ``CLAWCODEX_FREEZE_DIAG=1`` flips the
+# acceptance §5: ``CLAWCODEX_FREEZE_DIAG=1`` flips the
 # watchdog on for an existing process. Empty/unset keeps it idle
 # (no thread spawned, no resource spent).
 DEFAULT_FREEZE_DIAG_ENV = "CLAWCODEX_FREEZE_DIAG"
@@ -334,7 +335,7 @@ class FreezeDetector:
                     try:
                         self._logger.exception("freeze-detector tick failed")
                     except Exception:  # nosec B110
-                        pass
+                        pass  # Diagnostics are best-effort and must not affect the monitored operation.
 
     def check(self) -> bool:
         """Inspect the heartbeat gap. Returns True iff threshold tripped.
@@ -357,7 +358,7 @@ class FreezeDetector:
                 try:
                     self._logger.exception("freeze dump capture failed")
                 except Exception:  # nosec B110
-                    pass
+                    pass  # Diagnostics are best-effort and must not affect the monitored operation.
             return True
         self._tripped_count += 1
         self._tripped_history.append(time.time())
@@ -370,7 +371,7 @@ class FreezeDetector:
                 try:
                     self._logger.exception("freeze dump write failed")
                 except Exception:  # nosec B110
-                    pass
+                    pass  # Diagnostics are best-effort and must not affect the monitored operation.
         self._safe_debug_event(
             "freeze_detected",
             elapsed_seconds=round(gap, 3),
@@ -449,7 +450,7 @@ class FreezeDetector:
         try:
             self._debug_log_writer(name, **payload)
         except Exception:  # nosec B110
-            pass
+            pass  # Diagnostics are best-effort and must not affect the monitored operation.
 
 
 def _diag_env_enabled() -> bool:

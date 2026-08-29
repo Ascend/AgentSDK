@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
-#  This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
 # Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
-#           http://license.coscl.org.cn/MulanPSL2
+#          http://license.coscl.org.cn/MulanPSL2
 #
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
@@ -17,33 +20,33 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""F-53: Tool 自动暴露为 CLI 斜杠命令.
+"""expose tools automatically as CLI slash commands.
 
 Public API
 ----------
 * :class:`DynamicCommandDiscovery` — scan a ``ToolRegistry`` for non-core
-  tools and produce ``LocalCommand``s.
+ tools and produce ``LocalCommand``s.
 * :class:`DynamicToolCommand` — single-tool adapter; bind to REPL/TUI
-  ``CommandContext`` for invocation.
+ ``CommandContext`` for invocation.
 * :func:`install_tool_subcommand` — register the ``clawcodex-dev tool``
-  CLI subcommand (idempotent).
+ CLI subcommand (idempotent).
 * :func:`register_tool_commands` — register per-tool slash commands in
-  a REPL/TUI ``CommandRegistry``.
+ a REPL/TUI ``CommandRegistry``.
 
 Usage
 -----
 At REPL/TUI startup (after the runtime context is built)::
 
-    from clawcodex_ext.cli.tool_cmd import register_tool_commands
-    from clawcodex_ext.command_system.registry import CommandRegistry
+ from clawcodex_ext.cli.tool_cmd import register_tool_commands
+ from clawcodex_ext.command_system.registry import CommandRegistry
 
-    command_registry = CommandRegistry()
-    register_tool_commands(command_registry, ctx.tool_registry)
+ command_registry = CommandRegistry()
+ register_tool_commands(command_registry, ctx.tool_registry)
 
 From the CLI::
 
-    clawcodex-dev tool --list
-    clawcodex-dev tool detect_modality --path /data/sample.mp4
+ clawcodex-dev tool --list
+ clawcodex-dev tool detect_modality --path /data/sample.mp4
 """
 
 from __future__ import annotations

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 #  This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
@@ -16,7 +17,7 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""Default discovery paths for templates (F-85 / P85-B).
+"""Default discovery paths for templates.
 
 This module is the **path** half of P85-B: it computes where to look
 for template files on disk. It is intentionally pure — no I/O, no
@@ -44,8 +45,8 @@ stays isolated from ``~/.claude`` conventions. The defaults use
 All three resolvers return :class:`Path` objects even when the
 directory does not yet exist on disk — callers MUST check
 ``Path.is_dir()`` before reading. This keeps the helpers cheap and
-side-effect-free, and matches the behaviour of
-:func:`pathlib.Path.home` which never raises on a missing home
+side-effect-free, and matches the behaviour of :func:`pathlib.Path.home`,
+which never raises on a missing home
 directory.
 """
 

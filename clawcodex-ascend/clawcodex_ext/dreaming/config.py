@@ -3,12 +3,14 @@
 
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Clawd Codex Team
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -18,7 +20,7 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""Dream thresholds + enable flag — F-100.
+"""Dream thresholds + enable flag.
 
 Mirrors ``typescript/src/services/autoDream/config.ts`` +
 ``autoDream.ts::getConfig()``.
@@ -26,15 +28,15 @@ Mirrors ``typescript/src/services/autoDream/config.ts`` +
 Two layers:
 
 1. **Enable** — :func:`is_auto_dream_enabled`. User setting overrides
-   the env var; the env var overrides the default. Mirrors the
-   upstream ``isAutoDreamEnabled`` shape (setting > flag > default).
+ the env var; the env var overrides the default. Mirrors the
+ upstream ``isAutoDreamEnabled`` shape (setting > flag > default).
 2. **Thresholds** — :class:`DreamConfig` carries the scheduling knobs
-   (``min_hours`` and ``min_sessions``). Settable via
-   :func:`set_dream_config` so tests can swap defaults cheaply.
+ (``min_hours`` and ``min_sessions``). Settable via
+ :func:`set_dream_config` so tests can swap defaults cheaply.
 
 Note: clawcodex does **not** model the upstream ``KAIROS`` /
-``KAIROS_DREAM`` feature flags. Decision #1 in PROGRESS.md §十三 —
-F-100 ships dream unconditionally under the user setting (no
+``KAIROS_DREAM`` feature flags. Decision #1 in PROGRESS.md §13 —
+ships dream unconditionally under the user setting (no
 A/B gate). KAIROS branches stay available via
 :func:`clawcodex_ext.dreaming.paths.is_kairos_active` for follow-up
 work.

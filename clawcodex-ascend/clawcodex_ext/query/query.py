@@ -1,3 +1,25 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 # pylint: disable=too-many-lines,ungrouped-imports
 from __future__ import annotations
 
@@ -80,7 +102,7 @@ from clawcodex_ext.services.api.retry import CannotRetryError  # noqa: E402
 from clawcodex_ext.utils.token_estimation import rough_token_count_estimation_for_messages  # noqa: E402  # pylint: disable=no-name-in-module
 
 # ---------------------------------------------------------------------------
-# F-68: Feature-gate helper for hook phases.
+# Feature-gate helper for hook phases.
 # Wraps hook invocation so that HOOK_PRE_LLM / HOOK_POST_LLM flags can
 # disable the entire hook pipeline without changing the call sites.
 # ---------------------------------------------------------------------------
@@ -688,7 +710,7 @@ def _retry_after_seconds(e: Exception, default: float) -> float:
                 if 0 < value <= 60:
                     return value
             except (TypeError, ValueError):
-                pass
+                pass  # The candidate value is invalid; continue with the existing fallback.
     return default
 
 
@@ -919,16 +941,16 @@ async def _call_model_sync(
             c = m.get("content", "")
             if isinstance(c, str):
                 clen = len(c)
-                logger.warning("[DIAG]   msg[%d] role=%s  content_len=%d  text=%s", i, role, clen, c[:80])
+                logger.warning("[DIAG]   msg[%d] role=%s content_len=%d", i, role, clen)
             else:
                 block_types = []
                 for b in c:
                     if isinstance(b, dict):
                         bt = b.get("type", "?")
                         if bt == "tool_use":
-                            block_types.append(f"tool_use(id={b.get('id', '')},name={b.get('name', '')})")
+                            block_types.append("tool_use")
                         elif bt == "tool_result":
-                            block_types.append(f"tool_result(tool_use_id={b.get('tool_use_id', '')})")
+                            block_types.append("tool_result")
                         else:
                             block_types.append(bt)
                     else:
@@ -1174,7 +1196,7 @@ async def _call_model_sync(
 
             enforce_request_delay()
         except ImportError:  # nosec B110
-            pass
+            pass  # The optional integration is unavailable; continue with the built-in path.
 
         # ``abort_signal`` reaches the provider so a tripped controller can
         # close the streaming response immediately. Preserve both downstream
@@ -1228,9 +1250,9 @@ async def _call_model_sync(
             # provider would see the entire response materialize at
             # once after the model finishes.
             if on_text_chunk is not None and fallback_response.content:
-                from clawcodex_ext.tool_system.renderers import _emit_text_chunks
+                from clawcodex_ext.tool_system.renderers import emit_text_chunks
 
-                _emit_text_chunks(on_text_chunk, fallback_response.content)
+                emit_text_chunks(on_text_chunk, fallback_response.content)
             return fallback_response
 
     try:
@@ -1624,7 +1646,7 @@ def _dispatch_single_tool(
         result = tool_registry.dispatch(call, tool_use_context)
         _dur_ms = (time.monotonic() - _t0) * 1000
 
-        # F-75: 工具/Skill 调用统计（静默记录，不阻断热路径）
+        # Record tool and skill usage without blocking the hot path.
         try:
             from clawcodex_ext.tool_stats import record_tool, record_skill  # pylint: disable=no-name-in-module
 
@@ -1767,8 +1789,8 @@ def _dispatch_single_tool(
         if ctrl is not None:
             try:
                 ctrl.abort("tool_raised_abort_error")
-            except Exception:  # nosec B110
-                pass
+            except Exception as exc:  # nosec B110
+                logger.warning("Failed to notify the abort controller (%s)", type(exc).__name__)
         return UserMessage(
             content=[
                 ToolResultBlock(
@@ -1808,10 +1830,10 @@ async def _run_tools_partitioned(
 
     Mirrors typescript/src/tools/partitionToolCalls + runTools (Mode 2).
     ConcurrencySafe tools (Read, Grep, Glob, etc.) run in parallel up to
-    MAX_TOOL_USE_CONCURRENCY.  Non-safe tools (Bash, Edit, Write) run
+    MAX_TOOL_USE_CONCURRENCY. Non-safe tools (Bash, Edit, Write) run
     exclusively one at a time.
 
-    F-99 方案3: dispatch concurrent tools as ``asyncio`` tasks (rather
+    Dispatch concurrent tools as ``asyncio`` tasks (rather
     than ``asyncio.gather`` on raw coroutines) and poll with
     ``asyncio.wait(FIRST_COMPLETED)`` so a user abort can cancel the
     in-flight tool tasks as soon as one completes, instead of
@@ -1839,7 +1861,7 @@ async def _run_tools_partitioned(
         primaries.append(pair[0])
         extras.extend(pair[1])
 
-    # F-99 方案3 helper: dispatch a batch of tool_use_blocks concurrently
+    # Dispatch a batch of tool-use blocks concurrently
     # with FIRST_COMPLETED polling. Aborts short-circuit remaining tasks
     # so the agent loop unwinds the moment the abort signal trips,
     # without waiting for stragglers. Returns when every task is done
@@ -1882,7 +1904,7 @@ async def _run_tools_partitioned(
             tasks[task] = block
         try:
             pending: set[asyncio.Task[tuple[UserMessage, list[UserMessage]]]] = set(tasks)
-            # F-99 方案3 abort poll: ``asyncio.wait`` only returns when
+            # Abort polling: ``asyncio.wait`` only returns when
             # a task completes, so without a timeout it would block
             # until the slowest remaining tool finishes — the very
             # behaviour we're fixing. By passing ``timeout=0.1`` we
@@ -1921,7 +1943,7 @@ async def _run_tools_partitioned(
                         # should not see AbortError in practice.
                         raise exc
                     _accumulate(task.result())
-                # F-99 方案3: poll abort between batches. Even if all
+                # Poll for aborts between batches. Even if all
                 # remaining tasks finish naturally, an abort that
                 # fired mid-batch must short-circuit subsequent work
                 # so we don't burn another tool round-trip the user
@@ -2033,7 +2055,7 @@ def _resolve_effective_tools(
 
         base_tools = iter_effective_tools(tool_use_context, list(base_tools or []))
     except ImportError:  # nosec B110
-        pass
+        pass  # The optional integration is unavailable; continue with the built-in path.
     model = tool_use_context.options.main_loop_model or getattr(params.provider, "model", "") or ""
 
     filtered = filter_tools_for_request(base_tools, model, messages)
@@ -2049,7 +2071,7 @@ def _resolve_effective_tools(
 
         filtered = iter_effective_tools(tool_use_context, list(filtered or []))
     except ImportError:  # nosec B110
-        pass
+        pass  # The optional integration is unavailable; continue with the built-in path.
     return filtered
 
 
@@ -2262,7 +2284,7 @@ async def _query_impl(  # pylint: disable=too-many-nested-blocks
 
     while True:
         messages = state.messages
-        # P102-E: 逐 turn 回调 — 在 turn 开始时调用
+        # Invoke per-turn callbacks at the start of each turn.
         for cb in state.on_turn_start_callbacks:
             cb(state)
         if _diag:
@@ -2312,9 +2334,8 @@ async def _query_impl(  # pylint: disable=too-many-nested-blocks
             except Exception:
                 logger.warning("Compression pipeline failed, continuing with original messages", exc_info=True)
 
-        # P102-A: pre-LLM 通用扩展钩子
-        # 允许外部策略（如 F-69 Budget Mode）在 _call_model_sync 之前
-        # 修改 messages 或 system_prompt，无需修改 query() 函数体。
+        # The general pre-LLM hook lets external policies, such as Budget Mode,
+        # modify messages or the system prompt before ``_call_model_sync``.
         current_system_prompt = params.system_prompt
         hook_result = _call_hooks_if_enabled("pre_llm", messages, current_system_prompt, state=state, params=params)
         messages = hook_result[0]
@@ -2592,7 +2613,7 @@ async def _query_impl(  # pylint: disable=too-many-nested-blocks
             needs_follow_up = len(tool_use_blocks) > 0
             _goal_record_usage(assistant_messages)
 
-            # P102-D: post_llm hook — LLM 响应返回后、工具执行前
+            # Invoke post_llm after the response and before tool execution.
             hook_result = _call_hooks_if_enabled(
                 "post_llm", assistant_messages, tool_use_blocks, state=state, params=params
             )
@@ -2705,7 +2726,7 @@ async def _query_impl(  # pylint: disable=too-many-nested-blocks
                 )
                 continue
 
-            # P102-B: 使用恢复策略注册表处理 withheld 错误
+            # Use the recovery-strategy registry for withheld-response errors.
             error_type = None
             if _is_withheld_max_output_tokens(last_message):
                 error_type = "max_output_tokens"
@@ -2787,7 +2808,7 @@ async def _query_impl(  # pylint: disable=too-many-nested-blocks
                             tool_use_context,
                         )
                         return
-                # 如果没有任何策略适用，yield last_message 并 fallthrough
+                # If no strategy applies, yield the last message and fall through.
                 if recovered_state is not None:
                     state = recovered_state
                     _goal_finish_turn("stop")
@@ -3191,7 +3212,7 @@ async def _query_impl(  # pylint: disable=too-many-nested-blocks
         # to avoid touching ToolContext's public surface.
         setattr(tool_use_context, "_active_provider", params.provider)
 
-        # ── F-122-C: 保存 CacheSafeParams（供 /btw side_question 使用）──
+        # Save CacheSafeParams for ``/btw`` side questions.
         try:
             from clawcodex_ext.agent.forked_agent import (
                 CacheSafeParams,
@@ -3209,7 +3230,7 @@ async def _query_impl(  # pylint: disable=too-many-nested-blocks
         except Exception:
             logger.warning("Failed to save CacheSafeParams", exc_info=True)
 
-        # P102-D: pre_tool hook — 在工具执行之前允许外部策略修改 tool_use_blocks
+        # Allow external policies to modify tool-use blocks before execution.
         hook_result = _call_hooks_if_enabled("pre_tool", tool_use_blocks, state=state, params=params)
         tool_use_blocks = hook_result[0]
 
@@ -3220,7 +3241,7 @@ async def _query_impl(  # pylint: disable=too-many-nested-blocks
             effective_tools,
         )
 
-        # P102-D: post_tool hook — 在工具执行之后允许外部策略修改 tool_results
+        # Allow external policies to modify tool results after execution.
         hook_result = _call_hooks_if_enabled("post_tool", tool_results, state=state, params=params)
         tool_results = hook_result[0]
         goal_steering_messages = _goal_finish_tools(
@@ -3348,7 +3369,7 @@ async def _query_impl(  # pylint: disable=too-many-nested-blocks
         for inj in injected_messages:
             yield inj
 
-        # P102-E: 逐 turn 回调 — 在 turn 结束时调用
+        # Invoke per-turn callbacks at the end of each turn.
         for cb in state.on_turn_end_callbacks:
             cb(state)
         # P102-D: on_turn_end hook

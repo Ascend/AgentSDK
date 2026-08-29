@@ -1,4 +1,26 @@
-"""Native OpenAI provider using the ``openai`` SDK directly (F-72 P72-A).
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
+"""Native OpenAI provider using the ``openai`` SDK directly.
 
 Differences from the existing
 :class:`~src.providers.openai_provider.OpenAIProvider`:
@@ -6,9 +28,9 @@ Differences from the existing
 * Does **not** go through :class:`OpenAICompatibleProvider` — the
   Anthropic-to-OpenAI message translation is performed here using the
   same converter the compat path uses, but the SDK call is the bare
-  OpenAI ``client.chat.completions.create`` call. This makes the
-  capability surface (structured output, vision, streaming tools)
-  discoverable through the ``capabilities`` registry.
+ OpenAI ``client.chat.completions.create`` call. This makes the
+ capability surface (structured output, vision, streaming tools)
+ discoverable through the ``capabilities`` registry.
 
 * Advertises :data:`CAP_STRUCTURED_OUTPUT`,
   :data:`CAP_STREAMING_TOOLS`, :data:`CAP_VISION`, and
@@ -41,7 +63,9 @@ except ModuleNotFoundError:  # pragma: no cover
     BadRequestError = None
     RateLimitError = None
 
-from src.providers.openai_compatible import _convert_anthropic_messages_to_openai
+from clawcodex_ext.providers.openai_compatible import (
+    convert_anthropic_messages_to_openai as _convert_anthropic_messages_to_openai,
+)
 
 from .base import NativeProvider
 from .capabilities import (

@@ -1,3 +1,25 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 """Downstream ClawCodex extension layer.
 
 This package's ``__init__.py`` is intentionally kept **thin** — it does
@@ -34,7 +56,11 @@ a concern.
 
 from __future__ import annotations
 
+import logging
 from importlib.metadata import PackageNotFoundError, version
+
+
+_logger = logging.getLogger(__name__)
 
 try:
     __version__ = version("clawcodex-cli")
@@ -92,39 +118,39 @@ def ensure_eager_extensions_installed() -> None:
     _install_provider_patches()
     install_stale_registry_patch()
 
-    # F-94 BG_SESSIONS — wrap launch_background_runner to upsert the global
+    # BG_SESSIONS — wrap launch_background_runner to upsert the global
     # index after the per-session marker is written. No-op when
-    # CLAWCODEX_BG_SESSIONS=off (验收标准 1).
+    # CLAWCODEX_BG_SESSIONS=off.
     try:
         from clawcodex_ext.tasks.bg_session_hook import install_bg_session_index_hook  # pylint: disable=no-name-in-module
 
         install_bg_session_index_hook()
-    except Exception:  # nosec B110
-        pass
+    except Exception:  # noqa: BLE001 — optional extension must not block startup
+        _logger.debug("Background-session index hook installation failed", exc_info=True)
 
-    # F-84 P84-H — register ``daemon`` subcommand behind the
+    # register ``daemon`` subcommand behind the
     # DAEMON feature gate. No-op when the flag is disabled.
     try:
         from clawcodex_ext.daemon import install_daemon_gate  # pylint: disable=no-name-in-module
 
         install_daemon_gate()
-    except Exception:  # nosec B110
-        pass
+    except Exception:  # noqa: BLE001 — optional extension must not block startup
+        _logger.debug("Daemon gate installation failed", exc_info=True)
 
     # Provider registrations (model extensions, downstream providers,
     # cancel-latency overrides, media registry).
-    from clawcodex_ext.providers import _init_provider_extensions  # pylint: disable=no-name-in-module
+    from clawcodex_ext.providers import initialize_provider_extensions
 
-    _init_provider_extensions()
+    initialize_provider_extensions()
 
-    # F-88 Monitor — install runtime hooks (TUI keybinding, stall watchdog
+    # Monitor — install runtime hooks (TUI keybinding, stall watchdog
     # exemption) after upstream modules are fully loaded.
     try:
         from clawcodex_ext.services.monitor.install import install_monitor_extensions
 
         install_monitor_extensions()
-    except Exception:  # nosec B110
-        pass
+    except Exception:  # noqa: BLE001 — optional extension must not block startup
+        _logger.debug("Monitor extension installation failed", exc_info=True)
 
 
 # ---------------------------------------------------------------------------

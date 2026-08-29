@@ -1,4 +1,26 @@
-"""Cron scheduler lifecycle independent of frontends (F-22-G1/G5/G8/G7)."""
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
+"""Cron scheduler lifecycle independent of frontends."""
 
 from __future__ import annotations
 
@@ -28,7 +50,7 @@ from .tasks import (
 
 _log = logging.getLogger(__name__)
 
-# Optional event hook signatures for F-22-G7 (analytics reservation).
+# Optional event hook signatures for (analytics reservation).
 # Defaults are no-ops; callers (REPL, daemon) can pass observability sinks.
 FireEventHook = Callable[[dict], None]
 MissedEventHook = Callable[[dict], None]
@@ -54,9 +76,9 @@ class CronScheduler:
     on_missed: Callable[[list[CronTask], str], None] | None = None
     session_id: str = field(default_factory=lambda: uuid.uuid4().hex)
     check_interval_seconds: float = 1.0
-    # F-22-G1: polled before each tick; when True, scheduler stops firing.
+    # polled before each tick; when True, scheduler stops firing.
     is_killed: Callable[[], bool] | None = None
-    # F-22-G2: per-tick config loader. When None, falls back to
+    # per-tick config loader. When None, falls back to
     # ``load_jitter_config(workspace_root)`` so live edits to
     # ``.clawcodex/cron/jitter_config.json`` (or legacy ``.claude/cron_jitter_config.json``)
     # and ``CLAWCODEX_CRON_*`` env
@@ -64,7 +86,7 @@ class CronScheduler:
     # CLI. Pass an explicit callable to inject a GrowthBook-style
     # remote-config source.
     load_jitter_config: Callable[[], CronJitterConfig] | None = None
-    # F-22-G7: optional event hooks for analytics. No-op by default.
+    # optional event hooks for analytics. No-op by default.
     on_fire_event: FireEventHook = _noop_event
     on_missed_event: MissedEventHook = _noop_event
     on_expired_event: ExpiredEventHook = _noop_event
@@ -73,7 +95,7 @@ class CronScheduler:
     # store is process-local; only the lock-owning process fires session
     # tasks (see ``check_once`` lock gate in Phase B-2).
     session_store: MutableMapping[str, CronTask | dict] | None = None
-    # F-22-G9: optional daemon-mode overrides. When provided, the
+    # optional daemon-mode overrides. When provided, the
     # scheduler operates independently of the bootstrap session state:
     #   - dir_override — overrides workspace_root for all file I/O
     #     (tasks, locks, jitter config, run storage).
@@ -86,16 +108,16 @@ class CronScheduler:
     lock_identity: str | None = None
     is_loading: Callable[[], bool] | None = None
     assistant_mode: bool = False
-    # F-22-F: agent ownership — when set, only fire tasks belonging to this agent
+    # agent ownership — when set, only fire tasks belonging to this agent
     # or global tasks (agent_id=None). None means no filtering (all agents).
     agent_id: str | None = None
-    # F-22-F-4: optional hook fired when the owning agent is reported
+    # optional hook fired when the owning agent is reported
     # to have exited (crash / SIGKILL / clean shutdown) via
     # :meth:`notify_owner_exited`. The teammate subsystem is not yet
     # wired, so this stays as an optional callable the caller may set
     # once teammate lifecycle is integrated.
     on_owner_exited: Callable[[str], None] | None = None
-    # F-22-F-5: optional provider returning the set of currently active
+    # optional provider returning the set of currently active
     # agent ids. When set, :meth:`cleanup_orphaned_tasks` uses it to
     # find tasks whose owning agent is no longer active. The scheduler
     # does NOT poll this provider automatically — teammate subsystem
@@ -107,22 +129,22 @@ class CronScheduler:
     _thread: threading.Thread | None = field(default=None, init=False)
     _stop_event: threading.Event = field(default_factory=threading.Event, init=False)
     _lock: CronTaskLock | None = field(default=None, init=False)
-    # F-22-G2: cache the most recent jitter config so downstream callers
+    # cache the most recent jitter config so downstream callers
     # (e.g. ``prune_expired_recurring_tasks``) can pick up the live
     # ``recurring_max_age_ms`` without re-reading the loader twice.
     _last_jitter_config: CronJitterConfig | None = field(default=None, init=False)
-    # F-22-G8: thread-safe in-flight set to prevent double-fire on async
+    # thread-safe in-flight set to prevent double-fire on async
     # mark_fired / remove windows.
     _in_flight: set[str] = field(default_factory=set, init=False)
     _in_flight_lock: threading.Lock = field(default_factory=threading.Lock, init=False)
-    # F-22-G2: per-tick I/O throttle — jitter config and expired-task
+    # per-tick I/O throttle — jitter config and expired-task
     # cleanup only execute every _THROTTLE_INTERVAL ticks instead of
     # every second, cutting ~80% of disk reads when no schedule change.
     _THROTTLE_INTERVAL: int = 60
     _jitter_tick_counter: int = field(default=0, init=False)
     _prune_tick_counter: int = field(default=0, init=False)
 
-    # F-22-G5: track whether we registered atexit/signal cleanup so stop()
+    # track whether we registered atexit/signal cleanup so stop
     # is idempotent.
     _atexit_registered: bool = field(default=False, init=False)
     _signal_registered: bool = field(default=False, init=False)
@@ -130,7 +152,7 @@ class CronScheduler:
     _previous_sigint: signal._HANDLER | None = field(default=None, init=False)
 
     def __post_init__(self) -> None:
-        """F-22-G9: apply daemon-mode overrides.
+        """Apply daemon-mode overrides.
 
         When ``dir_override`` is set, replace ``workspace_root`` so that
         *all* downstream I/O (tasks, locks, jitter config, runs) uses the
@@ -173,7 +195,7 @@ class CronScheduler:
         return read_cron_tasks_cached(self.workspace_root)
 
     def is_disabled(self) -> bool:
-        """F-22-G1: True if the kill switch is engaged this tick."""
+        """Return whether the kill switch is engaged this tick."""
         if self.is_killed is None:
             return False
         try:
@@ -199,7 +221,7 @@ class CronScheduler:
             return False
 
     def _agent_owned_only(self, tasks: list[CronTask]) -> list[CronTask]:
-        """F-22-F-2: filter due tasks by agent ownership.
+        """Filter due tasks by agent ownership.
 
         Returns the input unchanged when ``self.agent_id`` is ``None``
         (single-agent mode, no ownership tracking). Otherwise keeps global
@@ -221,7 +243,7 @@ class CronScheduler:
 
         timestamp = at_ms if at_ms is not None else now_ms()
 
-        # F-22-G2: refresh jitter config on every _THROTTLE_INTERVAL-th
+        # refresh jitter config on every _THROTTLE_INTERVAL-th
         # tick instead of every second.  Live edits to cron_jitter_config
         # take effect within ~60 s instead of immediately — an acceptable
         # trade-off for cutting ~98 % of background I/O when idle.
@@ -260,7 +282,7 @@ class CronScheduler:
             seen_ids.add(task.id)
             deduped_due.append(task)
         due = deduped_due
-        # F-22-F: agent ownership filtering — only fire tasks belonging to the
+        # agent ownership filtering — only fire tasks belonging to the
         # current agent or global tasks (agent_id=None). Delegated to
         # :meth:`_agent_owned_only` so the contract is testable.
         due = self._agent_owned_only(due)
@@ -284,7 +306,7 @@ class CronScheduler:
                 if run is None:
                     continue
                 fired.append(task)
-                # F-22-G7: fire event.
+                # fire event.
                 self.on_fire_event(
                     {
                         "type": "fire",
@@ -333,7 +355,7 @@ class CronScheduler:
         missed = find_missed_tasks(self.workspace_root, at_ms, session_store=self.session_store)
         if missed:
             remove_missed_tasks(self.workspace_root, missed, session_store=self.session_store)
-            # F-22-G7: missed event.
+            # missed event.
             self.on_missed_event(
                 {
                     "type": "missed",
@@ -345,21 +367,21 @@ class CronScheduler:
                 self.on_missed(missed, build_missed_task_notification(missed))
         return missed
 
-    # ---- F-22-F-4 / F-22-F-5 stubs (awaiting teammate subsystem) ----
+    # ---- stubs (awaiting teammate subsystem) ----
     def notify_owner_exited(self, owner_agent_id: str) -> list[str]:
-        """F-22-F-4 stub: notify the scheduler that an owning agent exited.
+        """Notify the scheduler that an owning agent exited.
 
         Currently a no-op with two side effects:
 
         1. If ``on_owner_exited`` is set, invoke it with the agent id.
-           Callers (typically the future teammate subsystem) get a
-           single hook point to track agent lifecycle without coupling
-           to scheduler internals.
+        Callers (typically the future teammate subsystem) get a
+        single hook point to track agent lifecycle without coupling
+        to scheduler internals.
         2. Log the exit at debug level. No runs are auto-finalized
-           here yet — once :class:`TeammateManager` exposes an
-           ``active_agents`` API, this method will additionally walk
-           any in-flight cron runs owned by ``owner_agent_id`` and
-           finalize them as ``failed`` with reason ``owner_exited``.
+        here yet — once :class:`TeammateManager` exposes an
+        ``active_agents`` API, this method will additionally walk
+        any in-flight cron runs owned by ``owner_agent_id`` and
+        finalize them as ``failed`` with reason ``owner_exited``.
 
         Returns the list of run ids that were finalized as failed
         (currently always empty).
@@ -375,7 +397,7 @@ class CronScheduler:
         return []
 
     def cleanup_orphaned_tasks(self) -> list[CronTask]:
-        """F-22-F-5 stub: find tasks whose owning agent is no longer active.
+        """Find tasks whose owning agent is no longer active.
 
         Requires ``active_agents_provider`` to be set; otherwise the
         caller has no way to know which agents are alive. The scheduler
@@ -411,7 +433,7 @@ class CronScheduler:
         ]
         return min(values) if values else None
 
-    # ---- F-22-G8 in-flight helpers ----
+    # ---- in-flight helpers ----
     def _in_flight_contains(self, task_id: str) -> bool:
         with self._in_flight_lock:
             return task_id in self._in_flight
@@ -424,7 +446,7 @@ class CronScheduler:
         with self._in_flight_lock:
             self._in_flight.discard(task_id)
 
-    # ---- F-22-G5 cleanup registry ----
+    # ---- cleanup registry ----
     def _register_cleanup_hooks(self) -> None:
         if not self._atexit_registered:
             atexit.register(self.stop)
@@ -487,7 +509,7 @@ class CronScheduler:
 
 
 class AsyncCronScheduler(CronScheduler):
-    """asyncio-native variant of :class:`CronScheduler`.
+    """Asyncio-native variant of :class:`CronScheduler`.
 
     Uses an `asyncio.Task` instead of a `threading.Thread` for the run
     loop, eliminating the thread→coroutine bridge needed by Orchestrator
@@ -529,7 +551,7 @@ class AsyncCronScheduler(CronScheduler):
             try:
                 await self._async_task
             except asyncio.CancelledError:
-                pass
+                pass  # The task was explicitly cancelled; awaiting it only drains shutdown cleanup.
             self._async_task = None
         if self._lock:
             self._lock.release()
@@ -567,7 +589,7 @@ class AsyncCronScheduler(CronScheduler):
                 try:
                     future.result(timeout=2.0)
                 except Exception:  # nosec B110 - ignore cross-thread stop timeout
-                    pass
+                    pass  # Cross-thread shutdown is best-effort after the bounded wait expires.
         else:
             loop.run_until_complete(self.stop_async())
 

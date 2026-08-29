@@ -1,19 +1,26 @@
-"""Agent Loop Hook 注册表（P102-D）。
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
-提供 ``register_loop_hook`` / ``unregister_loop_hook`` / ``call_hooks`` API，
-统一管理 pre_llm / post_llm / pre_tool / post_tool / on_turn_end / on_turn_start
-等阶段的钩子注册与去注册。
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
 
-用法::
-
-    from clawcodex_ext.query.hook_registry import register_loop_hook, call_hooks
-
-    def my_pre_llm_hook(messages, system_prompt, state, params):
-        # 修改 messages 或 system_prompt
-        return (messages, system_prompt)
-
-    register_loop_hook("budget_mode", my_pre_llm_hook, "pre_llm", priority=10)
-"""
+"""P102-D Agent-loop hook registry."""
 
 from __future__ import annotations
 
@@ -35,7 +42,7 @@ LoopHookPhase = Literal[
 
 @dataclass
 class LoopHook:
-    """单个 loop hook 的元数据。"""
+    """Metadata for one agent-loop hook."""
 
     name: str
     fn: Callable[..., Any]
@@ -43,7 +50,7 @@ class LoopHook:
     priority: int = 0
 
 
-# 全局注册表：phase -> 按优先级排序的 hook 列表
+# Global mapping from phase to hooks ordered by priority.
 _REGISTRY: dict[LoopHookPhase, list[LoopHook]] = {
     "pre_llm": [],
     "post_llm": [],
@@ -54,7 +61,7 @@ _REGISTRY: dict[LoopHookPhase, list[LoopHook]] = {
 }
 
 
-# ── 公共 API ─────────────────────────────────────────────────────────
+# -- Public API -----------------------------------------------------------
 
 
 def register_loop_hook(
@@ -63,10 +70,7 @@ def register_loop_hook(
     phase: LoopHookPhase,
     priority: int = 0,
 ) -> None:
-    """注册一个 loop hook。
-
-    同名同 phase 的 hook 会先被注销，再重新注册，避免重复。
-    """
+    """Register an agent-loop hook for a phase."""
     unregister_loop_hook(name, phase)
     hook = LoopHook(name=name, fn=fn, phase=phase, priority=priority)
     _REGISTRY[phase].append(hook)
@@ -75,7 +79,7 @@ def register_loop_hook(
 
 
 def unregister_loop_hook(name: str, phase: LoopHookPhase) -> None:
-    """注销指定 phase 中 name 匹配的 hook。"""
+    """Unregister an agent-loop hook from a phase."""
     before = len(_REGISTRY[phase])
     _REGISTRY[phase] = [h for h in _REGISTRY[phase] if h.name != name]
     after = len(_REGISTRY[phase])
@@ -84,13 +88,7 @@ def unregister_loop_hook(name: str, phase: LoopHookPhase) -> None:
 
 
 def call_hooks(phase: LoopHookPhase, *args: Any, **kwargs: Any) -> tuple[Any, ...]:  # noqa: ANN401
-    """按优先级顺序调用指定 phase 的所有已注册 hook。
-
-    每个 hook 的返回值（如果非 None）会替换传入的 *args，供下一个 hook 使用。
-    这允许 pre_llm hook 通过返回 ``(messages, system_prompt)`` 来修改参数。
-
-    返回最终经过所有 hook 处理后的 args tuple。
-    """
+    """Call registered hooks for a phase in priority order."""
     hooks = _REGISTRY.get(phase, [])
     current_args: tuple[Any, ...] = args
     for hook in hooks:
@@ -108,14 +106,14 @@ def call_hooks(phase: LoopHookPhase, *args: Any, **kwargs: Any) -> tuple[Any, ..
 
 
 def list_hooks(phase: LoopHookPhase | None = None) -> list[LoopHook]:
-    """返回已注册 hook 的列表（只读副本）。用于调试和测试。"""
+    """Return a read-only list of registered loop hooks."""
     if phase is not None:
         return list(_REGISTRY.get(phase, []))
     return [h for hooks in _REGISTRY.values() for h in hooks]
 
 
 def clear_hooks(phase: LoopHookPhase | None = None) -> None:
-    """清空注册表。主要用于测试隔离。"""
+    """Clear the hook registry for test isolation."""
     if phase is not None:
         _REGISTRY[phase].clear()
     else:

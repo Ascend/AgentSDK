@@ -1,10 +1,16 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -13,12 +19,7 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
-#
-# Copyright (c) 2026 Clawd Codex Team
-# SPDX-License-Identifier: MIT
-# Source: https://github.com/agentforce314/clawcodex
-# ClawCodex-derived portions remain licensed under the MIT License.
-# See clawcodex-ascend/LICENSE.clawcodex.
+
 
 """Downstream TUI entrypoint — extended version with session resume support.
 
@@ -30,6 +31,7 @@ TUI can resume an existing session and print a resume hint on exit.
 from __future__ import annotations
 # pylint: disable=E0611
 
+import logging
 import os
 import time
 from pathlib import Path
@@ -38,12 +40,14 @@ from typing import Any
 from src.agent import Session
 from src.entrypoints.tui import (
     TUIOptions,
-    _textual_available,
+    textual_available as _textual_available,
 )
 from src.tool_system.context import ToolContext
 from src.tool_system.registry import ToolRegistry
 
 from clawcodex_ext.tui.app import ClawCodexExtTUI
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def run_tui(
@@ -206,7 +210,7 @@ def _run_tui_with_app(
     # ---- SIGTERM/SIGINT: save session + print resume hint via graceful shutdown (S-R1) ----
     _register_tui_signal_save(used_session)
 
-    # F-97: best-effort session_start. The session id is the same one
+    # best-effort session_start. The session id is the same one
     # the conversation persists under so the per-day aggregator can
     # cross-link events to a known session. Failures are swallowed.
     try:
@@ -219,7 +223,7 @@ def _run_tui_with_app(
             is_non_interactive=False,
         )
     except Exception:  # nosec B110
-        pass
+        pass  # Telemetry is optional and must not affect command execution.
 
     tui_start = time.monotonic()
     exit_code = 0
@@ -228,17 +232,17 @@ def _run_tui_with_app(
     except KeyboardInterrupt:
         exit_code = 130
     except Exception as exc:
-        # F-97: best-effort error event with stable fingerprint.
+        # best-effort error event with stable fingerprint.
         # Failures are swallowed.
         try:
             from telemetry import record_error
 
             record_error(session_id=used_session.session_id, exc=exc)
         except Exception:  # nosec B110
-            pass
+            pass  # Telemetry is optional and must not affect command execution.
         raise
     finally:
-        # F-97: best-effort session_end + command_run. Telemetry
+        # best-effort session_end + command_run. Telemetry
         # must never block the user's exit.
         try:
             from telemetry import (
@@ -261,7 +265,7 @@ def _run_tui_with_app(
                 exit_status=exit_code,
             )
         except Exception:  # nosec B110
-            pass
+            pass  # Telemetry is optional and must not affect command execution.
 
     # --- After TUI exits, print resume hint ---
     _print_resume_hint(used_session)
@@ -285,13 +289,13 @@ def _register_tui_signal_save(session: Session) -> None:
         try:
             session.save()
         except Exception:  # nosec B110
-            pass
+            pass  # Session persistence is best-effort at this recovery or shutdown boundary.
         try:
             from clawcodex_ext.utils.resume_hint import print_resume_hint
 
             print_resume_hint(getattr(session, "session_id", None))
         except Exception:  # nosec B110
-            pass
+            pass  # Resume-hint output is best-effort during teardown.
 
     register_cleanup(_cleanup)
 
@@ -318,8 +322,12 @@ def _filter_registry(registry, *, keep) -> None:
             except Exception:
                 try:
                     del registry._tools[name]
-                except Exception:  # nosec B110
-                    pass
+                except Exception as exc:  # nosec B110
+                    _LOGGER.warning(
+                        "Failed to remove filtered tool %s (%s)",
+                        name,
+                        type(exc).__name__,
+                    )
 
 
 __all__ = ["run_tui", "_run_tui_with_app"]

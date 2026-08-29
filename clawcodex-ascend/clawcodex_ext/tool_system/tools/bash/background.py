@@ -1,3 +1,25 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 # pylint: disable=return-in-finally,consider-using-with,used-before-assignment,ungrouped-imports
 """Background execution helpers for the Bash tool.
 
@@ -130,11 +152,11 @@ def spawn_background_bash(
             try:
                 output_handle.flush()
             except OSError:
-                pass
+                pass  # Best-effort operation failed; keep the surrounding fallback.
             try:
                 output_handle.close()
             except OSError:
-                pass
+                pass  # Best-effort operation failed; keep the surrounding fallback.
 
             finished_at = time.time()
 
@@ -191,7 +213,7 @@ def spawn_background_bash(
 
                     context.runtime_tasks.update(task_id, _force_notified)
                 except Exception:  # noqa: BLE001  # nosec
-                    pass
+                    pass  # Intentional best-effort path; the surrounding fallback remains valid.
             # Mirror to the legacy dict in lockstep so old readers see the
             # exit code without round-tripping through runtime_tasks. The
             # legacy dict carries the chapter-10 status string too — older
@@ -340,7 +362,7 @@ def stop_background_bash(context: ToolContext, task_id: str) -> bool:
 
         context.runtime_tasks.update(task_id, _mark_killed)
     except Exception:  # noqa: BLE001  # nosec
-        pass
+        pass  # Intentional best-effort path; the surrounding fallback remains valid.
     try:
         # Kill the whole process group started with ``start_new_session=True``
         # so that ``bash -lc "cmd"`` and any children terminate together.

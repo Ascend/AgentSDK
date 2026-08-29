@@ -1,7 +1,29 @@
-"""tts — ``/tts`` command (F-64 P64-E5 Text-to-Speech).
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
+"""tts — ``/tts`` command (P64-E5 Text-to-Speech).
 
 Symmetric to ``/voice`` (the STT side): toggles TTS playback on/off,
-selects the TTS backend, sets the voice id, and offers a ``say`` 试听
+selects the TTS backend, sets the voice id, and offers a ``say`` preview
 sub-command. Persisted state lives in ``settings.tts_enabled`` /
 ``settings.tts_provider`` / ``settings.tts_voice``; written via
 :func:`src.config.set_tts_enabled` / :func:`set_tts_provider` /
@@ -16,24 +38,24 @@ Usage
 * ``/tts gemini`` — enable TTS + select Gemini TTS backend.
 * ``/tts off`` — disable TTS playback (provider kept).
 * ``/tts voice <name>`` — set the provider-specific voice id.
-* ``/tts say <text>`` — 试听: synthesize and play a sample phrase.
+* ``/tts say <text>`` — preview: synthesize and play a sample phrase.
 * ``/tts status`` — show current state + provider list.
 * ``/tts help`` — usage text.
 
 Design decisions (mirrors /voice)
 ----------------------------------
 * ``/tts <provider>`` flips both the master switch and the provider
-  atomically. ``/tts off`` only flips the switch (provider retained
-  for next enable).
+ atomically. ``/tts off`` only flips the switch (provider retained
+ for next enable).
 * Provider validation happens here (not in settings) so the command
-  surfaces a clear "unknown backend" message with the valid list.
-* ``say`` is a fire-and-forget 试听: it constructs the provider via the
-  registry, calls ``synthesize()`` (batch path), and pipes the PCM to
-  the default :class:`AudioPlayer`. Errors surface as text rather than
-  audio (so the user sees what went wrong).
+ surfaces a clear "unknown backend" message with the valid list.
+* ``say`` is a fire-and-forget preview: it constructs the provider via the
+ registry, calls ``synthesize()`` (batch path), and pipes the PCM to
+ the default :class:`AudioPlayer`. Errors surface as text rather than
+ audio (so the user sees what went wrong).
 * Follows the project's :class:`LocalCommand` convention (matches
-  ``/voice``, ``/cost``, …): a plain ``LocalCommand`` bound to a free
-  ``tts_command_call`` function via :meth:`set_call`.
+ ``/voice``, ``/cost``, …): a plain ``LocalCommand`` bound to a free
+ ``tts_command_call`` function via :meth:`set_call`.
 """
 
 from __future__ import annotations

@@ -1,26 +1,25 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
-#  This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# This file is part of the AgentSDK project.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
 #
-#           http://license.coscl.org.cn/MulanPSL2
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
 #
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
 
-# -------------------------------------------------------------------------
-# This file is derived from Clawd Codex (https://github.com/agentforce314/clawcodex),
-# which is licensed under the MIT License.
-# Copyright (c) 2026 Clawd Codex Team
-# -------------------------------------------------------------------------
-# -------------------------------------------------------------------------
 
 """
 Compression pipeline — orchestrates the 5 compression layers in order.
@@ -103,7 +102,7 @@ class PipelineConfig:
     autocompact_threshold: float = 0.80
     autocompact_tracking: AutoCompactTracking | None = None
 
-    # F-106: lazy compression gate. When ``est_input_tokens`` is below
+    # lazy compression gate. When ``est_input_tokens`` is below
     # ``context_window * gate_skip_ratio``, the pipeline short-circuits
     # and returns an empty result instead of running all 5 layers. Set
     # to 0 to disable the gate (always run). Overridable at runtime via
@@ -132,7 +131,7 @@ class PipelineConfig:
     # Token budget: if pipeline frees this many tokens, skip remaining layers
     early_exit_tokens: int = 20_000
 
-    # Goal-aware compression (F-9 / F-38).
+    # Goal-aware compression.
     # When ``goal_active`` is True, the autocompact threshold is raised
     # (compact less aggressively) and messages containing
     # ``<goal-steering`` are preserved from compaction so the model
@@ -218,7 +217,7 @@ class CompressionPipeline:
         layers_applied: list[str] = []
         current_messages = messages
 
-        # F-106: lazy compression gate. When est_input_tokens is well
+        # lazy compression gate. When est_input_tokens is well
         # below context_window * skip_ratio, all five layers would be
         # no-ops; short-circuit before doing any work.  A zero (or
         # negative) input_token_count means "not measured" — skip the
@@ -235,7 +234,7 @@ class CompressionPipeline:
             )
             if not gate_should_run:
                 logger.debug(
-                    "F-106 compression pipeline skipped reason=%s est=%d threshold=%d",
+                    "compression pipeline skipped reason=%s est=%d threshold=%d",
                     gate_reason,
                     input_token_count,
                     int(cfg.context_window * effective_ratio),
@@ -325,7 +324,7 @@ class CompressionPipeline:
         # --- Layer 5: Autocompact ---
         autocompact_result = None
         if cfg.provider is not None and cfg.model:
-            # F-9: when a goal is active, raise the autocompact threshold
+            # when a goal is active, raise the autocompact threshold
             # (compact less aggressively) and pre-filter goal-steering
             # messages so they survive compaction.
             effective_threshold = cfg.autocompact_threshold
@@ -392,10 +391,10 @@ class CompressionPipeline:
 
 
 def _is_goal_steering_message(message: Message) -> bool:
-    """Check if a message is a goal-steering injection (F-9).
+    """Check if a message is a goal-steering injection.
 
     Goal-steering prompts are wrapped in ``<goal-steering type=...>``
-    XML tags.  These must survive autocompact so the model never loses
+    XML tags. These must survive autocompact so the model never loses
     sight of the active objective.
     """
     if not hasattr(message, "content"):

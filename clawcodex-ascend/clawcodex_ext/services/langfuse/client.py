@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 #  This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
@@ -16,7 +17,7 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""F-65 P65-A — Langfuse SDK client loader.
+"""P65-A — Langfuse SDK client loader.
 
 The ``langfuse`` Python SDK is an **optional** dependency. This
 module wraps the import + global singleton pattern so the rest of

@@ -1,7 +1,29 @@
-"""F-93 TeamMem — TeamMemoryTool (P93-F).
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
+"""TeamMem — TeamMemoryTool (P93-F).
 
 Agent-facing tool that exposes :class:`TeamMemoryService` to the LLM.
-One tool, five actions (F-93 §1.9): ``remember`` / ``recall`` / ``list``
+One tool, five actions (§1.9): ``remember`` / ``recall`` / ``list``
 / ``delete`` / ``compact``.
 
 The tool is gated by ``is_team_memory_enabled()`` (env +

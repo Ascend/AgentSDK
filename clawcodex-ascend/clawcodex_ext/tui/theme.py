@@ -1,10 +1,16 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -13,12 +19,6 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
-#
-# Copyright (c) 2026 Clawd Codex Team
-# SPDX-License-Identifier: MIT
-# Source: https://github.com/agentforce314/clawcodex
-# ClawCodex-derived portions remain licensed under the MIT License.
-# See clawcodex-ascend/LICENSE.clawcodex.
 
 """Theme palette for the Claw Codex Textual TUI.
 
@@ -192,7 +192,7 @@ def resolve_auto_theme(*, env: dict[str, str] | None = None) -> str:
             # Low numbers (0-6) are generally dark; 7-15 bright.
             return "dark" if bg < 7 else "light"
         except (ValueError, IndexError):
-            pass
+            pass  # Invalid candidate; continue with the surrounding fallback.
 
     defaults_command = shutil.which("defaults")
     if defaults_command and (environment.get("__CFBundleIdentifier") or environment.get("TERM_PROGRAM")):
@@ -210,7 +210,7 @@ def resolve_auto_theme(*, env: dict[str, str] | None = None) -> str:
                 # The key is absent when Light Mode is active.
                 return "light"
         except Exception:  # nosec B110
-            pass
+            pass  # Intentional best-effort path; the surrounding fallback remains valid.
 
     return "dark"
 

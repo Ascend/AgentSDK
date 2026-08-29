@@ -1,10 +1,16 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -13,12 +19,7 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
-#
-# Copyright (c) 2026 Clawd Codex Team
-# SPDX-License-Identifier: MIT
-# Source: https://github.com/agentforce314/clawcodex
-# ClawCodex-derived portions remain licensed under the MIT License.
-# See clawcodex-ascend/LICENSE.clawcodex.
+
 
 """Terminal chrome helpers (title / tab status / bell / focus).
 
@@ -110,7 +111,7 @@ def _write(seq: str) -> None:
         stream.write(seq)
         stream.flush()
     except (OSError, ValueError, AttributeError):
-        pass
+        pass  # Terminal escape sequences are optional on unsupported output streams.
 
 
 # ---- title --------------------------------------------------------
@@ -133,7 +134,7 @@ def set_terminal_title(title: str | None) -> None:
 
             ctypes.windll.kernel32.SetConsoleTitleW(clean)  # type: ignore[attr-defined]
         except Exception:  # nosec B110
-            pass
+            pass  # This presentation update is best-effort and must not interrupt the user flow.
         return
     _write(_wrap_for_multiplexer(_osc(0, clean)))
 
