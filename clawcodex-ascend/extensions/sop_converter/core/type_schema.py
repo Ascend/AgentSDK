@@ -1764,3 +1764,470 @@ def _hint_to_json_type_recursive(
             return nested_schema
 
     return {"type": "object"}
+
+
+# --- appended from PR #755 ---
+
+
+def _pure_ast_model_schema_for_module(
+    source_dir: str,
+    import_module: str,
+    class_name: str,
+    *,
+    module_path: str | None = None,
+    _visited: set[tuple[str, str]] | None = None,
+) -> dict[str, Any] | None:
+    """Build object schema from ClassDef AST directly (pure AST extraction).
+
+    Does NOT call model_json_schema() or depend on _ast_is_pydantic_class.
+    Instead, parses the ClassDef AST to extract field names and type annotations,
+    building a JSON Schema manually. This handles cases where:
+    - _ast_is_pydantic_class returns False (indirect inheritance across modules)
+    - model_json_schema() fails (InstanceOf, Callable fields)
+    - The class is not a pydantic model but has typed fields
+    - Empty classes that inherit all fields from parent classes
+    """
+    visited = _visited if _visited is not None else set()
+    cache_key = (import_module, class_name)
+    if cache_key in visited:
+        return None
+    visited.add(cache_key)
+
+    root = Path(source_dir).resolve()
+    rel = Path(*import_module.split(".")).with_suffix(".py")
+    path = root / rel
+    if not path.is_file():
+        return None
+    try:
+        source = path.read_text(encoding="utf-8")
+        tree = ast.parse(source)
+    except (OSError, SyntaxError, UnicodeDecodeError):
+        return None
+
+    class_node = None
+    for node in tree.body:
+        if isinstance(node, ast.ClassDef) and node.name == class_name:
+            class_node = node
+            break
+    if class_node is None:
+        return None
+
+    parent_classes = []
+    for base in class_node.bases:
+        if isinstance(base, ast.Name):
+            parent_classes.append(base.id)
+        elif isinstance(base, ast.Attribute):
+            parent_classes.append(ast.unparse(base))
+
+    parent_properties: dict[str, Any] = {}
+    parent_required: list[str] = []
+    for parent_name in parent_classes:
+        if parent_name in {"BaseModel", "object"}:
+            continue
+        parent_resolved = _resolve_type_import(source_dir, parent_name, module_path)
+        if parent_resolved:
+            parent_mp, parent_cn = parent_resolved
+            parent_schema = _pure_ast_model_schema_for_module(
+                source_dir, parent_mp, parent_cn, module_path=module_path, _visited=visited
+            )
+            if parent_schema:
+                parent_properties.update(parent_schema.get("properties", {}))
+                parent_required.extend(parent_schema.get("required", []))
+
+    properties: dict[str, Any] = dict(parent_properties)
+    required: list[str] = list(parent_required)
+    for stmt in class_node.body:
+        if isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name):
+            field_name = stmt.target.id
+            if stmt.annotation:
+                hint = ast.unparse(stmt.annotation)
+            else:
+                hint = "string"
+            properties[field_name] = _hint_to_json_type_recursive(
+                hint, source_dir=source_dir, module_path=module_path, _visited=visited
+            )
+            if stmt.value is None:
+                if field_name not in required:
+                    required.append(field_name)
+            elif field_name in required:
+                # Overriding a parent-required field with a default makes it optional.
+                required.remove(field_name)
+        elif isinstance(stmt, ast.Assign):
+            for target in stmt.targets:
+                if isinstance(target, ast.Name):
+                    field_name = target.id
+                    properties.setdefault(field_name, {"type": "string"})
+
+    if not properties:
+        return None
+
+    schema: dict[str, Any] = {
+        "type": "object",
+        "title": class_name,
+        "properties": properties,
+    }
+    if required:
+        schema["required"] = required
+    schema["examples"] = [_minimal_value_for_schema(schema)]
+    return schema
+
+
+def _pure_ast_model_schema(
+    source_dir: str, type_name: str, _visited: set[tuple[str, str]] | None = None
+) -> dict[str, Any] | None:
+    """Pure AST fallback: build object schema from type_name."""
+    module_path = get_type_module_path(source_dir, type_name)
+    if not module_path:
+        return None
+    return _pure_ast_model_schema_for_module(source_dir, module_path, type_name, _visited=_visited)
+
+
+def _ast_model_schema_for_module(
+    source_dir: str,
+    import_module: str,
+    class_name: str,
+    *,
+    module_path: str | None = None,
+    pydantic_index: dict[str, set[str]] | None = None,
+    _visited: set[tuple[str, str]] | None = None,
+) -> dict[str, Any] | None:
+    """Build object schema from a resolved ``(import_module, class_name)`` pair."""
+    visited = _visited if _visited is not None else set()
+    cache_key = (import_module, class_name)
+    if cache_key in visited:
+        return None
+    visited.add(cache_key)
+
+    class_node = _class_node_from_module(source_dir, import_module, class_name)
+    if class_node is None:
+        return None
+
+    root = Path(source_dir).resolve()
+    rel = Path(*import_module.split(".")).with_suffix(".py")
+    path = root / rel
+    module_classes: dict[str, ast.ClassDef] = {}
+    if path.is_file():
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+            module_classes = _module_class_index(tree)
+        except (OSError, SyntaxError, UnicodeDecodeError):
+            module_classes = {}
+
+    if not _ast_is_pydantic_class(
+        class_node, module_classes, pydantic_index=pydantic_index, current_module=import_module
+    ):
+        return None
+
+    properties, required = _ast_collect_pydantic_properties(
+        class_node,
+        module_classes,
+        source_dir=source_dir,
+        module_path=module_path,
+        _visited=visited,
+    )
+
+    if not properties:
+        return None
+
+    schema: dict[str, Any] = {
+        "type": "object",
+        "title": class_name,
+        "properties": properties,
+    }
+    if required:
+        schema["required"] = required
+    schema["examples"] = [_minimal_value_for_schema(schema)]
+    return schema
+
+
+def _ast_dataclass_schema(
+    source_dir: str, type_name: str, _visited: set[tuple[str, str]] | None = None
+) -> dict[str, Any] | None:
+    """Fallback: build object schema from ``@dataclass class Name:`` AST."""
+    index = _build_class_index(source_dir)
+    import_module = index.get(type_name)
+    if not import_module:
+        return None
+    return _ast_dataclass_schema_for_module(source_dir, import_module, type_name, _visited=_visited)
+
+
+def _ast_dataclass_schema_for_module(
+    source_dir: str,
+    import_module: str,
+    class_name: str,
+    *,
+    module_path: str | None = None,
+    _visited: set[tuple[str, str]] | None = None,
+) -> dict[str, Any] | None:
+    """Build dataclass object schema from a resolved ``(import_module, class_name)`` pair."""
+    class_node = _class_node_from_module(source_dir, import_module, class_name)
+    if class_node is None or not _has_dataclass_decorator(class_node):
+        return None
+
+    properties: dict[str, Any] = {}
+    required: list[str] = []
+    for stmt in class_node.body:
+        if not isinstance(stmt, ast.AnnAssign) or not isinstance(stmt.target, ast.Name):
+            continue
+        field_name = stmt.target.id
+        hint = ast.unparse(stmt.annotation) if stmt.annotation else "string"
+        properties[field_name] = param_to_json_schema_property(
+            type_hint=hint,
+            source_dir=source_dir,
+            fallback_json_type="string",
+            module_path=module_path,
+            _visited=_visited,
+        )
+        if stmt.value is None:
+            required.append(field_name)
+
+    if not properties:
+        return None
+
+    schema: dict[str, Any] = {
+        "type": "object",
+        "title": class_name,
+        "properties": properties,
+    }
+    if required:
+        schema["required"] = required
+    schema["examples"] = [_minimal_value_for_schema(schema)]
+    return schema
+
+
+def pydantic_schema_for_type(
+    source_dir: str,
+    type_hint: str,
+    *,
+    module_path: str | None = None,
+    _visited: set[tuple[str, str]] | None = None,
+) -> dict[str, Any] | None:
+    """Return a JSON Schema dict for a structured type *type_hint*, or None.
+
+    Five-level fallback strategy (adapted from the legacy code):
+    ① pydantic subprocess probe: pre-filter BaseModel subclasses → subprocess import + model_json_schema()
+    ② runtime fields: in-process import → dataclass field extraction or pydantic model_json_schema()
+    ③ AST pydantic fallback: no import, ast.parse the source file to extract BaseModel fields
+    ③b pure AST field extraction: no import, parse the ClassDef directly for fields (does not
+       depend on _ast_is_pydantic_class)
+    ④ AST dataclass fallback: no import, ast.parse the source file to extract @dataclass fields
+
+    ① is the most accurate (pydantic-native $ref/validators/constraints), ② fairly accurate
+    (runtime type hints), ③/③b/④ moderate (AST annotation strings, no validators/defaults).
+
+    Pre-filter: use AST to check whether a class inherits BaseModel (indirect inheritance
+    supported); only pydantic types trigger the ① subprocess probe. Non-pydantic types
+    (dataclass, etc.) skip ① and go straight to ②③③b④.
+    """
+    visited = _visited if _visited is not None else set()
+    root = _type_root(type_hint)
+    resolved = _resolve_type_import(source_dir, type_hint, module_path)
+    pydantic_index = _build_pydantic_class_index(source_dir)
+
+    # ① pydantic: pre-filter + subprocess probe
+    if resolved:
+        mp, cn = resolved
+        if cn in pydantic_index and mp in pydantic_index[cn]:
+            probe = _probe_type_in_subprocess(source_dir, mp, cn, venv_python=_CURRENT_VENV_PYTHON)
+            if probe and probe.get("kind") == "pydantic" and probe.get("schema"):
+                schema = probe["schema"]
+                example = _minimal_value_for_schema(schema)
+                out: dict[str, Any] = dict(schema)
+                out["examples"] = [example]
+                out["title"] = cn
+                return out
+            logger.debug(
+                "pydantic_schema_for_type(%s): step ① failed, probe result=%s",
+                type_hint,
+                probe,
+            )
+        else:
+            logger.debug(
+                "pydantic_schema_for_type(%s): step ① skipped, type not in pydantic_index (resolved=%s)",
+                type_hint,
+                resolved,
+            )
+
+    # ② runtime field extraction: dataclass or pydantic model_json_schema()
+    # Note: the in-process import may hit ModuleNotFoundError (missing SDK deps) or block;
+    # on failure, continue with the ③③b④ AST fallbacks.
+    cls = _import_resolved_type(source_dir, type_hint, module_path)
+    if cls is not None:
+        # ②a: dataclass field extraction
+        dataclass_schema = _dataclass_schema_from_cls(cls, source_dir, module_path=module_path, _visited=visited)
+        if dataclass_schema is not None:
+            if resolved:
+                dataclass_schema["title"] = resolved[1]
+            return dataclass_schema
+        # ②b: third-party pydantic types (e.g. FieldInfo, Span, Document)
+        try:
+            from pydantic import BaseModel
+
+            if isinstance(cls, type) and issubclass(cls, BaseModel):
+                schema = cls.model_json_schema(mode="validation")
+                example = _minimal_value_for_schema(schema)
+                out: dict[str, Any] = dict(schema)
+                out["examples"] = [example]
+                out["title"] = resolved[1] if resolved else root
+                return out
+        except ImportError:
+            pass
+        except Exception as exc:
+            logger.debug(
+                "pydantic_schema_for_type(%s): step ②b failed, model_json_schema error=%s",
+                type_hint,
+                exc,
+            )
+
+    # ③ AST pydantic fallback (no import, reads the source file only)
+    if resolved:
+        ast_m = _ast_model_schema_for_module(
+            source_dir,
+            resolved[0],
+            resolved[1],
+            module_path=module_path,
+            pydantic_index=pydantic_index,
+            _visited=visited,
+        )
+        if ast_m is not None:
+            return ast_m
+        logger.debug(
+            "pydantic_schema_for_type(%s): step ③ failed, _ast_model_schema_for_module returned None",
+            type_hint,
+        )
+
+    # ③b pure AST field extraction (no dependency on _ast_is_pydantic_class; parses ClassDef directly)
+    # For: indirect inheritance with parents in other modules, third-party pydantic types, and types
+    # where model_json_schema fails.
+    if resolved:
+        ast_m = _pure_ast_model_schema_for_module(source_dir, resolved[0], resolved[1], _visited=visited)
+        if ast_m is not None:
+            return ast_m
+        logger.debug(
+            "pydantic_schema_for_type(%s): step ③b failed, _pure_ast_model_schema_for_module returned None",
+            type_hint,
+        )
+
+    # ④ AST dataclass fallback
+    if resolved:
+        ast_d = _ast_dataclass_schema_for_module(
+            source_dir,
+            resolved[0],
+            resolved[1],
+            module_path=module_path,
+            _visited=visited,
+        )
+        if ast_d is not None:
+            return ast_d
+
+    # Fall back to the global class index when resolution failed
+    ast_m = _ast_model_schema(source_dir, root, _visited=visited)
+    if ast_m is not None:
+        return ast_m
+
+    # Global pure-AST fallback
+    ast_m = _pure_ast_model_schema(source_dir, root, _visited=visited)
+    if ast_m is not None:
+        return ast_m
+
+    return _ast_dataclass_schema(source_dir, root, _visited=visited)
+
+
+def param_to_json_schema_property(
+    *,
+    type_hint: str | None,
+    description: str = "",
+    source_dir: str | None = None,
+    fallback_json_type: str = "string",
+    module_path: str | None = None,
+    _visited: set[tuple[str, str]] | None = None,
+) -> dict[str, Any]:
+    """Convert a parameter type hint to a JSON Schema property dict."""
+    if not type_hint:
+        prop: dict[str, Any] = {"type": fallback_json_type}
+        if description:
+            prop["description"] = description
+        return prop
+
+    union_parts = _split_union(type_hint)
+    if len(union_parts) > 1 and source_dir:
+        variants: list[dict[str, Any]] = []
+        for part in union_parts:
+            sub = param_to_json_schema_property(
+                type_hint=part,
+                source_dir=source_dir,
+                fallback_json_type=fallback_json_type,
+                module_path=module_path,
+                _visited=_visited,
+            )
+            variants.append(sub)
+        prop = {"anyOf": variants}
+        if description:
+            prop["description"] = description
+        return prop
+
+    if source_dir:
+        model_schema = pydantic_schema_for_type(source_dir, type_hint, module_path=module_path, _visited=_visited)
+        if model_schema is not None:
+            prop = dict(model_schema)
+            if description and not prop.get("description"):
+                prop["description"] = description
+            return prop
+        # Schema extraction failed for a structured type — warn so user knows
+        # the tool spec has a degraded parameter.  Deduplicate: warn once per type.
+        # Warn for pydantic types only: non-pydantic (Enum/ABC/dataclass/aliases) are skipped silently.
+        if _looks_like_structured_type(type_hint) and type_hint not in _WARNED_TYPES:
+            pydantic_idx = _build_pydantic_class_index(source_dir)
+            root_name = _type_root(type_hint)
+            if root_name in pydantic_idx:
+                _WARNED_TYPES.add(type_hint)
+                logger.warning(
+                    "Schema extraction failed for '%s', degrading to %s",
+                    type_hint,
+                    fallback_json_type,
+                )
+
+    # Generic containers: preserve type but annotate inner model when possible.
+    cleaned = type_hint.strip()
+    if cleaned.startswith(("Dict[", "dict[", "Mapping[", "mapping[")) and source_dir:
+        inner = _extract_dict_value_type(cleaned)
+        inner_schema = pydantic_schema_for_type(source_dir, inner, module_path=module_path, _visited=_visited)
+        prop = {"type": "object"}
+        if inner_schema is not None:
+            prop["additionalProperties"] = inner_schema
+        elif _looks_like_structured_type(inner) and inner not in _WARNED_TYPES:
+            # Warn for pydantic types only
+            pydantic_idx = _build_pydantic_class_index(source_dir)
+            inner_root = _type_root(inner)
+            if inner_root in pydantic_idx:
+                _WARNED_TYPES.add(inner)
+                logger.warning(
+                    "Schema extraction failed for Dict value type '%s', degrading to untyped object",
+                    inner,
+                )
+        if description:
+            prop["description"] = description
+        return prop
+
+    if cleaned.startswith(("List[", "list[", "Sequence[", "Iterable[", "Set[", "set[")) and source_dir:
+        inner = _extract_container_inner_type(cleaned)
+        inner_schema = pydantic_schema_for_type(source_dir, inner, module_path=module_path, _visited=_visited)
+        prop: dict[str, Any] = {"type": "array"}
+        if inner_schema is not None:
+            prop["items"] = inner_schema
+        elif inner:
+            prop["items"] = param_to_json_schema_property(
+                type_hint=inner,
+                source_dir=source_dir,
+                fallback_json_type=fallback_json_type,
+                module_path=module_path,
+                _visited=_visited,
+            )
+        if description:
+            prop["description"] = description
+        return prop
+
+    prop = {"type": fallback_json_type}
+    if description:
+        prop["description"] = description
+    return prop
