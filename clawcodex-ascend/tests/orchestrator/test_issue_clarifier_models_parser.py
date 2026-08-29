@@ -20,9 +20,10 @@
 # ClawCodex-derived portions remain licensed under the MIT License.
 # See clawcodex-ascend/LICENSE.clawcodex.
 
-"""Focused tests for F-124 models, parsing, and prompt construction."""
+"""Focused tests for issue clarification models, parsing, and prompts."""
 
 import json
+
 
 from types import SimpleNamespace
 
@@ -59,7 +60,7 @@ def test_low_confidence_response_fails_open() -> None:
 def test_prompt_contains_issue_and_prior_reply() -> None:
     issue = SimpleNamespace(
         id="124",
-        identifier="F-124",
+        identifier="ISSUE-124",
         title="Clarify migration",
         description="The destination is unspecified.",
         labels=["feature"],

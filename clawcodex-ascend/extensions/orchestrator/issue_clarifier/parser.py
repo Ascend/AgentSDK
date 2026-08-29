@@ -19,7 +19,7 @@
 # Source: https://github.com/agentforce314/clawcodex
 # ClawCodex-derived portions remain licensed under the MIT License.
 # See clawcodex-ascend/LICENSE.clawcodex.
-"""Strict-but-fail-open response parsing for F-124."""
+"""Strict-but-fail-open response parsing for issue clarification."""
 
 from __future__ import annotations
 
