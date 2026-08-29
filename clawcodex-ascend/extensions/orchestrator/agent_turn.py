@@ -132,8 +132,6 @@ class AgentTurnMixin:
         if session.run_id is None:
             session.run_id = self._build_run_id(session)
         self._initialize_runtime_tasks(session)
-        session._snapshot_provider = self.agent_config.provider or ""
-        session._snapshot_model = self.agent_config.model or ""
         session._pause_gate = threading.Event()
         session._pause_gate.set()
         if session.state_cache is None:
@@ -227,7 +225,11 @@ class AgentTurnMixin:
             run_id=session.run_id,
             workspace=str(workspace.path),
             max_turns=self.max_turns,
-            provider=self.agent_config.provider,
+            provider=(
+                session._routing_snapshot.provider_name
+                if session._routing_snapshot is not None
+                else self.agent_config.provider
+            ),
             permission_mode=self.agent_config.permission_mode,
         )
         return context
@@ -330,7 +332,11 @@ class AgentTurnMixin:
                 self._resolve_protocols()
                 session._transcript_storage = self._session_storage._upstream(session_id=session.run_id)
                 session._transcript_storage.init_metadata(
-                    model=self.agent_config.model or "",
+                    model=(
+                        session._routing_snapshot.model
+                        if session._routing_snapshot is not None
+                        else self.agent_config.model or ""
+                    ),
                     cwd=str(session.workspace.path),
                     title=f"orchestrator-{session.issue.identifier or session.issue.id}",
                 )
@@ -368,11 +374,12 @@ class AgentTurnMixin:
         """Build QueryConfig for one turn and return its QueryRunner."""
         from extensions.api.query import QueryConfig, QueryRunner
 
+        routing = session._routing_snapshot
         config = QueryConfig(
             prompt=prompt,
             workspace=session.workspace.path,
-            provider=self.agent_config.provider,
-            model=self.agent_config.model,
+            provider=(routing.provider_name if routing is not None else self.agent_config.provider),
+            model=(routing.model if routing is not None else self.agent_config.model),
             max_turns=self.max_turns,
             permission_mode=self.agent_config.permission_mode,
             run_id=session.run_id,

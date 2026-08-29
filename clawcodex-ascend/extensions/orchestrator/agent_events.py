@@ -172,7 +172,11 @@ class AgentEventMixin:
             storage.write_message(
                 create_assistant_message(
                     content=blocks,
-                    model=self.agent_config.model,
+                    model=(
+                        session._routing_snapshot.model
+                        if session._routing_snapshot is not None
+                        else self.agent_config.model
+                    ),
                 )
             )
 

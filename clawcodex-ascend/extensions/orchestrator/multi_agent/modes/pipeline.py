@@ -62,9 +62,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from extensions.orchestrator.provider_routing import build_provider_router
+
 if TYPE_CHECKING:
     from extensions.orchestrator.agent_runner import AgentRunner, AgentSession
     from extensions.orchestrator.config.schema import WorkflowConfig
+    from extensions.orchestrator.contracts.provider_routing import ProviderRouter
 
 logger = logging.getLogger(__name__)
 
@@ -185,6 +188,7 @@ class PipelineModeRunner:
         stage_max_turns: dict[str, int] | None = None,
         stage_specs: dict[str, dict[str, Any]] | None = None,
         handoff: str = "prompt",
+        provider_router: "ProviderRouter | None" = None,
     ) -> None:
         if not stages:
             raise ValueError("PipelineModeRunner requires at least one stage")
@@ -193,6 +197,7 @@ class PipelineModeRunner:
         if handoff not in {"prompt", "mailbox"}:
             raise ValueError(f"handoff must be 'prompt' or 'mailbox', got {handoff!r}")
         self._agent_runner = agent_runner
+        self._provider_router = provider_router
         self._stages: tuple[str, ...] = tuple(stages)
         self._max_retries_per_stage = max_retries_per_stage
         # Filter empty-string models (e.g. ``{"analyzer": ""}``) — an
@@ -299,6 +304,10 @@ class PipelineModeRunner:
     @property
     def handoff(self) -> str:
         return self._handoff
+
+    @property
+    def provider_router(self) -> "ProviderRouter | None":
+        return self._provider_router
 
     async def run(
         self,
@@ -444,18 +453,18 @@ class PipelineModeRunner:
         stage_runner, stage_workflow = self._isolated_stage_runtime(
             workflow,
             stage,
-            stage_model,
         )
+        routed_hooks = self._routed_hooks(workflow, stage, hooks)
         async with self._stage_agent_identity(stage):
             if stage_kind == "agent":
-                await stage_runner.run(session, stage_workflow, **hooks)
+                await stage_runner.run(session, stage_workflow, **routed_hooks)
                 return
 
             sub_runner = self._build_nested_runner(
                 nested_spec,  # type: ignore[arg-type]
                 agent_runner=stage_runner,
             )
-            await sub_runner.run(session, stage_workflow, **hooks)
+            await sub_runner.run(session, stage_workflow, **routed_hooks)
 
     # ------------------------------------------------------------------
     # Internals
@@ -508,7 +517,6 @@ class PipelineModeRunner:
         self,
         workflow: Any,
         stage: str,
-        stage_model: str | None,
     ) -> tuple[Any, Any]:
         """Copy mutable per-run settings instead of swapping shared state."""
         stage_runner = copy.copy(self._agent_runner)
@@ -518,8 +526,6 @@ class PipelineModeRunner:
             base_agent = getattr(workflow, "agent", None)
         stage_agent = copy.copy(base_agent) if base_agent is not None else None
 
-        if stage_agent is not None and stage_model:
-            stage_agent.model = stage_model
         if stage_agent is not None and hasattr(stage_workflow, "agent"):
             stage_workflow.agent = stage_agent
         if stage_agent is not None and hasattr(stage_runner, "agent_config"):
@@ -529,6 +535,23 @@ class PipelineModeRunner:
         if stage_max_turns is not None:
             stage_runner.max_turns = stage_max_turns
         return stage_runner, stage_workflow
+
+    def _routed_hooks(
+        self,
+        workflow: Any,
+        stage: str,
+        hooks: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Add immutable per-run routing without touching shared config."""
+        router = self._provider_router or build_provider_router(
+            workflow,
+            model_overrides=self._stage_models,
+        )
+        return {
+            **hooks,
+            "provider_override": router.provider_for_stage(stage),
+            "model_override": router.model_for_stage(stage),
+        }
 
     @asynccontextmanager
     async def _stage_agent_identity(self, stage: str):
@@ -592,7 +615,11 @@ class PipelineModeRunner:
         if kind == "debate":
             from .debate import DebateModeRunner
 
-            return DebateModeRunner(selected_runner, **config)
+            return DebateModeRunner(
+                selected_runner,
+                provider_router=self._provider_router,
+                **config,
+            )
         if kind == "coordinator":
             from .coordinator import CoordinatorModeRunner
 

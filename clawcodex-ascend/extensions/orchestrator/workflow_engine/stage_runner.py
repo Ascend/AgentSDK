@@ -35,6 +35,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, TYPE_CHECKING
 
+from extensions.orchestrator.provider_routing import build_provider_router
+
 from .checkpoint import ArtifactResolver
 from .validators import ContractValidator
 from .workflow_state import StageNode, WorkflowState
@@ -305,6 +307,7 @@ class StageRunner:
         # tracker.fetch_issue_states_by_ids returns 400 for invalid IDs.
         # agent_runner already handles multi-round continuation with tracker=None.
         try:
+            routing_hooks = self._routing_hooks(stage_node)
             await self._agent_runner.run(
                 session=session,
                 workflow=self._workflow_config,
@@ -313,6 +316,7 @@ class StageRunner:
                 clarification_resolver=self._clarification_resolver,
                 progress_reporter=self._progress_reporter,
                 diagnostics_callback=self._diagnostics_callback,
+                **routing_hooks,
             )
         except Exception as exc:
             logger.exception("AgentRunner.run failed for stage %s", stage_node.id)
@@ -320,6 +324,24 @@ class StageRunner:
             session.output_text = str(exc)
 
         return session
+
+    def _routing_hooks(self, stage_node: StageNode) -> dict[str, Any]:
+        """Resolve one declarative workflow stage through the A.10 router."""
+        stage_id = str(
+            stage_node.agent_config.get("stage_id") or stage_node.phase or stage_node.name or stage_node.id
+        ).strip()
+        provider = stage_node.agent_config.get("provider")
+        model = stage_node.agent_config.get("model")
+        router = build_provider_router(
+            self._workflow_config,
+            provider_overrides={stage_id: provider} if provider else None,
+            model_overrides={stage_id: model} if model else None,
+            explicit_overrides_win=True,
+        )
+        return {
+            "provider_override": router.provider_for_stage(stage_id),
+            "model_override": router.model_for_stage(stage_id),
+        }
 
     # -- GATE handling --────────────────────────────────────────────────
 

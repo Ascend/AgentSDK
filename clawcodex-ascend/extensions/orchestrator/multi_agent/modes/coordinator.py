@@ -65,9 +65,12 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
+from extensions.orchestrator.provider_routing import build_provider_router
+
 if TYPE_CHECKING:
     from extensions.orchestrator.agent_runner import AgentRunner, AgentSession
     from extensions.orchestrator.config.schema import WorkflowConfig
+    from extensions.orchestrator.contracts.provider_routing import ProviderRouter
 
 logger = logging.getLogger(__name__)
 
@@ -75,8 +78,16 @@ logger = logging.getLogger(__name__)
 class CoordinatorModeRunner:
     """Run one issue with coordinator tool filtering enabled."""
 
-    def __init__(self, agent_runner: "AgentRunner") -> None:
+    def __init__(
+        self,
+        agent_runner: "AgentRunner",
+        *,
+        provider_router: "ProviderRouter | None" = None,
+        route_stage: str = "coordinator",
+    ) -> None:
         self._agent_runner = agent_runner
+        self._provider_router = provider_router
+        self._route_stage = route_stage
 
     async def run(
         self,
@@ -93,7 +104,15 @@ class CoordinatorModeRunner:
         )
         try:
             session.coordinator_mode = True
-            return await self._agent_runner.run(session, workflow, **hooks)
+            routed_hooks = hooks
+            if self._provider_router is not None or hasattr(workflow, "agent"):
+                router = self._provider_router or build_provider_router(workflow)
+                routed_hooks = {
+                    **hooks,
+                    "provider_override": router.provider_for_stage(self._route_stage),
+                    "model_override": router.model_for_stage(self._route_stage),
+                }
+            return await self._agent_runner.run(session, workflow, **routed_hooks)
         finally:
             if original is sentinel:
                 delattr(session, "coordinator_mode")

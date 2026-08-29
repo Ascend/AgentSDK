@@ -40,9 +40,12 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, Literal
 
+from extensions.orchestrator.provider_routing import build_provider_router
+
 if TYPE_CHECKING:
     from extensions.orchestrator.agent_runner import AgentRunner, AgentSession
     from extensions.orchestrator.config.schema import WorkflowConfig
+    from extensions.orchestrator.contracts.provider_routing import ProviderRouter
 
 logger = logging.getLogger(__name__)
 
@@ -171,6 +174,7 @@ class DebateModeRunner:
         proposer_models: dict[str, str] | None = None,
         parallel: bool = False,
         judge_mode: JudgeMode = "pick",
+        provider_router: "ProviderRouter | None" = None,
     ) -> None:
         if not proposers:
             raise ValueError("DebateModeRunner requires at least one proposer stage")
@@ -183,6 +187,7 @@ class DebateModeRunner:
         if judge_mode not in {"pick", "synthesize"}:
             raise ValueError(f"judge_mode must be 'pick' or 'synthesize', got {judge_mode!r}")
         self._agent_runner = agent_runner
+        self._provider_router = provider_router
         self._proposers: tuple[str, ...] = tuple(proposers)
         self._judge_model = judge_model.strip() if judge_model else None
         self._isolation = isolation
@@ -225,6 +230,10 @@ class DebateModeRunner:
     @property
     def judge_mode(self) -> JudgeMode:
         return self._judge_mode
+
+    @property
+    def provider_router(self) -> "ProviderRouter | None":
+        return self._provider_router
 
     async def run(
         self,
@@ -287,8 +296,9 @@ class DebateModeRunner:
             len(proposer_results),
             self._judge_model or "(workflow default)",
         )
-        judge_runner, judge_workflow = self._isolated_runtime(workflow, self._judge_model)
-        await judge_runner.run(session, judge_workflow, **hooks)
+        judge_runner, judge_workflow = self._isolated_runtime(workflow)
+        judge_hooks = self._routed_hooks(workflow, _JUDGE_STAGE, hooks)
+        await judge_runner.run(session, judge_workflow, **judge_hooks)
         proposer_results.append(
             _StageResult(
                 stage=_JUDGE_STAGE,
@@ -330,11 +340,9 @@ class DebateModeRunner:
                 proposer_model or "(workflow default)",
             )
             try:
-                proposer_runner, proposer_workflow = self._isolated_runtime(
-                    workflow,
-                    proposer_model,
-                )
-                await proposer_runner.run(session, proposer_workflow, **hooks)
+                proposer_runner, proposer_workflow = self._isolated_runtime(workflow)
+                proposer_hooks = self._routed_hooks(workflow, name, hooks)
+                await proposer_runner.run(session, proposer_workflow, **proposer_hooks)
             finally:
                 self._restore_workspace_after_stage(session, original_workspace_path, worktree_path)
             tail = (session.output_text or "")[-_PROPOSER_OUTPUT_TAIL_CHARS:]
@@ -397,11 +405,9 @@ class DebateModeRunner:
         )
 
         async def _run_one(name: str, branch_session: Any) -> _StageResult:
-            branch_runner, branch_workflow = self._isolated_runtime(
-                workflow,
-                self._proposer_models.get(name),
-            )
-            await branch_runner.run(branch_session, branch_workflow, **hooks)
+            branch_runner, branch_workflow = self._isolated_runtime(workflow)
+            proposer_hooks = self._routed_hooks(workflow, name, hooks)
+            await branch_runner.run(branch_session, branch_workflow, **proposer_hooks)
             tail = (branch_session.output_text or "")[-_PROPOSER_OUTPUT_TAIL_CHARS:]
             logger.info(
                 "Debate issue=%s proposer=%s finished (status=%s)",
@@ -510,8 +516,8 @@ class DebateModeRunner:
             branch._transcript_storage = None
         return branch
 
-    def _isolated_runtime(self, workflow: Any, model: str | None) -> tuple[Any, Any]:
-        """Copy model-bearing objects so one issue cannot reroute another."""
+    def _isolated_runtime(self, workflow: Any) -> tuple[Any, Any]:
+        """Copy runner-owned mutable state for one debate branch."""
         run_agent = copy.copy(self._agent_runner)
         run_workflow = copy.copy(workflow)
         base_agent = getattr(self._agent_runner, "agent_config", None)
@@ -519,13 +525,31 @@ class DebateModeRunner:
             base_agent = getattr(workflow, "agent", None)
         run_config = copy.copy(base_agent) if base_agent is not None else None
 
-        if run_config is not None and model:
-            run_config.model = model
         if run_config is not None and hasattr(run_workflow, "agent"):
             run_workflow.agent = run_config
         if run_config is not None and hasattr(run_agent, "agent_config"):
             run_agent.agent_config = run_config
         return run_agent, run_workflow
+
+    def _routed_hooks(
+        self,
+        workflow: Any,
+        stage: str,
+        hooks: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Add immutable per-run routing without touching shared config."""
+        model_overrides = dict(self._proposer_models)
+        if self._judge_model:
+            model_overrides[_JUDGE_STAGE] = self._judge_model
+        router = self._provider_router or build_provider_router(
+            workflow,
+            model_overrides=model_overrides,
+        )
+        return {
+            **hooks,
+            "provider_override": router.provider_for_stage(stage),
+            "model_override": router.model_for_stage(stage),
+        }
 
     def _apply_isolation_before_stage(
         self,

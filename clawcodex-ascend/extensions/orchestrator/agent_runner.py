@@ -34,8 +34,16 @@ from .agent_lifecycle import AgentLifecycleMixin  # pylint: disable=import-error
 from .agent_session import AgentSession, RetryItem  # pylint: disable=import-error
 from .agent_stream import AgentStreamMixin  # pylint: disable=import-error
 from .agent_turn import AgentTurnMixin, TurnState  # pylint: disable=import-error
+from .provider_routing import (
+    RoutingSnapshot,
+    build_provider_router,
+    provider_name,
+    stage_id_from_run_kind,
+)
 
 if TYPE_CHECKING:
+    from extensions.capabilities.provider_protocol import LLMProviderProtocol
+
     from .config.schema import AgentConfig, SandboxConfig, WorkflowConfig, WorkspaceConfig
 
 logger = logging.getLogger(__name__)
@@ -92,9 +100,18 @@ class AgentRunner(
         clarification_resolver: Any | None = None,
         progress_reporter: Any | None = None,
         diagnostics_callback: Callable[[AgentSession], None] | None = None,
+        provider_override: "LLMProviderProtocol | str | None" = None,
+        model_override: str | None = None,
     ) -> None:
-        """Execute one session with coordinator mode isolated per task."""
+        """Execute one session with immutable per-run provider/model routing."""
         self._resolve_protocols()
+        router = build_provider_router(workflow)
+        route_stage = stage_id_from_run_kind(getattr(session, "run_kind", None))
+        selected_provider = provider_override or router.provider_for_stage(route_stage)
+        session._routing_snapshot = RoutingSnapshot(
+            provider_name=provider_name(selected_provider),
+            model=str(model_override or router.model_for_stage(route_stage) or "").strip(),
+        )
         explicit_mode = getattr(session, "coordinator_mode", None)
         coordinator_enabled = (
             bool(explicit_mode)
