@@ -1215,3 +1215,703 @@ _getpass_module.getpass = _interactive_getpass
 _sys_module.stdin.read = _interactive_stdin_read
 _sys_module.stdin.readline = _interactive_stdin_readline
 """
+
+
+# --- appended from PR #963 ---
+
+# ruff: noqa
+# pylint: skip-file
+
+# ---------------------------------------------------------------------------
+# Wrapper script generation
+# ---------------------------------------------------------------------------
+
+_WRAPPER_SCRIPT_TEMPLATE = r'''#!/usr/bin/env python3
+"""Auto-generated wrapper for {header_label} - created by pos convert."""
+
+from __future__ import annotations
+
+import os
+import sys
+import json
+import traceback
+import importlib
+import asyncio
+import dataclasses
+from pathlib import Path
+{serialization_helpers}
+{coercion_helpers}
+
+
+def _is_wsl_runtime():
+    if not sys.platform.startswith("linux"):
+        return False
+    if os.environ.get("WSL_DISTRO_NAME") or os.environ.get("WSL_INTEROP"):
+        return True
+    try:
+        release = os.uname().release.lower()
+    except AttributeError:
+        return False
+    return "microsoft" in release or "wsl" in release
+
+
+def _normalize_bootstrap_path(value):
+    if not value:
+        return ""
+    path = os.path.expanduser(os.fspath(value))
+    if os.name == "nt" and path.startswith("/mnt/") and len(path) >= 6:
+        drive = path[5]
+        if drive.isalpha() and (len(path) == 6 or path[6] == "/"):
+            rest = path[7:] if len(path) > 6 else ""
+            path = drive.upper() + ":\\" + rest.replace("/", "\\")
+    elif _is_wsl_runtime() and len(path) >= 2 and path[1] == ":" and path[0].isalpha():
+        rest = path[2:].lstrip("\\/").replace("\\", "/")
+        path = "/mnt/" + path[0].lower() + (("/" + rest) if rest else "")
+    return str(Path(path).expanduser().resolve())
+
+
+_REPO_ROOT = _normalize_bootstrap_path(r"{repo_root}")
+_BUNDLE_DIR = _normalize_bootstrap_path(r"{bundle_dir}")
+_BUNDLE_VENV_PYTHON = _normalize_bootstrap_path(r"{bundle_venv_python}")
+_SDK_REQUIREMENTS = {sdk_requirements_repr}
+
+
+def _seed_converter_repo_root():
+    if _REPO_ROOT and _REPO_ROOT not in sys.path:
+        sys.path.insert(0, _REPO_ROOT)
+
+
+def _ensure_bundle_venv_and_reexec():
+    if not _BUNDLE_DIR or not _SDK_REQUIREMENTS:
+        return
+    _seed_converter_repo_root()
+    from extensions.sop_converter.bundle_venv import (
+        bundle_venv_python,
+        ensure_bundle_venv,
+        ensure_bundle_venv_and_reexec,
+        is_venv_ready,
+    )
+    from extensions.sop_converter.sdk_dependency_resolver import SdkDependencySpec
+
+    bundle_dir = _normalize_bootstrap_path(_BUNDLE_DIR)
+    try:
+        current = Path(sys.executable).resolve()
+        target = bundle_venv_python(bundle_dir).resolve()
+    except OSError:
+        current = Path(sys.executable)
+        target = bundle_venv_python(bundle_dir)
+    deps = SdkDependencySpec(
+        requirements=tuple(_SDK_REQUIREMENTS),
+        source="manifest",
+        raw_path="",
+    )
+    ready = is_venv_ready(bundle_dir, tuple(_SDK_REQUIREMENTS))
+    if current == target:
+        if not ready:
+            print(
+                "[bundle-venv] Completing setup: installing %d SDK dependencies..."
+                % len(_SDK_REQUIREMENTS),
+                file=sys.stderr,
+            )
+            ensure_bundle_venv(bundle_dir, deps)
+        return
+
+    if not ready:
+        print(
+            "[bundle-venv] First-run setup: creating venv and installing %d SDK dependencies..."
+            % len(_SDK_REQUIREMENTS),
+            file=sys.stderr,
+        )
+    ensure_bundle_venv_and_reexec(
+        bundle_dir,
+        deps,
+        argv=sys.argv,
+        script_file=__file__,
+    )
+
+
+# Runtime dependency setup is deliberately opt-in. Tool execution must never
+# create, replace, or install into a virtual environment merely because a
+# generated wrapper was invoked.
+#
+# CLAWCODEX_ENABLE_BUNDLE_VENV_REEXEC=1 only makes this wrapper *call*
+# ensure_bundle_venv_and_reexec. A real os.execv into the bundle python happens
+# only when the wrapper runs as a standalone process (not under in-process
+# SDK dispatch). Agent/REPL in-process calls short-circuit to soft
+# site-packages activation; see ensure_bundle_venv_and_reexec docstring.
+if os.environ.get("CLAWCODEX_ENABLE_BUNDLE_VENV_REEXEC") == "1":
+    _ensure_bundle_venv_and_reexec()
+
+{extra_sys_path_inserts}
+_SOURCE_DIR = _normalize_bootstrap_path(r"{source_dir}")
+_SOURCE_FILE = Path(_normalize_bootstrap_path(r"{source_file}"))
+sys.path.insert(0, _SOURCE_DIR)
+if _REPO_ROOT and _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)
+_MODULE_DIR = _normalize_bootstrap_path(r"{module_dir}")
+if os.path.isdir(_MODULE_DIR):
+    os.chdir(_MODULE_DIR)
+{extra_imports}{model_imports}
+{cli_prefix}
+
+_instances = {{}}
+
+{interactive_input_preamble}
+
+
+def _run_async_iter(make_gen):
+    """Drain an async iterator/generator into a JSON-serializable list."""
+
+    async def _collect():
+        result = []
+        async for item in make_gen():
+            result.append(item)
+        return result
+
+    return asyncio.run(_collect())
+
+
+def _agent_not_found_text(text):
+    lowered = str(text or "").lower()
+    if not lowered:
+        return False
+    markers = (
+        "not found",
+        "not exist",
+        "does not exist",
+        "unknown agent",
+        "unknown resource",
+        "missing agent",
+        "missing resource",
+        "resource missing",
+        "agent not",
+        "resource not",
+    )
+    subjects = (
+        "agent", "resource", "config", "session", "team",
+        "handle", "identifier", "resource_id", "agent_id", "id",
+    )
+    return any(marker in lowered for marker in markers) and (
+        any(subject in lowered for subject in subjects)
+    )
+
+
+def _should_catalog_fallback(value):
+    if value is None:
+        return False
+    if isinstance(value, Exception):
+        return _agent_not_found_text(value)
+    if isinstance(value, dict):
+        code = str(value.get("error_code") or value.get("code") or "").lower()
+        if code in {{
+            "agent_not_found",
+            "agent_missing",
+            "missing_agent",
+            "unknown_agent",
+            "resource_not_found",
+            "resource_missing",
+            "missing_resource",
+            "unknown_resource",
+        }}:
+            return True
+        if code == "not_found" and any(k in value for k in ("agent_id", "resource_id", "agent", "resource", "id")):
+            return True
+        return _agent_not_found_text(value.get("error") or value.get("message") or value)
+    return _agent_not_found_text(value)
+
+
+def _stable_resource_handle_from_args(value):
+    if value is None:
+        return ""
+    if isinstance(value, (str, int, float, bool)):
+        text = str(value).strip()
+        return text
+    return ""
+
+
+def _try_catalog_fallback(catalog_fallback, args, original_error=None):
+    if not catalog_fallback:
+        return None
+    resource_type = str(catalog_fallback.get("resource_type") or "")
+    # Resolve handle using the in-script helper (do not call the package-root
+    # function — this body is emitted into a standalone wrapper process).
+    agent_id = ""
+    _candidates = [
+        "resource_ref",
+        str(catalog_fallback.get("handle_field") or ""),
+        str(catalog_fallback.get("id_arg") or ""),
+        "agent_id",
+        "resource_id",
+        "id",
+    ]
+    _seen = set()
+    for _candidate in _candidates:
+        if not _candidate or _candidate in _seen:
+            continue
+        _seen.add(_candidate)
+        agent_id = _stable_resource_handle_from_args(args.get(_candidate))
+        if agent_id:
+            break
+    if not agent_id and not resource_type:
+        return None
+    query_arg = str(catalog_fallback.get("query_arg") or "query")
+    query_value = args.get(query_arg)
+    if query_value is None and query_arg != "query":
+        query_value = args.get("query")
+    inputs = None
+    query = ""
+    if query_arg == "inputs" or isinstance(query_value, (dict, list)):
+        inputs = query_value
+    elif query_value is not None:
+        query = str(query_value)
+    bundle_path = (
+        catalog_fallback.get("_bundle_path")
+        or os.environ.get("CLAWCODEX_BUNDLE_PATH", "").strip()
+        or None
+    )
+    recovered = None
+    try:
+        from extensions.sop_converter.resource_handlers import get_resource_handler
+
+        handler = get_resource_handler(resource_type)
+        if handler is not None and handler.resource_type != "agent":
+            from extensions.sop_converter.resource_catalog import get_resource_record
+
+            record = get_resource_record(
+                str(agent_id),
+                resource_type=resource_type,
+                bundle_path=bundle_path,
+            )
+            recovered = handler.invoke(record, query=query, inputs=inputs)
+        elif handler is not None or not resource_type:
+            from extensions.sop_converter.runtime.composite_tools.scripts.invoke_existing_agent_wrapper import (
+                invoke_existing_agent,
+            )
+
+            recovered = invoke_existing_agent(
+                agent_id=str(agent_id) if agent_id else "",
+                query=query,
+                inputs=inputs,
+                bundle_path=bundle_path,
+                resource_type=resource_type,
+            )
+        else:
+            from extensions.sop_converter.resource_handlers import (
+                require_resource_handler,
+            )
+
+            require_resource_handler(resource_type)
+    except Exception as exc:
+        error_code = getattr(exc, "error_code", "catalog_fallback_failed")
+        recovered = {{
+            "error": f"catalog_fallback_failed: {{exc}}",
+            "error_code": str(error_code),
+            "agent_id": str(agent_id) if agent_id else "",
+        }}
+    if isinstance(recovered, dict):
+        recovered.setdefault("catalog_fallback_attempted", True)
+        recovered.setdefault("catalog_fallback_reason", "agent_not_found")
+        source_tool = catalog_fallback.get("source_tool")
+        if source_tool:
+            recovered.setdefault("source_tool", source_tool)
+        if original_error is not None:
+            recovered.setdefault("original_error", str(original_error))
+    return recovered
+
+
+def _augment_create_payload(payload, *, persisted, agent_id="", resource_type="", catalog_path="", catalog_reason="", error_code="", error=""):
+    if not isinstance(payload, dict):
+        payload = {{"sdk_output": payload}}
+    payload["created_persisted"] = bool(persisted)
+    payload["callable_by_agent_id"] = bool(persisted and agent_id)
+    payload["callable_by_resource_ref"] = bool(persisted and agent_id)
+    payload["agent_id_call_contract"] = "catalog_persisted" if persisted and agent_id else "not_persisted"
+    payload["resource_ref_call_contract"] = "catalog_persisted" if persisted and agent_id else "not_persisted"
+    if agent_id and not payload.get("agent_id"):
+        payload["agent_id"] = str(agent_id)
+    if agent_id:
+        payload["resource_ref"] = str(agent_id)
+    if resource_type:
+        payload["resource_type"] = str(resource_type)
+    if catalog_path:
+        payload["catalog_path"] = str(catalog_path)
+    if catalog_reason:
+        payload["catalog_reason"] = str(catalog_reason)
+    if error_code:
+        payload["error_code"] = error_code
+    if error:
+        payload["error"] = error
+    return payload
+
+{body}
+
+if __name__ == "__main__":
+    if len(sys.argv) < 3:
+        print("Usage: python {script_name} <method> '<json_args>'", file=sys.stderr)
+        sys.exit(1)
+    method_name = sys.argv[1]
+
+    # optional agent-catalog hooks.  Created via
+    # ``--catalog-metadata '<json>'`` on create-kind tools and
+    # ``--catalog-fallback '<json>'`` on invoke-kind tools.
+    catalog_meta = None
+    catalog_fallback = None
+    idx = 3
+    while idx < len(sys.argv):
+        flag = sys.argv[idx]
+        if flag not in {{"--catalog-metadata", "--catalog-fallback"}}:
+            idx += 1
+            continue
+        if idx + 1 >= len(sys.argv):
+            print(json.dumps({{"error": f"{{flag}} requires a JSON payload"}}, ensure_ascii=False), file=sys.stderr)
+            sys.exit(1)
+        try:
+            payload = json.loads(sys.argv[idx + 1])
+        except json.JSONDecodeError as exc:
+            print(json.dumps({{"error": f"invalid {{flag}} JSON: {{exc}}"}}, ensure_ascii=False), file=sys.stderr)
+            sys.exit(1)
+        if flag == "--catalog-metadata":
+            catalog_meta = payload
+        else:
+            catalog_fallback = payload
+        idx += 2
+
+    try:
+        args = json.loads(sys.argv[2])
+    except json.JSONDecodeError as exc:
+        print(f"Invalid JSON args: {{exc}}", file=sys.stderr)
+        sys.exit(1)
+
+    catalog_args = dict(args)
+    resource_ref = args.pop("resource_ref", None)
+    args.pop("resource_type", None)
+    if catalog_fallback and resource_ref:
+        recovered = _try_catalog_fallback(catalog_fallback, catalog_args)
+        if recovered is not None:
+            print(_dumps_sdk_result(recovered))
+            sys.exit(0)
+
+    interactive_inputs = args.pop("__interactive_inputs", None)
+    if interactive_inputs is not None and callable(globals().get("_set_interactive_inputs")):
+        _set_interactive_inputs(interactive_inputs)
+
+    fn = globals().get(method_name)
+    if fn is None:
+        print(f"Unknown method: {{method_name}}", file=sys.stderr)
+        sys.exit(1)
+    original_error = None
+    try:
+        result = fn(**args)
+    except SystemExit as exc:
+        original_error = f"SDK exited with code {{exc.code}}: {{exc}}"
+        if catalog_fallback and _should_catalog_fallback(original_error):
+            result = _try_catalog_fallback(catalog_fallback, catalog_args, original_error=original_error)
+            if result is None:
+                print(json.dumps({{"error": original_error}}, ensure_ascii=False), file=sys.stderr)
+                sys.exit(1)
+        else:
+            print(json.dumps({{"error": original_error}}, ensure_ascii=False), file=sys.stderr)
+            sys.exit(1)
+    except Exception as exc:
+        original_error = exc
+        if catalog_fallback and _should_catalog_fallback(exc):
+            result = _try_catalog_fallback(catalog_fallback, catalog_args, original_error=exc)
+            if result is None:
+                print(json.dumps({{"error": str(exc)}}, ensure_ascii=False), file=sys.stderr)
+                sys.exit(1)
+        else:
+            print(json.dumps({{"error": str(exc)}}, ensure_ascii=False), file=sys.stderr)
+            sys.exit(1)
+
+    if catalog_fallback and _should_catalog_fallback(result):
+        recovered = _try_catalog_fallback(catalog_fallback, catalog_args, original_error=result)
+        if recovered is not None:
+            result = recovered
+
+    serialized = _dumps_sdk_result(result)
+
+    if catalog_meta is not None:
+        # Catalog write: pull a stable resource handle from the return value
+        # and merge it with the static metadata emitted by the
+        # tool_registry_bridge.  This makes the create-to-invoke workflow
+        # recoverable across wrapper subprocess boundaries.
+        try:
+            from extensions.sop_converter.core.agent_catalog import AgentCatalogEntry
+            from extensions.sop_converter.resource_catalog import (
+                build_resource_record_from_create,
+                context_from_env,
+                write_record,
+            )
+
+            def _stable_resource_handle(_value):
+                if _value is None:
+                    return ""
+                if isinstance(_value, (str, int, float, bool)):
+                    return str(_value).strip()
+                return ""
+
+            def _extract_resource_handle(_payload, _meta):
+                _handle_field = str(_meta.get("handle_field") or "").strip()
+                _candidates = []
+                if _handle_field:
+                    _candidates.append(_handle_field)
+                _candidates.extend([
+                    "agent_id", "resource_id", "id", "handle", "key",
+                    "name", "slug", "uri", "url",
+                ])
+                _seen = set()
+                _ordered = []
+                for _candidate in _candidates:
+                    if _candidate and _candidate not in _seen:
+                        _ordered.append(_candidate)
+                        _seen.add(_candidate)
+                if isinstance(_payload, dict):
+                    for _candidate in _ordered:
+                        _handle = _stable_resource_handle(_payload.get(_candidate))
+                        if _handle:
+                            if _handle_field and _candidate != _handle_field:
+                                _meta["handle_field"] = _candidate
+                            return _handle
+                    # Factory wrappers commonly return a serialised object
+                    # whose stable handle belongs to ``agent_config``. Keep
+                    # this traversal narrow so unrelated nested payloads do
+                    # not become resource handles.
+                    for _nested_key in ("agent_config", "config", "dsl", "payload"):
+                        _nested = _payload.get(_nested_key)
+                        if isinstance(_nested, dict):
+                            _handle = _extract_resource_handle(_nested, _meta)
+                            if _handle:
+                                return _handle
+                    # Already a mapping — do not re-_to_jsonable (a fresh dict
+                    # is never identity-equal to the input, which used to
+                    # recurse forever on empty dicts).
+                    return _stable_resource_handle(
+                        _meta.get("agent_id") or _meta.get("resource_id")
+                    )
+                # Non-dict SDK objects may serialize into a handle-bearing dict.
+                _jsonable = _to_jsonable(_payload)
+                if isinstance(_jsonable, dict):
+                    return _extract_resource_handle(_jsonable, _meta)
+                return _stable_resource_handle(_meta.get("agent_id") or _meta.get("resource_id"))
+
+            _catalog_snapshot = _serialize_factory_result(result)
+            _agent_id = _extract_resource_handle(_catalog_snapshot, catalog_meta)
+            # A factory may return an opaque runtime object whose serialized
+            # representation omits its identity. For create-LLM-agent style
+            # APIs, the stable handle is explicitly supplied in the persisted
+            # JSON configuration, so use that as the deterministic fallback.
+            if not _agent_id:
+                _agent_id = _extract_resource_handle(
+                    args.get("agent_config") or args.get("config"),
+                    catalog_meta,
+                )
+
+            if _agent_id:
+                _jsonable_result = _to_jsonable(_catalog_snapshot)
+                _runtime_type = (
+                    _jsonable_result.get("_runtime_type", {{}})
+                    if isinstance(_jsonable_result, dict)
+                    else {{}}
+                )
+                _runtime_invoker = (
+                    _jsonable_result.get("_runtime_invoker", {{}})
+                    if isinstance(_jsonable_result, dict)
+                    else {{}}
+                )
+                _agent_config = args.get("agent_config") or args.get("config")
+                if not isinstance(_agent_config, dict) and isinstance(_jsonable_result, dict):
+                    _agent_config = (
+                        _jsonable_result.get("agent_config")
+                        or _jsonable_result.get("config")
+                    )
+                _model_spec = _agent_config.get("model", {{}}) if isinstance(_agent_config, dict) else {{}}
+                _model_info = _model_spec.get("model_info", {{}}) if isinstance(_model_spec, dict) else {{}}
+                _catalog_model = (
+                    catalog_meta.get("model")
+                    or (_model_info.get("model") if isinstance(_model_info, dict) else "")
+                    or (_model_spec.get("model") if isinstance(_model_spec, dict) else "")
+                    or ""
+                )
+                _catalog_provider = (
+                    catalog_meta.get("provider")
+                    or (_model_spec.get("model_provider") if isinstance(_model_spec, dict) else "")
+                    or (_model_spec.get("provider") if isinstance(_model_spec, dict) else "")
+                    or ""
+                )
+                _metadata_keys = {{
+                    "sdk_source_dir", "model", "provider", "class_name",
+                    "module_name", "query_arg", "invoke_method",
+                    "schema_version", "sdk_version", "_bundle_path",
+                }}
+                # Only persist constructor kwargs — method params (e.g. ``query``
+                # on ``build_agent``) must not leak into the re-materialization path.
+                _init_param_allowlist = catalog_meta.get("init_param_names")
+                if _init_param_allowlist is not None:
+                    _init_kwargs = {{k: v for k, v in args.items() if k in _init_param_allowlist}}
+                else:
+                    _init_kwargs = {{k: v for k, v in args.items() if k not in {{"agent_id", "id"}}}}
+                _entry = AgentCatalogEntry(
+                    agent_id=str(_agent_id),
+                    sdk_source_dir=str(catalog_meta.get("sdk_source_dir") or _SOURCE_DIR),
+                    dsl=_jsonable_result if isinstance(_jsonable_result, dict) else {{"value": _jsonable_result}},
+                    model=str(_catalog_model),
+                    provider=str(_catalog_provider),
+                    class_name=str(catalog_meta.get("class_name") or _runtime_type.get("class_name") or ""),
+                    module_name=str(catalog_meta.get("module_name") or _runtime_type.get("module") or ""),
+                    init_kwargs=_init_kwargs,
+                    query_arg=str(_runtime_invoker.get("input_param") or catalog_meta.get("query_arg") or "query"),
+                    invoke_method=str(_runtime_invoker.get("method") or catalog_meta.get("invoke_method") or "invoke"),
+                    schema_version=int(catalog_meta.get("schema_version") or 1),
+                    sdk_version=str(catalog_meta.get("sdk_version") or ""),
+                    metadata={{k: v for k, v in catalog_meta.items() if k not in _metadata_keys}},
+                    # §8 type-contract fields: record so invoke-kind tools
+                    # can look up this entry by resource_type without knowing agent_id.
+                    resource_type=str(catalog_meta.get("resource_type") or ""),
+                    handle_field=str(catalog_meta.get("handle_field") or "agent_id"),
+                )
+                _bundle_path = catalog_meta.get("_bundle_path")
+                _resource_catalog_path = ""
+                _resource_catalog_error = ""
+                _resource_catalog_error_code = ""
+                _written_layers = []
+                _catalog_paths = {{}}
+                _catalog_reason = "f56_resource_catalog"
+                try:
+                    _bundle_id = str(catalog_meta.get("bundle_id") or "") or (
+                        os.path.basename(_bundle_path) if _bundle_path else ""
+                    )
+                    _ctx = context_from_env(
+                        bundle_path=_bundle_path,
+                        bundle_id=_bundle_id,
+                    )
+                    _write = write_record(
+                        build_resource_record_from_create(
+                            resource_id=str(_agent_id),
+                            resource_type=str(catalog_meta.get("resource_type") or "agent"),
+                            handle_field=str(catalog_meta.get("handle_field") or "agent_id"),
+                            bundle_id=_bundle_id or None,
+                            source_tool=str(catalog_meta.get("source_tool") or ""),
+                            snapshot=_jsonable_result if isinstance(_jsonable_result, dict) else {{"value": _jsonable_result}},
+                            init_kwargs=_init_kwargs,
+                            model=str(_catalog_model),
+                            provider=str(_catalog_provider),
+                            class_name=str(catalog_meta.get("class_name") or _runtime_type.get("class_name") or ""),
+                            module_name=str(catalog_meta.get("module_name") or _runtime_type.get("module") or ""),
+                            invoke_method=str(_runtime_invoker.get("method") or catalog_meta.get("invoke_method") or "invoke"),
+                            query_arg=str(_runtime_invoker.get("input_param") or catalog_meta.get("query_arg") or "query"),
+                            sdk_source_dir=str(catalog_meta.get("sdk_source_dir") or _SOURCE_DIR),
+                            sdk_version=str(catalog_meta.get("sdk_version") or ""),
+                            metadata={{k: v for k, v in catalog_meta.items() if k not in _metadata_keys}},
+                            env_refs=list((_entry.metadata or {{}}).get("env_vars") or []),
+                        ),
+                        _ctx,
+                    )
+                    if not _write.written_layers:
+                        # write_record already failed (disk full, permission
+                        # denied, ...); surface it as an I/O failure so upstream
+                        # can tell retryable filesystem errors from
+                        # configuration errors.
+                        raise OSError(_write.error or "resource_catalog_write_failed")
+                    _written_layers = list(_write.written_layers)
+                    _catalog_paths = dict(_write.catalog_paths)
+                    _resource_catalog_path = _write.resource_catalog_path or next(
+                        iter(_catalog_paths.values()), ""
+                    )
+                    if _write.error:
+                        _resource_catalog_error = str(_write.error)
+                except OSError as _resource_exc:
+                    # Retryable I/O failures (permission denied, disk full):
+                    # keep errno so upstream can tell them apart, and log the
+                    # stack for diagnosis.
+                    _resource_catalog_error_code = "resource_catalog_io_failed"
+                    _resource_catalog_error = (
+                        "resource_catalog_io_failed[{{_resource_exc.__class__.__name__}}]: {{_resource_exc}}"
+                    )
+                    if _resource_exc.errno:
+                        _resource_catalog_error = (
+                            "{{_resource_catalog_error}} (errno {{_resource_exc.errno}})"
+                        )
+                    traceback.print_exc()
+                except (ValueError, TypeError, KeyError) as _resource_exc:
+                    # Configuration/validation failure: the catalog metadata or
+                    # bundle context is malformed; retrying with the same input
+                    # will not help, so keep it distinct from I/O errors.
+                    _resource_catalog_error_code = "resource_catalog_config_failed"
+                    _resource_catalog_error = (
+                        "resource_catalog_config_failed[{{_resource_exc.__class__.__name__}}]: {{_resource_exc}}"
+                    )
+                    traceback.print_exc()
+                except Exception as _resource_exc:  # noqa: BLE001 - last resort, never fail silently
+                    # Unknown failure: keep the exact exception type in the
+                    # message and log the stack.  KeyboardInterrupt and
+                    # SystemExit derive from BaseException and are deliberately
+                    # NOT caught here, so Ctrl-C / explicit exits propagate.
+                    _resource_catalog_error_code = "resource_catalog_write_failed"
+                    _resource_catalog_error = (
+                        "resource_catalog_write_failed[{{_resource_exc.__class__.__name__}}]: {{_resource_exc}}"
+                    )
+                    traceback.print_exc()
+                if not _written_layers:
+                    _payload = _augment_create_payload(
+                        _jsonable_result,
+                        persisted=False,
+                        agent_id=str(_agent_id),
+                        resource_type=str(catalog_meta.get("resource_type") or ""),
+                        catalog_path=str(_resource_catalog_path or ""),
+                        catalog_reason=_catalog_reason,
+                        error_code=_resource_catalog_error_code or "resource_catalog_write_failed",
+                        error=_resource_catalog_error or "resource_catalog_write_failed",
+                    )
+                    _payload["resource_catalog_error"] = _resource_catalog_error or "resource_catalog_write_failed"
+                    _payload["resource_catalog_error_code"] = _resource_catalog_error_code or "resource_catalog_write_failed"
+                    print(_dumps_sdk_result(_payload), file=sys.stderr)
+                    sys.exit(1)
+                _payload = _augment_create_payload(
+                    _jsonable_result,
+                    persisted=True,
+                    agent_id=str(_agent_id),
+                    resource_type=str(catalog_meta.get("resource_type") or ""),
+                    catalog_path=str(_resource_catalog_path or ""),
+                    catalog_reason=_catalog_reason,
+                )
+                _payload["written_layers"] = _written_layers
+                _payload["catalog_paths"] = _catalog_paths
+                if _resource_catalog_path:
+                    _payload["resource_catalog_path"] = _resource_catalog_path
+                    _payload["resource_catalog_reason"] = "f56_resource_catalog"
+                if _resource_catalog_error:
+                    _payload["resource_catalog_error"] = _resource_catalog_error
+                    if _resource_catalog_error_code:
+                        _payload["resource_catalog_error_code"] = _resource_catalog_error_code
+                serialized = _dumps_sdk_result(_payload)
+            else:
+                _payload = _augment_create_payload(
+                    _to_jsonable(result),
+                    persisted=False,
+                    resource_type=str(catalog_meta.get("resource_type") or ""),
+                    error_code="resource_handle_missing",
+                    error="create result did not include a stable resource handle; not persisted to catalog",
+                )
+                # A lifecycle create is not successful unless the returned
+                # resource can be recovered by a later invocation.
+                # Do not let the Agent summarize this opaque in-memory object
+                # as a usable, persistent Agent.
+                print(_dumps_sdk_result(_payload), file=sys.stderr)
+                sys.exit(1)
+        except Exception as exc:
+            # Last-resort guard: log the stack so unexpected catalog-write
+            # failures are not silent.  KeyboardInterrupt / SystemExit are
+            # BaseException subclasses and deliberately propagate.
+            traceback.print_exc()
+            _payload = _augment_create_payload(
+                _to_jsonable(result),
+                persisted=False,
+                resource_type=str(catalog_meta.get("resource_type") or ""),
+                error_code="catalog_write_failed",
+                error=f"catalog_write_failed: {{exc}}",
+            )
+            print(_dumps_sdk_result(_payload), file=sys.stderr)
+            sys.exit(1)
+
+    print(serialized)
+'''
