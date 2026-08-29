@@ -38,6 +38,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import sys
 from collections import Counter
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
@@ -1086,3 +1087,394 @@ class SkillGrouper:
         '{{"skills": [{{"name": "...", "description": "...", '
         '"patterns": ["path_fragment1", "path_fragment2"]}}]}}'
     )
+
+    def _group_with_llm(self, requirements: str) -> list[SkillSpec]:
+        """LLM-based semantic grouping of SourceComponent operations.
+
+        Sends directory-level summaries (path + method count) to LLM,
+        converts the returned patterns into MappingRules, then delegates
+        to _keyword_match_group() for batch method assignment.
+
+        When LLM is unavailable, falls back to KEYWORD_MATCH auto prefix
+        inference directly.
+        """
+        if not self._source_components:
+            # LLM grouping is SourceComponent-only by design; SdkMethod-only
+            # input (no component metadata) falls back to the static path.
+            return self._static_group()
+
+        if not self._llm_provider:
+            logger.info("LLM_SEMANTIC: no provider configured, falling back to KEYWORD_MATCH")
+            return self._llm_fallback("LLM provider not configured for --strategy llm")
+
+        # LLM is skipped for massive SDKs; threshold is based on directory
+        # count (one line per dir), not total operations.
+        dir_lines, dir_file_paths = self._build_llm_directory_catalog()
+        if not dir_lines:
+            return self._llm_fallback("LLM directory catalog is empty")
+
+        try:
+            return self._llm_group_via_provider(requirements, dir_lines, dir_file_paths)
+        except Exception as exc:
+            logger.warning(
+                "LLM_SEMANTIC: LLM call failed (%s), falling back to KEYWORD_MATCH",
+                exc,
+            )
+            return self._llm_fallback(f"LLM call failed ({exc})")
+
+    def _llm_fallback(self, reason: str) -> list[SkillSpec]:
+        """Warn on stderr and fall back to KEYWORD_MATCH auto prefix inference."""
+        print(
+            f"warning: {reason}, falling back to keyword match strategy. "
+            "Consider using --strategy keyword directly for better results.",
+            file=sys.stderr,
+        )
+        self._maybe_auto_rules()
+        return self._keyword_match_group()
+
+    def _llm_group_via_provider(
+        self,
+        requirements: str,
+        dir_lines: list[str],
+        dir_file_paths: list[str],
+    ) -> list[SkillSpec]:
+        """Core LLM call: prompt -> chat -> parse rules -> keyword re-group."""
+        system_prompt = self._LLM_SYSTEM_PROMPT.format(max_groups=self._max_io_groups)
+        user_content = "源码目录列表：\n" + "\n".join(dir_lines)
+        if requirements:
+            user_content += f"\n\n业务需求：{requirements}"
+
+        messages: list[dict[str, str]] = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_content},
+        ]
+        raw = self._llm_provider.chat(messages)
+        logger.debug("LLM_SEMANTIC raw response (first 500 chars): %s", raw[:500])
+        llm_rules = self._parse_llm_patterns(raw, dir_file_paths)
+        if not llm_rules:
+            logger.warning(
+                "LLM_SEMANTIC: empty parsed result, raw preview: %s",
+                raw[:500],
+            )
+            print(f"--- LLM raw response (first 800 chars) ---\n{raw[:800]}\n---", file=sys.stderr)
+            return self._llm_fallback("LLM returned empty result")
+
+        # LLM rules live in a dedicated attribute so the shared self._rules
+        # (custom / auto-generated rules) is never overwritten: the
+        # SdkMethod-only _static_group path must always see the original
+        # rules, never LLM FILE_PATH patterns.
+        self._llm_rules = llm_rules
+        skills = self._keyword_match_group(llm_rules)
+        self._print_llm_coverage(skills, llm_rules)
+        return skills
+
+    def _print_llm_coverage(self, skills: list[SkillSpec], llm_rules: list[MappingRule]) -> None:
+        """Print coverage summary so user can see LLM grouping quality."""
+        llm_skill_names = {r.skill_name for r in llm_rules}
+        print(
+            f"✅ LLM semantic grouping: {len(llm_rules)} patterns → {len(llm_skill_names)} skills",
+            file=sys.stderr,
+        )
+        for name in sorted(llm_skill_names):
+            pats = [r.method_pattern for r in llm_rules if r.skill_name == name]
+            desc = next((r.description for r in llm_rules if r.skill_name == name), "")
+            print(f"   {name}: {desc}", file=sys.stderr)
+            print(f"     patterns: {pats}", file=sys.stderr)
+
+        # Count dirs matched by LLM vs auto inference.
+        llm_matched = sum(1 for s in skills if s.name in llm_skill_names)
+        auto_count = len(skills) - llm_matched
+        if auto_count > 0:
+            auto_names = [s.name for s in skills if s.name not in llm_skill_names]
+            print(
+                f"   ({auto_count} groups from auto prefix inference: {', '.join(auto_names)})",
+                file=sys.stderr,
+            )
+
+    def _build_llm_directory_catalog(self) -> tuple[list[str], list[str]]:
+        """Build directory-level summaries for the LLM prompt.
+
+        Returns (description_lines, file_paths) where each line is:
+        ``- file_path (dir_name): N methods, "package description"``
+        and file_paths is the list of unique file_paths for MappingRule matching.
+        """
+        lines: list[str] = []
+        paths: list[str] = []
+        seen_paths: set[str] = set()
+        for comp in self._source_components:
+            op_count = len(comp.operations)
+            desc = comp.description or "(无描述)"
+            fp = comp.file_path.replace("\\", "/")
+            if fp in seen_paths:
+                # De-duplicate components that share the same source path so
+                # the LLM prompt and the pattern validation list stay unique.
+                continue
+            seen_paths.add(fp)
+            paths.append(fp)
+            lines.append(f'- {fp}: {op_count} methods, "{desc}"')
+        return lines, paths
+
+    def _parse_llm_patterns(
+        self,
+        raw: str,
+        dir_file_paths: list[str],
+    ) -> list[MappingRule] | None:
+        """Parse LLM response into MappingRules with FILE_PATH patterns.
+
+        Expected JSON::
+            {"skills": [{"name": "...", "description": "...",
+                          "patterns": ["path_fragment1", "path_fragment2"]}]}
+
+        Each pattern becomes a MappingRule with match_target=FILE_PATH
+        and match_type=SUBSTRING.  Patterns that match no entry in
+        ``dir_file_paths`` are dropped (with a warning) — they could never
+        match a component, so keeping them would only dilute the rule set.
+        Returns None on parse failure.
+        """
+        json_str = self._extract_json_from_raw(raw)
+        if not json_str:
+            return None
+
+        try:
+            data = json.loads(json_str)
+        except json.JSONDecodeError:
+            logger.warning("LLM_SEMANTIC: failed to parse JSON response")
+            return None
+
+        if not isinstance(data, dict) or "skills" not in data:
+            logger.warning("LLM_SEMANTIC: response missing 'skills' key")
+            return None
+
+        skills_data = data["skills"]
+        if not isinstance(skills_data, list):
+            return None
+
+        rules: list[MappingRule] = []
+        used_names: set[str] = set()
+        for item in skills_data:
+            item_rules = self._parse_llm_skill(item, dir_file_paths, used_names)
+            if item_rules:
+                rules.extend(item_rules)
+
+        if not rules:
+            return None
+
+        # Sort by specificity: longer patterns first so they match before
+        # shorter / broader patterns (first-match-wins).
+        rules.sort(key=lambda r: len(r.method_pattern), reverse=True)
+        return rules
+
+    def _parse_llm_skill(
+        self,
+        item: object,
+        dir_file_paths: list[str],
+        used_names: set[str],
+    ) -> list[MappingRule]:
+        """Convert one LLM skill dict into validated FILE_PATH MappingRules."""
+        if not isinstance(item, dict):
+            return []
+
+        raw_name = item.get("name", "")
+        description = item.get("description", "")
+        patterns = item.get("patterns", [])
+        if not raw_name or not isinstance(patterns, list) or not patterns:
+            return []
+
+        skill_name = self._llm_skill_name(raw_name, used_names)
+        desc = (
+            description.strip()
+            if isinstance(description, str) and description.strip()
+            else f"LLM-grouped: {skill_name}"
+        )
+
+        rules: list[MappingRule] = []
+        for pat in patterns:
+            method_pat = self._validate_llm_pattern(pat, dir_file_paths)
+            if method_pat is None:
+                continue
+            rules.append(
+                MappingRule(
+                    method_pattern=method_pat,
+                    tool_name="",
+                    skill_name=skill_name,
+                    description=desc,
+                    match_type=MatchType.SUBSTRING,
+                    match_target=MatchTarget.FILE_PATH,
+                )
+            )
+        return rules
+
+    @staticmethod
+    def _llm_skill_name(raw_name: str, used_names: set[str]) -> str:
+        """Normalize an LLM skill name and deduplicate it."""
+        skill_name = raw_name.strip().lower().replace(" ", "_").replace("-", "_")
+        if skill_name in used_names:
+            n = 2
+            while f"{skill_name}_{n}" in used_names:
+                n += 1
+            skill_name = f"{skill_name}_{n}"
+        used_names.add(skill_name)
+        return skill_name
+
+    @staticmethod
+    def _validate_llm_pattern(pat: object, dir_file_paths: list[str]) -> str | None:
+        """Strip a pattern's trailing slash and validate it against source paths.
+
+        A pattern that matches no file path can never match any component
+        (FILE_PATH / SUBSTRING), so shipping it as a rule would silently
+        dilute LLM grouping quality — drop it and surface the issue instead.
+        """
+        if not isinstance(pat, str) or not pat.strip():
+            return None
+        # Strip trailing slash so "tests/" matches "tests" and "tests/cli".
+        method_pat = pat.strip().rstrip("/")
+        if not method_pat:
+            return None
+        if not any(method_pat in fp for fp in dir_file_paths):
+            logger.warning(
+                "LLM_SEMANTIC: pattern %r matches no source path; skipping",
+                method_pat,
+            )
+            return None
+        return method_pat
+
+    @staticmethod
+    def _extract_json_from_raw(raw: str) -> str | None:
+        """Extract the first valid JSON object containing 'skills' from a raw LLM response.
+
+        Tolerates preamble (e.g. "Here is the grouping:") and postamble
+        (explanation after the JSON).  Searches for the outermost ``{``
+        … ``}`` pair whose parsed content contains a ``"skills"`` key.
+
+        Braces inside JSON string values (e.g. ``"description": "Use } for
+        closing"``) are ignored — only structural braces outside strings
+        update the nesting depth, so a ``}`` inside a string value can never
+        prematurely close the object and truncate otherwise valid JSON.
+        """
+        start = -1
+        depth = 0
+        in_string = False
+        escaped = False
+        for i, ch in enumerate(raw):
+            if in_string:
+                if escaped:
+                    escaped = False
+                elif ch == "\\":
+                    escaped = True
+                elif ch == '"':
+                    in_string = False
+                continue
+            if ch == '"':
+                in_string = True
+            elif ch == "{":
+                if start < 0:
+                    start = i
+                depth += 1
+            elif ch == "}":
+                if start < 0:
+                    continue  # stray '}' before any object — not a boundary
+                depth -= 1
+                if depth == 0:
+                    candidate = raw[start : i + 1]
+                    try:
+                        parsed = json.loads(candidate)
+                        if isinstance(parsed, dict) and "skills" in parsed:
+                            return candidate
+                    except json.JSONDecodeError:
+                        pass
+
+        return None
+
+    def group_with_llm(self, requirements: str) -> list[SkillSpec]:
+        """Public convenience method — delegates to ``_group_with_llm``."""
+        return self._group_with_llm(requirements)
+
+
+# --- appended from PR #758 ---
+
+
+@dataclass
+class GroupResult:
+    """Result of skill grouping operation."""
+
+    skills: list[SkillSpec]
+    unmatched_tools: list[str] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
+
+
+def group_into_skills(
+    methods: list[SdkMethod],
+    requirements: str = "",
+    mapping_rules: list[MappingRule] | None = None,
+) -> GroupResult:
+    """Convenience function to group SDK methods into Skills."""
+    grouper = SkillGrouper(methods, mapping_rules=mapping_rules)
+    skills = grouper.group(requirements)
+    all_tools = {t for s in skills for t in s.allowed_tools}
+    method_tools = {m.name for m in methods}
+    unmatched = [t for t in method_tools if t not in all_tools]
+    return GroupResult(skills=skills, unmatched_tools=unmatched)
+
+
+def group_source_components(
+    components: list[SourceComponent],
+    strategy: GroupStrategy = GroupStrategy.COMPONENT_GROUP,
+    max_io_groups: int | None = None,
+    mapping_rules: list[MappingRule] | None = None,
+    requirements: str = "",
+    llm_provider: SOPAssistantProviderProtocol | None = None,
+) -> GroupResult:
+    """Convenience function to group source components into Skills by strategy.
+
+    Tool naming varies by strategy:
+      COMPONENT_GROUP / KEYWORD_MATCH / LLM_SEMANTIC →
+          ``compName.className.methodName`` (class methods) or
+          ``compName.methodName`` (top-level functions).
+      IO_RELATION → ``ClassName.methodName`` (class methods) or
+                    ``compName.fileStem.methodName`` / ``compName.methodName``
+                    (top-level functions), to disambiguate across files.
+
+    Args:
+        components: Source components parsed from Python source code.
+        strategy: Grouping strategy to apply.
+        max_io_groups: Maximum number of groups (skills) to produce.
+        mapping_rules: Custom MappingRule list for KEYWORD_MATCH strategy.
+        requirements: Business requirements hint for LLM_SEMANTIC strategy.
+        llm_provider: LLM provider instance for LLM_SEMANTIC strategy.
+            When None and strategy is LLM_SEMANTIC, falls back to IO_RELATION.
+    """
+    grouper = SkillGrouper(
+        methods=[],
+        strategy=strategy,
+        source_components=components,
+        max_io_groups=max_io_groups,
+        mapping_rules=mapping_rules,
+        llm_provider=llm_provider,
+    )
+    skills = grouper.group(requirements=requirements)
+    all_tools = {t for s in skills for t in s.allowed_tools}
+    if strategy == GroupStrategy.IO_RELATION:
+        component_tools = {
+            (
+                f"{op.class_name}.{op.name}"
+                if op.class_name
+                else f"{c.name}.{op.file_stem}.{op.name}"
+                if op.file_stem
+                else f"{c.name}.{op.name}"
+            )
+            for c in components
+            for op in c.operations
+        }
+    else:
+        # COMPONENT_GROUP / KEYWORD_MATCH / LLM_SEMANTIC all use the
+        # same naming convention: compName.className.methodName for
+        # class methods, compName.methodName for top-level functions.
+        # This must match the format used by _keyword_match_group()
+        # and _component_group() so the unmatched-tool check is accurate.
+        component_tools = {
+            (f"{c.name}.{op.class_name}.{op.name}" if op.class_name else f"{c.name}.{op.name}")
+            for c in components
+            for op in c.operations
+        }
+    unmatched = [t for t in component_tools if t not in all_tools]
+    return GroupResult(skills=skills, unmatched_tools=unmatched)
