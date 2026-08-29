@@ -52,6 +52,205 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+class GroupStrategy(Enum):
+    KEYWORD_MATCH = "keyword_match"
+    COMPONENT_GROUP = "component_group"
+    IO_RELATION = "io_relation"
+    LLM_SEMANTIC = "llm_semantic"
+
+
+class MatchType(Enum):
+    SUBSTRING = "substring"
+    PREFIX = "prefix"
+    SUFFIX = "suffix"
+    REGEX = "regex"
+    EXACT = "exact"
+
+
+class MatchTarget(Enum):
+    """Which field a MappingRule pattern is matched against."""
+
+    OP_NAME = "op_name"  # method / operation name  (default, backward-compatible)
+    COMP_NAME = "comp_name"  # SourceComponent name (directory name)
+    FILE_PATH = "file_path"  # SourceComponent file_path
+
+
+class SkillSpec:
+    """Specification for a Skill derived from grouped SDK methods."""
+
+    name: str
+    description: str
+    allowed_tools: list[str] = field(default_factory=list)
+    argument_names: list[str] = field(default_factory=list)
+    when_to_use: str | None = None
+    version: str | None = None
+    model: str | None = None
+
+
+class MappingRule:
+    """A mapping rule: SDK method pattern → tool name → skill name.
+
+    match_type controls how method_pattern is applied:
+      - SUBSTRING (default): pattern must appear anywhere in the name
+      - PREFIX: name must start with the pattern
+      - SUFFIX: name must end with the pattern
+      - REGEX: pattern is a regular expression
+      - EXACT: name must equal the pattern exactly
+
+    match_target controls which field the pattern is tested against:
+      - OP_NAME (default): match against method/operation name
+      - COMP_NAME: match against SourceComponent name (directory name)
+      - FILE_PATH: match against SourceComponent file_path
+
+    NOTE: COMP_NAME / FILE_PATH targets require component metadata and are
+    therefore only meaningful on the SourceComponent path
+    (SkillGrouper with ``source_components`` -> ``_keyword_match_group`` /
+    ``match_against``).  The SdkMethod-only path (``_static_group``) always
+    matches against OP_NAME via ``matches()``.
+    """
+
+    method_pattern: str
+    tool_name: str
+    skill_name: str
+    description: str = ""
+    match_type: MatchType = MatchType.SUBSTRING
+    match_target: MatchTarget = MatchTarget.OP_NAME
+
+    def matches(self, name: str) -> bool:
+        if self.match_type == MatchType.SUBSTRING:
+            return self.method_pattern in name
+        elif self.match_type == MatchType.PREFIX:
+            return name.startswith(self.method_pattern)
+        elif self.match_type == MatchType.SUFFIX:
+            return name.endswith(self.method_pattern)
+        elif self.match_type == MatchType.REGEX:
+            return bool(re.search(self.method_pattern, name))
+        elif self.match_type == MatchType.EXACT:
+            return name == self.method_pattern
+        return False
+
+    def match_against(self, op_name: str, comp_name: str, file_path: str) -> bool:
+        """Match against the field selected by match_target."""
+        if self.match_target == MatchTarget.COMP_NAME:
+            return self.matches(comp_name)
+        elif self.match_target == MatchTarget.FILE_PATH:
+            return self.matches(file_path)
+        else:
+            return self.matches(op_name)
+
+
+def _extract_prefixes(tool_names: list[str]) -> set[str]:
+    """Extract component-name prefixes from qualified tool names.
+
+    ``comp_name.method_name`` → ``{comp_name}``
+    Used by Phase 3 merge to compute Jaccard similarity between Skills.
+    """
+    prefixes: set[str] = set()
+    for name in tool_names:
+        if "." in name:
+            prefixes.add(name.split(".")[0])
+        else:
+            prefixes.add(name)
+    return prefixes
+
+
+def _best_distinguishing_pattern(
+    sub_keys: list[str],
+    other_segments: set[str],
+) -> str:
+    """Find the most distinguishing path segment from a group's sub_keys.
+
+    Prefers deeper segments (more specific) that are NOT in other groups.
+    Returns the segment string, or the last segment as fallback.
+    Used by ``SkillGrouper._auto_generate_rules``.
+    """
+    best_pattern = ""
+    best_score = -1
+    seen: set[str] = set()
+    for sk in sub_keys:
+        segs = [s for s in sk.split("/") if s]
+        for i, seg in enumerate(segs):
+            if seg in seen:
+                continue
+            seen.add(seg)
+            depth_score = i  # deeper = higher score
+            unique_bonus = 10 if seg not in other_segments else 0
+            score = depth_score + unique_bonus
+            if score > best_score:
+                best_score = score
+                best_pattern = seg
+    if not best_pattern:
+        segs = [s for s in sub_keys[0].split("/") if s]
+        best_pattern = segs[-1] if segs else "misc"
+    return best_pattern
+
+
+def _common_ancestor_segment(sub_keys: list[str], other_segments: set[str]) -> str | None:
+    """Find the longest common ancestor path segment shared by all sub_keys.
+
+    For merged groups, the common ancestor represents the semantic theme
+    (e.g. all sub_keys under ``examples/`` share ``examples``), which is
+    a better skill_name than picking one sub_key's unique leaf segment.
+
+    Returns the **deepest** segment that appears in every sub_key AND is
+    not present in other_segments (i.e. it distinguishes this merged group
+    from other groups).  Returns None when no such segment exists.
+    """
+    if not sub_keys:
+        return None
+
+    all_seg_sets: list[set[str]] = []
+    for sk in sub_keys:
+        all_seg_sets.append({s for s in sk.split("/") if s})
+
+    common = all_seg_sets[0]
+    for s in all_seg_sets[1:]:
+        common = common & s
+
+    common_not_in_others = {seg for seg in common if seg not in other_segments}
+
+    if common_not_in_others:
+        # Return the deepest common segment not shared with other groups.
+        return _deepest_segment(sub_keys, common_not_in_others)
+
+    # All common segments are shared with other groups — fallback to
+    # the deepest common segment (it's still the semantic theme, even
+    # if not unique).  The pattern rules will use per-sub-key patterns
+    # for matching, so the skill_name doesn't need to be unique.
+    if common:
+        return _deepest_segment(sub_keys, common)
+
+    return None
+
+
+def _deepest_segment(sub_keys: list[str], candidates: set[str]) -> str | None:
+    """Return the deepest candidate segment (by index in the longest sub_key)."""
+    best_seg = None
+    best_depth = -1
+    ref_segs = [s for s in max(sub_keys, key=lambda k: len(k.split("/"))).split("/") if s]
+    for seg in candidates:
+        depth = ref_segs.index(seg) if seg in ref_segs else 0
+        if depth > best_depth:
+            best_depth = depth
+            best_seg = seg
+    return best_seg
+
+
+def _pattern_specificity(rule: MappingRule, all_group_keys: list[str]) -> int:
+    """Lower = more specific (matches fewer groups).
+
+    Counts how many groups a pattern could accidentally match; used to sort
+    rules so first-match-wins favors the most discriminating patterns.
+    """
+    hits = 0
+    for gk in all_group_keys:
+        for sub in gk.split("|"):
+            if rule.method_pattern in sub:
+                hits += 1
+                break
+    return hits
+
+
 @dataclass
 class SkillGrouper:
     """Group atomic SDK methods into Skills based on business logic.
