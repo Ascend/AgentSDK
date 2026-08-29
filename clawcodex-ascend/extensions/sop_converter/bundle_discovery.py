@@ -21,20 +21,24 @@
 # -------------------------------------------------------------------------
 
 # pylint: disable=undefined-loop-variable
-# Backward-compatibility stub — re-exports from runtime/bundle_agents.py
-from extensions.sop_converter.runtime.bundle_agents import (
+# Backward-compatibility stub — re-exports from runtime/bundle_discovery.py
+from extensions.sop_converter.runtime.bundle_discovery import (
     logger,
-    register_bundle_agents,
+    list_workspace_bundle_candidates,
+    discover_workspace_bundle,
+    overview_has_sop_skills,
 )
 
 __all__ = [
     "logger",
-    "register_bundle_agents",
+    "list_workspace_bundle_candidates",
+    "discover_workspace_bundle",
+    "overview_has_sop_skills",
 ]
 
-from extensions.sop_converter.runtime import bundle_agents as _impl
+from extensions.sop_converter.runtime import bundle_discovery as _impl
 
 for _name, _value in vars(_impl).items():
     if _name.startswith("_") and not _name.startswith("__"):
         globals()[_name] = _value
-del _impl
+del _name, _value, _impl
