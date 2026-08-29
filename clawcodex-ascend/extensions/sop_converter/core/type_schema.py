@@ -835,3 +835,932 @@ def collect_probe_targets(
     for type_hint, module_path in type_hints:
         _try_resolve(type_hint, module_path)
     return result
+
+
+# --- appended from PR #754 ---
+
+
+_BATCH_PROBE_SCRIPT = r'''\
+import sys, json, importlib, ast, signal, time
+from pathlib import Path
+
+def _extract_via_ast(source_dir, module_path, class_name):
+    """Phase 2a: AST compilation + model_json_schema (for ModuleNotFoundError cases).
+
+    Filters the AST to only include necessary imports and the target class,
+    then compiles and calls model_json_schema(). This avoids importing modules
+    with missing dependencies.
+    """
+    root = Path(source_dir)
+    parts = module_path.split(".")
+    source_file = root.joinpath(*parts).with_suffix(".py")
+    if not source_file.is_file():
+        return None
+    source = source_file.read_text(encoding="utf-8")
+    tree = ast.parse(source)
+
+    filtered = []
+    for node in tree.body:
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            filtered.append(node)
+        elif isinstance(node, ast.ClassDef) and node.name == class_name:
+            filtered.append(node)
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            filtered.append(node)
+        elif isinstance(node, ast.Assign) and isinstance(
+            node.value,
+            (ast.Constant, ast.List, ast.Dict, ast.Set, ast.Tuple, ast.Name, ast.Attribute),
+        ):
+            filtered.append(node)
+
+    module_ast = ast.Module(body=filtered, type_ignores=[])
+    code = compile(module_ast, str(source_file), "exec")
+    namespace = {"__name__": "extracted_module"}
+    try:
+        exec(code, namespace)
+    except Exception:
+        return None
+
+    cls = namespace.get(class_name)
+    if not isinstance(cls, type):
+        return None
+    try:
+        from pydantic import BaseModel
+        if issubclass(cls, BaseModel):
+            return cls.model_json_schema(mode="validation")
+    except Exception:
+        pass
+    return None
+
+
+
+def _hint_to_json_type(hint):
+    """Convert a type hint string to a basic JSON Schema type definition."""
+    hint = hint.strip()
+
+    if hint.startswith("Union[") or hint.startswith("Optional["):
+        inner = hint[6:-1] if hint.startswith("Union") else hint[9:-1]
+        parts = _split_top_level_commas(inner)
+        has_none = any(p.strip() == "None" for p in parts)
+        non_none_parts = [p for p in parts if p.strip() != "None"]
+        if len(non_none_parts) == 1:
+            base = _hint_to_json_type(non_none_parts[0].strip())
+            if has_none:
+                base["nullable"] = True
+            return base
+        return {"anyOf": [_hint_to_json_type(p.strip()) for p in non_none_parts]}
+
+    if hint.startswith("Literal["):
+        inner = hint[8:-1]
+        parts = _split_top_level_commas(inner)
+        enum_values = []
+        for part in parts:
+            part = part.strip()
+            if part.startswith('"') and part.endswith('"'):
+                enum_values.append(part[1:-1])
+            elif part.startswith("'") and part.endswith("'"):
+                enum_values.append(part[1:-1])
+            elif part in ("True", "False"):
+                enum_values.append(part == "True")
+            elif part == "None":
+                continue
+            else:
+                try:
+                    enum_values.append(int(part))
+                except ValueError:
+                    try:
+                        enum_values.append(float(part))
+                    except ValueError:
+                        enum_values.append(part)
+        if enum_values:
+            first_val = enum_values[0]
+            if isinstance(first_val, str):
+                return {"type": "string", "enum": enum_values}
+            elif isinstance(first_val, bool):
+                return {"type": "boolean", "enum": enum_values}
+            elif isinstance(first_val, int):
+                return {"type": "integer", "enum": enum_values}
+            elif isinstance(first_val, float):
+                return {"type": "number", "enum": enum_values}
+        return {"type": "string", "enum": enum_values} if enum_values else {"type": "object"}
+
+    if hint.startswith("list[") or hint.startswith("List["):
+        inner = hint[5:-1] if hint.startswith("list") else hint[6:-1]
+        return {"type": "array", "items": _hint_to_json_type(inner.strip())}
+
+    if hint.startswith("dict[") or hint.startswith("Dict["):
+        inner = hint[5:-1] if hint.startswith("dict") else hint[6:-1]
+        parts = _split_top_level_commas(inner)
+        if len(parts) >= 2:
+            value_type = _hint_to_json_type(parts[1].strip())
+            return {"type": "object", "additionalProperties": value_type}
+        return {"type": "object"}
+
+    basic_mapping = {
+        "str": "string",
+        "int": "integer",
+        "float": "number",
+        "bool": "boolean",
+        "bytes": "string",
+        "Any": "object",
+    }
+    if hint in basic_mapping:
+        return {"type": basic_mapping[hint]}
+
+    return {"type": "object"}
+
+
+def _extract_via_pure_ast(source_dir, module_path, class_name):
+    """Phase 2b: Pure AST field extraction (for model_json_schema failures like InstanceOf).
+
+    Does NOT call model_json_schema(). Instead, parses the ClassDef AST directly
+    to extract field names and type annotations, building a JSON Schema manually.
+    This handles cases where model_json_schema() fails due to non-serializable
+    field types like InstanceOf or Callable.
+    """
+    root = Path(source_dir)
+    parts = module_path.split(".")
+    source_file = root.joinpath(*parts).with_suffix(".py")
+    if not source_file.is_file():
+        return None
+    source = source_file.read_text(encoding="utf-8")
+    tree = ast.parse(source)
+
+    class_node = None
+    for node in tree.body:
+        if isinstance(node, ast.ClassDef) and node.name == class_name:
+            class_node = node
+            break
+    if class_node is None:
+        return None
+
+    properties = {}
+    required = []
+    for stmt in class_node.body:
+        if isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name):
+            field_name = stmt.target.id
+            if stmt.annotation:
+                hint = ast.unparse(stmt.annotation)
+            else:
+                hint = "string"
+            properties[field_name] = _hint_to_json_type(hint)
+            if stmt.value is None and field_name not in required:
+                required.append(field_name)
+        elif isinstance(stmt, ast.Assign):
+            for target in stmt.targets:
+                if isinstance(target, ast.Name):
+                    field_name = target.id
+                    properties.setdefault(field_name, {"type": "string"})
+
+    if not properties:
+        return None
+
+    schema = {
+        "type": "object",
+        "title": class_name,
+        "properties": properties,
+    }
+    if required:
+        schema["required"] = required
+    return schema
+
+
+def main():
+    req = json.loads(sys.stdin.read())
+    source_dir = req["source_dir"]
+    targets = req["targets"]
+
+    if source_dir not in sys.path:
+        sys.path.insert(0, source_dir)
+
+    results = {}
+    imported_modules = {}
+    direct_blocked = False
+    total = len(targets)
+
+    for idx, target in enumerate(targets, 1):
+        mp = target["module_path"]
+        cn = target["class_name"]
+        key = f"{mp}::{cn}"
+        schema = None
+        method = None
+        fail_reason = ""
+
+        for p in target.get("extra_sys_path") or []:
+            if p and p not in sys.path:
+                sys.path.insert(0, p)
+
+        if idx % 10 == 0 or idx == total:
+            print(f"[{idx}/{total}] extracting schema for {cn} from {mp}...", file=sys.stderr, flush=True)
+
+        # Phase 1: direct import + model_json_schema
+        if not direct_blocked:
+            try:
+                t0 = time.monotonic()
+                if hasattr(signal, "SIGALRM"):
+                    def _alarm(signum, frame):
+                        raise TimeoutError("import timed out")
+                    old = signal.signal(signal.SIGALRM, _alarm)
+                    signal.alarm(60)
+                try:
+                    if mp not in imported_modules:
+                        imported_modules[mp] = importlib.import_module(mp)
+                    mod = imported_modules[mp]
+                    if mod is not None:
+                        cls = getattr(mod, cn, None)
+                        if isinstance(cls, type):
+                            try:
+                                from pydantic import BaseModel
+                                if issubclass(cls, BaseModel):
+                                    schema = cls.model_json_schema(mode="validation")
+                                    method = "direct"
+                                else:
+                                    fail_reason = f"not a BaseModel subclass (got {type(cls).__name__})"
+                            except ImportError:
+                                fail_reason = "pydantic not installed"
+                            except Exception as exc:
+                                fail_reason = f"model_json_schema failed: {type(exc).__name__}: {exc}"
+                        else:
+                            fail_reason = f"attribute '{cn}' not found on module"
+                except TimeoutError:
+                    imported_modules[mp] = None
+                    direct_blocked = True
+                    fail_reason = "import timed out (>60s)"
+                except (Exception, SystemExit) as exc:
+                    imported_modules[mp] = None
+                    sys.modules.pop(mp, None)
+                    fail_reason = f"import failed: {type(exc).__name__}: {exc}"
+                finally:
+                    dt = time.monotonic() - t0
+                    if hasattr(signal, "SIGALRM"):
+                        signal.alarm(0)
+                        signal.signal(signal.SIGALRM, old)
+                    if dt > 60.0 and not direct_blocked:
+                        direct_blocked = True
+            except (Exception, SystemExit):
+                pass
+
+        if schema is not None:
+            results[key] = {"kind": "pydantic", "schema": schema, "method": method}
+            continue
+
+        # Phase 2b: Pure AST extraction (for model_json_schema failures like InstanceOf)
+        # This handles cases where model_json_schema() fails due to non-serializable
+        # field types like InstanceOf or Callable.
+        if fail_reason and "model_json_schema" in fail_reason:
+            ast_schema = _extract_via_pure_ast(source_dir, mp, cn)
+            if ast_schema:
+                results[key] = {"kind": "pydantic", "schema": ast_schema, "method": "ast_pure"}
+                print(f"[ast-fallback] {cn} from {mp}: extracted via pure AST (model_json_schema failed)", file=sys.stderr, flush=True)
+                continue
+
+        # Phase 2a: AST compilation + model_json_schema (for import failures)
+        # This handles cases where direct import fails due to missing dependencies.
+        if fail_reason and ("ModuleNotFoundError" in fail_reason or "import failed" in fail_reason):
+            ast_schema = _extract_via_ast(source_dir, mp, cn)
+            if ast_schema:
+                results[key] = {"kind": "pydantic", "schema": ast_schema, "method": "ast_compiled"}
+                print(f"[ast-fallback] {cn} from {mp}: extracted via compiled AST (import failed)", file=sys.stderr, flush=True)
+                continue
+
+        # Phase 2c: Pure AST extraction fallback for import failures
+        # If AST compilation also fails due to missing imports, try pure AST extraction.
+        if fail_reason and ("ModuleNotFoundError" in fail_reason or "import failed" in fail_reason):
+            ast_schema = _extract_via_pure_ast(source_dir, mp, cn)
+            if ast_schema:
+                results[key] = {"kind": "pydantic", "schema": ast_schema, "method": "ast_pure"}
+                print(f"[ast-fallback] {cn} from {mp}: extracted via pure AST (import failed, compiled AST also failed)", file=sys.stderr, flush=True)
+                continue
+
+        # All phases failed
+        if not fail_reason:
+            if direct_blocked:
+                fail_reason = "skipped (direct import blocked for this SDK)"
+            else:
+                fail_reason = "unknown"
+        print(f"[degraded] {cn} from {mp}: {fail_reason} (will use basic JSON type)", file=sys.stderr, flush=True)
+        results[key] = {"kind": None, "fail_reason": fail_reason}
+
+    print(json.dumps({"results": results, "direct_blocked": direct_blocked}))
+
+main()
+'''
+
+
+def preload_schemas_for_source_dir(
+    source_dir: str,
+    targets: list[tuple[str, str]],
+    *,
+    timeout: float = 600.0,
+    venv_python: str | None = None,
+) -> None:
+    """Batch-probe all pydantic types for one SDK in a single subprocess.
+
+    Imports the SDK once and extracts schemas for all (module_path, class_name)
+    pairs, filling the ``_probe_type_in_subprocess`` lru_cache so that
+    subsequent individual calls are cache hits (no subprocess spawn).
+
+    Args:
+        source_dir: SDK source root.
+        targets: List of (module_path, class_name) pairs to probe.
+        timeout: Total timeout for the batch (default 600s = 10min).
+        venv_python: Python executable from the SDK bundle venv. When given, the
+            batch subprocess is launched with it so that third-party SDK
+            dependencies (jsonschema_path, pysbd, ...) can be imported.
+    """
+    root = str(Path(source_dir).resolve())
+    if root in _BLOCKED_SOURCE_DIRS:
+        print(f"   Input schema generation: skipped (circuit breaker active for {Path(root).name})")
+        return
+
+    # Deduplicate
+    unique_targets = list(dict.fromkeys(targets))
+    if not unique_targets:
+        return
+
+    # Remember the venv python for later _probe_type_in_subprocess single probes.
+    global _CURRENT_VENV_PYTHON
+    if venv_python:
+        _CURRENT_VENV_PYTHON = venv_python
+
+    python_exe = venv_python or sys.executable
+
+    print(
+        f"   Generating input schemas for tool parameters: "
+        f"probing {len(unique_targets)} pydantic types (timeout={timeout}s)..."
+    )
+
+    from .path_resolver import infer_extra_sys_path_entries
+
+    request = json.dumps(
+        {
+            "source_dir": root,
+            "targets": [
+                {
+                    "module_path": mp,
+                    "class_name": cn,
+                    "extra_sys_path": infer_extra_sys_path_entries(root, mp),
+                }
+                for mp, cn in unique_targets
+            ],
+        }
+    )
+    try:
+        t0 = time.monotonic()
+        proc = subprocess.Popen(  # pylint: disable=consider-using-with
+            [python_exe, "-c", _BATCH_PROBE_SCRIPT],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+
+        # Close stdin after writing the request so the child starts processing.
+        proc.stdin.write(request)
+        proc.stdin.close()
+
+        # Stream child stderr progress lines to the user.
+        import threading
+
+        stderr_lines: list[str] = []
+
+        def _read_stderr() -> None:
+            for line in iter(proc.stderr.readline, ""):
+                stderr_lines.append(line)
+                # Forward progress lines (newline-terminated; strip before reprinting).
+                msg = line.rstrip()
+                if msg:
+                    print(f"   {msg}")
+
+        stderr_thread = threading.Thread(target=_read_stderr, daemon=True)
+        stderr_thread.start()
+
+        # Read stdout (final result JSON).
+        stdout = proc.stdout.read()
+        proc.wait(timeout=timeout)
+        stderr_thread.join(timeout=2.0)
+
+        elapsed = time.monotonic() - t0
+        if proc.returncode != 0:
+            print(f"   Input schema generation: subprocess exited with code {proc.returncode} ({elapsed:.1f}s)")
+            return
+        lines = stdout.strip().splitlines()
+        if not lines:
+            print(f"   Input schema generation: no output ({elapsed:.1f}s)")
+            return
+        batch_result = json.loads(lines[-1])
+        results = batch_result.get("results", {})
+
+        # Fill _BATCH_CACHE so subsequent individual calls are cache hits.
+        direct_count = 0
+        failed_count = 0
+        for mp, cn in unique_targets:
+            key = f"{mp}::{cn}"
+            entry = results.get(key)
+            if entry and entry.get("kind"):
+                _BATCH_CACHE[(root, mp, cn)] = entry
+                direct_count += 1
+            else:
+                # Cache negative result too, so we don't retry.
+                _BATCH_CACHE[(root, mp, cn)] = None
+                failed_count += 1
+
+        if batch_result.get("direct_blocked"):
+            _DIRECT_IMPORT_BLOCKED.add(root)
+
+        print(
+            f"   Input schema generation done in {elapsed:.1f}s "
+            f"({direct_count} succeeded, {failed_count} degraded to basic JSON types)"
+        )
+        if direct_count > 0:
+            logger.info(
+                "Batch probe: %d succeeded, %d failed (%.1fs)",
+                direct_count,
+                failed_count,
+                elapsed,
+            )
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait()
+        _BLOCKED_SOURCE_DIRS.add(root)
+        print(f"   Input schema generation: TIMEOUT after {timeout}s, remaining types will degrade to basic JSON types")
+        logger.warning(
+            "Batch probe for %s timed out after %ss, circuit breaker tripped",
+            root,
+            timeout,
+        )
+    except (json.JSONDecodeError, OSError) as exc:
+        print(f"   Input schema generation: failed ({exc})")
+        logger.debug("Batch probe for %s failed: %s", root, exc)
+
+
+def _is_pydantic_model(cls: type[Any]) -> bool:
+    try:
+        from pydantic import BaseModel
+    except ImportError:
+        return False
+    return isinstance(cls, type) and issubclass(cls, BaseModel)
+
+
+def _is_dataclass_type(cls: type[Any]) -> bool:
+    return isinstance(cls, type) and dataclasses.is_dataclass(cls)
+
+
+# ---------------------------------------------------------------------------
+# Public helpers for wrapper generation (deserialization)
+# ---------------------------------------------------------------------------
+
+
+def import_type(source_dir: str, type_name: str) -> type[Any] | None:
+    """Public wrapper around :func:`_import_type`."""
+    return _import_type(source_dir, type_name)
+
+
+def is_pydantic_model(cls: type[Any]) -> bool:
+    """Public wrapper around :func:`_is_pydantic_model`."""
+    return _is_pydantic_model(cls)
+
+
+def is_dataclass_type(cls: type[Any]) -> bool:
+    """Public wrapper around :func:`_is_dataclass_type`."""
+    return _is_dataclass_type(cls)
+
+
+def type_root(type_hint: str) -> str:
+    """Public wrapper around :func:`_type_root`."""
+    return _type_root(type_hint)
+
+
+def split_union(type_hint: str) -> list[str]:
+    """Public wrapper around :func:`_split_union`."""
+    return _split_union(type_hint)
+
+
+def get_type_module_path(source_dir: str, type_name: str) -> str | None:
+    """Return the dotted module path where *type_name* is defined under *source_dir*."""
+    index = _build_class_index(source_dir)
+    return index.get(type_name)
+
+
+def _class_node_from_ast(source_dir: str, type_name: str) -> ast.ClassDef | None:
+    """Return the ``ClassDef`` AST node for *type_name* under *source_dir*, or None."""
+    module_path = get_type_module_path(source_dir, type_name)
+    if not module_path:
+        return None
+    root = Path(source_dir).resolve()
+    rel = Path(*module_path.split(".")).with_suffix(".py")
+    path = root / rel
+    if not path.is_file():
+        return None
+    try:
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    except (OSError, SyntaxError, UnicodeDecodeError):
+        return None
+    for node in tree.body:
+        if isinstance(node, ast.ClassDef) and node.name == type_name:
+            return node
+    return None
+
+
+def get_model_class_info(
+    source_dir: str, type_name: str, module_path: str | None = None
+) -> tuple[str, str, str] | None:
+    """Return ``(module_path, class_name, kind)`` when *type_name* is a model class.
+
+    *kind* is ``"pydantic"`` for ``BaseModel`` subclasses or ``"dataclass"`` for
+    decorated dataclasses.  When *module_path* is given, resolve through that
+    module's import aliases (same as wrapper coercion).
+    """
+    resolved = _resolve_type_import(source_dir, type_name, module_path)
+    if not resolved:
+        return None
+    module_path, class_name = resolved
+
+    # Try runtime probe in isolated subprocess (accurate, with timeout).
+    probe = _probe_type_in_subprocess(source_dir, module_path, class_name)
+    if probe and probe.get("kind") == "pydantic":
+        return module_path, class_name, "pydantic"
+
+    # Fallback to AST inspection (handles both pydantic and dataclass).
+    class_node = _class_node_from_module(source_dir, module_path, class_name)
+    if class_node is None:
+        return None
+
+    root = Path(source_dir).resolve()
+    rel = Path(*module_path.split(".")).with_suffix(".py")
+    path = root / rel
+    module_classes: dict[str, ast.ClassDef] = {}
+    if path.is_file():
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+            module_classes = _module_class_index(tree)
+        except (OSError, SyntaxError, UnicodeDecodeError):
+            module_classes = {}
+
+    if _ast_is_pydantic_class(class_node, module_classes):
+        return module_path, class_name, "pydantic"
+
+    if _has_dataclass_decorator(class_node):
+        return module_path, class_name, "dataclass"
+
+    return None
+
+
+def _class_node_from_module(source_dir: str, module_path: str, class_name: str) -> ast.ClassDef | None:
+    """Return the ``ClassDef`` AST node for *class_name* in *module_path*."""
+    root = Path(source_dir).resolve()
+    rel = Path(*module_path.split(".")).with_suffix(".py")
+    path = root / rel
+    if not path.is_file():
+        return None
+    try:
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    except (OSError, SyntaxError, UnicodeDecodeError):
+        return None
+    for node in tree.body:
+        if isinstance(node, ast.ClassDef) and node.name == class_name:
+            return node
+    return None
+
+
+def _annotation_to_hint(annotation: Any) -> str:
+    """Best-effort stringify of a runtime type annotation for recursive schema lookup."""
+    if isinstance(annotation, str):
+        return annotation
+    if annotation is None or annotation is NoneType:
+        return "None"
+
+    origin = getattr(annotation, "__origin__", None)
+    args = getattr(annotation, "__args__", None)
+    if origin is not None and args:
+        origin_name = getattr(origin, "__name__", str(origin))
+        arg_hints = ", ".join(_annotation_to_hint(arg) for arg in args)
+        return f"{origin_name}[{arg_hints}]"
+
+    name = getattr(annotation, "__name__", None)
+    if name:
+        return name
+    return str(annotation)
+
+
+def _has_dataclass_decorator(class_node: ast.ClassDef) -> bool:
+    for dec in class_node.decorator_list:
+        if isinstance(dec, ast.Name) and dec.id == "dataclass":
+            return True
+        if isinstance(dec, ast.Call) and isinstance(dec.func, ast.Name) and dec.func.id == "dataclass":
+            return True
+        if isinstance(dec, ast.Attribute) and dec.attr == "dataclass":
+            return True
+    return False
+
+
+def _dataclass_schema_from_cls(
+    cls: type[Any],
+    source_dir: str,
+    *,
+    module_path: str | None = None,
+    _visited: set[tuple[str, str]] | None = None,
+) -> dict[str, Any] | None:
+    """Build JSON Schema from a runtime dataclass type."""
+    if not _is_dataclass_type(cls):
+        return None
+
+    try:
+        hints = get_type_hints(cls)
+    except Exception as exc:  # pragma: no cover - forward refs / import issues
+        logger.debug("get_type_hints failed for %s: %s", cls.__name__, exc)
+        hints = {}
+
+    properties: dict[str, Any] = {}
+    required: list[str] = []
+    for field in dataclasses.fields(cls):
+        if not field.init:
+            continue
+        hint = hints.get(field.name, field.type)
+        hint_str = _annotation_to_hint(hint) if hint is not None else "Any"
+        properties[field.name] = param_to_json_schema_property(
+            type_hint=hint_str,
+            source_dir=source_dir,
+            fallback_json_type="string",
+            module_path=module_path,
+            _visited=_visited,
+        )
+        if field.default is dataclasses.MISSING and field.default_factory is dataclasses.MISSING:
+            required.append(field.name)
+
+    if not properties:
+        return None
+
+    schema: dict[str, Any] = {
+        "type": "object",
+        "title": cls.__name__,
+        "properties": properties,
+    }
+    if required:
+        schema["required"] = required
+    schema["examples"] = [_minimal_value_for_schema(schema)]
+    return schema
+
+
+def _minimal_value_for_schema(schema: dict[str, Any]) -> Any:
+    """Build a minimal JSON value from a JSON Schema fragment."""
+    if "$ref" in schema:
+        return {}
+    if "anyOf" in schema:
+        for option in schema["anyOf"]:
+            if option.get("type") != "null":
+                return _minimal_value_for_schema(option)
+        return None
+    if "oneOf" in schema:
+        for option in schema["oneOf"]:
+            if option.get("type") != "null":
+                return _minimal_value_for_schema(option)
+        return None
+
+    schema_type = schema.get("type")
+    if schema_type == "object" or "properties" in schema:
+        props = schema.get("properties") or {}
+        required = set(schema.get("required") or [])
+        example: dict[str, Any] = {}
+        for key, sub in props.items():
+            if key in required or len(required) <= 3:
+                example[key] = _minimal_value_for_schema(sub)
+        return example
+    if schema_type == "array":
+        items = schema.get("items") or {"type": "string"}
+        return [_minimal_value_for_schema(items)]
+    if schema_type == "string":
+        if "enum" in schema and schema["enum"]:
+            return schema["enum"][0]
+        return ""
+    if schema_type == "integer":
+        return 0
+    if schema_type == "number":
+        return 0.0
+    if schema_type == "boolean":
+        return False
+    if schema_type == "null":
+        return None
+    return {}
+
+
+def _ast_is_pydantic_class(
+    class_node: ast.ClassDef,
+    module_classes: dict[str, ast.ClassDef],
+    *,
+    pydantic_index: dict[str, set[str]] | None = None,
+    current_module: str | None = None,
+) -> bool:
+    """True when *class_node* is a Pydantic ``BaseModel`` subclass (direct or indirect).
+
+    Args:
+        class_node: The AST ClassDef node to check.
+        module_classes: Dict of class name -> ClassDef node in the same module.
+        pydantic_index: Optional index from _build_pydantic_class_index for cross-module
+            indirect inheritance detection. If provided and the class is found in the index,
+            returns True immediately.
+        current_module: Optional module path for cross-module lookup in pydantic_index.
+    """
+    class_name = class_node.name
+    if pydantic_index and current_module and class_name in pydantic_index:
+        if current_module in pydantic_index[class_name]:
+            return True
+
+    for base in class_node.bases:
+        base_name = getattr(base, "id", None) or getattr(base, "attr", None)
+        if base_name == "BaseModel":
+            return True
+        if isinstance(base, ast.Name) and base.id in module_classes:
+            if _ast_is_pydantic_class(
+                module_classes[base.id],
+                module_classes,
+                pydantic_index=pydantic_index,
+                current_module=current_module,
+            ):
+                return True
+    return False
+
+
+def _module_class_index(tree: ast.Module) -> dict[str, ast.ClassDef]:
+    return {node.name: node for node in tree.body if isinstance(node, ast.ClassDef)}
+
+
+def _ast_model_schema(
+    source_dir: str, type_name: str, _visited: set[tuple[str, str]] | None = None
+) -> dict[str, Any] | None:
+    """Fallback: build object schema from ``class Name(BaseModel):`` AST."""
+    index = _build_class_index(source_dir)
+    import_module = index.get(type_name)
+    if not import_module:
+        return None
+    return _ast_model_schema_for_module(source_dir, import_module, type_name, _visited=_visited)
+
+
+def _ast_collect_pydantic_properties(
+    class_node: ast.ClassDef,
+    module_classes: dict[str, ast.ClassDef],
+    *,
+    source_dir: str,
+    module_path: str | None,
+    _visited: set[tuple[str, str]] | None = None,
+) -> tuple[dict[str, Any], list[str]]:
+    """Collect JSON Schema properties from a Pydantic class and its local bases."""
+    properties: dict[str, Any] = {}
+    required: list[str] = []
+
+    for base in class_node.bases:
+        if isinstance(base, ast.Name) and base.id in module_classes:
+            parent_props, parent_req = _ast_collect_pydantic_properties(
+                module_classes[base.id],
+                module_classes,
+                source_dir=source_dir,
+                module_path=module_path,
+                _visited=_visited,
+            )
+            properties.update(parent_props)
+            for name in parent_req:
+                if name not in required:
+                    required.append(name)
+
+    for stmt in class_node.body:
+        if isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name):
+            field_name = stmt.target.id
+            hint = ast.unparse(stmt.annotation) if stmt.annotation else "string"
+            properties[field_name] = param_to_json_schema_property(
+                type_hint=hint,
+                source_dir=source_dir,
+                fallback_json_type="string",
+                module_path=module_path,
+                _visited=_visited,
+            )
+            if stmt.value is None:
+                if field_name not in required:
+                    required.append(field_name)
+            elif field_name in required:
+                # Overriding a parent-required field with a default makes it optional.
+                required.remove(field_name)
+        elif isinstance(stmt, ast.Assign):
+            for target in stmt.targets:
+                if isinstance(target, ast.Name):
+                    field_name = target.id
+                    properties.setdefault(field_name, {"type": "string"})
+
+    return properties, required
+
+
+def _hint_to_json_type_recursive(
+    hint: str,
+    *,
+    source_dir: str,
+    module_path: str | None = None,
+    _visited: set[tuple[str, str]] | None = None,
+) -> dict[str, Any]:
+    """Convert a type hint string to a JSON Schema type definition, with recursive resolution.
+
+    Unlike _hint_to_json_type, this function will recursively resolve nested structured types
+    by calling pydantic_schema_for_type for Capitalized identifiers that aren't builtins.
+    """
+    hint = hint.strip()
+
+    if hint.startswith("Union[") or hint.startswith("Optional["):
+        inner = hint[6:-1] if hint.startswith("Union") else hint[9:-1]
+        parts = _split_top_level_commas(inner)
+        has_none = any(p.strip() == "None" for p in parts)
+        non_none_parts = [p for p in parts if p.strip() != "None"]
+        if len(non_none_parts) == 1:
+            base = _hint_to_json_type_recursive(
+                non_none_parts[0].strip(),
+                source_dir=source_dir,
+                module_path=module_path,
+                _visited=_visited,
+            )
+            if has_none:
+                base["nullable"] = True
+            return base
+        return {
+            "anyOf": [
+                _hint_to_json_type_recursive(
+                    p.strip(), source_dir=source_dir, module_path=module_path, _visited=_visited
+                )
+                for p in non_none_parts
+            ]
+        }
+
+    if hint.startswith("list[") or hint.startswith("List["):
+        inner = hint[5:-1] if hint.startswith("list") else hint[6:-1]
+        return {
+            "type": "array",
+            "items": _hint_to_json_type_recursive(
+                inner.strip(), source_dir=source_dir, module_path=module_path, _visited=_visited
+            ),
+        }
+
+    if hint.startswith("dict[") or hint.startswith("Dict["):
+        inner = hint[5:-1] if hint.startswith("dict") else hint[6:-1]
+        parts = _split_top_level_commas(inner)
+        if len(parts) >= 2:
+            value_type = _hint_to_json_type_recursive(
+                parts[1].strip(), source_dir=source_dir, module_path=module_path, _visited=_visited
+            )
+            return {"type": "object", "additionalProperties": value_type}
+        return {"type": "object"}
+
+    if hint.startswith("Literal["):
+        # Literal["a", "b"] → {"type": "string", "enum": ["a", "b"]};
+        # mirrors the Literal branch inside _BATCH_PROBE_SCRIPT.
+        inner = hint[len("Literal[") : -1]
+        parts = _split_top_level_commas(inner)
+        enum_values = []
+        for part in parts:
+            part = part.strip()
+            if part.startswith('"') and part.endswith('"'):
+                enum_values.append(part[1:-1])
+            elif part.startswith("'") and part.endswith("'"):
+                enum_values.append(part[1:-1])
+            elif part in ("True", "False"):
+                enum_values.append(part == "True")
+            elif part == "None":
+                continue
+            else:
+                try:
+                    enum_values.append(int(part))
+                except ValueError:
+                    try:
+                        enum_values.append(float(part))
+                    except ValueError:
+                        enum_values.append(part)
+        if enum_values:
+            first_val = enum_values[0]
+            if isinstance(first_val, str):
+                return {"type": "string", "enum": enum_values}
+            elif isinstance(first_val, bool):
+                return {"type": "boolean", "enum": enum_values}
+            elif isinstance(first_val, int):
+                return {"type": "integer", "enum": enum_values}
+            elif isinstance(first_val, float):
+                return {"type": "number", "enum": enum_values}
+        return {"type": "string", "enum": enum_values} if enum_values else {"type": "object"}
+
+    basic_mapping: dict[str, str] = {
+        "str": "string",
+        "int": "integer",
+        "float": "number",
+        "bool": "boolean",
+        "bytes": "string",
+        "Any": "object",
+        "None": "null",
+    }
+    if hint in basic_mapping:
+        return {"type": basic_mapping[hint]}
+
+    root_name = hint.split("[")[0].split(".")[-1].strip("'\"")
+    if (
+        root_name
+        and root_name[0].isupper()
+        and root_name not in {"Union", "Optional", "List", "Dict", "Set", "Tuple", "Any"}
+    ):
+        nested_schema = pydantic_schema_for_type(source_dir, hint, module_path=module_path, _visited=_visited)
+        if nested_schema:
+            return nested_schema
+
+    return {"type": "object"}
