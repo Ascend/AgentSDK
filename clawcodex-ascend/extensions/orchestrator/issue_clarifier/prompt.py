@@ -19,7 +19,7 @@
 # Source: https://github.com/agentforce314/clawcodex
 # ClawCodex-derived portions remain licensed under the MIT License.
 # See clawcodex-ascend/LICENSE.clawcodex.
-"""Prompt construction for F-124 issue clarity analysis."""
+"""Prompt construction for issue clarity analysis."""
 
 from __future__ import annotations
 

@@ -19,7 +19,7 @@
 # Source: https://github.com/agentforce314/clawcodex
 # ClawCodex-derived portions remain licensed under the MIT License.
 # See clawcodex-ascend/LICENSE.clawcodex.
-"""Data structures returned by the F-124 issue clarifier."""
+"""Data structures returned by the issue clarifier."""
 
 from __future__ import annotations
 
