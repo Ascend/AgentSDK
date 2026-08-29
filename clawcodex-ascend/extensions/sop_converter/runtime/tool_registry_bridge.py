@@ -886,11 +886,6 @@ _CLI_EXCLUDED_HANDLER_NAMES = frozenset(
     }
 )
 
-# --- appended from PR #726 ---
-
-# ruff: noqa
-# pylint: skip-file
-
 
 def _is_namespace_args_param(param: ParamSpec) -> bool:
     if param.name != "args":
@@ -1216,11 +1211,6 @@ _sys_module.stdin.read = _interactive_stdin_read
 _sys_module.stdin.readline = _interactive_stdin_readline
 """
 
-
-# --- appended from PR #963 ---
-
-# ruff: noqa
-# pylint: skip-file
 
 # ---------------------------------------------------------------------------
 # Wrapper script generation
@@ -1915,3 +1905,847 @@ if __name__ == "__main__":
 
     print(serialized)
 '''
+
+
+def _generate_pipeline_execute_stage_stub(op: SourceOperation, *, module_name: str) -> str:
+    """Generate a vendor-neutral workflow executor wrapper."""
+    params = [p for p in op.parameters if not p.name.startswith("*")]
+    signature: list[str] = []
+    for param in params:
+        if param.required or param.default is None:
+            signature.append(param.name)
+        else:
+            signature.append(f"{param.name}={param.default!r}")
+    params_str = ", ".join(signature)
+    return_type = f" -> {op.return_type}" if op.return_type else ""
+    docstring = op.description.replace('"', '\\"') if op.description else op.name
+    values = ", ".join(f"{param.name!r}: {param.name}" for param in params)
+    return (
+        f"def {op.name}({params_str}){return_type}:\n"
+        f'    """{docstring}"""\n'
+        "    from pathlib import Path\n"
+        "    import asyncio\n"
+        "    import inspect\n"
+        f'    module = importlib.import_module({module_name!r})\n'
+        f'    function = getattr(module, {op.name!r})\n'
+        f"    values = {{{values}}}\n"
+        "    parameters = inspect.signature(function).parameters\n"
+        "    for name, value in list(values.items()):\n"
+        "        if name in {'run_dir', 'project_dir', 'workspace', 'work_dir', 'stage_dir'} and isinstance(value, str):\n"
+        "            values[name] = Path(value)\n"
+        "    for name in {'stage', 'stage_id', 'step', 'step_id', 'phase', 'phase_id'}:\n"
+        "        value = values.get(name)\n"
+        "        annotation = parameters.get(name).annotation if name in parameters else None\n"
+        "        members = getattr(annotation, '__members__', None)\n"
+        "        if isinstance(value, str) and members:\n"
+        "            key = value.upper().replace('-', '_').replace(' ', '_')\n"
+        "            values[name] = members.get(key, value)\n"
+        "    selected = {name: value for name, value in values.items() if name in parameters}\n"
+        "    _original_argv = sys.argv\n"
+        "    sys.argv = [sys.argv[0]]\n"
+        "    try:\n"
+        "        result = function(**selected)\n"
+        "        return asyncio.run(result) if inspect.isawaitable(result) else result\n"
+        "    finally:\n"
+        "        sys.argv = _original_argv"
+    )
+
+
+def _model_coerce_expression(
+    param_name: str,
+    type_name: str,
+    source_dir: str,
+    module_path: str | None = None,
+) -> tuple[str | None, tuple[str, str] | None]:
+    """Build ``param if isinstance(param, Model) else Model(**param)`` for a model type.
+
+    Returns ``(expression, (module_path, class_name))`` when *type_name* resolves to a
+    Pydantic BaseModel or dataclass under *source_dir*.  Otherwise returns
+    ``(None, None)``.
+
+    If *module_path* is provided, the type is first resolved through that module's
+    import aliases so that names like ``ReActAgentConfig`` map to the class actually
+    imported by the wrapped function rather than whichever class happens to be
+    indexed first by name.
+    """
+    info: tuple[str, str] | None = None
+    if module_path:
+        try:
+            info = ModuleImportIndex(source_dir).resolve_import_path(module_path, type_name)
+        except Exception:
+            info = None
+    if info is None:
+        resolved = get_model_class_info(source_dir, type_name, module_path=module_path)
+        if resolved is None:
+            return None, None
+        module_path, class_name, _kind = resolved
+        info = module_path, class_name
+
+    class_name = info[1]
+    expr = f"_coerce_sdk_type({class_name}, {param_name})"
+    return expr, info
+
+
+def _coerce_param_expression(
+    param_name: str,
+    type_hint: str | None,
+    source_dir: str,
+    module_path: str | None = None,
+) -> tuple[str | None, set[tuple[str, str]]]:
+    """Return an expression that coerces JSON-decoded *param_name* to its SDK type.
+
+    The generated wrapper scripts receive all arguments as plain JSON values.  When a
+    parameter is annotated with a Pydantic BaseModel or dataclass, the SDK method
+    expects an instance, not a dict.  This helper produces a runtime expression that
+    converts ``dict -> Model`` (and ``list[dict] -> list[Model]``) while leaving
+    already-correct instances untouched.
+
+    Returns
+    -------
+    expression : str | None
+        A Python expression to use in place of *param_name*, or None when no coercion
+        is needed or possible.
+    imports : set[tuple[str, str]]
+        Set of ``(module_path, class_name)`` imports that must be added to the wrapper
+        script for the expression to compile.
+    """
+    if param_name == "inputs" and _is_loose_mapping_inputs_type_hint(type_hint):
+        return f"_normalize_mapping_inputs({param_name})", set()
+
+    if not type_hint:
+        return None, set()
+
+    cleaned = type_hint.strip()
+    if not cleaned or cleaned in ("Any", "object"):
+        return None, set()
+
+    # Check if type is optional by looking for None in the original hint.
+    has_none = "None" in cleaned or "NoneType" in cleaned
+
+    # Strip Optional / Union wrappers, ignoring None.
+    all_parts = split_union(cleaned)
+    union_parts = [p for p in all_parts if p not in ("None", "NoneType")]
+
+    # Optional[T] with a single non-None member -> treat as T, then guard with None.
+    is_optional = has_none and len(union_parts) >= 1
+    inner_hint = union_parts[0] if len(union_parts) == 1 else cleaned
+
+    # Container types: list[Model], List[Model], Sequence[Model], Iterable[Model].
+    container_match = re.match(
+        r"^(?:list|List|Sequence|sequence|Iterable|iterable|Set|set|FrozenSet|frozenset)\[(.+)]$",
+        inner_hint.strip(),
+    )
+    if container_match:
+        element_hint = container_match.group(1).strip()
+        element_expr, element_imports = _coerce_param_expression(
+            "__item", element_hint, source_dir, module_path=module_path
+        )
+        if element_expr:
+            item_expr = element_expr.replace("__item", "__item")
+            # Use a list-comprehension guard: coerce each dict element.
+            if is_optional:
+                expr = f"[{item_expr} for __item in {param_name}] if {param_name} is not None else None"
+            else:
+                expr = f"[{item_expr} for __item in ({param_name} or [])]"
+            return expr, element_imports
+        return None, set()
+
+    if _is_dict_type_hint(inner_hint):
+        expr = f"_coerce_mapping_value({param_name})"
+        if is_optional:
+            expr = f"None if {param_name} is None else ({expr})"
+        return expr, set()
+
+    # Plain model type.
+    type_name = type_root(inner_hint)
+    if not type_name or type_name in (
+        "str",
+        "int",
+        "float",
+        "bool",
+        "dict",
+        "list",
+        "tuple",
+        "set",
+        "Dict",
+        "Mapping",
+        "Any",
+        "Path",
+        "object",
+        "None",
+        "NoneType",
+    ):
+        return None, set()
+
+    # Special handling for ABC types that require factory functions:
+    # Messager and TeamDatabase cannot be instantiated directly via cls(**dict)
+    if type_name == "Messager":
+        expr = f"_coerce_messager({param_name}, team_name=team_name)"
+        if is_optional:
+            expr = f"None if {param_name} is None else ({expr})"
+        return expr, set()
+
+    if type_name == "TeamDatabase":
+        expr = f"_coerce_team_database({param_name})"
+        if is_optional:
+            expr = f"None if {param_name} is None else ({expr})"
+        return expr, set()
+
+    expr, import_info = _model_coerce_expression(param_name, type_name, source_dir, module_path=module_path)
+    if expr is None:
+        return None, set()
+
+    if is_optional:
+        expr = f"None if {param_name} is None else ({expr})"
+
+    imports = {import_info} if import_info else set()
+    return expr, imports
+
+
+def _build_coerced_kwargs(
+    params: list[ParamSpec],
+    source_dir: str,
+    module_path: str | None = None,
+) -> tuple[str, set[tuple[str, str]]]:
+    """Build ``name=value,`` kwargs with Pydantic/dataclass coercion.
+
+    Returns the kwargs block and any model imports required by coercion
+    expressions.
+    """
+    lines: list[str] = []
+    imports: set[tuple[str, str]] = set()
+    for p in params:
+        if p.name.startswith("*"):
+            continue
+        expr, param_imports = _coerce_param_expression(p.name, p.type_hint, source_dir, module_path=module_path)
+        if expr:
+            lines.append(f"        {p.name}={expr},\n")
+            imports.update(param_imports)
+        else:
+            lines.append(f"        {p.name}={p.name},\n")
+    return "".join(lines), imports
+
+
+def _build_coerced_pass_list(
+    params: list[ParamSpec],
+    source_dir: str,
+    module_path: str | None = None,
+) -> tuple[str, set[tuple[str, str]]]:
+    """Build ``name=value`` pass-through for _get_instance init args.
+
+    Class ``__init__`` parameters are exposed on the stub signature; this
+    produces the keyword arguments passed to ``_get_instance`` with coercion.
+    """
+    parts: list[str] = []
+    imports: set[tuple[str, str]] = set()
+    for p in _skip_variadic_params(params):
+        expr, param_imports = _coerce_param_expression(p.name, p.type_hint, source_dir, module_path=module_path)
+        if expr:
+            parts.append(f"{p.name}={expr}")
+            imports.update(param_imports)
+        else:
+            parts.append(f"{p.name}={p.name}")
+    return ", ".join(parts), imports
+
+
+def _generate_method_stub(
+    op: SourceOperation,
+    *,
+    is_class_method: bool,
+    module_name: str,
+    init_params: list[ParamSpec] | None = None,
+    source_dir: str = "",
+) -> tuple[str, set[tuple[str, str]]]:
+    """Generate a method stub for a single SourceOperation.
+
+    Args:
+        op: The parsed source operation.
+        is_class_method: True if this is a class method (needs _get_instance).
+        module_name: Dotted Python module path.
+        init_params: Required ``__init__`` parameters for the owning class.
+        source_dir: Absolute source root used to resolve Pydantic/dataclass
+            parameter types for runtime coercion.
+
+    Returns:
+        (body_lines, required_model_imports)
+    """
+    imports: set[tuple[str, str]] = set()
+
+    argv_guard = "    _original_argv = sys.argv\n    sys.argv = [sys.argv[0]]\n    try:\n"
+    argv_restore = "    finally:\n        sys.argv = _original_argv"
+
+    if op.is_property:
+        return_type = f" -> {op.return_type}" if op.return_type else ""
+        docstring = op.description.replace('"', '\\"') if op.description else op.name
+        if is_class_method:
+            init_pass, init_imports = _build_coerced_pass_list(init_params or [], source_dir, module_path=module_name)
+            imports.update(init_imports)
+            init_kw_names = [p.name for p in _skip_variadic_params(init_params or [])]
+            if init_kw_names:
+                params_str = ", ".join(f"{name}=None" for name in init_kw_names)
+                get_instance_call = (
+                    f'_get_instance("{op.class_name}", "{module_name}"' + (f", {init_pass}" if init_pass else "") + ")"
+                )
+            else:
+                params_str = ""
+                get_instance_call = f'_get_instance("{op.class_name}", "{module_name}")'
+            inner_call = f"{get_instance_call}.{op.name}"
+            return (
+                f"def {op.name}({params_str}){return_type}:\n"
+                f'    """{docstring}"""\n'
+                f"{argv_guard}"
+                f"        return {inner_call}\n"
+                f"{argv_restore}"
+            ), imports
+        inner_call = f'getattr(importlib.import_module("{module_name}"), "{op.name}")'
+        return (
+            f"def {op.name}(){return_type}:\n"
+            f'    """{docstring}"""\n'
+            f"{argv_guard}"
+            f"        return {inner_call}\n"
+            f"{argv_restore}"
+        ), imports
+
+    effective_params = (
+        _merge_init_and_method_params(init_params or [], op.parameters)
+        if is_class_method
+        else _sort_params_for_python_signature(op.parameters)
+    )
+    param_parts = _param_signature_parts(effective_params)
+    params_str = ", ".join(param_parts)
+
+    return_type = f" -> {op.return_type}" if op.return_type else ""
+
+    docstring = op.description.replace('"', '\\"') if op.description else op.name
+
+    call_kwargs, call_imports = _build_coerced_kwargs(op.parameters, source_dir, module_path=module_name)
+    imports.update(call_imports)
+
+    if is_class_method:
+        init_pass, init_imports = _build_coerced_pass_list(init_params or [], source_dir, module_path=module_name)
+        imports.update(init_imports)
+        get_instance_call = f'_get_instance("{op.class_name}", "{module_name}"'
+        if init_pass:
+            get_instance_call += f", {init_pass}"
+        get_instance_call += ")"
+        inner_call = f"{get_instance_call}.{op.name}(\n{call_kwargs}    )"
+    elif op.is_factory:
+        factory_params, factory_imports = _build_coerced_pass_list(op.parameters, source_dir, module_path=module_name)
+        imports.update(factory_imports)
+        get_instance_call = f'_get_instance("{op.name}", "{module_name}"'
+        if factory_params:
+            get_instance_call += f", {factory_params}"
+        get_instance_call += ")"
+        inner_call = get_instance_call
+    else:
+        inner_call = f"module.{op.name}(\n{call_kwargs}    )"
+
+    if op.is_async_generator:
+        if is_class_method or op.is_factory:
+            body_lines = (
+                f"def {op.name}({params_str}){return_type}:\n"
+                f'    """{docstring}"""\n'
+                f"{argv_guard}"
+                f"        return _run_async_iter(lambda: {inner_call})\n"
+                f"{argv_restore}"
+            )
+        else:
+            body_lines = (
+                f"def {op.name}({params_str}){return_type}:\n"
+                f'    """{docstring}"""\n'
+                f'    module = importlib.import_module("{module_name}")\n'
+                f"{argv_guard}"
+                f"        return _run_async_iter(lambda: {inner_call})\n"
+                f"{argv_restore}"
+            )
+        return body_lines, imports
+
+    async_prefix = "asyncio.run(" if op.is_async else ""
+    async_suffix = ")" if op.is_async else ""
+
+    if is_class_method:
+        body_lines = (
+            f"def {op.name}({params_str}){return_type}:\n"
+            f'    """{docstring}"""\n'
+            f"{argv_guard}"
+            f"        return {async_prefix}{inner_call}{async_suffix}\n"
+            f"{argv_restore}"
+        )
+    elif op.is_factory:
+        body_lines = (
+            f"def {op.name}({params_str}){return_type}:\n"
+            f'    """{docstring}"""\n'
+            f"{argv_guard}"
+            f"        instance = {async_prefix}{inner_call}{async_suffix}\n"
+            f"        return _serialize_factory_result(instance)\n"
+            f"{argv_restore}"
+        )
+    else:
+        body_lines = (
+            f"def {op.name}({params_str}){return_type}:\n"
+            f'    """{docstring}"""\n'
+            f'    module = importlib.import_module("{module_name}")\n'
+            f"{argv_guard}"
+            f"        return {async_prefix}{inner_call}{async_suffix}\n"
+            f"{argv_restore}"
+        )
+    return body_lines, imports
+
+
+def _generate_wrapper_script(
+    ops: list[SourceOperation],
+    *,
+    class_name: str | None,
+    module_name: str,
+    file_stem: str,
+    source_dir: str,
+    scripts_dir: Path | None = None,
+    init_params: list[ParamSpec] | None = None,
+    cli_dispatch_map: dict[str, str] | None = None,
+    cli_prefix_override: str | None = None,
+    repo_root: str = "",
+    bundle_dir: str | Path | None = None,
+    bundle_venv_python: str | None = None,
+    sdk_requirements: tuple[str, ...] = (),
+) -> Path:
+    """Generate a wrapper script for a group of related operations.
+
+    All operations sharing the same *class_name* (or *file_stem* for standalone
+    functions) are written into one script so that the class is instantiated
+    only once per process.
+
+    Args:
+        ops: Operations to include in this script.
+        class_name: The owning class name, or None for standalone functions.
+        module_name: Dotted Python import path for the module.
+        file_stem: The source file stem (used when class_name is None).
+        source_dir: Absolute path to the source root (injected into sys.path).
+
+    Returns:
+        Path to the generated script file.
+    """
+    # Determine script filename
+    if class_name:
+        script_name = _script_name_for_class(module_name, class_name)
+        header_label = f"{class_name} ({module_name})"
+    else:
+        script_name = _script_name_for_functions(module_name, file_stem)
+        header_label = f"{file_stem} functions ({module_name})"
+
+    script_path = (scripts_dir or SCRIPTS_DIR) / script_name
+    script_path.parent.mkdir(parents=True, exist_ok=True)
+
+    source_file = resolve_source_file(source_dir, module_name)
+    if cli_dispatch_map is not None:
+        dispatch_map = cli_dispatch_map
+    elif file_stem == "cli":
+        dispatch_map = _parse_cli_dispatch_map(source_file)
+    else:
+        dispatch_map = {}
+    use_cli_subprocess = class_name is None and any(_is_cli_handler_op(op, dispatch_map) for op in ops)
+    cli_prefix_line = ""
+    if use_cli_subprocess:
+        prefix = _resolve_cli_argv_prefix(
+            source_dir,
+            source_file,
+            cli_prefix_override=cli_prefix_override,
+        )
+        cli_prefix_line = f"CLI_PREFIX: list[str] = {prefix!r}"
+
+    # Build body: helper(s) + method stubs
+    body_parts: list[str] = []
+    model_imports: set[tuple[str, str]] = set()
+
+    has_factory_ops = any(op.is_factory for op in ops)
+    if class_name or has_factory_ops:
+        if has_factory_ops and not class_name:
+            factory_op = next(op for op in ops if op.is_factory)
+            factory_params = _skip_variadic_params(factory_op.parameters)
+            body_parts.append(_generate_get_instance_helper(factory_params))
+        else:
+            body_parts.append(_generate_get_instance_helper(init_params))
+
+    # Sort operations by name for deterministic output
+    for op in sorted(ops, key=lambda o: o.name):
+        body_parts.append("")
+        subcommand = dispatch_map.get(op.name)
+        if subcommand and _is_cli_handler_op(op, dispatch_map):
+            body_parts.append(_generate_cli_handler_stub(op, subcommand=subcommand))
+        elif _is_cli_main_op(op, source_dir, module_name):
+            body_parts.append(_generate_cli_main_stub(op))
+        elif _is_workflow_execute_operation(op) and class_name is None:
+            body_parts.append(_generate_pipeline_execute_stage_stub(op, module_name=module_name))
+        else:
+            stub_body, stub_imports = _generate_method_stub(
+                op,
+                is_class_method=class_name is not None,
+                module_name=module_name,
+                init_params=init_params if class_name is not None else None,
+                source_dir=source_dir,
+            )
+            body_parts.append(stub_body)
+            model_imports.update(stub_imports)
+
+    runtime_symbols = _collect_runtime_symbols(ops, init_params)
+    import_map = _parse_import_map(source_file, module_name)
+    extra_imports = _format_wrapper_imports(runtime_symbols, import_map, module_name)
+
+    # Pydantic/dataclass imports must load after sys.path is seeded.
+    # Some SDK directories contain hyphens (e.g. "agent-perf-analyzer"),
+    # which are invalid in Python ``from X import Y`` statements.
+    # For those we generate ``importlib.import_module()`` attribute access.
+    if model_imports:
+        _import_lines: list[str] = []
+        for module_path, model_class in sorted(model_imports):
+            if _module_path_needs_importlib(module_path):
+                _import_lines.append(f'{model_class} = importlib.import_module("{module_path}").{model_class}')
+            else:
+                _import_lines.append(f"from {module_path} import {model_class}")
+        model_import_block = "\n".join(_import_lines)
+        model_import_block = f"\n{model_import_block}\n"
+    else:
+        model_import_block = ""
+
+    if extra_imports:
+        extra_imports = f"\n{extra_imports}\n"
+
+    extra_sys_path_entries = infer_extra_sys_path_entries(source_dir, module_name)
+    extra_sys_path_inserts = format_extra_sys_path_inserts(
+        extra_sys_path_entries,
+        normalizer="_normalize_bootstrap_path",
+    )
+    module_dir = _resolve_module_working_dir(source_dir, module_name)
+
+    body_text = "\n".join(body_parts)
+    extra_coercion = ""
+    if "_coerce_team_database" in body_text:
+        extra_coercion += "\n" + WRAPPER_TEAM_DATABASE_COERCION
+    if "_coerce_messager" in body_text:
+        extra_coercion += "\n" + WRAPPER_MESSAGER_COERCION
+
+    interactive_input_preamble = _generate_interactive_input_preamble(ops)
+
+    content = _WRAPPER_SCRIPT_TEMPLATE.format(
+        header_label=header_label,
+        source_dir=source_dir,
+        bundle_dir=str(Path(bundle_dir).resolve()) if bundle_dir is not None else "",
+        bundle_venv_python=bundle_venv_python or "",
+        sdk_requirements_repr=repr(tuple(sdk_requirements)),
+        module_dir=module_dir,
+        source_file=str(source_file.resolve()),
+        repo_root=repo_root,
+        cli_prefix=cli_prefix_line,
+        extra_sys_path_inserts=extra_sys_path_inserts,
+        extra_imports=extra_imports,
+        model_imports=model_import_block,
+        serialization_helpers=WRAPPER_SERIALIZATION_HELPERS,
+        coercion_helpers=WRAPPER_COERCION_HELPERS + extra_coercion,
+        body=body_text,
+        script_name=script_name,
+        interactive_input_preamble=interactive_input_preamble,
+    )
+
+    script_path.write_text(content, encoding="utf-8")
+    try:
+        compile(content, str(script_path), "exec")
+    except SyntaxError as exc:
+        # Save failing content for debugging before deleting the .py file
+        failed_path = script_path.with_suffix(script_path.suffix + ".failed")
+        failed_path.write_text(content, encoding="utf-8")
+        logger.warning("Saved failing wrapper content to %s", failed_path)
+        script_path.unlink(missing_ok=True)
+        raise RuntimeError(f"Generated wrapper failed syntax check: {script_path}: {exc}") from exc
+    logger.info("Generated wrapper script: %s (%d methods)", script_path, len(ops))
+    return script_path
+
+
+# ---------------------------------------------------------------------------
+# Bridge params — json_args injection
+# ---------------------------------------------------------------------------
+
+
+def _enrich_bridge_params(params: dict[str, Any]) -> dict[str, Any]:
+    """Return a copy of *params* with ``json_args`` injected.
+
+    The generated wrapper scripts accept a single JSON blob as their second
+    argument (``sys.argv[2]``).  This helper serialises the tool-call input
+    dict into that blob so the ``call_impl`` template placeholder
+    ``{json_args}`` is always satisfied, even for parameterless functions
+    where *params* is empty.
+    """
+    return {**params, "json_args": json.dumps(params, ensure_ascii=False)}
+
+
+# ---------------------------------------------------------------------------
+# Spec generation
+# ---------------------------------------------------------------------------
+
+
+def _annotate_env_reference_schema(value: Any, *, property_name: str = "") -> None:
+    """Document the explicit, safe environment-reference contract in schemas."""
+    if isinstance(value, dict):
+        if property_name.lower() in {"api_key", "apikey", "access_token"}:
+            note = (
+                "Use a literal value or an explicit environment reference such as "
+                "env:DEEPSEEK_API_KEY. Environment references are resolved only "
+                "at tool runtime and are never returned in plaintext."
+            )
+            existing = str(value.get("description") or "").strip()
+            value["description"] = f"{existing} {note}".strip()
+        for key, child in value.items():
+            _annotate_env_reference_schema(child, property_name=str(key))
+    elif isinstance(value, list):
+        for child in value:
+            _annotate_env_reference_schema(child, property_name=property_name)
+
+
+def operation_to_spec(
+    op: SourceOperation,
+    *,
+    source_dir: str,
+    script_path: str,
+    comp_name: str = "",
+    bundle_id: str | None = None,
+    init_params: list[ParamSpec] | None = None,
+    cli_subcommand: str | None = None,
+    cli_main: bool = False,
+    tool_deps: ToolOperationDeps | None = None,
+    module_path: str | None = None,
+) -> Any:
+    """Convert a single SourceOperation into an AgentToolSpec.
+
+    Args:
+        op: The parsed source operation.
+        source_dir: Absolute path to the source root (unused here but kept
+            for API consistency — the path is embedded in the wrapper script).
+        script_path: Absolute path to the generated wrapper script.
+        comp_name: SourceComponent name for the primary naming prefix
+            (e.g. ``"agent_teams"``).  Falls back to *file_stem* or
+            *class_name* when empty.
+
+    Returns:
+        A validated ``AgentToolSpec`` ready for persistence.
+    """
+    # Compute kebab-case tool name.
+    # All names are namespace-qualified to guarantee global uniqueness:
+    #   Class method  → {comp}.{class}.{method}  (or {class}.{method} when
+    #                    comp_name is unavailable — legacy SDK path).
+    #   Standalone fn → {comp}.{method}
+    #   Fallback      → {file_stem}.{method} or bare {method}
+    if op.class_name:
+        if comp_name:
+            raw_name = f"{comp_name}.{op.class_name}.{op.name}"
+        else:
+            raw_name = f"{op.class_name}.{op.name}"
+    elif comp_name:
+        raw_name = f"{comp_name}.{op.name}"
+    elif op.file_stem:
+        raw_name = f"{op.file_stem}.{op.name}"
+    else:
+        raw_name = op.name
+
+    tool_name = _to_kebab_case(raw_name)
+
+    # Build JSON Schema properties (merge class ``__init__`` params for class methods).
+    if cli_subcommand:
+        properties = {
+            "args": {
+                "type": "string",
+                "description": (
+                    f"CLI arguments after the '{cli_subcommand}' subcommand "
+                    f"(flags and positional args, excluding '{cli_subcommand}' itself)."
+                ),
+            }
+        }
+        required = ["args"]
+    elif cli_main:
+        properties = {
+            "args": {
+                "type": "string",
+                "description": (
+                    "CLI arguments passed to the entry point.  Include all flags "
+                    "and positional arguments exactly as they would appear on "
+                    "the command line (e.g. '--project myapp --generate-questions')."
+                ),
+            }
+        }
+        required = ["args"]
+    else:
+        # property ops (e.g. DeepAgent.loop_coordinator) carry no method
+        # params themselves but MUST expose the owning class's __init__ params
+        # (e.g. ``card``) so the agent knows to supply them at call time.
+        schema_params = (
+            _merge_init_and_method_params(init_params or [], op.parameters) if op.class_name else op.parameters
+        )
+        properties = {}
+        required = []
+
+        for param in schema_params:
+            # Skip *args and **kwargs
+            if param.name.startswith("*"):
+                continue
+
+            json_type = _type_hint_to_json_type(param.type_hint)
+            prop = param_to_json_schema_property(
+                type_hint=param.type_hint,
+                description=param.description,
+                source_dir=source_dir,
+                fallback_json_type=json_type,
+                module_path=module_path,
+            )
+            if param.default is not None:
+                prop["default"] = _normalize_schema_default(
+                    param.default,
+                    json_type=prop.get("type", json_type),
+                )
+
+            properties[param.name] = prop
+
+            if param.required and param.default is None:
+                required.append(param.name)
+
+        _adjust_pipeline_execute_stage_schema(op, properties, required)
+
+    # ponytail: always include __interactive_inputs for CLI entrypoints
+    # (cli_main=True / cli_subcommand not None) because they run as subprocesses
+    # and the shallow AST detector can miss input() calls delegated to helpers.
+    if op.requires_interactive_input or cli_main or cli_subcommand:
+        properties["__interactive_inputs"] = {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": (
+                "List of values for interactive input prompts (input()/getpass.getpass()). "
+                f"Detected prompts: {op.interactive_prompts}. "
+                "Provide values in the order they appear in the code. "
+                "Alternatively, set environment variables matching the prompt text in uppercase."
+            ),
+        }
+
+    input_schema: dict[str, Any] = {
+        "type": "object",
+        "properties": properties,
+    }
+    if required:
+        input_schema["required"] = required
+
+    _annotate_env_reference_schema(input_schema)
+    input_schema = enrich_input_schema_with_dependencies(input_schema, tool_deps)
+
+    # Build call_impl template — uses absolute script path, which is baked into
+    # the spec at generation time.  If the bundle is later moved to another
+    # machine / absolute path, persisted specs will point at a script that no
+    # longer exists — re-run convert (or rewrite the path) after migration.
+    # {json_args} is a special placeholder resolved by _enrich_bridge_params()
+    # at call time (NOT by the generic execute_bash).  Single-quoted so the
+    # shell treats the JSON blob as one token even when it is "{}".
+    call_impl = f"python3 \"{script_path}\" {op.name} '{{json_args}}'"
+
+    # Build aliases so resolve_agent_tools() can find the tool under
+    # alternative names.
+    #
+    # Every alias is component-scoped when a component name is
+    # available.  Class methods ONLY get the fully-qualified
+    # {comp}.{class}.{method} alias — the bare {comp}.{method} form
+    # is reserved for standalone functions, avoiding collisions when
+    # the same method name appears as both a class method and a
+    # standalone function within the same component.
+    alias_list: list[str] = []
+    if comp_name:
+        if op.class_name:
+            # Class method: only the fully-qualified alias is unique.
+            alias_list.append(f"{comp_name}.{op.class_name}.{op.name}")
+        else:
+            # Standalone function: {comp}.{method} is unambiguous.
+            alias_list.append(f"{comp_name}.{op.name}")
+    else:
+        # Legacy SDK path: no component to scope against.
+        alias_list.append(raw_name)
+
+    # ------------------------------------------------------------------
+    # Short-name suffix aliases (strip the project-root namespace).
+    #
+    # When *comp_name* is multi-segment (e.g. "openjiuwen.agent_teams"),
+    # the first segment is the project-level namespace (derived from the
+    # top-level directory under *source_dir*).  Runtimes built *within*
+    # that project typically reference tools without this prefix
+    # (e.g. "agent_teams.get_session_id") — they operate at module scope.
+    #
+    # We generate an extra set of aliases that drop the first segment,
+    # so resolve_agent_tools() can find the tool by its short name
+    # through the normal exact-match path:
+    #     "agent_teams.get_session_id" → exact match → alias hit ✅
+    #
+    # Only the first segment is stripped — deeper projects can extend
+    # this pattern if needed, but one level covers the common case
+    # without introducing ambiguous short aliases.
+    if comp_name and "." in comp_name:
+        _short_comp = comp_name.split(".", 1)[1]  # strip first segment
+        if op.class_name:
+            alias_list.append(f"{_short_comp}.{op.class_name}.{op.name}")
+        else:
+            alias_list.append(f"{_short_comp}.{op.name}")
+
+    aliases = tuple(alias_list)
+    tags = generate_search_tags(op, comp_name=comp_name)
+
+    # Docstring only — dependency edges live in input_schema.x-sop-dependencies
+    # and ORCHESTRATION_ROUTES.md, not in ToolSearch-visible description/tags.
+    description = op.description or op.name
+
+    return DEFAULTS.tool_authoring.create_spec(
+        name=tool_name,
+        description=description,
+        input_schema=input_schema,
+        call_type="bash",
+        call_impl=call_impl,
+        tags=tags,
+        aliases=aliases,
+        source="sop-converter",
+        bundle_id=bundle_id,
+        stateful_wrapper=True,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Bulk registration
+# ---------------------------------------------------------------------------
+
+
+def _binding_for_operation(
+    bindings: list[ResourceBinding],
+    comp: SourceComponent,
+    op: SourceOperation,
+    *,
+    role: str,
+) -> ResourceBinding | None:
+    references = [
+        op.name,
+        _to_kebab_case(op.name),
+        f"{comp.name}.{op.name}",
+        _to_kebab_case(f"{comp.name}.{op.name}"),
+    ]
+    if op.class_name:
+        references.extend(
+            [
+                f"{op.class_name}.{op.name}",
+                f"{comp.name}.{op.class_name}.{op.name}",
+                _to_kebab_case(f"{comp.name}.{op.class_name}.{op.name}"),
+            ]
+        )
+    for binding in bindings:
+        matches = binding.matches_create if role == "create" else binding.matches_invoke
+        if matches(*references):
+            return binding
+    return None
+
+
+def _operation_tool_name(comp: SourceComponent, op: SourceOperation) -> str:
+    if op.class_name:
+        raw_name = f"{comp.name}.{op.class_name}.{op.name}" if comp.name else f"{op.class_name}.{op.name}"
+    elif comp.name:
+        raw_name = f"{comp.name}.{op.name}"
+    elif op.file_stem:
+        raw_name = f"{op.file_stem}.{op.name}"
+    else:
+        raw_name = op.name
+    return _to_kebab_case(raw_name)
