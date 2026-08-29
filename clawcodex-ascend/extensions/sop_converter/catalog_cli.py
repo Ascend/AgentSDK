@@ -189,8 +189,25 @@ def _emit(payload: Any, *, as_json: bool) -> int:
     if as_json:
         print(json.dumps(payload, indent=2, ensure_ascii=False))
     else:
-        print(json.dumps(payload, indent=2, ensure_ascii=False))
+        _print_human_readable(payload)
     return 0
+
+
+def _print_human_readable(payload: Any) -> None:
+    """Render a catalog record/list as simple ``key: value`` lines."""
+    if isinstance(payload, list):
+        for index, item in enumerate(payload):
+            if index:
+                print()
+            _print_human_readable(item)
+    elif isinstance(payload, dict):
+        for key, value in payload.items():
+            if isinstance(value, (dict, list)):
+                print(f"{key}: {json.dumps(value, ensure_ascii=False)}")
+            else:
+                print(f"{key}: {value}")
+    else:
+        print(payload)
 
 
 def _locations_for_scope(
