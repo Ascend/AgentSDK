@@ -885,3 +885,333 @@ _CLI_EXCLUDED_HANDLER_NAMES = frozenset(
         "build_parser",
     }
 )
+
+# --- appended from PR #726 ---
+
+# ruff: noqa
+# pylint: skip-file
+
+
+def _is_namespace_args_param(param: ParamSpec) -> bool:
+    if param.name != "args":
+        return False
+    if not param.type_hint:
+        return False
+    return "Namespace" in param.type_hint
+
+
+def _is_cli_handler_op(op: SourceOperation, dispatch_map: dict[str, str]) -> bool:
+    """True when *op* should run via CLI subprocess instead of importlib."""
+    if op.class_name is not None:
+        return False
+    if op.name in _CLI_EXCLUDED_HANDLER_NAMES:
+        return False
+    if op.name not in dispatch_map:
+        return False
+    if op.name.startswith("cmd_"):
+        return True
+    return any(_is_namespace_args_param(p) for p in op.parameters)
+
+
+def _source_file_uses_argparse(source_file: Path) -> bool:
+    """True when *source_file* contains ``argparse.add_argument`` calls."""
+    if not source_file.is_file():
+        return False
+    try:
+        tree = ast.parse(source_file.read_text(encoding="utf-8"))
+    except (OSError, SyntaxError, UnicodeDecodeError):
+        return False
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+            if node.func.attr == "add_argument":
+                return True
+    return False
+
+
+def _is_cli_main_op(
+    op: SourceOperation,
+    source_dir: str,
+    module_name: str,
+) -> bool:
+    """True when *op* is a CLI main entry point — a parameterless standalone
+    function whose source file uses argparse to read from ``sys.argv``.
+
+    These functions cannot be called via importlib because their input comes
+    from ``sys.argv``, not from Python parameters.  They need subprocess mode
+    so that CLI arguments are passed on the real command line.
+    """
+    if op.class_name is not None:
+        return False
+    if op.parameters:
+        return False
+    if op.name in _CLI_EXCLUDED_HANDLER_NAMES:
+        return False
+    source_file = resolve_source_file(source_dir, module_name)
+    return _source_file_uses_argparse(source_file)
+
+
+def _extract_command_literal(test: ast.AST) -> str | None:
+    """Extract subcommand from ``command == "foo"`` in ``main()`` dispatch."""
+    if not isinstance(test, ast.Compare) or len(test.ops) != 1:
+        return None
+    if not isinstance(test.ops[0], (ast.Eq, ast.Is)):
+        return None
+    left, right = test.left, test.comparators[0]
+    if isinstance(left, ast.Name) and left.id == "command":
+        if isinstance(right, ast.Constant) and isinstance(right.value, str):
+            return right.value
+    return None
+
+
+def _extract_cmd_handler_from_body(body: list[ast.stmt]) -> str | None:
+    for stmt in body:
+        if not isinstance(stmt, ast.Return) or stmt.value is None:
+            continue
+        value = stmt.value
+        if isinstance(value, ast.Call) and isinstance(value.func, ast.Name):
+            name = value.func.id
+            if name.startswith("cmd_"):
+                return name
+    return None
+
+
+def _walk_command_dispatch(node: ast.stmt, dispatch: dict[str, str]) -> None:
+    if not isinstance(node, ast.If):
+        return
+    subcommand = _extract_command_literal(node.test)
+    handler = _extract_cmd_handler_from_body(node.body)
+    if subcommand and handler:
+        dispatch[handler] = subcommand
+    if not node.orelse:
+        return
+    if len(node.orelse) == 1 and isinstance(node.orelse[0], ast.If):
+        _walk_command_dispatch(node.orelse[0], dispatch)
+        return
+    for child in node.orelse:
+        _walk_command_dispatch(child, dispatch)
+
+
+def _parse_cli_dispatch_map(source_file: Path) -> dict[str, str]:
+    """Map ``cmd_*`` handler names to CLI subcommand strings from ``main()``."""
+    if not source_file.is_file():
+        return {}
+    try:
+        tree = ast.parse(source_file.read_text(encoding="utf-8"))
+    except (OSError, SyntaxError, UnicodeDecodeError) as exc:
+        logger.debug("Cannot parse CLI dispatch from %s: %s", source_file, exc)
+        return {}
+
+    dispatch: dict[str, str] = {}
+    for node in tree.body:
+        if isinstance(node, ast.FunctionDef) and node.name == "main":
+            for stmt in node.body:
+                _walk_command_dispatch(stmt, dispatch)
+    return dispatch
+
+
+def _resolve_cli_argv_prefix(
+    source_dir: str,
+    source_file: Path,
+    *,
+    cli_prefix_override: str | None = None,
+) -> list[str]:
+    """CLI argv prefix for subprocess dispatch (reuses CLI discovery)."""
+    from extensions.sop_converter.workflow_mode.bridge.cli_discovery import (
+        discover_cli_prefix,
+        split_cli_prefix,
+    )
+
+    project_name = Path(source_dir).name
+    discovered = discover_cli_prefix(
+        Path(source_dir),
+        project_name,
+        override=cli_prefix_override,
+    )
+    if discovered:
+        prefix = split_cli_prefix(discovered)
+        if prefix:
+            return prefix
+
+    return [sys.executable, str(source_file.resolve())]
+
+
+_CLI_SUBPROCESS_OPTIONAL_PARAMS = "__stdin_config: dict | None = None, __env: dict | None = None"
+
+
+_CLI_SUBPROCESS_STDIN_ENV_BODY = """
+    # Merge session/runtime secrets for nested CLI subprocesses.
+    _bridge_stdin = __stdin_config if __stdin_config is not None else globals().get("_bridge_stdin_config")
+    _bridge_env_extra = __env if __env is not None else globals().get("_bridge_subprocess_env")
+    _stdin_payload = dict(_bridge_stdin or {})
+    if _interactive_input_queue:
+        _stdin_payload.setdefault("llm_api_key", _interactive_input_queue[0])
+    _stdin_input = _json.dumps(_stdin_payload) if _stdin_payload else None
+    _run_env = {**os.environ, **(_bridge_env_extra or {})}
+    # When no stdin payload is available use DEVNULL so input() / sys.stdin.read()
+    # fail fast (EOFError) instead of blocking on inherited stdin for 300 s.
+    _stdin_kwarg = {'input': _stdin_input} if _stdin_input else {'stdin': subprocess.DEVNULL}
+"""
+
+
+def _generate_cli_handler_stub(op: SourceOperation, *, subcommand: str) -> str:
+    """Generate a subprocess-based stub for a CLI ``cmd_*`` handler."""
+    docstring = op.description.replace('"', '\\"') if op.description else op.name
+    return (
+        f"def {op.name}(args: str, {_CLI_SUBPROCESS_OPTIONAL_PARAMS}) -> dict:\n"
+        f'    """{docstring}"""\n'
+        "    import shlex\n"
+        "    import subprocess\n"
+        "    import json as _json\n"
+        "    tail = shlex.split(args) if args else []\n"
+        f"    argv = [*CLI_PREFIX, {subcommand!r}, *tail]\n"
+        + _CLI_SUBPROCESS_STDIN_ENV_BODY
+        + "    proc = subprocess.run(\n"
+        "        argv,\n"
+        "        capture_output=True,\n"
+        "        text=True,\n"
+        "        cwd=_MODULE_DIR,\n"
+        "        env=_run_env,\n"
+        "        **_stdin_kwarg,\n"
+        "    )\n"
+        "    result = {\n"
+        '        "returncode": proc.returncode,\n'
+        '        "stdout": proc.stdout,\n'
+        '        "stderr": proc.stderr,\n'
+        "    }\n"
+        "    if proc.returncode != 0:\n"
+        "        err = proc.stderr.strip() or proc.stdout.strip()\n"
+        "        if err:\n"
+        '            result["error"] = err\n'
+        "    return result"
+    )
+
+
+def _generate_cli_main_stub(op: SourceOperation) -> str:
+    """Generate a subprocess-based stub for a CLI main entry point.
+
+    Unlike ``_generate_cli_handler_stub`` (which dispatches through a
+    ``cmd_*`` subcommand), this stub runs the source file directly, passing
+    all arguments through to ``sys.argv``.
+    """
+    docstring = op.description.replace('"', '\\"') if op.description else op.name
+    return (
+        f"def {op.name}(args: str, {_CLI_SUBPROCESS_OPTIONAL_PARAMS}) -> dict:\n"
+        f'    """{docstring}"""\n'
+        "    import shlex\n"
+        "    import subprocess\n"
+        "    import json as _json\n"
+        "    tail = shlex.split(args) if args else []\n"
+        "    argv = [sys.executable, str(_SOURCE_FILE), *tail]\n"
+        + _CLI_SUBPROCESS_STDIN_ENV_BODY
+        + "    proc = subprocess.run(\n"
+        "        argv,\n"
+        "        capture_output=True,\n"
+        "        text=True,\n"
+        "        cwd=_MODULE_DIR,\n"
+        "        env=_run_env,\n"
+        "        **_stdin_kwarg,\n"
+        "    )\n"
+        "    result = {\n"
+        '        "returncode": proc.returncode,\n'
+        '        "stdout": proc.stdout,\n'
+        '        "stderr": proc.stderr,\n'
+        "    }\n"
+        "    if proc.returncode != 0:\n"
+        "        err = proc.stderr.strip() or proc.stdout.strip()\n"
+        "        if err:\n"
+        '            result["error"] = err\n'
+        "    return result"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Interactive input handling for wrapper scripts
+# ---------------------------------------------------------------------------
+
+
+def _generate_interactive_input_preamble(ops: list[SourceOperation]) -> str:
+    """Generate preamble code that monkey-patches input(), getpass.getpass(),
+    sys.stdin.read() and sys.stdin.readline() to read from a pre-provided
+    __interactive_inputs list, with env var fallback.
+
+    This allows tools that use interactive input (like getpass.getpass() for API keys)
+    to work in non-TTY subprocess environments like Agent tool calls.
+
+    Always generated so that subprocess-launching stubs can forward
+    ``_interactive_input_queue`` to nested subprocesses even when the
+    wrapped entrypoint does not itself contain input() calls directly.
+    """
+    return """
+# Interactive input handling for non-TTY environments
+# This monkey-patches input(), getpass.getpass(), sys.stdin.read() and
+# sys.stdin.readline() to read from __interactive_inputs
+import builtins
+import getpass as _getpass_module
+import sys as _sys_module
+
+_interactive_input_queue = []
+_interactive_input_index = 0
+
+
+def _set_interactive_inputs(inputs: list) -> None:
+    global _interactive_input_queue, _interactive_input_index
+    _interactive_input_queue = list(inputs) if inputs else []
+    _interactive_input_index = 0
+
+
+def _interactive_input(prompt: str = "") -> str:
+    global _interactive_input_index
+    if _interactive_input_index < len(_interactive_input_queue):
+        value = _interactive_input_queue[_interactive_input_index]
+        _interactive_input_index += 1
+        return str(value)
+    env_name = "".join(c.upper() if c.isalpha() else "_" for c in prompt.strip()).strip("_")
+    if env_name and env_name in os.environ:
+        return os.environ[env_name]
+    raise RuntimeError(
+        f"Interactive input required but no __interactive_inputs provided. "
+        f"Prompt: '{prompt}'\\n"
+        f"Provide __interactive_inputs array in tool call parameters or set "
+        f"environment variable {env_name}."
+    )
+
+
+def _interactive_getpass(prompt: str = "Password: ") -> str:
+    return _interactive_input(prompt)
+
+
+def _interactive_stdin_read(size: int = -1) -> str:
+    global _interactive_input_index
+    if _interactive_input_index < len(_interactive_input_queue):
+        value = str(_interactive_input_queue[_interactive_input_index])
+        _interactive_input_index += 1
+        if size >= 0:
+            return value[:size]
+        return value
+    raise RuntimeError(
+        "sys.stdin.read() called but no __interactive_inputs provided. "
+        "Provide __interactive_inputs array in tool call parameters or set "
+        "the relevant environment variable."
+    )
+
+
+def _interactive_stdin_readline(size: int = -1) -> str:
+    global _interactive_input_index
+    if _interactive_input_index < len(_interactive_input_queue):
+        value = str(_interactive_input_queue[_interactive_input_index])
+        _interactive_input_index += 1
+        if size >= 0:
+            return value[:size] + "\\n"
+        return value + "\\n"
+    raise RuntimeError(
+        "sys.stdin.readline() called but no __interactive_inputs provided. "
+        "Provide __interactive_inputs array in tool call parameters or set "
+        "the relevant environment variable."
+    )
+
+
+builtins.input = _interactive_input
+_getpass_module.getpass = _interactive_getpass
+_sys_module.stdin.read = _interactive_stdin_read
+_sys_module.stdin.readline = _interactive_stdin_readline
+"""
