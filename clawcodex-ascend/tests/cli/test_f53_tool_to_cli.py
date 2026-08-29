@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 #  This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
@@ -16,22 +17,22 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""F-53 — Tool 自动暴露为 CLI 斜杠命令.
+"""automatically expose tools as CLI slash commands.
 
-Verifies the F-53 spec acceptance criteria:
+Verifies the spec acceptance criteria:
 
 1. Core tools (Read/Write/Bash etc.) MUST NOT be re-exposed as ``/<name>``.
 2. ``/<tool-name> --key value`` MUST dispatch via ``ToolRegistry`` with the
-   parsed ``input`` dict.
+ parsed ``input`` dict.
 3. Missing required args MUST produce a friendly usage error (no crash).
 4. Tool execution errors MUST propagate as ``LocalCommandResult`` text, not
-   as an unhandled exception.
+ as an unhandled exception.
 5. ``clawcodex-dev tool <name> --key value`` MUST work end-to-end via the
-   subcommand_registry.
+ subcommand_registry.
 6. ``register_tool_commands`` MUST be a no-op when the registry argument
-   is ``None`` and MUST skip names that collide with existing commands.
-7. JSON Schema → argparse mapping MUST handle the F-53 spec §1.5 type
-   matrix (string, integer, boolean, array, enum, object, required).
+ is ``None`` and MUST skip names that collide with existing commands.
+7. JSON Schema → argparse mapping MUST handle the spec §1.5 type
+ matrix (string, integer, boolean, array, enum, object, required).
 """
 
 from __future__ import annotations
@@ -54,7 +55,7 @@ from clawcodex_ext.tool_system.registry import ToolRegistry
 def _make_noop_tool(name: str, schema: dict[str, Any] | None = None) -> Tool:
     """Build a tool whose ``call`` returns a fixed ToolResult.
 
-    Useful for tests that exercise F-53 plumbing without invoking
+    Useful for tests that exercise plumbing without invoking
     a real LLM-backed tool.
     """
     captured: dict[str, Any] = {}
@@ -474,7 +475,7 @@ def test_register_tool_commands_skips_collision(empty_tool_registry: ToolRegistr
     empty_tool_registry.register(non_core_tool)
     count = register_tool_commands(cr, empty_tool_registry)
     assert count == 0  # collision: skip
-    # Existing command must remain untouched (F-53 is purely additive).
+    # Existing command must remain untouched; the change is purely additive.
     assert cr.get("detect_modality") is placeholder
 
 

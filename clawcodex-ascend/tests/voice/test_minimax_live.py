@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
-#  This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
 # Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSE.clawcodex.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
-#           http://license.coscl.org.cn/MulanPSL2
+#          http://license.coscl.org.cn/MulanPSL2
 #
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
@@ -17,28 +20,7 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""MiniMax 语音模型测试脚本
-
-前置条件：
-1. 设置环境变量 MINIMAX_API_KEY 和可选 MINIMAX_GROUP_ID：
-   export MINIMAX_API_KEY="your-api-key-here"
-   export MINIMAX_GROUP_ID="your-group-id-here"  # 可选
-
-2. 或创建凭证文件：
-   mkdir -p ~/.clawcodex/tts/minimax/
-   cat > ~/.clawcodex/tts/minimax/credentials.json <<EOF
-   {"api_key": "your-api-key-here", "group_id": "", "endpoint_region": "global"}
-   EOF
-
-3. 安装依赖（用于 STT WebSocket）：
-   pip install websockets
-
-运行方式：
-   python3 tests/voice/test_minimax_live.py           # 交互式选择测试
-   python3 tests/voice/test_minimax_live.py --tts      # 只测 TTS
-   python3 tests/voice/test_minimax_live.py --stt      # 只测 STT（需要 websockets）
-   python3 tests/voice/test_minimax_live.py --list     # 列出可用音色
-"""
+"""Tests for minimax live."""
 
 from __future__ import annotations
 
@@ -51,7 +33,7 @@ from pathlib import Path
 
 
 def _check_key() -> str:
-    """从 env 或 credentials.json 获取 API key."""
+    """Test helper for check key."""
     key = os.environ.get("MINIMAX_API_KEY")
     if key:
         return key
@@ -61,7 +43,7 @@ def _check_key() -> str:
             data = json.loads(creds_path.read_text(encoding="utf-8"))
             return data.get("api_key", "")
         except (json.JSONDecodeError, OSError):
-            pass
+            pass  # Invalid stored credentials fall through to the setup error.
     sys.exit(
         "❌ MINIMAX_API_KEY 未设置。运行:\n"
         "  export MINIMAX_API_KEY='your-key-here'\n"
@@ -79,11 +61,9 @@ def _get_group_id() -> str:
             data = json.loads(creds_path.read_text(encoding="utf-8"))
             return data.get("group_id", "")
         except Exception:
-            pass
+            pass  # Missing optional credentials leave the group ID unset.
     return ""
 
-
-# ─── TTS 测试 ────────────────────────────────────────────────────────────────
 
 AVAILABLE_VOICES = {
     "中文女声": "Chinese (Mandarin)_Warm_Girl",
@@ -99,10 +79,10 @@ AVAILABLE_VOICES = {
 }
 
 AVAILABLE_MODELS = [
-    "speech-2.8-hd",  # 最新旗舰，含语气词标签
-    "speech-2.8-turbo",  # 最新高速度
-    "speech-2.6-hd",  # 超低延时
-    "speech-2.6-turbo",  # 极速版
+    "speech-2.8-hd",
+    "speech-2.8-turbo",
+    "speech-2.6-hd",
+    "speech-2.6-turbo",
 ]
 
 TEST_TEXTS = {
@@ -114,7 +94,7 @@ TEST_TEXTS = {
 
 
 def test_tts_synthesize():
-    """测试 T2A HTTP 合成（batch 路径）"""
+    """Verify tts synthesize."""
     print("\n" + "=" * 70)
     print("🧪 MiniMax TTS 测试 — HTTP 合成 (synthesize)")
     print("=" * 70)
@@ -128,7 +108,6 @@ def test_tts_synthesize():
     print(f"GroupId: {group_id or '(未设置)'}")
     print()
 
-    # 1. 测试不同模型
     print("--- 1/3: 测试模型切换 ---")
     for model in ("speech-2.8-turbo", "speech-2.8-hd"):
         print(f"  模型: {model} ... ", end="", flush=True)
@@ -177,7 +156,6 @@ def test_tts_synthesize():
         except Exception as e:
             print(f"❌ {e}")
 
-    # 2. 测试不同音色
     print("\n--- 2/3: 测试音色切换 ---")
     for name, voice_id in list(AVAILABLE_VOICES.items())[:6]:
         print(f"  音色 [{name}] ({voice_id[:30]}...) ... ", end="", flush=True)
@@ -222,7 +200,6 @@ def test_tts_synthesize():
         except Exception as e:
             print(f"❌ {e}")
 
-    # 3. 测试多语言
     print("\n--- 3/3: 测试多语言 ---")
     texts_to_test = [
         ("中文", "Chinese", "Chinese (Mandarin)_Warm_Girl"),
@@ -278,7 +255,7 @@ def test_tts_synthesize():
 
 
 def test_tts_streaming():
-    """测试 T2A HTTP 流式输出 (stream=true)"""
+    """Verify tts streaming."""
     print("\n" + "=" * 70)
     print("🧪 MiniMax TTS 测试 — 流式输出 (streaming)")
     print("=" * 70)
@@ -298,7 +275,7 @@ def test_tts_streaming():
 
     payload = json.dumps(
         {
-            "model": "speech-2.8-hd",  # HD 支持语气词标签
+            "model": "speech-2.8-hd",
             "text": text,
             "stream": True,
             "language_boost": "Chinese",
@@ -366,7 +343,7 @@ def test_tts_streaming():
 
 
 def test_stt_realtime():
-    """测试 MiniMax Realtime STT（需要 websockets）"""
+    """Verify stt realtime."""
     print("\n" + "=" * 70)
     print("🧪 MiniMax STT 测试 — Realtime API (voice-in → text-out)")
     print("=" * 70)
@@ -395,7 +372,6 @@ def test_stt_realtime():
         print(f"Region: {region}")
         print()
 
-        # 1. 测试连接
         print("--- 1/4: 建立 WebSocket 连接 ---")
         try:
             ws = await websockets.connect(
@@ -408,7 +384,6 @@ def test_stt_realtime():
             print(f"❌ 连接失败: {e}")
             return
 
-        # 2. 测试 session.create
         print("\n--- 2/4: session.create → 文本模态 ---")
         session_msg = {
             "type": "session.create",
@@ -422,7 +397,6 @@ def test_stt_realtime():
         await ws.send(json.dumps(session_msg))
         print("  发送 session.create")
 
-        # 3. 等待响应
         print("\n--- 3/4: 等待服务器事件 (5s 超时) ---")
         try:
             for i in range(5):
@@ -435,9 +409,7 @@ def test_stt_realtime():
         except asyncio.TimeoutError:
             print("⏱️ 超时（事件名可能与预期不同 — 已记录到 _handle_message 双轨兼容）")
 
-        # 4. 测试 input_audio_buffer.append + commit
         print("\n--- 4/4: 模拟音频输入 (合成静音帧) ---")
-        # 生成 0.5s 的静音 PCM16 帧
         import struct
 
         silent_frame = struct.pack(f"<{8000}h", *([0] * 8000))
@@ -462,7 +434,6 @@ def test_stt_realtime():
         )
         print("  ✅ 发送 input_audio_buffer.commit")
 
-        # 等待响应
         try:
             raw = await asyncio.wait_for(ws.recv(), timeout=5)
             payload = json.loads(raw) if isinstance(raw, (str, bytes)) else {}
@@ -480,7 +451,7 @@ def test_stt_realtime():
 
 
 def list_voices():
-    """打印所有可用 MiniMax 系统音色"""
+    """Test helper for list voices."""
     print("\n" + "=" * 70)
     print("🎤 MiniMax 系统音色列表 (官方 332+ 音色)")
     print("=" * 70)
@@ -552,7 +523,7 @@ def list_voices():
 
 
 def test_clawcodex_tts():
-    """通过 clawcodex TTSProvider 接口测试 MiniMax TTS"""
+    """Verify clawcodex tts."""
     print("\n" + "=" * 70)
     print("🧪 clawcodex MiniMaxTTSProvider 接口测试")
     print("=" * 70)
@@ -565,7 +536,6 @@ def test_clawcodex_tts():
 
     provider = MiniMaxTTSProvider()
 
-    # 1. 测试凭证解析
     print("\n--- 1/4: 凭证解析 ---")
     try:
         api_key, group_id, endpoint = provider._resolve()
@@ -578,7 +548,6 @@ def test_clawcodex_tts():
         print(f"  ❌ {e}")
         return
 
-    # 2. 测试 synthesize (batch)
     print("\n--- 2/4: synthesize (batch 路径) ---")
     from clawcodex_ext.services.voice.tts import TTSConfig
     import asyncio
@@ -601,7 +570,6 @@ def test_clawcodex_tts():
 
     asyncio.run(_batch_test())
 
-    # 3. 测试 synthesize_stream (流路径)
     print("\n--- 3/4: synthesize_stream (流式路径) ---")
 
     async def _stream_test():
@@ -625,9 +593,7 @@ def test_clawcodex_tts():
             on_done=on_done,
             config=cfg,
         )
-        # 流式 — 批量 submit 后 finalize
         await syn.feed_text("大家好(sighs)，欢迎使用 MiniMax 语音合成技术。")
-        # 等待后台任务完成
         import asyncio
 
         await asyncio.sleep(2)
@@ -641,7 +607,6 @@ def test_clawcodex_tts():
 
     asyncio.run(_stream_test())
 
-    # 4. 测试音色列表
     print("\n--- 4/4: 内置音色索引 ---")
     from clawcodex_ext.services.voice.minimax_tts import MINIMAX_SYSTEM_VOICES
 
@@ -653,7 +618,7 @@ def test_clawcodex_tts():
 
 
 def test_with_real_api():
-    """通过原始 HTTP 请求测试 MiniMax T2A API（最直接的端到端验证）"""
+    """Verify with real api."""
     print("\n" + "=" * 70)
     print("🧪 MiniMax T2A API 端到端测试")
     print("=" * 70)
@@ -846,7 +811,6 @@ if __name__ == "__main__":
     elif args.clawcodex:
         test_clawcodex_tts()
     else:
-        # 交互式菜单
         print("🎤 MiniMax 语音模型测试套件")
         print("=" * 50)
         print("1) 端到端 API 测试 (T2A HTTP)")

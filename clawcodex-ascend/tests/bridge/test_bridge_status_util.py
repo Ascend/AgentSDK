@@ -1,3 +1,25 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSE.clawcodex.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 """Tests for ``src.bridge.bridge_status_util``."""
 
 from __future__ import annotations
@@ -136,8 +158,6 @@ def test_truncate_to_width_one_returns_ellipsis_only() -> None:
 def test_truncate_to_width_cjk_grapheme_aware() -> None:
     """CJK characters aren't split mid-codepoint."""
     out = truncate_to_width("你好世界", 5)
-    # '你' = 2 cols, ellipsis = 1 col; budget 4 fits one '你', another
-    # '好' would push to 4 then ellipsis pushes to 5 — should be '你好…'.
     assert out == "你好…"
     assert string_width(out) == 5
 

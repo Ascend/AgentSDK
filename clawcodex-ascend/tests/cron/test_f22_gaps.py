@@ -1,4 +1,26 @@
-"""F-22 9.11 CCB 差距补充测试（G1/G2/G3/G4/G5/G8）。"""
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSE.clawcodex.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
+"""9.11 supplementary CCB gap tests (G1/G2/G3/G4/G5/G8)."""
 
 from __future__ import annotations
 
@@ -194,7 +216,7 @@ class TestG2JitterConfig:
         assert task.jitter.recurring_cap_ms == _default_jitter_config().recurring_cap_ms
 
     def test_scheduler_hot_reloads_jitter_per_tick(self, tmp_path: Path) -> None:
-        # F-22-G2 hot-reload: scheduler reloads the jitter config every
+        # G2 hot-reload: scheduler reloads the jitter config every
         # _THROTTLE_INTERVAL ticks (default 60) so live edits to
         # .clawcodex/cron/jitter_config.json or CLAWCODEX_CRON_* env vars
         # take effect within ~60 s without restart.
@@ -226,7 +248,7 @@ class TestG2JitterConfig:
         assert scheduler.get_jitter_config().recurring_max_age_ms == 10_000
 
     def test_prune_uses_live_max_age(self, tmp_path: Path) -> None:
-        # F-22-G2: scheduler passes the live recurring_max_age_ms to
+        # G2: scheduler passes the live recurring_max_age_ms to
         # prune_expired_recurring_tasks so tightening the value mid-session
         # reaps stale tasks immediately.
         from datetime import datetime, timedelta

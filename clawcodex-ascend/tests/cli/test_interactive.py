@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 #  This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
@@ -168,11 +169,8 @@ def test_prompt_falls_back_to_input_fn_when_prompt_toolkit_missing(monkeypatch) 
     assert ui.prompt("x: ") == "value"
 
 
-# -- _clear_rendered_lines: ANSI 清行辅助函数 ----------------------------
-
-
 def test_clear_rendered_lines_writes_ansi_escape(capsys) -> None:
-    """正向：N>0 时向 stdout 写入 光标上移 N 行 + 清除到屏底。"""
+    """For N > 0, move up N lines and clear to the bottom of the screen."""
     from clawcodex_ext.cli import _interactive
 
     _interactive._clear_rendered_lines(3)
@@ -181,7 +179,7 @@ def test_clear_rendered_lines_writes_ansi_escape(capsys) -> None:
 
 
 def test_clear_rendered_lines_zero_is_noop(capsys) -> None:
-    """边界：N=0 时不写任何序列。"""
+    """For N = 0, write no escape sequence."""
     from clawcodex_ext.cli import _interactive
 
     _interactive._clear_rendered_lines(0)
@@ -190,7 +188,7 @@ def test_clear_rendered_lines_zero_is_noop(capsys) -> None:
 
 
 def test_clear_rendered_lines_negative_is_noop(capsys) -> None:
-    """边界：N<0 时不写任何序列。"""
+    """For N < 0, write no escape sequence."""
     from clawcodex_ext.cli import _interactive
 
     _interactive._clear_rendered_lines(-1)

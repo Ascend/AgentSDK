@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 #  This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
@@ -16,17 +17,17 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""F-125 Phase 3 tests: resume-time checks (C8 / C11 / R8 / C14 / C13 / R2).
+"""Phase 3 tests: resume-time checks (C8 / C11 / R8 / C14 / C13 / R2).
 
-Covers the Phase 3 边角修复 items from
-``docs/feature_plan/06-ccb-benchmark/f-125-headless-multi-turn.md``:
+Covers the Phase 3 edge-case fixes from
+Headless multi-turn resume behavior:
 
-* C8 / R10 — ``append_system_prompt`` 时序警告
-* C11 / R11 — Provider/Model 不匹配警告
-* R8       — session metadata (title/tags/agent_name) 保留
-* C14      — TailFollower 泄漏修复 (RuntimeContext.close_tail_follower)
-* C13      — JSONL 并发写入文件锁
-* R2       — ``--continue`` 自动检测最近会话
+* C8 / R10 — ``append_system_prompt`` timing warning
+* C11 / R11 — provider/model mismatch warning
+* R8 — preserve session metadata (title/tags/agent_name)
+* C14 — fix TailFollower leak (RuntimeContext.close_tail_follower)
+* C13 — lock concurrent JSONL writes
+* R2 — auto-detect the latest session for ``--continue``
 
 The headless-level tests reuse the ``fake_wiring`` / ``_make_session``
 fixtures from ``test_headless_resume.py`` (imported) so the provider /

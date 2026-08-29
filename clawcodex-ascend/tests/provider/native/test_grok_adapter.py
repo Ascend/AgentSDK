@@ -1,4 +1,26 @@
-"""Tests for the native Grok / xAI adapter (F-72 P72-C)."""
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSE.clawcodex.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
+"""Tests for the native Grok / xAI adapter (P72-C)."""
 
 from __future__ import annotations
 
@@ -18,7 +40,7 @@ from src.providers.native.grok_adapter import _DEFAULT_BASE_URL, NativeGrokProvi
 
 
 def test_default_base_url_points_to_xai() -> None:
-    """The F-72 plan calls out that the Grok adapter must use the
+    """The plan calls out that the Grok adapter must use the
     xAI endpoint by default — otherwise it would silently target
     OpenAI's API.
     """

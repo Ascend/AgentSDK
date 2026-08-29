@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 #  This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
@@ -16,7 +17,7 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""F-81.4: URL Handler 模块单元测试."""
+"""URL-handler module unit tests."""
 
 from __future__ import annotations
 
@@ -69,7 +70,7 @@ def test_url_handler_open_url_handles_error():
 
 
 def test_url_handler_register_linux_writes_desktop_file(monkeypatch, tmp_path):
-    """Linux 路径应写 .desktop 文件并调用 xdg-mime."""
+    """The Linux path writes a .desktop file and invokes xdg-mime."""
     mod = UrlHandlerModule()
     monkeypatch.setattr(sys, "platform", "linux-x86_64")
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
@@ -92,6 +93,6 @@ def test_url_handler_register_unsupported_platform(monkeypatch):
 
 
 def test_url_handler_load_or_fallback():
-    """url_handler 永远可用，load_or_fallback 返回主实例."""
+    """The always-available URL handler is returned as the primary instance."""
     inst = load_or_fallback("url_handler")
     assert isinstance(inst, UrlHandlerModule)

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 #  This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
@@ -16,7 +17,7 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""F-81.1: 注册表与懒加载基础设施单元测试."""
+"""registry and lazy-loading infrastructure unit tests."""
 
 from __future__ import annotations
 
@@ -32,7 +33,7 @@ from clawcodex_ext.native import (
 
 
 def test_builtin_modules_registered():
-    """四个内置模块应在 _register_builtin_modules 后全部出现在注册表."""
+    """All four built-in modules appear in the registry after registration."""
     names = available_names()
     assert "audio_capture" in names
     assert "image_processor" in names
@@ -55,7 +56,7 @@ def test_registry_is_registered():
 
 
 def test_registry_register_decorator():
-    """自定义模块通过装饰器自注册."""
+    """A custom module self-registers through the decorator."""
 
     @NativeModuleRegistry.register("test_dummy_mod")
     class _Dummy:
@@ -71,12 +72,11 @@ def test_registry_register_decorator():
     inst = load("test_dummy_mod")
     assert inst is not None
     assert inst.get_version() == "test-1.0"
-    # 满足 NativeModule Protocol（runtime_checkable）
     assert isinstance(inst, NativeModule)
 
 
 def test_load_unavailable_returns_none(monkeypatch):
-    """is_available() 返回 False 时 load() 返回 None."""
+    """load returns None when is_available returns False."""
 
     @NativeModuleRegistry.register("test_unavail_mod")
     class _Unavail:
@@ -92,7 +92,7 @@ def test_load_unavailable_returns_none(monkeypatch):
 
 
 def test_load_swallows_import_error(monkeypatch):
-    """实例化期间抛 ImportError 时 load() 返回 None 而非冒泡."""
+    """load returns None rather than propagating an initialization ImportError."""
 
     @NativeModuleRegistry.register("test_imperr_mod")
     class _ImpErr:
@@ -111,7 +111,7 @@ def test_load_swallows_import_error(monkeypatch):
 
 
 def test_load_or_fallback_uses_fallback_when_unavailable():
-    """load_or_fallback 在主实现不可用且提供 fallback() 时返回 fallback 实例."""
+    """load_or_fallback uses fallback when the primary implementation is unavailable."""
 
     @NativeModuleRegistry.register("test_fb_mod")
     class _WithFallback:

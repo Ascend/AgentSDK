@@ -3,12 +3,14 @@
 
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
-# Copyright (c) 2026 Clawd Codex Team
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSE.clawcodex.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -18,31 +20,7 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""Tests for F-49 Phase 5 — session.json + transcript.jsonl 合并 (方案 C).
-
-Verifies the end-to-end behavior of the unified on-disk format
-introduced by Phase 5:
-
-* ``Session.save()`` no longer writes ``session.json`` — the cost block
-  lives in a trailing ``session_snapshot`` line of ``transcript.jsonl``.
-* ``Session.load()`` reads the enhanced transcript first; legacy
-  ``session.json`` is a backward-compat fallback.
-* ``cost_restore.restore_cost_state_for_session()`` reads the
-  transcript tail (last ``session_snapshot`` line) as the primary
-  source; ``session.json`` is the legacy fallback.
-* ``metadata.json`` is simplified — the legacy ``cwd`` /
-  ``total_cost`` / ``last_user_input`` / ``agent_name`` / ``cost``
-  fields are dropped from writes but still tolerated on read.
-* ``session_migrate.migrate_session()`` converts the legacy 3-file
-  format to the unified 2-file format.
-
-Acceptance scenarios from docs/FEATURE_PLAN.md §1.4.5:
-
-1. REPL 交互 → exit → Session.load(): provider + 全量消息 + cost 正确恢复,无 session.json 依赖
-2. cost_restore.restore_cost_state_for_session(): 从 transcript.jsonl tail -1 恢复 cost
-3. 旧 session.json 仅存在时 Session.load(): 自动降级读取旧格式
-4. save → load → save → load: 消息条数、顺序、uuid 完全一致
-"""
+"""Tests for migrated session persistence."""
 # pylint: disable=no-name-in-module, redefined-outer-name, ungrouped-imports
 
 from __future__ import annotations

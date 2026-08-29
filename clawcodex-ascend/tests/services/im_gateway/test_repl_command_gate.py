@@ -3,12 +3,14 @@
 
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
-# Copyright (c) 2026 Clawd Codex Team
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSE.clawcodex.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -18,15 +20,7 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""Tests for repl_command_gate: IM 侧 REPL 斜杠命令白名单门禁。
-
-覆盖：
-- 白名单内每个命令（含别名）放行 → (True, "")
-- 带参数的命令放行
-- 非白名单命令拒绝 → (False, reason)，reason 回显被拒绝的命令
-- 非斜杠输入放行
-- 大小写不敏感
-"""
+"""Tests for repl command gate."""
 
 from __future__ import annotations
 
@@ -38,9 +32,6 @@ from clawcodex_ext.services.im_gateway.repl_command_gate import (
     check_orchestrator_command,
     check_repl_command,
 )
-
-
-# -- 白名单内命令放行 --------------------------------------------------------
 
 
 @pytest.mark.parametrize(
@@ -55,14 +46,11 @@ def test_allowed_command_passes(cmd: str) -> None:
 
 
 def test_allowed_command_with_args_passes() -> None:
-    """带参数的命令按命令名前缀判定，应放行。"""
+    """Verify allowed command with args passes."""
     for text in ["/goal finish the task", "/clear all", "/help me", "/stop now"]:
         allowed, reason = check_repl_command(text)
         assert allowed is True, f"expected {text!r} to be allowed"
         assert reason == ""
-
-
-# -- 非白名单命令拒绝 --------------------------------------------------------
 
 
 @pytest.mark.parametrize(
@@ -98,26 +86,22 @@ def test_allowed_command_with_args_passes() -> None:
 def test_blocked_command_rejected(cmd: str) -> None:
     allowed, reason = check_repl_command(cmd)
     assert allowed is False
-    # reason 必须回显被拒绝的命令
     assert cmd.lower() in reason
     assert "not in the command allowlist" in reason
 
 
 def test_blocked_command_reason_echoes_command_token() -> None:
-    """拒绝消息必须包含被拒绝的命令 token（回显）。"""
+    """Verify blocked command reason echoes command token."""
     allowed, reason = check_repl_command("/exit")
     assert allowed is False
     assert "`/exit`" in reason
 
 
 def test_blocked_command_with_args_rejected() -> None:
-    """带参数的非白名单命令也应拒绝，reason 回显命令 token。"""
+    """Verify blocked command with args rejected."""
     allowed, reason = check_repl_command("/model gpt-4")
     assert allowed is False
     assert "`/model`" in reason
-
-
-# -- 非斜杠输入放行 ----------------------------------------------------------
 
 
 @pytest.mark.parametrize(
@@ -131,9 +115,6 @@ def test_non_slash_input_passes(text: str) -> None:
     assert reason == ""
 
 
-# -- 大小写不敏感 ------------------------------------------------------------
-
-
 @pytest.mark.parametrize(
     "cmd",
     ["/STOP", "/Clear", "/RESET", "/NEW", "/GOAL", "/Help", "/COST", "/DOCTOR"],
@@ -145,10 +126,10 @@ def test_case_insensitive(cmd: str) -> None:
 
 
 def test_case_insensitive_blocked() -> None:
-    """非白名单命令的大写形式也应拒绝。"""
+    """Verify case insensitive blocked."""
     allowed, reason = check_repl_command("/EXIT")
     assert allowed is False
-    assert "/exit" in reason  # reason 中回显的 token 是小写化后的
+    assert "/exit" in reason
 
 
 def test_repl_command_uses_configured_allowlist() -> None:
@@ -159,9 +140,6 @@ def test_repl_command_uses_configured_allowlist() -> None:
     allowed, reason = check_repl_command("/clear", allowed_commands=set())
     assert allowed is False
     assert "`/clear`" in reason
-
-
-# -- Orchestrator 白名单 -----------------------------------------------------
 
 
 @pytest.mark.parametrize(

@@ -1,3 +1,25 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSE.clawcodex.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 from __future__ import annotations
 
 import json
@@ -51,8 +73,6 @@ class TestIssueRegistryFeedbackState(unittest.TestCase):
         self.assertEqual(len(reloaded.iter_records_with_pr()), 1)
 
     def test_registry_load_rejects_unknown_fields(self) -> None:
-        # 严格加载：registry.json 中出现 dataclass 未知字段 → TypeError
-        # （旧实现是静默过滤；重构后数据损坏/外来文件应显式暴露）。
         with TemporaryDirectory() as tmp:
             registry_path = Path(tmp) / "registry.json"
             registry_path.write_text(

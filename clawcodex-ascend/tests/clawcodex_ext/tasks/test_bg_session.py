@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
-#  This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
 # Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSE.clawcodex.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
-#           http://license.coscl.org.cn/MulanPSL2
+#          http://license.coscl.org.cn/MulanPSL2
 #
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
@@ -17,19 +20,19 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""F-94 P94-H — BG_SESSIONS 单元测试。
+"""P94-H — BG_SESSIONS unit tests.
 
-覆盖验收标准（f-94-bg-sessions.md §1.11）：
-1. bg_sessions=off 时不写 index.json；
-2. /bg list 能列出 session_id、pid、workspace、status；
-3. 后台 runner 完成后 status 从 running 变 completed；
-4. PID 消失但无 completion marker → orphaned，不静默删除；
-5. /bg attach 能 tail transcript 并给出恢复路径；
-6. /bg stop 先 graceful，失败需 force；
-7. 跨 workspace attach 默认拒绝；
-8. 100 个 session scan < 100ms；
-9. registry scan、状态机、orphan cleanup、权限拒绝、stop 行为；
-10. index.json 损坏时通过 scan 重建。
+Background-session acceptance coverage:
+1. ``bg_sessions=off`` does not write index.json.
+2. ``/bg list`` shows session_id, pid, workspace, and status.
+3. A completed background runner transitions from running to completed.
+4. A missing PID without a completion marker becomes orphaned, not deleted.
+5. ``/bg attach`` tails the transcript and provides a recovery path.
+6. ``/bg stop`` tries graceful termination before requiring force.
+7. Cross-workspace attach is rejected by default.
+8. Scanning 100 sessions completes within 100 ms.
+9. Registry scan, state transitions, cleanup, permission denial, and stop behavior.
+10. A scan rebuilds a damaged index.json.
 """
 
 from __future__ import annotations
@@ -67,7 +70,7 @@ def enabled_config(tmp_path: Path) -> BgSessionConfig:
         index_path=tmp_path / "bg_sessions" / "index.json",
         sessions_dir=tmp_path / "sessions",
         stale_after_seconds=600,
-        cleanup_completed_after_seconds=0,  # 测试中立即可清理
+        cleanup_completed_after_seconds=0,
     )
 
 
@@ -92,7 +95,7 @@ def _make_session_dir(
     write_transcript: bool = False,
     transcript_content: str = "",
 ) -> Path:
-    """造一个 session 目录 + marker（+ 可选 transcript）。"""
+    """Create a session directory, marker, and optional transcript."""
     d = sessions_dir / session_id
     d.mkdir(parents=True, exist_ok=True)
     marker = marker_path_for(session_id, sessions_dir)
@@ -114,7 +117,6 @@ def _make_session_dir(
 
 
 # ---------------------------------------------------------------------------
-# P94-A: 数据模型
 # ---------------------------------------------------------------------------
 
 
@@ -138,7 +140,6 @@ class TestBgSessionModel:
             assert not is_bg_sessions_enabled()
         with patch.dict(os.environ, {"CLAWCODEX_BG_SESSIONS": "on"}):
             assert is_bg_sessions_enabled()
-        # 默认未设置 = 关闭（保守默认）
         with patch.dict(os.environ, {}, clear=True):
             assert not is_bg_sessions_enabled()
 
@@ -157,7 +158,6 @@ class TestBgSessionRegistry:
         result = registry.scan()
         assert len(result) == 1
         assert result[0].id == "s1"
-        # pid 99999 不存活 → orphaned（验收标准 4）
         assert result[0].status == "orphaned"
 
     def test_scan_skips_dirs_without_marker(self, registry: BgSessionRegistry) -> None:
@@ -200,15 +200,11 @@ class TestBgSessionRegistry:
 
     def test_index_corrupt_rebuild_via_scan(self, registry: BgSessionRegistry) -> None:
         _make_session_dir(registry.sessions_dir, "s1", pid=99999)
-        # 写一个损坏的 index
         registry.index_path.parent.mkdir(parents=True, exist_ok=True)
         registry.index_path.write_text("corrupt{")
-        # load 应返回空并记录 warning
         assert registry.load() == []
-        # scan 重建
         sessions = registry.rebuild_and_save()
         assert len(sessions) == 1
-        # save 后 index 可正常读
         loaded = registry.load()
         assert len(loaded) == 1
 
@@ -222,7 +218,6 @@ class TestBgSessionRegistry:
 
 
 # ---------------------------------------------------------------------------
-# P94-D: Health / 状态机
 # ---------------------------------------------------------------------------
 
 
@@ -274,10 +269,9 @@ class TestBgSessionHealth:
         )
         sessions = registry.scan()
         assert sessions[0].status == "running"
-        # 直接 assess 检查 stale 标志：stale_after=0 → 必 stale（mtime_age > 0）
         h = assess(sessions[0], stale_after_seconds=0)
         assert h.is_stale is True
-        assert h.status == "running"  # 仍是 running，仅 warning
+        assert h.status == "running"
 
     def test_marker_failed_wins(self, registry: BgSessionRegistry) -> None:
         _make_session_dir(
@@ -290,20 +284,17 @@ class TestBgSessionHealth:
         assert sessions[0].status == "failed"
 
     def test_reconcile_pure_function(self) -> None:
-        # 直接构造 BgSession，避免 scan() 已替换状态
-
         before = BgSession(
             id="s1",
             session_id="s1",
             workspace_root=Path("/tmp/ws"),
             status="running",
-            pid=99999,  # 不存活
+            pid=99999,
             marker_path=Path("/nonexistent/.background-runner.json"),
             transcript_path=None,
         )
         after = reconcile(before)
         assert after.status == "orphaned"
-        # 原对象不变（pure）
         assert before.status == "running"
 
 
@@ -318,7 +309,6 @@ class TestBgSessionManager:
         registry.scan()
         sessions = manager.list_sessions()
         assert len(sessions) == 1
-        # orphaned 非终态，默认包含
         assert sessions[0].status == "orphaned"
 
     def test_list_excludes_completed_by_default(self, manager: BgSessionManager, registry: BgSessionRegistry) -> None:
@@ -387,15 +377,12 @@ class TestBgSessionManager:
         assert result.session.id == "s1"
 
     def test_stop_graceful_failure_requires_force(self, manager: BgSessionManager, registry: BgSessionRegistry) -> None:
-        # pid 99999 不存活 → inspect 返回 orphaned（终态），stop 直接返回
         _make_session_dir(registry.sessions_dir, "s1", pid=99999, status="running")
         registry.scan()
         result = manager.stop("s1")
         assert result.status in ("stopped", "orphaned")
 
     def test_stop_force_on_live_pid(self, manager: BgSessionManager, registry: BgSessionRegistry) -> None:
-        # 用当前进程 pid 模拟存活，但 force=True 应能"停止"（实际不杀自己，验证路径）
-        # 这里用一个已死 pid 测试 force 路径不抛
         _make_session_dir(registry.sessions_dir, "s1", pid=99998, status="running")
         registry.scan()
         result = manager.stop("s1", force=True)
@@ -411,15 +398,12 @@ class TestBgSessionManager:
     def test_cleanup_respects_include_failed(self, manager: BgSessionManager, registry: BgSessionRegistry) -> None:
         _make_session_dir(registry.sessions_dir, "s1", pid=99999, status="failed")
         registry.scan()
-        # 默认不清理 failed
         assert manager.cleanup() == []
-        # include_failed=True 清理
         removed = manager.cleanup(include_failed=True)
         assert len(removed) == 1
 
 
 # ---------------------------------------------------------------------------
-# P94-B/C: upsert_after_launch 协调
 # ---------------------------------------------------------------------------
 
 
@@ -444,7 +428,6 @@ class TestUpsertAfterLaunch:
 
 
 # ---------------------------------------------------------------------------
-# P94-E: Tool / Command 集成
 # ---------------------------------------------------------------------------
 
 
@@ -454,7 +437,7 @@ class TestBgSessionToolIntegration:
         from clawcodex_ext.tool_system.context import ToolContext
 
         with patch.dict(os.environ, {"CLAWCODEX_BG_SESSIONS": "off"}):
-            ctx = ToolContext.__new__(ToolContext)  # 轻量实例
+            ctx = ToolContext.__new__(ToolContext)
             result = BgSessionTool.call({"action": "list"}, ctx)
             assert result.output.get("disabled") is True
 

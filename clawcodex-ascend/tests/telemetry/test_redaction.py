@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
-#  This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
 # Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSE.clawcodex.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
-#           http://license.coscl.org.cn/MulanPSL2
+#          http://license.coscl.org.cn/MulanPSL2
 #
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
@@ -159,7 +162,7 @@ def test_truncate_stacktrace_filters_external_frames(tmp_path):
     try:
         project_file.write_text("def f():\n    raise ValueError('boom')\n")
     except Exception:
-        pass
+        pass  # The test proceeds with the original fixture content if rewriting fails.
 
     def _raise():
         raise ValueError("boom")
@@ -168,7 +171,8 @@ def test_truncate_stacktrace_filters_external_frames(tmp_path):
         _raise()
     except ValueError as exc:
         frames = r.truncate_stacktrace(exc)
-    assert isinstance(frames, list)
+    # ``_raise`` always raises ValueError, so the handler assigns ``frames``.
+    assert isinstance(frames, list)  # pylint: disable=used-before-assignment
     # Either the project frame is present or the result is empty (no
     # project frame matched the prefix); both are acceptable — the
     # contract is "no external frame names appear".

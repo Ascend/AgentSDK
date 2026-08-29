@@ -3,12 +3,14 @@
 
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
-# Copyright (c) 2026 Clawd Codex Team
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSE.clawcodex.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -17,7 +19,9 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
+
 # pylint: disable=attribute-defined-outside-init,no-name-in-module,use-implicit-booleaness-not-comparison,using-constant-test
+
 """Independent goal-completion evaluator tests."""
 
 from __future__ import annotations
@@ -407,7 +411,7 @@ async def test_evaluate_goal_cancellation_returns_without_recording_result() -> 
     except asyncio.TimeoutError:
         pytest.fail("evaluator timed out instead of propagating cancellation")
     except asyncio.CancelledError:
-        pass
+        pass  # Cancellation propagation is the behavior under test.
 
 
 @pytest.mark.asyncio
@@ -459,6 +463,6 @@ async def test_evaluate_goal_cancels_inherited_sync_provider_without_executor_wa
         except asyncio.TimeoutError:
             pytest.fail("evaluator timed out instead of propagating cancellation")
         except asyncio.CancelledError:
-            pass
+            pass  # Cancellation propagation is the behavior under test.
     finally:
         release.set()

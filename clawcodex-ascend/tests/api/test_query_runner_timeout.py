@@ -22,7 +22,7 @@
 
 Verifies that ``QueryRunner.stream()`` bounds its ``await future`` with
 ``asyncio.wait_for`` so a headless run that never completes cannot hold
-the caller forever (see §十八 risk #5). On timeout we surface a
+the caller forever (see section 18, risk 5). On timeout we surface a
 ``SessionComplete(reason="exit_code=124")`` (the conventional GNU
 timeout exit code) and emit a debug event for downstream forensics.
 
@@ -111,7 +111,7 @@ async def test_stream_yields_timeout_when_headless_future_never_completes() -> N
 @pytest.mark.asyncio
 async def test_stream_does_not_block_caller_on_legacy_zero_timeout() -> None:
     """``timeout=0`` is the documented escape hatch: it falls back to
-    the legacy unbounded ``await future`` (§十八 design decision #5).
+    the legacy unbounded ``await future`` (section 18, design decision 5).
 
     We verify this by passing ``timeout_s=0`` and asserting the branch
     returns immediately after the future completes (the polling-loop
@@ -191,7 +191,7 @@ async def test_stream_completes_normally_when_future_finishes_in_budget() -> Non
 async def test_stream_records_remaining_event_count_on_timeout() -> None:
     """The debug event payload should include enough context for an
     operator to understand what the headless session had been doing
-    before the timeout fired (§十八 verification #4).
+    before the timeout fired (section 18, verification item 4).
     """
 
     with TemporaryDirectory() as tmp:

@@ -3,12 +3,14 @@
 
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Clawd Codex Team
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSE.clawcodex.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -18,7 +20,7 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""Tests for ``clawcodex_ext.dreaming.service`` — F-100.
+"""Tests for ``clawcodex_ext.dreaming.service``.
 
 Covers the gate chain: enabled → time → scan throttle → session →
 lock. Uses the built-in stub runner and a tmp-path memory dir to
@@ -134,7 +136,7 @@ def test_session_gate_blocks_when_too_few(tmp_path: Path) -> None:
 def test_lock_already_held_blocks(tmp_path: Path) -> None:
     # Pre-acquire the lock with a FOREIGN live PID, fresh mtime → blocked.
     # ``os.getppid()`` is the test runner's parent — guaranteed alive
-    # and never our own PID (a self-PID would self-acquire per F-100/100.4).
+    # and never our own PID (a self-PID would self-acquire per /100.4).
     lock_path = tmp_path / LOCK_FILE_NAME
     lock_path.write_text(str(os.getppid()))
     now = time.time()

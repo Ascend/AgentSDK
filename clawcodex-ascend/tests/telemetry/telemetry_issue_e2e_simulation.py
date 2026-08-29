@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
-#  This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
 # Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSE.clawcodex.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
-#           http://license.coscl.org.cn/MulanPSL2
+#          http://license.coscl.org.cn/MulanPSL2
 #
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
@@ -18,15 +20,7 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""
-Telemetry IssueReporter 端到端模拟测试。
-
-模拟完整管线：
-  record_*() → JSONL storage → DailyAggregator → Reporter.render()
-  → IssueReporter.emit() → 模拟远程 API → reporter cursor 持久化
-
-所有 HTTP 调用被 MockClient 替代，不产生真实网络请求。
-"""
+"""Tests for telemetry issue e2e simulation."""
 
 from __future__ import annotations
 
@@ -38,36 +32,33 @@ from pathlib import Path
 from typing import Any
 
 # ---------------------------------------------------------------------------
-# 确保在项目根目录下运行，且 tests/ 不从 sys.path 中遮蔽 stdlib
 # ---------------------------------------------------------------------------
 _HERE = Path(__file__).resolve().parent.parent.parent
 os.chdir(str(_HERE))
-# 移除脚本所在目录 (tests/) 以防遮蔽 stdlib 模块 (如 tests/token/)
 _tests_dir = str((_HERE / "tests").resolve())
 sys.path = [str(_HERE)] + [p for p in sys.path if p and p != _tests_dir and os.path.realpath(p) != _tests_dir]
 
 
 # ---------------------------------------------------------------------------
-# 1. Mock HTTP 客户端（模拟 GitHub Issue API）
 # ---------------------------------------------------------------------------
 class _MockPlatform:
-    """模拟 RepositoryIssueClient 的 platform 属性。"""
+    """Tests for _MockPlatform."""
 
     open_state = "open"
 
 
 class MockIssueClient:
-    """模拟远程 Issue API，记录所有调用以便后续断言。"""
+    """Tests for MockIssueClient."""
 
     def __init__(self) -> None:
         self.platform = _MockPlatform()
-        self.created: list[dict[str, Any]] = []  # 记录 create_issue 调用
-        self.updated: list[dict[str, Any]] = []  # 记录 update_issue_body 调用
-        self.find_titles: list[str] = []  # 记录 find_issue_by_title 调用
-        self._existing: dict[str, Any] | None = None  # 模拟已存在的 Issue
+        self.created: list[dict[str, Any]] = []
+        self.updated: list[dict[str, Any]] = []
+        self.find_titles: list[str] = []
+        self._existing: dict[str, Any] | None = None
 
     def set_existing(self, issue: dict[str, Any] | None) -> None:
-        """设置 find_issue_by_title 的返回值，模拟 Issue 已存在场景。"""
+        """Test helper for set existing."""
         self._existing = issue
 
     async def find_issue_by_title(self, title: str, *, state: str = "open") -> dict[str, Any] | None:
@@ -92,7 +83,7 @@ class MockIssueClient:
         return payload
 
     def summary(self) -> str:
-        """返回调用摘要，用于断言输出。"""
+        """Test helper for summary."""
         lines = [
             f"  find_issue_by_title 被调用 {len(self.find_titles)} 次",
             f"  create_issue        被调用 {len(self.created)} 次",
@@ -108,10 +99,9 @@ class MockIssueClient:
 
 
 # ---------------------------------------------------------------------------
-# 2. 构建测试场景
 # ---------------------------------------------------------------------------
 def build_events_for_day(storage: Any, date: str) -> None:
-    """向 storage 写入一组模拟的 Telemetry 事件。"""
+    """Test helper for build events for day."""
 
     from telemetry.events import TelemetryEvent, EventType
 
@@ -201,7 +191,6 @@ def build_events_for_day(storage: Any, date: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# 3. 主测试流程
 # ---------------------------------------------------------------------------
 def main() -> int:
     print("=" * 72)
@@ -214,19 +203,16 @@ def main() -> int:
     from telemetry.aggregator import DailyAggregator
     from telemetry.reporters.issue import IssueReporter
 
-    # 临时目录作为 telemetry 存储根
     with tempfile.TemporaryDirectory(prefix="telemetry-e2e-") as tmpdir:
         storage = LocalJsonlStorage(Path(tmpdir) / "telemetry", retention_days=7)
         date = "2026-07-15"
         print(f"\n📦 Storage root : {storage.base_dir}")
         print(f"📅 模拟日期     : {date}")
 
-        # 3.1 写入事件
         print("\n--- 步骤 1: 写入模拟事件 ---")
         build_events_for_day(storage, date)
         print("  写入: 2 SESSION_START, 3 COMMAND_RUN, 2 TOOL_SUMMARY, 1 ERROR")
 
-        # 3.2 运行 aggregator
         print("\n--- 步骤 2: 运行 DailyAggregator ---")
         agg = DailyAggregator(storage)
         summary = agg.aggregate(date)
@@ -240,7 +226,6 @@ def main() -> int:
         assert summary["sessions"] == 2
         assert summary["commands"] == 3
 
-        # 3.3 构造 IssueReporter (mode=update_or_create)
         print("\n--- 步骤 3: 构造 IssueReporter (mode=update_or_create) ---")
         client = MockIssueClient()
         redactor = Redactor(RedactionConfig(), (str(Path(tmpdir)),))
@@ -262,7 +247,6 @@ def main() -> int:
         )
         print(f"  config valid: {reporter._valid_config()}")
 
-        # 3.4 首次 emit — 期望创建 Issue
         print("\n--- 步骤 4: 首次 emit (期望创建 Issue) ---")
         rendered = reporter.render(summary, date)
         print(f"  渲染后 Markdown 长度: {len(rendered)} 字符")
@@ -277,12 +261,10 @@ def main() -> int:
         print("  MockClient 状态:")
         print(client.summary())
 
-        # 验证: 创建了 Issue
         assert len(client.created) == 1, "预期创建 1 个 Issue"
         assert client.created[0]["title"] == "ClawCodex Telemetry Inbox"
         assert "ClawCodex Telemetry" in client.created[0]["body"]
 
-        # 3.5 验证 cursor 写入
         print("\n--- 步骤 5: 验证 reporter cursor ---")
         cursor = storage.read_reporter_cursor("issue")
         print(f"  cursor keys: {list(cursor.keys())}")
@@ -291,7 +273,6 @@ def main() -> int:
         assert cursor.get("reporter") == "issue"
         print(f"  ✅ cursor 已写入, issue_id={cursor['issue_id']}")
 
-        # 3.6 测试去重 — 相同内容再次 emit
         print("\n--- 步骤 6: 去重测试 (相同内容再次 emit) ---")
         prev_find_count = len(client.find_titles)
         prev_create_count = len(client.created)
@@ -301,17 +282,14 @@ def main() -> int:
         assert len(client.find_titles) == prev_find_count, "去重不应再调用 find_issue_by_title"
         assert len(client.created) == prev_create_count, "去重不应再创建 Issue"
 
-        # 但 cursor 已被去重检测跳过 HTTP
         cursor2 = storage.read_reporter_cursor("issue")
         assert cursor2.get("issue_id") == "1"
         print("  ✅ 去重生效: 无额外 HTTP 调用")
 
-        # 3.7 测试更新模式 — 模拟已有 Issue 的场景
         print("\n--- 步骤 7: 更新测试 (Issue 已存在, 追加新日期) ---")
         client2 = MockIssueClient()
         date2 = "2026-07-16"
 
-        # 模拟已存在的 Issue body（包含 7/15 数据块）
         from telemetry.reporters.issue import _wrap_date_block
 
         existing_body = f"Intro\n\n{_wrap_date_block(rendered, date)}"
@@ -323,7 +301,6 @@ def main() -> int:
             }
         )
 
-        # 为新一天写入事件
         build_events_for_day(storage, date2)
         summary2 = agg.aggregate(date2)
         rendered2 = reporter.render(summary2, date2)
@@ -346,7 +323,6 @@ def main() -> int:
         assert "clawcodex-telemetry:2026-07-16" in updated_body, "新日期数据块应追加"
         print("  ✅ 更新成功: 新日期追加到已有 Issue body")
 
-        # 3.8 secret scan 阻断测试
         print("\n--- 步骤 8: Secret scan 阻断测试 ---")
         client3 = MockIssueClient()
         reporter3 = IssueReporter(
@@ -364,7 +340,6 @@ def main() -> int:
         assert len(client3.find_titles) == 0, "含 secret 时不应调用任何 HTTP API"
         print("  ✅ Secret scan 正确阻断, reporter_errors 已记录")
 
-        # 3.9 完整断言汇总
         print("\n" + "=" * 72)
         print("✅ 所有场景通过")
         print("=" * 72)
@@ -380,7 +355,6 @@ def main() -> int:
   └─────────────────────────────────────────────┴────────┘
 """)
 
-    # TemporaryDirectory 自动清理
     return 0
 
 

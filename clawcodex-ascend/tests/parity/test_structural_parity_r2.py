@@ -1,3 +1,25 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSE.clawcodex.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 """Phase D — Round 2 Structural Parity Tests.
 
 25 tests validating that Python modules expose the same interfaces and behaviors
@@ -553,9 +575,9 @@ class TestPermissionSetupMultiSource(unittest.TestCase):
             user_settings = os.path.join(td, "user.json")
             project_settings = os.path.join(td, "project.json")
 
-            with open(user_settings, "w") as f:
+            with open(user_settings, "w", encoding="utf-8") as f:
                 json.dump({"permissions": {"allow": ["Read:*"]}}, f)
-            with open(project_settings, "w") as f:
+            with open(project_settings, "w", encoding="utf-8") as f:
                 json.dump({"permissions": {"deny": ["Bash:rm"]}}, f)
 
             result = setup_permissions(
@@ -572,7 +594,7 @@ class TestPermissionSetupMultiSource(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as td:
             settings = os.path.join(td, "settings.json")
-            with open(settings, "w") as f:
+            with open(settings, "w", encoding="utf-8") as f:
                 json.dump({"permissions": {"allow": ["Bash"]}}, f)
 
             result = setup_permissions(user_settings_path=settings)
@@ -583,7 +605,7 @@ class TestPermissionSetupMultiSource(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as td:
             settings = os.path.join(td, "settings.json")
-            with open(settings, "w") as f:
+            with open(settings, "w", encoding="utf-8") as f:
                 json.dump(
                     {
                         "permissions": {
@@ -976,7 +998,7 @@ class TestFileHistoryUndo(unittest.TestCase):
     def test_edit_undo_restores_original(self) -> None:
         from src.utils.file_history import FileHistory
 
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
+        with tempfile.NamedTemporaryFile(encoding="utf-8", mode="w", suffix=".txt", delete=False) as f:
             f.write("original content")
             path = f.name
 
@@ -985,13 +1007,13 @@ class TestFileHistoryUndo(unittest.TestCase):
             history.snapshot_file(path, "original content")
 
             # Simulate edit
-            Path(path).write_text("modified content")
-            self.assertEqual(Path(path).read_text(), "modified content")
+            Path(path).write_text("modified content", encoding="utf-8")
+            self.assertEqual(Path(path).read_text(encoding="utf-8"), "modified content")
 
             # Undo
             restored = history.undo_file_change(path)
             self.assertEqual(restored, "original content")
-            self.assertEqual(Path(path).read_text(), "original content")
+            self.assertEqual(Path(path).read_text(encoding="utf-8"), "original content")
         finally:
             os.unlink(path)
 
@@ -1000,24 +1022,24 @@ class TestFileHistoryUndo(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as td:
             file_a = os.path.join(td, "a.txt")
-            Path(file_a).write_text("version 1")
+            Path(file_a).write_text("version 1", encoding="utf-8")
 
             history = FileHistory()
             history.snapshot_file(file_a, "version 1")
             history.create_checkpoint("cp1")
 
             # Modify
-            Path(file_a).write_text("version 2")
+            Path(file_a).write_text("version 2", encoding="utf-8")
 
             # Restore
             restored = history.undo_to_checkpoint("cp1")
             self.assertIn(os.path.abspath(file_a), restored)
-            self.assertEqual(Path(file_a).read_text(), "version 1")
+            self.assertEqual(Path(file_a).read_text(encoding="utf-8"), "version 1")
 
     def test_lines_changed_tracking(self) -> None:
         from src.utils.file_history import FileHistory
 
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
+        with tempfile.NamedTemporaryFile(encoding="utf-8", mode="w", suffix=".txt", delete=False) as f:
             f.write("line 1\nline 2\nline 3\n")
             path = f.name
 
@@ -1026,7 +1048,7 @@ class TestFileHistoryUndo(unittest.TestCase):
             history.snapshot_file(path, "line 1\nline 2\nline 3\n")
 
             # Modify
-            Path(path).write_text("line 1\nmodified\nline 3\nnew line 4\n")
+            Path(path).write_text("line 1\nmodified\nline 3\nnew line 4\n", encoding="utf-8")
 
             lc = history.get_lines_changed(path)
             self.assertGreater(lc.added, 0)

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 #  This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
@@ -16,15 +17,7 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""Stage 2 — CLI 烟雾测试（< 5 秒）。
-
-使用子进程执行 CLI 命令，验证：
-- --help / --version 正常退出
-- provider list / model list 正常列出
-- print 模式正常工作
-- 常见标志解析不崩溃
-- --help 不加载重型模块（快速路径）
-"""
+"""Tests for stage2 cli."""
 
 from __future__ import annotations
 
@@ -45,7 +38,7 @@ def _run_cli(*args: str) -> subprocess.CompletedProcess:
 
 
 class TestStage2CliSmoke:
-    """CLI smoke tests — 子进程执行，不依赖 provider 配置。"""
+    """Tests for TestStage2CliSmoke."""
 
     def test_cli_help_exits_0(self):
         proc = _run_cli("--help")
@@ -97,7 +90,7 @@ class TestStage2CliSmoke:
         assert proc.returncode == 0, f"{desc}: stderr={proc.stderr!r}"
 
     def test_cli_help_does_not_load_heavy_modules(self):
-        """--help 应该快速返回，不加载 TUI/REPL 重型模块。"""
+        """Verify cli help does not load heavy modules."""
         import time
 
         start = time.monotonic()
@@ -107,15 +100,7 @@ class TestStage2CliSmoke:
         assert elapsed < 5.0, f"--help took {elapsed:.2f}s, expected < 5s"
 
     def test_cli_print_mode_initializes_without_crash(self):
-        """-p \"hello\" 初始化路径不崩溃（即使等待 LLM 超时）。
-
-        print mode 会触发完整的 RuntimeContext 初始化（包括 cron 调度器
-        文件锁），然后进入 headless 等待 LLM 响应。本测试验证初始化阶段
-        不会抛出未捕获异常（如 Windows 上 os.kill 的 SystemError）。
-
-        预期行为：进程因等待 LLM 响应而超时（TimeoutExpired），
-        而非崩溃退出（traceback / SystemError）。
-        """
+        """Verify cli print mode initializes without crash."""
         import subprocess as _sp
 
         proc = _sp.Popen(
@@ -126,7 +111,6 @@ class TestStage2CliSmoke:
         )
         try:
             stdout, _ = proc.communicate(timeout=12)
-            # 如果 12 秒内返回了，检查非崩溃退出
             output = stdout
             assert "Traceback (most recent call last)" not in output, f"CLI crashed with unhandled exception:\n{output}"
             assert "SystemError" not in output, f"CLI crashed with SystemError:\n{output}"
@@ -134,10 +118,8 @@ class TestStage2CliSmoke:
             proc.kill()
             stdout, _ = proc.communicate(timeout=5)
             output = stdout
-            # 超时是预期行为（等待 LLM 响应），检查 partial output 无崩溃
             assert "Traceback (most recent call last)" not in output, (
                 f"CLI crashed with unhandled exception (partial output):\n{output}"
             )
             assert "SystemError" not in output, f"CLI crashed with SystemError (partial output):\n{output}"
-            # 应包含预期的初始化输出
             assert "model" in output.lower(), f"Expected model-related output in print mode:\n{output}"

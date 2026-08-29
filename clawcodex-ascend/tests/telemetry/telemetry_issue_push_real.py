@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
-#  This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
 # Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSE.clawcodex.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
-#           http://license.coscl.org.cn/MulanPSL2
+#          http://license.coscl.org.cn/MulanPSL2
 #
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
@@ -18,20 +20,7 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""
-Telemetry IssueReporter 真实推送测试。
-
-向远端 GitCode 仓库 (chadwweng/clawcodex) 推送一条测试 Issue，
-验证完整管线：事件 → 聚合 → 脱敏 → Markdown 渲染 → Issue 创建。
-
-前置条件：
-  export CLAW_TELEMETRY_REPORTING_TOKEN=your_gitcode_access_token
-
-用法：
-  python3 tests/telemetry/telemetry_issue_push_real.py             # 推送 + 验证
-  python3 tests/telemetry/telemetry_issue_push_real.py --preview   # 仅预览，不推送
-  python3 tests/telemetry/telemetry_issue_push_real.py --close     # 推送后关闭 Issue
-"""
+"""Tests for telemetry issue push real."""
 
 from __future__ import annotations
 
@@ -44,7 +33,6 @@ from pathlib import Path
 from typing import Any
 
 # ---------------------------------------------------------------------------
-# 路径设置
 # ---------------------------------------------------------------------------
 _HERE = Path(__file__).resolve().parent.parent.parent
 os.chdir(str(_HERE))
@@ -52,7 +40,6 @@ _tests_dir = str((_HERE / "tests").resolve())
 sys.path = [str(_HERE)] + [p for p in sys.path if p and p != _tests_dir and os.path.realpath(p) != _tests_dir]
 
 # ---------------------------------------------------------------------------
-# 远端仓库信息
 # ---------------------------------------------------------------------------
 PLATFORM = "gitcode"
 OWNER = "chadwweng"
@@ -62,10 +49,9 @@ DATE = time.strftime("%Y-%m-%d", time.gmtime())
 
 
 # ---------------------------------------------------------------------------
-# 事件构造
 # ---------------------------------------------------------------------------
 def build_events(storage: Any) -> None:
-    """向 storage 写入模拟事件。"""
+    """Test helper for build events."""
     from telemetry.events import TelemetryEvent, EventType
 
     now = time.time()
@@ -149,7 +135,6 @@ def build_events(storage: Any) -> None:
 
 
 # ---------------------------------------------------------------------------
-# 主流程
 # ---------------------------------------------------------------------------
 def main() -> int:
     parser = argparse.ArgumentParser(description="Telemetry 真实 Issue 推送测试")
@@ -157,7 +142,6 @@ def main() -> int:
     parser.add_argument("--close", action="store_true", help="推送后关闭 Issue")
     args = parser.parse_args()
 
-    # 读取 token
     token = os.environ.get("CLAW_TELEMETRY_REPORTING_TOKEN") or os.environ.get("GITCODE_TOKEN") or ""
     if not token and not args.preview:
         print("❌ 需要设置 CLAW_TELEMETRY_REPORTING_TOKEN 或 GITCODE_TOKEN")
@@ -178,17 +162,14 @@ def main() -> int:
     from telemetry.reporters.issue import IssueReporter
     from extensions.orchestrator.repo_tracker.client import RepositoryIssueClient
 
-    # 临时存储
     tmpdir_obj = tempfile.TemporaryDirectory(prefix="telemetry-push-")
     try:
         storage = LocalJsonlStorage(Path(tmpdir_obj.name) / "telemetry", retention_days=7)
 
-        # Step 1: 写入事件
         print("\n--- 步骤 1: 写入模拟事件 ---")
         build_events(storage)
         print("  写入: 2 SESSION_START, 4 COMMAND_RUN, 3 TOOL_SUMMARY, 1 ERROR (crashes)")
 
-        # Step 2: 聚合
         print("\n--- 步骤 2: DailyAggregator ---")
         agg = DailyAggregator(storage)
         summary = agg.aggregate(DATE)
@@ -200,7 +181,6 @@ def main() -> int:
         assert summary["sessions"] == 2
         assert summary["commands"] == 4
 
-        # Step 3: 渲染
         print("\n--- 步骤 3: 渲染 Markdown (DryRunReporter) ---")
         from telemetry.reporters.dry_run import DryRunReporter
 
@@ -227,7 +207,6 @@ def main() -> int:
             print("   CLAW_TELEMETRY_REPORTING_TOKEN=xxx python3 tests/telemetry/telemetry_issue_push_real.py")
             return 0
 
-        # Step 5: 构造 IssueReporter (无 mock client)
         print("\n--- 步骤 5: 构造 IssueReporter (真实 HTTP) ---")
         config = ReportingConfig(
             reporting_enabled=True,
@@ -243,7 +222,6 @@ def main() -> int:
         assert reporter._valid_config(), "配置无效"
         print(f"  配置有效: platform={PLATFORM} owner={OWNER} repo={REPO}")
 
-        # Step 6: 推送
         print("\n--- 步骤 6: 推送 Issue ---")
         timestamp = time.strftime("%H:%M:%S UTC", time.gmtime())
         body_with_tag = (
@@ -261,7 +239,6 @@ def main() -> int:
         print(f"  URL:      {issue_url}")
         print("  请访问以上 URL 查看渲染结果")
 
-        # Step 7: 可选 — 删除 cursor 模拟下次推送
         cursor2 = storage.read_reporter_cursor("issue")
         print("\n--- 步骤 7: reporter cursor 验证 ---")
         print(f"  cursor issue_id = {cursor2.get('issue_id')}")
@@ -270,7 +247,6 @@ def main() -> int:
         assert cursor2.get("date") == DATE
         print("  ✅ cursor 已持久化")
 
-        # Step 8: 可选 — 关闭 Issue
         if args.close:
             import asyncio
 

@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
-#  This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
 # Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSE.clawcodex.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
-#           http://license.coscl.org.cn/MulanPSL2
+#          http://license.coscl.org.cn/MulanPSL2
 #
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
@@ -161,7 +164,7 @@ def test_issue_secret_scan_blocks_upload_without_persisting_body(tmp_path) -> No
 
 
 # ---------------------------------------------------------------------------
-# F-97-I: analytics bridge privacy audit
+# I: analytics bridge privacy audit
 # ---------------------------------------------------------------------------
 
 
@@ -248,7 +251,7 @@ def test_analytics_bridge_redacts_prompt_output_and_secrets(tmp_path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# F-97-L: cross-version privacy + dedup invariant
+# L: cross-version privacy + dedup invariant
 # ---------------------------------------------------------------------------
 
 
@@ -257,7 +260,7 @@ def test_v1_v2_fingerprint_redact_and_migrate_hash_equivalent() -> None:
     ERROR event with a structured fingerprint dict (same ``hash``)
     must remain dedupable after the redaction + migration pipeline.
 
-    This is the single invariant the F-97-L rollout rests on: even
+    This is the single invariant the rollout rests on: even
     after the reda``tor scrubs secret-like patterns out of the hash
     and the migrator normalizes the v1 string into the v2 dict form,
     the two events must end up in the same crash bucket — so the

@@ -1,4 +1,26 @@
-"""Tests for the native OpenAI adapter (F-72 P72-A)."""
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSE.clawcodex.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
+"""Tests for the native OpenAI adapter."""
 
 from __future__ import annotations
 
@@ -54,7 +76,7 @@ def _make_provider(monkeypatch: pytest.MonkeyPatch) -> tuple[NativeOpenAIProvide
 
 def test_capabilities_match_f72_plan() -> None:
     """The OpenAI adapter must declare exactly the capabilities the
-    F-72 plan attributes to it (structured output, vision, streaming
+    adapter contract attributes to it (structured output, vision, streaming
     tools, reasoning).
     """
     expected = {CAP_STRUCTURED_OUTPUT, CAP_STREAMING_TOOLS, CAP_VISION, CAP_REASONING}
@@ -94,7 +116,7 @@ def test_chat_returns_chat_response(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_chat_forwards_response_format(monkeypatch: pytest.MonkeyPatch) -> None:
     """The native path must surface ``response_format`` so callers
-    can request JSON-schema structured output — the headline F-72
+    can request JSON-schema structured output — the headline
     capability that LiteLLM generalises away.
     """
     provider, client = _make_provider(monkeypatch)

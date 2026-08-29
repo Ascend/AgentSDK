@@ -1,4 +1,26 @@
-"""F-99 方案3 tests — ``_run_tools_partitioned`` asyncio.wait(FIRST_COMPLETED) cancel.
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSE.clawcodex.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
+"""Tests for ``_run_tools_partitioned`` cancellation with FIRST_COMPLETED.
 
 The fix replaces ``asyncio.gather`` with task creation +
 ``asyncio.wait(FIRST_COMPLETED)`` so a user abort short-circuits
@@ -108,14 +130,14 @@ def concurrent_tools():
     block's ``is_concurrent_safe``; the default Tool factory returns
     ``False`` for that predicate, which routes every block through
     the sequential exclusive-batch path and never exercises the
-    FIRST_COMPLETED machinery the F-99 fix adds. The fix's tests
+    FIRST_COMPLETED machinery. These tests
     must supply a tool whose predicate returns True.
     """
     return [_make_concurrency_safe_tool("Read")]
 
 
 # ---------------------------------------------------------------------------
-# F-99 方案3: FIRST_COMPLETED short-circuit on abort
+# FIRST_COMPLETED short-circuit on abort
 
 
 @pytest.mark.asyncio
@@ -124,7 +146,7 @@ async def test_first_completed_short_circuits_on_abort(
     fake_registry,
     concurrent_tools,
 ) -> None:
-    """F-99: abort fires mid-batch → agent loop unblocks before slowest tool finishes.
+    """An abort mid-batch unblocks the agent loop before the slowest tool finishes.
 
     With three concurrent tools taking 0.3s/0.3s/1.0s and an abort at
     0.4s, the agent loop must return well before 1.0s. The expected
@@ -174,7 +196,7 @@ async def test_first_completed_no_abort_waits_for_all(
     fake_registry,
     concurrent_tools,
 ) -> None:
-    """F-99: no abort → behaviour matches the pre-fix ``asyncio.gather`` path.
+    """Without an abort, behaviour matches the previous ``asyncio.gather`` path.
 
     Regression guard: the FIRST_COMPLETED rewrite must preserve the
     happy-path contract — all concurrent tools' results land in the
@@ -207,7 +229,7 @@ async def test_first_completed_preserves_pairing_on_abort(
     fake_registry,
     concurrent_tools,
 ) -> None:
-    """F-99: every ``tool_use`` gets a paired ``tool_result``, even on abort.
+    """Every ``tool_use`` gets a paired ``tool_result``, even on abort.
 
     The agent loop relies on the tool_use/tool_result pairing
     invariant — an orphan tool_use on the next API call causes a
@@ -248,7 +270,7 @@ async def test_first_completed_single_tool_unchanged(
     fake_registry,
     concurrent_tools,
 ) -> None:
-    """F-99: a single-tool batch uses the simple path (no FIRST_COMPLETED overhead).
+    """A single-tool batch uses the simple path without FIRST_COMPLETED overhead.
 
     The single-tool case is common (most batches have one tool) and
     the fix keeps it on the original ``asyncio.to_thread`` direct

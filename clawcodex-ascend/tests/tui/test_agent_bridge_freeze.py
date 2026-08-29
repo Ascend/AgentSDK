@@ -1,10 +1,16 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSE.clawcodex.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -13,26 +19,8 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
-#
-# Copyright (c) 2026 Clawd Codex Team
-# SPDX-License-Identifier: MIT
-# Source: https://github.com/agentforce314/clawcodex
-# ClawCodex-derived portions remain licensed under the MIT License.
-# See clawcodex-ascend/LICENSE.clawcodex.
 
-"""F-108 P108-A — Permission / AskUser modal timeout (Layer 0 quick fix).
-
-Verifies that ``AgentBridge._permission_handler`` and
-``AgentBridge._ask_user_handler`` auto-resolve after a configurable
-timeout when the UI side never calls ``decide()``. Without this
-guarantee a stuck modal holds the agent-loop worker thread forever
-(see F-108 §十八 risk #2 #3).
-
-Test strategy: monkey-patch the module-level ``_PERMISSION_TIMEOUT_S``
-constant to a tiny value so we don't have to wait 30 real seconds.
-The handler logic only reads the constant inside the method, so a
-module-attribute patch is sufficient.
-"""
+"""P108-A Tests for agent bridge freeze."""
 
 from __future__ import annotations
 
@@ -271,14 +259,7 @@ def test_ask_user_handler_resolves_state_after_timeout(short_timeout) -> None:
 
 
 def test_permission_handler_no_timeout_when_disabled(monkeypatch) -> None:
-    """``timeout=0`` is the documented escape hatch (F-108 §十八 design
-    decision #5): it falls back to the legacy unbounded ``done.wait()``.
-
-    We can't easily prove "blocks forever" in a unit test without
-    risking a hang, so we just verify that with ``timeout=0`` the
-    worker is still blocked after 100 ms (one full polling window) if
-    decide() is never called.
-    """
+    """Verify permission handler no timeout when disabled."""
     monkeypatch.setattr("clawcodex_ext.tui.agent_bridge._PERMISSION_TIMEOUT_S", 0)
 
     bridge, posted, state = _build_bridge()

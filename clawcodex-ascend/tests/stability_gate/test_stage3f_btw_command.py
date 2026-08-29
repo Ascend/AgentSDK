@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 #  This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
@@ -18,7 +19,7 @@
 
 """Stage 3f: /btw side-question command registration and basic invocation.
 
-F-122-J stability-gate coverage.
+stability-gate coverage.
 """
 
 from __future__ import annotations
@@ -165,13 +166,13 @@ class TestExtractSideQuestionResponse:
 
 
 # ---------------------------------------------------------------------------
-# F-122-F: scrollable answer viewer
+# F: scrollable answer viewer
 # ---------------------------------------------------------------------------
 
 
 class TestInteractiveOutcomeScrollable:
     """Verify the InteractiveOutcome / CommandResult ``scrollable`` flag
-    exists and defaults to False (back-compat with pre-F-122 commands).
+    exists and defaults to False (back-compat with commands).
     """
 
     def test_interactive_outcome_default_not_scrollable(self):
@@ -342,7 +343,7 @@ class TestReplScrollViewerPlumbing:
 
 
 # ---------------------------------------------------------------------------
-# F-122-G: headless / --print mode /btw degradation
+# G: headless / --print mode /btw degradation
 # ---------------------------------------------------------------------------
 
 
@@ -465,7 +466,7 @@ async def _fake_short(question, params):
 
 
 # ---------------------------------------------------------------------------
-# F-122-H: sidechain transcript
+# H: sidechain transcript
 # ---------------------------------------------------------------------------
 
 
@@ -698,14 +699,14 @@ class TestSidechainRecordAndRead:
 
     def test_record_handles_io_failure_silently(self):
         """If the parent directory is not writable, record returns None
-        and does NOT raise — the F-122 isolation invariant requires
+        and does NOT raise — the isolation invariant requires
         sidechain failures to never reach the user.
         """
         from clawcodex_ext.agent.sidechain_transcript import record_btw_invocation
 
         # Make a path that can't be created: parent is a file, not a dir.
         blocker = _os.path.join(self._tmp.name, "blocker")
-        with open(blocker, "w") as f:
+        with open(blocker, "w", encoding="utf-8") as f:
             f.write("not a directory")
         _os.environ["CLAWCODEX_DATA_DIR"] = blocker  # sidechains/ can't be made under a file
 
@@ -933,7 +934,7 @@ class TestRunSideQuestionTriggersSidechain:
 
 
 # ---------------------------------------------------------------------------
-# F-122-I: /btw usage statistics
+# I: /btw usage statistics
 # ---------------------------------------------------------------------------
 
 
@@ -1006,7 +1007,7 @@ class TestBtwStatsModule:
         assert not get_btw_stats_path().exists(), "disabled increment must not create the stats file"
         # And of course no leftover json content.
         try:
-            with open(get_btw_stats_path()) as f:
+            with open(get_btw_stats_path(), encoding="utf-8") as f:
                 json.load(f)
             created = True
         except FileNotFoundError:

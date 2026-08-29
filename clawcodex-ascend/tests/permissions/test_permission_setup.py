@@ -1,3 +1,25 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSE.clawcodex.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 from __future__ import annotations
 
 import json
@@ -32,7 +54,7 @@ class TestSetupPermissionsBasic(unittest.TestCase):
 
 class TestSetupPermissionsFromFile(unittest.TestCase):
     def test_loads_user_settings(self) -> None:
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        with tempfile.NamedTemporaryFile(encoding="utf-8", mode="w", suffix=".json", delete=False) as f:
             json.dump(
                 {
                     "permissions": {
@@ -49,7 +71,7 @@ class TestSetupPermissionsFromFile(unittest.TestCase):
                 os.unlink(f.name)
 
     def test_dangerous_rule_warning(self) -> None:
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        with tempfile.NamedTemporaryFile(encoding="utf-8", mode="w", suffix=".json", delete=False) as f:
             json.dump(
                 {
                     "permissions": {
@@ -83,7 +105,7 @@ class TestSetupPermissionsCLI(unittest.TestCase):
 
 class TestShadowedRules(unittest.TestCase):
     def test_detects_shadowed(self) -> None:
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        with tempfile.NamedTemporaryFile(encoding="utf-8", mode="w", suffix=".json", delete=False) as f:
             json.dump(
                 {
                     "permissions": {
@@ -103,7 +125,7 @@ class TestShadowedRules(unittest.TestCase):
 
 class TestPersistSessionRule(unittest.TestCase):
     def test_persists_rule(self) -> None:
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        with tempfile.NamedTemporaryFile(encoding="utf-8", mode="w", suffix=".json", delete=False) as f:
             json.dump({}, f)
             f.flush()
             try:
@@ -111,7 +133,7 @@ class TestPersistSessionRule(unittest.TestCase):
                 success = persist_session_rule(f.name, rule_value, "allow")
                 self.assertTrue(success)
 
-                with open(f.name) as rf:
+                with open(f.name, encoding="utf-8") as rf:
                     data = json.load(rf)
                 self.assertIn("permissions", data)
                 self.assertIn("allow", data["permissions"])
@@ -119,7 +141,7 @@ class TestPersistSessionRule(unittest.TestCase):
                 os.unlink(f.name)
 
     def test_no_duplicates(self) -> None:
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        with tempfile.NamedTemporaryFile(encoding="utf-8", mode="w", suffix=".json", delete=False) as f:
             json.dump({}, f)
             f.flush()
             try:
@@ -127,7 +149,7 @@ class TestPersistSessionRule(unittest.TestCase):
                 persist_session_rule(f.name, rule_value, "allow")
                 persist_session_rule(f.name, rule_value, "allow")
 
-                with open(f.name) as rf:
+                with open(f.name, encoding="utf-8") as rf:
                     data = json.load(rf)
                 self.assertEqual(len(data["permissions"]["allow"]), 1)
             finally:

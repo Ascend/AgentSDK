@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 #  This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
@@ -16,16 +17,7 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""Stage 3c — CLI 弹性测试（< 10 秒）。
-
-覆盖 P0#2（Ctrl+C/SIGINT 中断稳定）、P0#4（无 API key 启动）、
-P1#6（provider 超时/网络错误边界）。
-
-使用子进程执行 CLI 命令，验证：
-- 无 HOME 目录或空环境时 --help / --version 仍正常退出
-- 无效子命令给出非 0 退出码而非 traceback
-- SIGINT 信号被正确处理（不打印 traceback）
-"""
+"""P0 P1 Tests for stage3c cli resilience."""
 
 from __future__ import annotations
 
@@ -39,9 +31,6 @@ import time
 def _run_cli_env(env_override: dict[str, str], *args: str) -> subprocess.CompletedProcess:
     """Run ``python -m src.cli`` with custom environment."""
     base_env = os.environ.copy()
-    # 保留 PATH 和 Python 路径确保能启动
-    # Windows 上 Path.home() 使用 USERPROFILE / HOMEDRIVE+HOMEPATH
-    # asyncio / _overlapped 需要 SYSTEMROOT (Winsock catalog)
     for keep in (
         "PATH",
         "PYTHONPATH",
@@ -70,10 +59,10 @@ def _run_cli_env(env_override: dict[str, str], *args: str) -> subprocess.Complet
 
 
 class TestStage3cCliEnvironment:
-    """CLI 在极端环境下的稳定性。"""
+    """Tests for TestStage3cCliEnvironment."""
 
     def test_cli_help_no_home(self):
-        """HOME 不可用时 --help 仍正常退出。"""
+        """Verify cli help no home."""
         env = {
             "HOME": "/nonexistent_home_for_test",
             "USERPROFILE": "Z:\\nonexistent_userprofile_for_test",
@@ -83,7 +72,7 @@ class TestStage3cCliEnvironment:
         assert proc.returncode == 0, f"--help with no HOME failed: rc={proc.returncode}, stderr={proc.stderr!r}"
 
     def test_cli_version_no_home(self):
-        """HOME 不可用时 --version 仍正常退出。"""
+        """Verify cli version no home."""
         env = {
             "HOME": "/nonexistent_home_for_test",
             "USERPROFILE": "Z:\\nonexistent_userprofile_for_test",
@@ -93,7 +82,7 @@ class TestStage3cCliEnvironment:
         assert proc.returncode == 0, f"--version with no HOME failed: rc={proc.returncode}, stderr={proc.stderr!r}"
 
     def test_cli_help_empty_env(self):
-        """LANG/LC_ALL 为空时 --help 不崩溃。"""
+        """Verify cli help empty env."""
         env = {
             "HOME": os.environ.get("HOME", "/tmp"),
             "PATH": os.environ.get("PATH", "/usr/bin"),
@@ -104,22 +93,17 @@ class TestStage3cCliEnvironment:
         assert proc.returncode == 0, f"--help with empty LANG failed: rc={proc.returncode}, stderr={proc.stderr!r}"
 
     def test_cli_invalid_subcommand_no_traceback(self):
-        """无效子命令不打印 Python traceback。"""
+        """Verify cli invalid subcommand no traceback."""
         env = {"HOME": os.environ.get("HOME", "/tmp"), "PATH": os.environ.get("PATH", "/usr/bin")}
         proc = _run_cli_env(env, "nonexistent-cmd-that-should-not-exist")
-        # stderr 不应含 Python traceback
         assert "Traceback" not in proc.stderr, f"invalid command produced traceback:\n{proc.stderr}"
 
 
 class TestStage3cCliSignal:
-    """CLI 信号处理 — P0#2 Ctrl+C/SIGINT 清理退出。"""
+    """P0 Tests for TestStage3cCliSignal."""
 
     def test_cli_sigint_no_sigabrt(self):
-        """CLI 子进程收到 SIGINT 不以 SIGABRT (-6) 退出。
-
-        注: 非交互模式下 KeyboardInterrupt traceback 是 Python 默认行为。
-        这里只验证进程没有被 SIGABRT 杀死 (这表示 Python 内部状态损坏)。
-        """
+        """Verify cli sigint no sigabrt."""
         popen_kwargs: dict = {
             "stdout": subprocess.PIPE,
             "stderr": subprocess.PIPE,
@@ -133,10 +117,7 @@ class TestStage3cCliSignal:
             [sys.executable, "-m", "src.cli", "--help"],
             **popen_kwargs,
         )
-        # 给子进程一点时间启动
-
         time.sleep(0.3)
-        # 发送 SIGINT
         if sys.platform != "win32":
             proc.send_signal(signal.SIGINT)
         else:
@@ -147,11 +128,10 @@ class TestStage3cCliSignal:
             proc.send_signal(signal.CTRL_BREAK_EVENT)  # type: ignore[attr-defined]
 
         _stdout, stderr = proc.communicate(timeout=10)
-        # 退出码不应是 -6 (SIGABRT) — 那只在严重的 Python 内部损坏时出现
         assert proc.returncode != -6, f"SIGINT caused SIGABRT (-6): stderr={stderr!r}"
 
     def test_cli_help_no_traceback_on_normal_exit(self):
-        """正常 --help 退出不产生任何 traceback。"""
+        """Verify cli help no traceback on normal exit."""
         proc = _run_cli_env(
             {"HOME": os.environ.get("HOME", "/tmp"), "PATH": os.environ.get("PATH", "/usr/bin")},
             "--help",

@@ -1,10 +1,16 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSE.clawcodex.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -13,12 +19,7 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
-#
-# Copyright (c) 2026 Clawd Codex Team
-# SPDX-License-Identifier: MIT
-# Source: https://github.com/agentforce314/clawcodex
-# ClawCodex-derived portions remain licensed under the MIT License.
-# See clawcodex-ascend/LICENSE.clawcodex.
+
 """Focused tests for Agent Runtime non-terminal stream events."""
 
 from __future__ import annotations
@@ -48,8 +49,7 @@ class _Runner(AgentStreamMixin):
 
     @staticmethod
     def _handle_tool_call(event, _context):
-        event._approved = True
-        event._deny_reason = None
+        event.allow()
         return event
 
     def _append_tool_event_log(self, event, _context) -> None:
@@ -118,6 +118,21 @@ def _turn_state(**updates) -> SimpleNamespace:
     return SimpleNamespace(**values)
 
 
+class _ToolCallEvent:
+    def __init__(self, *, tool_name: str, tool_use_id: str, params: dict) -> None:
+        self.tool_name = tool_name
+        self.tool_use_id = tool_use_id
+        self.params = params
+        self.__approved: bool | None = None
+
+    def allow(self) -> None:
+        self.__approved = True
+
+    @property
+    def is_approved(self) -> bool | None:
+        return self.__approved
+
+
 @pytest.mark.asyncio
 async def test_text_delta_updates_output_and_all_live_consumers() -> None:
     runner = _Runner()
@@ -142,7 +157,7 @@ async def test_tool_call_applies_policy_audit_and_progress() -> None:
     session = _session()
     turn = _turn_state()
     run = _run_state()
-    event = SimpleNamespace(
+    event = _ToolCallEvent(
         tool_name="Write",
         tool_use_id="tool-1",
         params={"file_path": "a.py"},
@@ -165,7 +180,7 @@ async def test_tool_cap_is_set_on_configured_call_count() -> None:
     runner = _Runner()
     session = _session()
     turn = _turn_state(tool_count=1, pending_tool_results=1)
-    event = SimpleNamespace(tool_name="Read", tool_use_id="tool-2", params={})
+    event = _ToolCallEvent(tool_name="Read", tool_use_id="tool-2", params={})
     await runner._handle_tool_call_event(session, event, turn, _run_state(), {})
     assert turn.cap_reached is True
     assert turn.pending_tool_results == 2

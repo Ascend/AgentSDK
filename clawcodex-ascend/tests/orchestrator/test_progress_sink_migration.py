@@ -3,12 +3,14 @@
 
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
-# Copyright (c) 2026 Clawd Codex Team
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSE.clawcodex.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -27,6 +29,11 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from clawcodex_ext.tool_system.context import ToolContext
+from clawcodex_ext.tool_system.tools.progress_report import (
+    _progress_report_call,
+    progress_report_call,
+)
+from clawcodex_ext.tool_system.tools.tasks_v2 import _task_update_call, task_update_call
 from extensions.api.query import PhaseComplete, SessionComplete, TurnComplete
 from extensions.orchestrator.progress_reporter import ProgressReporter
 from extensions.orchestrator.progress_sink import (
@@ -66,7 +73,8 @@ def _session():
 
 
 def _context(*task_ids: str) -> ToolContext:
-    context = ToolContext(workspace_root="/tmp")
+    # This inert test-only value is never used for filesystem access.
+    context = ToolContext(workspace_root="/tmp")  # nosec B108
     for task_id in task_ids:
         context.tasks[task_id] = {"id": task_id, "metadata": {}}
     return context
@@ -84,6 +92,11 @@ def test_composite_fans_out_and_satisfies_protocol() -> None:
 
     assert first.events == ["phase", "turn", "session"]
     assert second.events == first.events
+
+
+def test_public_tool_call_aliases_preserve_private_compatibility() -> None:
+    assert progress_report_call is _progress_report_call
+    assert task_update_call is _task_update_call
 
 
 def test_composite_isolates_failure_and_redacts_exception(caplog) -> None:

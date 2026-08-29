@@ -3,12 +3,14 @@
 
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
-# Copyright (c) 2026 Clawd Codex Team
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSE.clawcodex.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -136,7 +138,7 @@ def _drive_notifications(gw: MessageGateway) -> None:
 
 @pytest.mark.asyncio
 async def test_notify_on_connect_repl(tmp_path) -> None:
-    """binding_created → sends 'clawcodex-REPL已连接' to the WeChat user."""
+    """Verify notify on connect repl."""
     gw, adapter = _gateway_with_wechat(tmp_path)
 
     gw.binding.bind(
@@ -151,7 +153,7 @@ async def test_notify_on_connect_repl(tmp_path) -> None:
 
 @pytest.mark.asyncio
 async def test_notify_on_connect_orchestrator(tmp_path) -> None:
-    """binding_created → sends 'clawcodex-orchestrator已连接，当前Orchestrator仅支持命令交互'."""
+    """Verify notify on connect orchestrator."""
     gw, adapter = _gateway_with_wechat(tmp_path)
 
     gw.binding.bind(
@@ -166,7 +168,7 @@ async def test_notify_on_connect_orchestrator(tmp_path) -> None:
 
 @pytest.mark.asyncio
 async def test_notify_on_disconnect_offline(tmp_path) -> None:
-    """binding_offline → sends 'clawcodex-REPL已断开'."""
+    """Verify notify on disconnect offline."""
     gw, adapter = _gateway_with_wechat(tmp_path)
 
     gw.binding.bind(
@@ -205,7 +207,7 @@ async def test_repeated_offline_transition_does_not_duplicate_disconnect(tmp_pat
 
 @pytest.mark.asyncio
 async def test_notify_on_disconnect_terminated(tmp_path) -> None:
-    """binding_terminated → sends 'clawcodex-orchestrator已断开'."""
+    """Verify notify on disconnect terminated."""
     gw, adapter = _gateway_with_wechat(tmp_path)
 
     gw.binding.bind(
@@ -224,7 +226,7 @@ async def test_notify_on_disconnect_terminated(tmp_path) -> None:
 
 @pytest.mark.asyncio
 async def test_notify_on_override_active_previous(tmp_path) -> None:
-    """binding_override with active previous → sends 'clawcodex-orchestrator已断开' + 'clawcodex-REPL已连接'."""
+    """Verify notify on override active previous."""
     gw, adapter = _gateway_with_wechat(tmp_path)
 
     gw.binding.bind(
@@ -250,7 +252,7 @@ async def test_notify_on_override_active_previous(tmp_path) -> None:
 
 @pytest.mark.asyncio
 async def test_notify_on_override_offline_previous(tmp_path) -> None:
-    """binding_override with offline previous → sends only 'clawcodex-REPL已连接' (no duplicate disconnect)."""
+    """Verify notify on override offline previous."""
     gw, adapter = _gateway_with_wechat(tmp_path)
 
     gw.binding.bind(
@@ -384,7 +386,7 @@ async def test_notify_concrete_origin(tmp_path) -> None:
 
 @pytest.mark.asyncio
 async def test_notify_terminate_matching_sends_for_each(tmp_path) -> None:
-    """terminate_matching sends '已断开' for each removed binding."""
+    """Verify notify terminate matching sends for each."""
     gw, adapter = _gateway_with_wechat(tmp_path)
 
     gw.binding.bind(

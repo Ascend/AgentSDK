@@ -1,9 +1,31 @@
-"""F-99 regression test: ``ClawcodexAnthropicProvider`` must be registered
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSE.clawcodex.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
+"""Regression test: ``ClawcodexAnthropicProvider`` must be registered
 in ``_EXTRA_PROVIDER_CLASSES`` before any ``get_provider_class(...)`` lookup.
 
 Background
 ----------
-F-99 added three cancel-latency mechanisms (httpx ``read_timeout``,
+The fix added three cancel-latency mechanisms (httpx ``read_timeout``,
 transport close, tool-stage ``FIRST_COMPLETED`` poll). They were all
 unit-tested in isolation and 100 regression tests passed. Despite
 that, a user reported the production CLI still hangs at "Cancelling…"
@@ -44,7 +66,7 @@ def _purge_provider_registry() -> None:
     """Reset both ``_EXTRA_PROVIDER_CLASSES`` and the cached module
     registrations to a true cold-start state.
 
-    The F-99 fix relies on ``_init_provider_extensions()`` being called
+    The fix relies on ``_init_provider_extensions()`` being called
     by ``ensure_eager_extensions_installed()`` from
     ``clawcodex_ext/init.py:init()``. To prove the registration
     actually happens on a cold start (which is the production
@@ -68,7 +90,7 @@ def _purge_provider_registry() -> None:
         # cleanest way is to purge the module so the next import
         # re-executes the body and re-initializes the flag to False.
     except ImportError:
-        pass
+        pass  # An absent registry is already in the desired clean state.
 
     # Evict the modules whose import-time or init-time side effects are
     # what triggers the registration. We must evict them in

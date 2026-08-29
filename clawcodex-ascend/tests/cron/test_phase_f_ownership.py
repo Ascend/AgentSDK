@@ -1,20 +1,42 @@
-"""F-22-F: agent ownership model + scheduler + tool-layer filtering.
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSE.clawcodex.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
+"""agent ownership model + scheduler + tool-layer filtering.
 
 Pins the contracts from
-``docs/feature_plan/05-cron-system/f-22-cron-execution.md`` §Phase F:
+Cron task ownership behavior:
 
-- F-1: ``CronTask.agent_id`` / ``team_id``, ``CronRun.owner_agent_id``,
+- ``CronTask.agent_id`` / ``team_id``, ``CronRun.owner_agent_id``,
   ``CronTaskDetail.agent_id`` round-trip through snake_case and camelCase
   serialisation. ``format_cron_task_detail`` renders the real ``agent_id``
   rather than the hard-coded ``"Agent: —"`` placeholder.
-- F-2: ``CronScheduler(agent_id=...)`` filters due tasks so global
+- ``CronScheduler(agent_id=...)`` filters due tasks so global
   (``agent_id=None``) tasks fire for every agent, owned tasks fire only for
   their owner.
-- F-3: ``CronCreate`` auto-fills ``agent_id`` when supplied; ``CronList``
+- ``CronCreate`` auto-fills ``agent_id`` when supplied; ``CronList``
   returns only own + global tasks by default; ``agent_id="*"`` exposes
   every task; ``CronDelete`` rejects deletion of tasks owned by another
   agent unless the caller is an admin.
-- F-5: ``cleanup_orphaned_tasks`` flags owned-but-inactive tasks.
+- ``cleanup_orphaned_tasks`` flags owned-but-inactive tasks.
 """
 
 from __future__ import annotations
@@ -60,7 +82,7 @@ def _stub_tool_context(workspace: Path, agent_id: str | None = None):
     return ToolContext(workspace_root=workspace, crons={}, agent_id=agent_id)
 
 
-# ---- F-1: model fields --------------------------------------------------
+# : model fields --------------------------------------------------
 
 
 def test_cron_task_agent_id_round_trip_snake_case() -> None:
@@ -169,7 +191,7 @@ def test_cron_task_detail_renders_dash_when_unset(tmp_path) -> None:
     assert "Agent: —" in output
 
 
-# ---- F-2: scheduler filtering ------------------------------------------
+# : scheduler filtering ------------------------------------------
 
 
 def _silent_scheduler(workspace: Path, **kwargs) -> CronScheduler:
@@ -225,7 +247,7 @@ def test_scheduler_filters_to_own_agent(tmp_path) -> None:
     assert {t.prompt for t in filtered} == {"global", "owned-A"}
 
 
-# ---- F-3: tool-layer visibility ---------------------------------------
+# : tool-layer visibility ---------------------------------------
 
 
 def test_cron_create_stamps_agent_id_when_provided(tmp_path) -> None:
@@ -328,7 +350,7 @@ def test_cron_delete_allows_owner_to_remove_own_task(tmp_path) -> None:
     assert not any(t.id == task.id for t in read_cron_tasks(tmp_path))
 
 
-# ---- F-5: cleanup_orphaned_tasks --------------------------------------
+# : cleanup_orphaned_tasks --------------------------------------
 
 
 def test_cleanup_orphaned_tasks_returns_inactive_owned_tasks(tmp_path) -> None:

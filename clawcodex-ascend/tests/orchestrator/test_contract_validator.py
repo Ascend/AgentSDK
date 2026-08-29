@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 #  This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
@@ -16,7 +17,7 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""Unit tests for F-114 ContractValidator.
+"""Unit tests for ContractValidator.
 
 Covers all 7 built-in validators, custom validator registration, and context injection (workspace_dir / llm_client).
 """

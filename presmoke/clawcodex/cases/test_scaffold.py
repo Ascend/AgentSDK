@@ -1,4 +1,6 @@
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 """
 -------------------------------------------------------------------------
 This file is part of the AgentSDK project.
@@ -17,25 +19,29 @@ See the Mulan PSL v2 for more details.
 -------------------------------------------------------------------------
 """
 
-"""占位测试类 — 仅用于验证脚手架框架可运行。"""
+"""Placeholder tests that verify the scaffold can run."""
 
-import unittest
+# The source license notice and module documentation intentionally precede imports.
+import unittest  # noqa: E402
 
 
 class TestScaffoldEnvironment(unittest.TestCase):
-    """占位：环境检查测试框架"""
+    """Placeholder for environment checks."""
+
     def test_placeholder_env(self):
         pass
 
 
 class TestScaffoldImport(unittest.TestCase):
-    """占位：模块导入测试框架"""
+    """Placeholder for import checks."""
+
     def test_placeholder_import(self):
         pass
 
 
 class TestScaffoldPatches(unittest.TestCase):
-    """占位：补丁完整性验证测试框架"""
+    """Placeholder for patch-integrity checks."""
+
     def test_placeholder_patches(self):
         pass
 

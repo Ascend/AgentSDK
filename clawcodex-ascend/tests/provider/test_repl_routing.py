@@ -1,4 +1,26 @@
-"""Regression test for F-43 REPL routing fix.
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSE.clawcodex.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
+"""Regression test for REPL routing fix.
 
 The REPL's ``handle_command`` historically had a hardcoded TUI-only
 whitelist that intercepted ``/model`` and printed "is only available in the
@@ -6,7 +28,7 @@ Textual TUI" before the runtime command could run. This test guards the
 fix by asserting that ``/model`` and ``/provider`` are NOT in the
 TUI-only whitelist and that the new command system carries them.
 
-The CLI/TUI alignment (F-43 follow-up) also removed the legacy
+The CLI/TUI alignment (follow-up) also removed the legacy
 ``/models`` alias from the REPL built-ins; the unified ``/model`` slash
 command now serves both display and switch in REPL and TUI.
 """
@@ -38,7 +60,7 @@ def test_provider_listed_in_repl_builtins() -> None:
         src = _f.read()
 
     # The original built-ins list declares which slash commands the REPL
-    # exposes. F-43 replaced the legacy TUI-only ``/model`` placeholder with
+    # exposes. replaced the legacy TUI-only ``/model`` placeholder with
     # the runtime ``/provider`` command. The CLI/TUI alignment removed the
     # ``/models`` alias so the unified ``/model`` slash command is the only
     # entry point in REPL and TUI.

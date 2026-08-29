@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
-#  This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
 # Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSE.clawcodex.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
-#           http://license.coscl.org.cn/MulanPSL2
+#          http://license.coscl.org.cn/MulanPSL2
 #
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
@@ -68,7 +71,7 @@ class TestFileHistory:
 
     def test_snapshot_file_from_disk(self):
         history = FileHistory()
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
+        with tempfile.NamedTemporaryFile(encoding="utf-8", mode="w", suffix=".txt", delete=False) as f:
             f.write("disk content")
             f.flush()
             snap = history.snapshot_file(f.name)
@@ -77,14 +80,14 @@ class TestFileHistory:
 
     def test_undo_file_change(self):
         history = FileHistory()
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
+        with tempfile.NamedTemporaryFile(encoding="utf-8", mode="w", suffix=".txt", delete=False) as f:
             f.write("original")
             f.flush()
             history.snapshot_file(f.name, "original")
-            with open(f.name, "w") as fw:
+            with open(f.name, "w", encoding="utf-8") as fw:
                 fw.write("modified")
             restored = history.undo_file_change(f.name)
-        with open(f.name) as fr:
+        with open(f.name, encoding="utf-8") as fr:
             content = fr.read()
         os.unlink(f.name)
         assert restored == "original"
@@ -117,11 +120,11 @@ class TestFileHistory:
 
     def test_get_lines_changed(self):
         history = FileHistory()
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
+        with tempfile.NamedTemporaryFile(encoding="utf-8", mode="w", suffix=".txt", delete=False) as f:
             f.write("line1\nline2\n")
             f.flush()
             history.snapshot_file(f.name, "line1\n")
-            with open(f.name, "w") as fw:
+            with open(f.name, "w", encoding="utf-8") as fw:
                 fw.write("line1\nline2\n")
             lc = history.get_lines_changed(f.name)
         os.unlink(f.name)
@@ -136,17 +139,17 @@ class TestFileHistory:
 
     def test_undo_to_checkpoint(self):
         history = FileHistory()
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
+        with tempfile.NamedTemporaryFile(encoding="utf-8", mode="w", suffix=".txt", delete=False) as f:
             f.write("original")
             f.flush()
             history.snapshot_file(f.name, "original")
             history.create_checkpoint("cp1")
 
-            with open(f.name, "w") as fw:
+            with open(f.name, "w", encoding="utf-8") as fw:
                 fw.write("modified after checkpoint")
 
             restored = history.undo_to_checkpoint("cp1")
-        with open(f.name) as fr:
+        with open(f.name, encoding="utf-8") as fr:
             content = fr.read()
         os.unlink(f.name)
 
@@ -177,7 +180,7 @@ class TestFileHistory:
 
     def test_get_total_lines_changed(self):
         history = FileHistory()
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
+        with tempfile.NamedTemporaryFile(encoding="utf-8", mode="w", suffix=".txt", delete=False) as f:
             f.write("a\nb\nc\n")
             f.flush()
             history.snapshot_file(f.name, "a\n")

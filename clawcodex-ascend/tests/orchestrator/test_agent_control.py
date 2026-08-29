@@ -1,10 +1,16 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSE.clawcodex.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -13,12 +19,7 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
-#
-# Copyright (c) 2026 Clawd Codex Team
-# SPDX-License-Identifier: MIT
-# Source: https://github.com/agentforce314/clawcodex
-# ClawCodex-derived portions remain licensed under the MIT License.
-# See clawcodex-ascend/LICENSE.clawcodex.
+
 """Focused tests for Agent Runtime control and pause behavior."""
 
 from __future__ import annotations
@@ -48,6 +49,29 @@ class _Transcript:
 
     def flush(self) -> None:
         self.flush_count += 1
+
+
+def _install_query_event_stubs(monkeypatch):
+    query_module = ModuleType("extensions.api.query")
+
+    class _Event:
+        def __init__(self, **values) -> None:
+            self.__dict__.update(values)
+
+    for name in (
+        "PhaseComplete",
+        "SessionComplete",
+        "TextDelta",
+        "ToolCallEvent",
+        "ToolResultEvent",
+        "TurnComplete",
+    ):
+        setattr(query_module, name, type(name, (_Event,), {}))
+    api_module = ModuleType("extensions.api")
+    api_module.query = query_module
+    monkeypatch.setitem(sys.modules, "extensions.api", api_module)
+    monkeypatch.setitem(sys.modules, "extensions.api.query", query_module)
+    return query_module
 
 
 def _session(tmp_path, *, socket: _Socket | None = None):
@@ -166,25 +190,7 @@ def test_flush_transcript_command(tmp_path) -> None:
 
 @pytest.mark.asyncio
 async def test_broadcast_serializes_phase_event(monkeypatch, tmp_path) -> None:
-    query_module = ModuleType("extensions.api.query")
-
-    class _Event:
-        def __init__(self, **values) -> None:
-            self.__dict__.update(values)
-
-    for name in (
-        "PhaseComplete",
-        "SessionComplete",
-        "TextDelta",
-        "ToolCallEvent",
-        "ToolResultEvent",
-        "TurnComplete",
-    ):
-        setattr(query_module, name, type(name, (_Event,), {}))
-    api_module = ModuleType("extensions.api")
-    api_module.query = query_module
-    monkeypatch.setitem(sys.modules, "extensions.api", api_module)
-    monkeypatch.setitem(sys.modules, "extensions.api.query", query_module)
+    query_module = _install_query_event_stubs(monkeypatch)
 
     socket = _Socket()
     session = _session(tmp_path, socket=socket)
@@ -194,8 +200,25 @@ async def test_broadcast_serializes_phase_event(monkeypatch, tmp_path) -> None:
     assert socket.events == [{"type": "PhaseComplete", "data": {"phase": 2, "turn_count": 7}}]
 
 
+def test_broadcast_serializes_public_tool_decision(monkeypatch) -> None:
+    query_module = _install_query_event_stubs(monkeypatch)
+    event = query_module.ToolCallEvent(
+        tool_name="Bash",
+        tool_use_id="tool-1",
+        params={"cmd": "true"},
+        is_approved=False,
+    )
+
+    assert AgentControlMixin._event_to_broadcast_dict(event) == {
+        "tool_name": "Bash",
+        "tool_use_id": "tool-1",
+        "params": {"cmd": "true"},
+        "approved": False,
+    }
+
+
 @pytest.mark.asyncio
-async def test_broadcast_failure_is_visible_without_aborting(caplog, tmp_path) -> None:
+async def test_broadcast_failure_is_visible_without_aborting(caplog, monkeypatch, tmp_path) -> None:
     class _FailingSocket:
         @staticmethod
         async def send_event(_event: dict) -> None:
@@ -203,6 +226,7 @@ async def test_broadcast_failure_is_visible_without_aborting(caplog, tmp_path) -
 
     session = _session(tmp_path)
     session.control_socket = _FailingSocket()
+    _install_query_event_stubs(monkeypatch)
 
     with caplog.at_level(logging.WARNING):
         await AgentControlMixin._broadcast_to_socket(session, SimpleNamespace())
@@ -212,29 +236,67 @@ async def test_broadcast_failure_is_visible_without_aborting(caplog, tmp_path) -
     assert "socket unavailable" in caplog.text
 
 
-def test_tool_approval_decision_is_mirrored(monkeypatch) -> None:
-    approval_module = ModuleType("extensions.orchestrator.approval_policy")
-
-    class _PolicyEvent:
-        def __init__(self, **values) -> None:
-            self.__dict__.update(values)
-            self._approved = None
-            self._deny_reason = None
-
-    approval_module.ToolCallEvent = _PolicyEvent
-    monkeypatch.setitem(sys.modules, "extensions.orchestrator.approval_policy", approval_module)
-
+def test_tool_approval_decision_uses_public_query_event_api() -> None:
     class _Policy:
         @staticmethod
         def evaluate(event, _context) -> None:
-            event._approved = False
-            event._deny_reason = "blocked by policy"
+            event.deny("blocked by policy")
+
+    class _QueryEvent:
+        def __init__(self) -> None:
+            self.tool_name = "Bash"
+            self.params = {}
+            self.tool_use_id = "tool-1"
+            self.__approved: bool | None = None
+            self.__denial_reason: str | None = None
+
+        def allow(self) -> None:
+            self.__approved = True
+            self.__denial_reason = None
+
+        def deny(self, reason: str) -> None:
+            self.__approved = False
+            self.__denial_reason = reason
+
+        @property
+        def is_approved(self) -> bool | None:
+            return self.__approved
+
+        @property
+        def denial_reason(self) -> str | None:
+            return self.__denial_reason
 
     runner = AgentControlMixin()
     runner._approval_policy = _Policy()
-    event = SimpleNamespace(tool_name="Bash", params={}, tool_use_id="tool-1")
+    event = _QueryEvent()
 
     result = runner._handle_tool_call(event, {"cwd": "repo"})
     assert result is event
-    assert event._approved is False
-    assert event._deny_reason == "blocked by policy"
+    assert event.is_approved is False
+    assert event.denial_reason == "blocked by policy"
+
+
+def test_tool_approval_decision_supports_legacy_query_event() -> None:
+    class _Policy:
+        @staticmethod
+        def evaluate(event, _context) -> None:
+            event.deny("blocked by policy")
+
+    runner = AgentControlMixin()
+    runner._approval_policy = _Policy()
+    event = SimpleNamespace(
+        tool_name="Bash",
+        params={},
+        tool_use_id="tool-1",
+        _approved=None,
+        _deny_reason=None,
+    )
+
+    result = runner._handle_tool_call(event, {"cwd": "repo"})
+    assert result is event
+
+    from extensions.orchestrator.approval_policy import read_approval_decision
+
+    decision = read_approval_decision(event)
+    assert decision.is_approved is False
+    assert decision.denial_reason == "blocked by policy"

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 #  This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
@@ -18,7 +19,7 @@
 
 """Stage 10 proactive mode smoke tests.
 
-These keep the F-89 public integration points importable and verify the
+These keep the public integration points importable and verify the
 lightweight state transitions without starting a long-running scheduler.
 """
 

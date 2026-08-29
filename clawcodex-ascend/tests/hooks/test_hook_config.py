@@ -1,3 +1,25 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+#
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSE.clawcodex.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 import json
 import os
 import tempfile
@@ -104,7 +126,7 @@ class TestLoadHooksFromSettings:
         assert snapshot.is_empty
 
     def test_empty_hooks(self):
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        with tempfile.NamedTemporaryFile(encoding="utf-8", mode="w", suffix=".json", delete=False) as f:
             json.dump({"hooks": {}}, f)
             f.flush()
             snapshot = load_hooks_from_settings(f.name)
@@ -112,7 +134,7 @@ class TestLoadHooksFromSettings:
         assert snapshot.is_empty
 
     def test_load_command_hooks(self):
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        with tempfile.NamedTemporaryFile(encoding="utf-8", mode="w", suffix=".json", delete=False) as f:
             json.dump(
                 {
                     "hooks": {
@@ -139,7 +161,7 @@ class TestLoadHooksFromSettings:
         assert snapshot.hooks["PreToolUse"][0].matcher == "Bash"
 
     def test_load_http_hooks(self):
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        with tempfile.NamedTemporaryFile(encoding="utf-8", mode="w", suffix=".json", delete=False) as f:
             json.dump(
                 {"hooks": {"PreToolUse": [{"type": "http", "url": "https://example.com/hook"}]}},
                 f,
@@ -152,7 +174,7 @@ class TestLoadHooksFromSettings:
         assert snapshot.hooks["PreToolUse"][0].url == "https://example.com/hook"
 
     def test_invalid_json(self):
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        with tempfile.NamedTemporaryFile(encoding="utf-8", mode="w", suffix=".json", delete=False) as f:
             f.write("not json")
             f.flush()
             snapshot = load_hooks_from_settings(f.name)
@@ -164,7 +186,7 @@ class TestHookConfigManager:
     @pytest.mark.asyncio
     async def test_load(self):
         registry = AsyncHookRegistry()
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        with tempfile.NamedTemporaryFile(encoding="utf-8", mode="w", suffix=".json", delete=False) as f:
             json.dump(
                 {"hooks": {"PreToolUse": [{"type": "command", "command": "echo test"}]}},
                 f,
@@ -180,7 +202,7 @@ class TestHookConfigManager:
     @pytest.mark.asyncio
     async def test_reload_if_changed(self):
         registry = AsyncHookRegistry()
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        with tempfile.NamedTemporaryFile(encoding="utf-8", mode="w", suffix=".json", delete=False) as f:
             json.dump({"hooks": {}}, f)
             f.flush()
             manager = HookConfigManager(registry, f.name)
@@ -190,7 +212,7 @@ class TestHookConfigManager:
             import time
 
             time.sleep(0.1)
-            with open(f.name, "w") as f2:
+            with open(f.name, "w", encoding="utf-8") as f2:
                 json.dump(
                     {"hooks": {"PreToolUse": [{"type": "command", "command": "echo new"}]}},
                     f2,
@@ -205,7 +227,7 @@ class TestHookConfigManager:
     @pytest.mark.asyncio
     async def test_validate(self):
         registry = AsyncHookRegistry()
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        with tempfile.NamedTemporaryFile(encoding="utf-8", mode="w", suffix=".json", delete=False) as f:
             json.dump({"hooks": {"PreToolUse": [{"type": "command"}]}}, f)
             f.flush()
             manager = HookConfigManager(registry, f.name)

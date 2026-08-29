@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 #  This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
@@ -16,29 +17,7 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""Stage 7 — TUI 弹层事件分派 + 静态契约门禁。
-
-锁定 ``PromptInput`` 的两类用户面契约：
-
-1. **运行时路由** —— 三个 OptionList 弹层（slash / message / @file）
-   收到 ``OptionSelected`` 时，必须把 ``option.id`` 写回 ``_input``，
-   并且**恰好调用一次对应的 ``_hide_*`` 方法**。早期版本用
-   ``event.sender is self._foo`` 判断弹层归属，但 Textual 的
-   ``Message`` 基类没有 ``sender`` 属性，触发 ``AttributeError`` ——
-   Stage 7 把这条契约锁住。
-
-   注意：测试只断言"hide 方法被调用"，不断言"弹层最终保持隐藏"。
-   ``Input.Changed`` 事件会在 ``OptionSelected`` 之后异步触发，
-   调 ``_refresh_suggestions`` 并可能重新挂上 ``-hidden`` 反转，这是
-   一个独立的 UX bug，Stage 8 单独跟踪。
-
-2. **静态契约** —— 扫描 ``clawcodex_ext/tui/`` 和 ``src/tui/`` 下所有
-   ``.py`` 文件，禁止 ``event.sender is/==/!=`` 形式出现。零运行时
-   成本，IDE / CI 即时反馈。
-
-不覆盖每条 ``/命令`` 的逻辑正确性（那是 ``tests/command_system/`` 的
-职责），只保证**用户面的"门"不出 bug**。
-"""
+"""Tests for stage7 popup dispatch."""
 
 from __future__ import annotations
 
@@ -109,16 +88,7 @@ class _HideSpy:
 
 
 class TestStage7PopupDispatch:
-    """``on_option_list_option_selected`` 的三类弹层路由契约。
-
-    契约的核心：选中事件必须**至少**调用匹配弹层的 ``_hide_*`` 方法。
-    其它 ``_hide_*`` 方法可能因为 ``Input.Changed`` 触发的
-    ``_refresh_suggestions`` 而被顺带调用 —— 这是正常的副作用，不算
-    路由错误，所以这里只断言"匹配的那一个被调用了"。
-
-    反例：如果旧版 ``event.sender is self._foo`` 的 AttributeError
-    没修，这里所有断言都会因为 hide 根本没被调用而失败。
-    """
+    """Tests for TestStage7PopupDispatch."""
 
     pytestmark = pytest.mark.asyncio
 
@@ -137,7 +107,6 @@ class TestStage7PopupDispatch:
                 await pilot.pause()
 
                 assert pi._input.value == "/repl"
-                # 路由契约：匹配弹层的 hide 必须被调用
                 assert spy.calls["slash"] >= 1
             finally:
                 spy.restore(pi)
@@ -182,7 +151,7 @@ class TestStage7PopupDispatch:
                 spy.restore(pi)
 
     async def test_option_without_id_does_not_overwrite_or_crash(self):
-        """无 id 的 option（纯展示行）选中时不能覆盖 input，也不能抛异常。"""
+        """Verify option without id does not overwrite or crash."""
 
         async with _Host().run_test() as pilot:
             await pilot.pause()
@@ -192,12 +161,10 @@ class TestStage7PopupDispatch:
             pi._suggestions.highlighted = 0
             pi._suggestions.remove_class("-hidden")
 
-            # 关键回归：原 ``event.sender`` 写法会在此处抛 AttributeError
             pi._suggestions.action_select()
             await pilot.pause()
             await pilot.pause()
 
-            # 无 id 的 option 不应覆盖已有输入
             assert pi._input.value == "/preset"
 
 
@@ -211,12 +178,7 @@ _SCAN_DIRS = ("clawcodex_ext/tui", "src/tui")
 
 
 def _scan_event_sender(repo_root: Path) -> list[str]:
-    """返回所有 ``event.sender is/==/!=`` 的 token 级命中。
-
-    用 ``tokenize`` 而不是正则，确保注释、字符串、docstring 里的
-    提及不会被误报；同时精确匹配 ``event`` 名字（避免误伤
-    ``widget.sender`` 之类）。
-    """
+    """Test helper for scan event sender."""
 
     offenders: list[str] = []
     for rel_dir in _SCAN_DIRS:
@@ -248,12 +210,12 @@ def _scan_event_sender(repo_root: Path) -> list[str]:
                 ):
                     rel = path.relative_to(repo_root)
                     offenders.append(f"{rel}:{a.start[0]}: event.sender {d.string} …")
-                    break  # 一个文件命中一次足够
+                    break
     return offenders
 
 
 class TestStage7StaticContract:
-    """零运行时成本的"event.sender 禁忌"门禁。"""
+    """Tests for TestStage7StaticContract."""
 
     def test_no_event_sender_attribute_access_in_tui(self):
         repo_root = Path(__file__).resolve().parents[2]
@@ -270,22 +232,12 @@ class TestStage7StaticContract:
 # ---------------------------------------------------------------------------
 
 
-# 单数 add_option 接受 id= kwarg 的旧用法 —— Textual 0.79 已移除。
-# 注意：``add_options`` (复数) 是 OK 的，因为 \b 在 n 和 s 之间不匹配。
-# 关键：用 ``[^()]*`` 而不是 ``[^)]*``，避免被 ``add_option(Option(text, id=...))``
-# 这种"把 id= 嵌在 Option 构造里"的正确用法误报。
 _ADD_OPTION_ID_RE = re.compile(r"\.add_option\b\([^()]*,\s*id\s*=")
-# 私有方法在 0.79 已移除 —— 应用公开的 action_select() 替代。
 _POST_SELECTED_RE = re.compile(r"\._post_selected\b")
 
 
 def _scan_textual_api_drift(repo_root: Path) -> list[str]:
-    """检测已知的 Textual 0.79 API 漂移（add_option 旧签名 / _post_selected 移除）。
-
-    用 ``re`` + 去掉行内注释：因为这两条规则都是简单标记（单 kwarg /
-    私有方法名），tokenize 反而比正则更繁琐。这里接受"字符串字面量里的
-    提及会被误报"的极小概率 —— 真出现时肉眼一眼能分辨。
-    """
+    """Test helper for scan textual api drift."""
 
     offenders: list[str] = []
     for rel_dir in _SCAN_DIRS:
@@ -298,7 +250,6 @@ def _scan_textual_api_drift(repo_root: Path) -> list[str]:
             except OSError:
                 continue
             for ln, line in enumerate(text.splitlines(), start=1):
-                # 去掉行内注释；纯注释行 code 为空，下面的 strip 跳过
                 code = line.split("#", 1)[0]
                 if not code.strip():
                     continue
@@ -307,7 +258,7 @@ def _scan_textual_api_drift(repo_root: Path) -> list[str]:
                     offenders.append(
                         f"{rel}:{ln}: add_option(arg, id=...) — Textual 0.79 forbidden, use Option wrapper"
                     )
-                    break  # 一个文件命中一次足够
+                    break
                 if _POST_SELECTED_RE.search(code):
                     rel = path.relative_to(repo_root)
                     offenders.append(f"{rel}:{ln}: _post_selected — removed in Textual 0.79, use action_select()")
@@ -316,7 +267,7 @@ def _scan_textual_api_drift(repo_root: Path) -> list[str]:
 
 
 class TestStage7TextualApiDrift:
-    """锁住已知的 Textual 0.79 API 漂移。"""
+    """Tests for TestStage7TextualApiDrift."""
 
     def test_no_textual_0_79_api_drift_in_tui(self):
         repo_root = Path(__file__).resolve().parents[2]
@@ -328,16 +279,13 @@ class TestStage7TextualApiDrift:
         )
 
 
-# ---- TUI resize 边界 + 多弹层冲突 --------------------------------------
-
-
 class TestStage7TuiResize:
-    """TUI resize 边界测试 — P0#3 resize 到极端值不崩溃。"""
+    """P0 Tests for TestStage7TuiResize."""
 
     pytestmark = pytest.mark.asyncio
 
     async def test_resize_tiny_terminal(self):
-        """resize 到 1x1 极小尺寸不应 crash。"""
+        """Verify resize tiny terminal."""
         from clawcodex_ext.tui.widgets.prompt_input import PromptInput
         from textual.app import App
 
@@ -345,18 +293,16 @@ class TestStage7TuiResize:
             def compose(self) -> ComposeResult:
                 yield PromptInput(words_provider=list)
 
-        # size=(columns, rows) => 1 col x 1 row 极端小
         async with _TinyHost().run_test(size=(1, 1)) as pilot:
             await pilot.pause()
             await pilot.pause()
             pi = pilot.app.query_one(PromptInput)
             assert pi is not None
-            # 能在 1x1 终端中键入文字
             pi._input.value = "x"
             assert pi._input.value == "x"
 
     async def test_resize_large_terminal(self):
-        """resize 到 200x200 超大尺寸不应 crash。"""
+        """Verify resize large terminal."""
         from clawcodex_ext.tui.widgets.prompt_input import PromptInput
         from textual.app import App
 
@@ -371,7 +317,6 @@ class TestStage7TuiResize:
             assert pi is not None
             pi._input.value = "hello in large terminal"
             assert "hello" in pi._input.value
-            # 验证弹层也能正常添加
             from textual.widgets.option_list import Option
 
             pi._suggestions.add_option(Option("/test", id="/test"))
@@ -379,7 +324,7 @@ class TestStage7TuiResize:
             assert not pi._suggestions.has_class("-hidden")
 
     async def test_slash_and_at_file_popup_simultaneous(self):
-        """同时打开 slash + @file 弹层不冲突 (P2#11 多弹层)。"""
+        """P2 Verify slash and at file popup simultaneous."""
         from clawcodex_ext.tui.widgets.prompt_input import PromptInput
         from textual.app import App
         from textual.widgets.option_list import Option
@@ -392,30 +337,24 @@ class TestStage7TuiResize:
             await pilot.pause()
             pi = pilot.app.query_one(PromptInput)
 
-            # 打开 slash 弹层 — 使用 words_provider 不含的命令避免重复 id
             pi._input.value = "/"
             await pilot.pause()
-            # _refresh_suggestions 已从 words_provider 填充了 /repl /exit
             pi._suggestions.remove_class("-hidden")
             await pilot.pause()
 
-            # 同时打开 @file 弹层
             pi._at_file_suggestions.add_option(Option("foo.py", id="@foo.py"))
             pi._at_file_suggestions.remove_class("-hidden")
             await pilot.pause()
 
-            # 两个弹层都应可见 — 不崩溃即通过
             assert not pi._suggestions.has_class("-hidden")
             assert not pi._at_file_suggestions.has_class("-hidden")
 
-            # Enter 不应抛异常（即使弹层都开着）
             await pilot.press("enter")
             await pilot.pause()
             await pilot.pause()
-            # 测试通过 = 没有异常抛出
 
     async def test_resize_does_not_lose_input(self):
-        """resize 后已输入的文本不应丢失。"""
+        """Verify resize does not lose input."""
         from clawcodex_ext.tui.widgets.prompt_input import PromptInput
         from textual.app import App
 
@@ -429,10 +368,8 @@ class TestStage7TuiResize:
             pi._input.value = "persistent text"
             await pilot.pause()
 
-            # 通过 pilot.resize_terminal 模拟终端 resize (width, height)
             await pilot.resize_terminal(120, 40)
             await pilot.pause()
             await pilot.pause()
 
-            # resize 后 input 内容不变
             assert pi._input.value == "persistent text", "resize 后 input 内容不应丢失"

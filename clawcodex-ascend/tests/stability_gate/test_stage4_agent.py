@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 # -------------------------------------------------------------------------
 #  This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
@@ -16,18 +17,7 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""Stage 4 — Agent / Conversation 测试（< 3 秒）。
-
-验证：
-- Conversation 序列化/反序列化
-- Message types 类型构建和 API payload 转换
-- Session 创建/保存/加载
-- 子 agent transcript 在主 agent session 目录的 subagents/ 下
-  （F-49 / S-R4-A：与主 session 共享 ~/.clawcodex/sessions/ 父路径，
-   依赖 src.init.init() 注册 nested resolver；resolver 缺失时
-   兜底写到 ~/.clawcodex/transcripts/）
-- ToolUseBlock / TextBlock 构建
-"""
+"""Tests for stage4 agent."""
 
 from __future__ import annotations
 
@@ -35,7 +25,7 @@ import sys
 
 
 class TestStage4Conversation:
-    """Conversation 序列化和反序列化测试。"""
+    """Tests for TestStage4Conversation."""
 
     def test_conversation_round_trip(self):
         from src.agent.conversation import Conversation
@@ -364,7 +354,7 @@ class TestStage4ConversationSnapshot:
 
 
 class TestStage4MessageTypes:
-    """消息类型和 API payload 转换测试。"""
+    """Tests for TestStage4MessageTypes."""
 
     def test_message_types_in_api_payload(self):
         from src.types.content_blocks import TextBlock, ToolUseBlock
@@ -400,7 +390,7 @@ class TestStage4MessageTypes:
 
 
 class TestStage4Session:
-    """Session 创建 / 保存 / 加载测试。"""
+    """Tests for TestStage4Session."""
 
     def test_session_create(self):
         from src.agent.session import Session
@@ -420,23 +410,7 @@ class TestStage4Session:
 
 
 class TestStage4SubagentInParentSession:
-    """子 agent transcript 必须落在主 agent session 目录的 subagents/ 子目录下。
-
-    设计要求（g1 session 治理基本保证，F-49/S-R4-A 演进）：
-
-    - 子 agent 与主 agent 共享父路径 ``~/.clawcodex/sessions/``，方便
-      ``list_sessions`` / ``cleanup_sessions`` 一起扫描、一起清理。
-    - 子 agent transcript 落在
-      ``<parent_session_id>/subagents/agent-<agent_id>.jsonl``，与
-      主 session 的 ``<parent_session_id>/transcript.jsonl`` 同根不同枝。
-    - 该路径在 ``src.init.init()`` 之后由
-      ``clawcodex_ext.agent.transcript.nested_session_path_resolver``
-      提供；若 init 被旁路，则落到 flat
-      ``~/.clawcodex/transcripts/<agent_id>.jsonl``，不污染主 session。
-
-    5 个测试覆盖 wiring、路径结构、命名约定、HOME 隔离、兜底可写。
-    不依赖外部 API，全部使用 stdlib + 代码内构造。
-    """
+    """Tests for TestStage4SubagentInParentSession."""
 
     def _isolated_setup(self, monkeypatch, tmp_path):
         """Wire up isolated HOME + clear resolver state for one test.
@@ -467,8 +441,6 @@ class TestStage4SubagentInParentSession:
         original_resolver = transcript._transcript_path_resolver
         original_warned = transcript._flat_fallback_warned
         original_nested_flag = clawcodex_ext._nested_transcript_initialized
-        # 清空 init memoize 缓存 + 之前的 resolver 注册 + 嵌套注册 flag，
-        # 确保从干净状态起步
         reset_init_for_test_only()
         transcript._transcript_path_resolver = None
         transcript._flat_fallback_warned = False
@@ -483,11 +455,7 @@ class TestStage4SubagentInParentSession:
         )
 
     def test_init_registers_nested_resolver(self, monkeypatch, tmp_path):
-        """``init()`` 调用后 ``_transcript_path_resolver`` 不再为 ``None``。
-
-        防止以后入口绕开 init()、resolver 永远为 None、子 agent 全部
-        落 flat 的回归。
-        """
+        """Verify init registers nested resolver."""
         (
             transcript,
             init_callable,
@@ -517,9 +485,7 @@ class TestStage4SubagentInParentSession:
             reset()
 
     def test_subagent_path_lands_in_subagents_dir(self, monkeypatch, tmp_path):
-        """``get_agent_transcript_path(agent_id, parent_session_id=sid)``
-        返回 ``<HOME>/.clawcodex/sessions/<sid>/subagents/agent-<id>.jsonl``。
-        """
+        """Verify subagent path lands in subagents dir."""
         (
             transcript,
             init_callable,
@@ -534,17 +500,13 @@ class TestStage4SubagentInParentSession:
             from pathlib import Path
 
             p = Path(path)
-            # 文件名格式
             assert p.name == "agent-a1b2c3d4z.jsonl", (
                 f"unexpected filename; got {p.name!r}, want 'agent-a1b2c3d4z.jsonl'"
             )
-            # 倒一目录: subagents
             assert p.parent.name == "subagents", f"parent dir must be 'subagents'; got {p.parent.name!r}"
-            # 倒二目录: parent_session_id
             assert p.parent.parent.name == "ses-stability-gate", (
                 f"grandparent must be the parent session id; got {p.parent.parent.name!r}"
             )
-            # HOME 隔离断言: 路径必须在 tmp_path 之下
             try:
                 p.relative_to(tmp_path)
             except ValueError as exc:
@@ -558,9 +520,7 @@ class TestStage4SubagentInParentSession:
             reset()
 
     def test_subagent_path_shares_sessions_parent_with_main_session(self, monkeypatch, tmp_path):
-        """子 agent path 与主 session 目录共享父路径
-        ``~/.clawcodex/sessions/``，方便统一治理。
-        """
+        """Verify subagent path shares sessions parent with main session."""
         (
             transcript,
             init_callable,
@@ -575,14 +535,11 @@ class TestStage4SubagentInParentSession:
             from pathlib import Path
 
             p = Path(subagent_path)
-            # 子 agent: agent-X.jsonl / subagents / <sid> / sessions
             sessions_root = p.parent.parent.parent
             expected_root = Path(tmp_path) / ".clawcodex" / "sessions"
             assert sessions_root == expected_root, (
                 f"subagent sessions_root mismatch: got {sessions_root}, expected {expected_root} (full path: {p})"
             )
-            # 共享父路径, 但子 agent 在 sessions/ 之下再深一层
-            # (sessions/<sid>/subagents/), 不能直接等于 sessions/
             assert sessions_root != p.parent, (
                 "subagent path must be nested under the per-session directory, not flattened to the sessions/ root"
             )
@@ -595,11 +552,7 @@ class TestStage4SubagentInParentSession:
             reset()
 
     def test_subagent_filename_is_agent_dash_id_jsonl(self, monkeypatch, tmp_path):
-        """子 agent 文件名遵循 ``agent-<agent_id>.jsonl`` 格式。
-
-        与 ``clawcodex_ext/agent/transcript.py`` 中的字面量
-        ``f"agent-{agent_id}.jsonl"`` 同步——任何变更需要两边一起改。
-        """
+        """Verify subagent filename is agent dash id jsonl."""
         (
             transcript,
             init_callable,
@@ -626,18 +579,11 @@ class TestStage4SubagentInParentSession:
             reset()
 
     def test_flat_fallback_remains_writable_when_resolver_missing(self, monkeypatch, tmp_path):
-        """兜底 flat 路径在 resolver 缺失时仍可写, 不污染主 session 目录。
-
-        模拟某个未来入口漏走 init() 的回归场景——
-        ``_transcript_path_resolver`` 保持 ``None``, 调用
-        ``get_agent_transcript_path`` 不应抛错、路径应落在
-        ``<HOME>/.clawcodex/transcripts/`` 而不是 ``<HOME>/.clawcodex/sessions/``。
-        """
+        """Verify flat fallback remains writable when resolver missing."""
         transcript, _, reset, original_resolver, original_warned, original_nested_flag = self._isolated_setup(
             monkeypatch, tmp_path
         )
         try:
-            # 显式保持 resolver 为 None, 不调 init, 模拟回归
             assert transcript._transcript_path_resolver is None
             path = transcript.get_agent_transcript_path("a-fallback-test", parent_session_id="ses-fallback")
             from pathlib import Path
@@ -647,10 +593,8 @@ class TestStage4SubagentInParentSession:
             assert p.parent == transcripts_root, (
                 f"flat fallback parent must be the transcripts/ directory; got {p.parent}, expected {transcripts_root}"
             )
-            # flat fallback 不应污染 sessions/ 目录
             sessions_root = Path(tmp_path) / ".clawcodex" / "sessions"
             assert not str(p).startswith(str(sessions_root)), f"flat fallback leaked into sessions/: {p}"
-            # 文件名应只是 <id>.jsonl (无 agent- 前缀), 与嵌套路径区分
             assert p.name == "a-fallback-test.jsonl", (
                 f"flat fallback filename should be <id>.jsonl without "
                 f"the 'agent-' prefix used in nested mode; got {p.name}"
@@ -665,10 +609,10 @@ class TestStage4SubagentInParentSession:
 
 
 class TestStage4Resilience:
-    """Conversation / Session 恢复性测试 — P0#5 空/downstream保护, P1#10 损坏恢复, P2#15 并发写安全。"""
+    """P0 P1 P2 Tests for TestStage4Resilience."""
 
     def test_conversation_empty_messages_downstream(self):
-        """空的 Conversation.get_messages() 返回 []，下游不炸。"""
+        """Verify conversation empty messages downstream."""
         from src.agent.conversation import Conversation
 
         conv = Conversation()
@@ -676,7 +620,7 @@ class TestStage4Resilience:
         assert msgs == []
 
     def test_conversation_to_dict_from_dict_round_trip_empty(self):
-        """空 Conversation to_dict → from_dict 不抛异常，messages 为空。"""
+        """Verify conversation to dict from dict round trip empty."""
         from src.agent.conversation import Conversation
 
         conv = Conversation()
@@ -685,21 +629,21 @@ class TestStage4Resilience:
         assert restored.get_messages() == []
 
     def test_conversation_from_dict_missing_messages_key(self):
-        """from_dict 入参缺失 messages key 时不抛异常。"""
+        """Verify conversation from dict missing messages key."""
         from src.agent.conversation import Conversation
 
         conv = Conversation.from_dict({"max_history": 500})
         assert conv.get_messages() == []
 
     def test_conversation_from_dict_none_messages(self):
-        """from_dict 入参 messages 为 None 时不抛异常。"""
+        """Verify conversation from dict none messages."""
         from src.agent.conversation import Conversation
 
         conv = Conversation.from_dict({"messages": None})
         assert conv.get_messages() == []
 
     def test_conversation_max_history_cap(self):
-        """超过 max_history 时旧消息被截断，不爆炸。"""
+        """Verify conversation max history cap."""
         from src.agent.conversation import Conversation
 
         conv = Conversation(max_history=3)
@@ -708,17 +652,17 @@ class TestStage4Resilience:
             conv.add_assistant_message(f"resp-{i}")
         msgs = conv.get_messages()
         assert len(msgs) <= 6  # 3 pairs max
-        assert msgs[0]["content"] != "msg-0"  # 旧消息被弹出
+        assert msgs[0]["content"] != "msg-0"
 
     def test_session_load_nonexistent(self):
-        """Session.load 不存在的 session_id 返回 None 而非抛异常。"""
+        """Verify session load nonexistent."""
         from src.agent.session import Session
 
         s = Session.load("__nonexistent_session_id_for_test__")
         assert s is None
 
     def test_session_save_and_load_round_trip(self, tmp_path):
-        """Session.save 后 Session.load 能恢复。"""
+        """Verify session save and load round trip."""
         from unittest.mock import patch
 
         from src.agent.conversation import Conversation
@@ -739,7 +683,7 @@ class TestStage4Resilience:
             assert len(msgs) == 2
 
     def test_add_message_large_content(self):
-        """给 Conversation 添加超长字符串不崩溃。"""
+        """Verify add message large content."""
         from src.agent.conversation import Conversation
 
         conv = Conversation()
@@ -751,15 +695,10 @@ class TestStage4Resilience:
 
 
 class TestStage4CrossModePersistence:
-    """F-103: Recapitulate & Forecast 跨 REPL↔TUI 模式切换时内容保持。
-
-    Recapitulate（away_summary）和 Forecast（intent_forecast）在 REPL 中触发后
-    被持久化为 ``SystemMessage(subtype=...)`` 追加到 conversation，切换至 TUI
-    后通过重放 history 重新渲染。这些测试验证关键链路的完整性。
-    """
+    """Tests for TestStage4CrossModePersistence."""
 
     def test_create_forecast_system_message(self):
-        """create_forecast_system_message 生成正确的 SystemMessage。"""
+        """Verify create forecast system message."""
         from clawcodex_ext.intent_forecast.messages import (
             ForecastResult,
             ForecastSuggestion,
@@ -800,11 +739,7 @@ class TestStage4CrossModePersistence:
         assert msg._forecast_meta["suggestion_count"] == 2
 
     def test_forecast_system_message_persists_in_conversation(self):
-        """Forecast SystemMessage 追加到 conversation 后通过 messages 属性可读取。
-
-        注：``get_messages()`` 会过滤非 local_command 的 system 消息（API 规格），
-        但 replay 代码直接遍历 ``conversation.messages`` 原生列表。
-        """
+        """Verify forecast system message persists in conversation."""
         from clawcodex_ext.intent_forecast.messages import (
             ForecastResult,
             ForecastSuggestion,
@@ -823,13 +758,12 @@ class TestStage4CrossModePersistence:
         msg = create_forecast_system_message(result, trigger="auto")
         conv.messages.append(msg)
 
-        # replay 代码直接遍历 conv.messages（参见 _replay_history_MARKER / _replay_resume_history）
         assert len(conv.messages) == 1
         assert conv.messages[0].subtype == "intent_forecast"
         assert "Fix bug" in str(conv.messages[0].content)
 
     def test_away_summary_system_message_persists_in_conversation(self):
-        """Away Summary（Recapitulate）SystemMessage 追加后可通过 messages 属性读取。"""
+        """Verify away summary system message persists in conversation."""
         from clawcodex_ext.away_summary.messages import create_away_summary_message
         from src.agent.conversation import Conversation
 
@@ -850,7 +784,7 @@ class TestStage4CrossModePersistence:
         assert "Started task B" in content
 
     def test_forecast_and_recap_survive_session_round_trip(self, tmp_path):
-        """Forecast + Recap system message 经过 Session save/load 后不丢失。"""
+        """Verify forecast and recap survive session round trip."""
         from unittest.mock import patch
 
         from clawcodex_ext.away_summary.messages import create_away_summary_message
@@ -867,7 +801,6 @@ class TestStage4CrossModePersistence:
 
         conv = Conversation()
 
-        # 添加一条 forecast 系统消息
         forecast_result = ForecastResult(
             generated=True,
             suggestions=[
@@ -878,7 +811,6 @@ class TestStage4CrossModePersistence:
         forecast_msg = create_forecast_system_message(forecast_result, trigger="auto")
         conv.messages.append(forecast_msg)
 
-        # 添加一条 away_summary 系统消息
         recap_msg = create_away_summary_message(
             summary="Summary of work done.",
             trigger="auto",
@@ -887,7 +819,6 @@ class TestStage4CrossModePersistence:
         )
         conv.messages.append(recap_msg)
 
-        # 添加一条普通 user 消息，验证混合场景
         conv.add_user_message("hello")
 
         with patch("pathlib.Path.home", return_value=fake_home):
@@ -901,19 +832,15 @@ class TestStage4CrossModePersistence:
             loaded = Session.load("test-cross-mode")
 
         assert loaded is not None
-        # get_messages() 会过滤非 local_command 的 system 消息，直接用 messages 列表
         loaded_msgs = loaded.conversation.messages
         assert len(loaded_msgs) == 3, f"Expected 3 messages, got {len(loaded_msgs)}"
 
-        # 验证 forecast 消息保留
         forecast_found = any(getattr(m, "subtype", None) == "intent_forecast" for m in loaded_msgs)
         assert forecast_found, "Forecast system message lost after session round-trip"
 
-        # 验证 away_summary 消息保留
         recap_found = any(getattr(m, "subtype", None) == "away_summary" for m in loaded_msgs)
         assert recap_found, "Recap system message lost after session round-trip"
 
-        # 验证内容完整
         for m in loaded_msgs:
             if getattr(m, "subtype", None) == "intent_forecast":
                 assert "Upgrade deps" in str(getattr(m, "content", ""))
@@ -921,7 +848,7 @@ class TestStage4CrossModePersistence:
                 assert "Summary of work done." in str(getattr(m, "content", ""))
 
     def test_conversation_mixed_messages_order_preserved(self):
-        """System 消息（forecast/recap）与 user/assistant 消息混合时顺序不变。"""
+        """Verify conversation mixed messages order preserved."""
         from clawcodex_ext.away_summary.messages import create_away_summary_message
         from clawcodex_ext.intent_forecast.messages import (
             ForecastResult,
@@ -957,21 +884,15 @@ class TestStage4CrossModePersistence:
 
         conv.add_user_message("final")
 
-        # get_messages() 会过滤非 local_command 的 system 消息，直接用 messages 列表
         roles = [m.role if hasattr(m, "role") else "" for m in conv.messages]
         subtypes = [getattr(m, "subtype", "") for m in conv.messages]
 
-        # 顺序：user / assistant / system(forecast) / user / system(recap) / user
         assert roles == ["user", "assistant", "system", "user", "system", "user"]
         assert subtypes[2] == "intent_forecast"
         assert subtypes[4] == "away_summary"
 
     def test_replay_resume_history_renders_forecast_content(self):
-        """验证 REPL _replay_resume_history 分支能渲染 forecast system 消息。
-
-        不启动完整的 REPL — 验证系统中的 Rending 链关键路径：
-        create_forecast_system_message → 消息中包含可渲染的 Markdown 文本。
-        """
+        """Verify replay resume history renders forecast content."""
         from clawcodex_ext.intent_forecast.messages import (
             ForecastResult,
             ForecastSuggestion,
@@ -993,12 +914,8 @@ class TestStage4CrossModePersistence:
         msg = create_forecast_system_message(result, trigger="auto")
 
         content = getattr(msg, "content", "") or ""
-        # _replay_resume_history 通过 msg.content 渲染 Markdown
         assert content.startswith("Forecast")
-        # _is_recap_text 不匹配 forecast（只匹配 Recapitulate/Away Summary）
         from clawcodex_ext.repl.core import ClawcodexREPL
 
         assert not ClawcodexREPL._is_recap_text(content)
-        # forecast 在 replay 分支走的是 elif subtype == 'intent_forecast'
-        # 它的 subtype 必须是 intent_forecast
         assert getattr(msg, "subtype", None) == "intent_forecast"

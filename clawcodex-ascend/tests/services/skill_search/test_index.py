@@ -3,12 +3,14 @@
 
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
-# Copyright (c) 2026 Clawd Codex Team
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSE.clawcodex.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -582,7 +584,7 @@ class TestSearch:
             index.search("and or the")
             assert False, "Expected EmptyQueryError"
         except EmptyQueryError:
-            pass
+            pass  # Raising EmptyQueryError is the asserted behavior.
 
     def test_no_results_returns_empty(self):
         tokenizer = create_test_tokenizer()
@@ -634,7 +636,7 @@ class TestPersistence:
         ]
         index.build(docs)
 
-        with tempfile.NamedTemporaryFile(mode="w+", suffix=".json", delete=False) as f:
+        with tempfile.NamedTemporaryFile(encoding="utf-8", mode="w+", suffix=".json", delete=False) as f:
             tmp_path = Path(f.name)
         try:
             saved_path = index.save(tmp_path)
@@ -659,7 +661,7 @@ class TestPersistence:
     def test_corrupt_json_raises(self):
         tokenizer = create_test_tokenizer()
         config = create_test_config()
-        with tempfile.NamedTemporaryFile(mode="w+", suffix=".json", delete=False) as f:
+        with tempfile.NamedTemporaryFile(encoding="utf-8", mode="w+", suffix=".json", delete=False) as f:
             f.write("this is not valid json {")
             tmp_path = Path(f.name)
         try:
@@ -667,14 +669,14 @@ class TestPersistence:
                 TfIdfSkillIndex.load(tmp_path, tokenizer, config)
                 assert False, "Expected IndexCorruptError"
             except IndexCorruptError:
-                pass
+                pass  # Raising IndexCorruptError is the asserted behavior.
         finally:
             tmp_path.unlink(missing_ok=True)
 
     def test_version_mismatch_raises(self):
         tokenizer = create_test_tokenizer()
         config = create_test_config()
-        with tempfile.NamedTemporaryFile(mode="w+", suffix=".json", delete=False) as f:
+        with tempfile.NamedTemporaryFile(encoding="utf-8", mode="w+", suffix=".json", delete=False) as f:
             data = {
                 "version": 999,
                 "total_docs": 0,
@@ -691,7 +693,7 @@ class TestPersistence:
                 TfIdfSkillIndex.load(tmp_path, tokenizer, config)
                 assert False, "Expected IndexCorruptError for wrong version"
             except IndexCorruptError:
-                pass
+                pass  # Raising IndexCorruptError is the asserted behavior.
         finally:
             tmp_path.unlink(missing_ok=True)
 
@@ -703,7 +705,7 @@ class TestPersistence:
             TfIdfSkillIndex.load(missing, tokenizer, config)
             assert False, "Expected IndexCorruptError"
         except IndexCorruptError:
-            pass
+            pass  # Raising IndexCorruptError is the asserted behavior.
 
 
 # ============================================================================
