@@ -92,6 +92,10 @@ class MacroCatalog:
         with self._lock:
             self._specs.clear()
 
+    def unregister(self, catalog_id: str) -> None:
+        with self._lock:
+            self._specs.pop(catalog_id, None)
+
 
 DEFAULT_MACRO_CATALOG = MacroCatalog()
 

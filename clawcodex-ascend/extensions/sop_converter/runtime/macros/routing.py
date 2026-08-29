@@ -70,8 +70,9 @@ def _keyword_matches(query: str, keyword: str) -> bool:
             idx = word.find(keyword_lower)
             if idx == 0:
                 return True
-            if not word[idx - 1].isalnum():
-                if idx + len(keyword_lower) == len(word) or not word[idx + len(keyword_lower)].isalnum():
+            if not (word[idx - 1].isascii() and word[idx - 1].isalnum()):
+                nxt = idx + len(keyword_lower)
+                if nxt == len(word) or not (word[nxt].isascii() and word[nxt].isalnum()):
                     return True
     if len(keyword_lower) > 2:
         compact_query = re.sub(r"[\s_\-./]+", "", query_lower)
@@ -147,6 +148,10 @@ class MacroRouteCatalog:
             else:
                 self._routes = [r for r in self._routes if r.target_tool != route.target_tool]
             self._routes.append(route)
+
+    def unregister_route(self, target_tool: str) -> None:
+        with self._lock:
+            self._routes = [r for r in self._routes if r.target_tool != target_tool]
 
     def get_routes(self) -> list[MacroRoute]:
         with self._lock:
