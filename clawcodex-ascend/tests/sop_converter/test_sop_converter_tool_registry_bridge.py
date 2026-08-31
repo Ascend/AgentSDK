@@ -491,3 +491,507 @@ class TestScriptNameForFunctions(unittest.TestCase):
             _script_name_for_functions("a.b", "x"),
             _script_name_for_functions("a.b", "x"),
         )
+
+
+# ---------------------------------------------------------------------------
+# _generate_wrapper_script
+# ---------------------------------------------------------------------------
+
+
+class TestGenerateWrapperScript(unittest.TestCase):
+    def setUp(self) -> None:
+        self._cleanup, self.tool_dir, self.scripts_dir = _isolated_dirs()
+        self.addCleanup(self._cleanup)
+
+    def test_class_script_created(self) -> None:
+        op = _make_op(name="compute", class_name="Calc")
+        with tempfile.TemporaryDirectory() as tmp:
+            source_dir = Path(tmp) / "proj"
+            source_dir.mkdir()
+            script_path = _generate_wrapper_script(
+                [op],
+                class_name="Calc",
+                module_name="proj.calc",
+                file_stem="calc",
+                source_dir=str(source_dir),
+            )
+        self.assertTrue(script_path.exists())
+        content = script_path.read_text(encoding="utf-8")
+        self.assertIn("Calc (proj.calc)", content)
+        # The method name is wired in.
+        self.assertIn("def compute", content)
+        # sys.path is injected.
+        self.assertIn(str(source_dir), content)
+
+    def test_bundle_venv_metadata_injected_when_requested(self) -> None:
+        op = _make_op(name="compute", class_name="Calc")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source_dir = root / "proj"
+            bundle_dir = root / "bundle"
+            source_dir.mkdir()
+            bundle_dir.mkdir()
+            script_path = _generate_wrapper_script(
+                [op],
+                class_name="Calc",
+                module_name="proj.calc",
+                file_stem="calc",
+                source_dir=str(source_dir),
+                bundle_dir=bundle_dir,
+                bundle_venv_python=str(bundle_dir / ".venv" / "bin" / "python"),
+                sdk_requirements=("openai>=1", "pydantic>=2"),
+                repo_root=str(root),
+            )
+        content = script_path.read_text(encoding="utf-8")
+        self.assertIn("_BUNDLE_DIR", content)
+        self.assertIn("_normalize_bootstrap_path", content)
+        self.assertIn("target = bundle_venv_python(bundle_dir).resolve()", content)
+        self.assertIn("ensure_bundle_venv_and_reexec", content)
+        self.assertIn("openai>=1", content)
+        self.assertIn(str(bundle_dir.resolve()), content)
+
+    def test_function_script_created(self) -> None:
+        op = _make_op(name="my_func", class_name=None, file_stem="helpers")
+        with tempfile.TemporaryDirectory() as tmp:
+            source_dir = Path(tmp) / "proj"
+            source_dir.mkdir()
+            script_path = _generate_wrapper_script(
+                [op],
+                class_name=None,
+                module_name="proj.helpers",
+                file_stem="helpers",
+                source_dir=str(source_dir),
+            )
+        content = script_path.read_text(encoding="utf-8")
+        self.assertNotIn("openjiuwen", content)
+        self.assertNotIn("_suppress_sdk_logging", content)
+        # No _get_instance helper for standalone functions.
+        self.assertNotIn("_get_instance", content)
+        # Direct module attribute call.
+        self.assertIn("module.my_func", content)
+        # Header label includes the file_stem.
+        self.assertIn("helpers functions", content)
+
+    def test_async_method_uses_asyncio_run(self) -> None:
+        op = _make_op(name="go", class_name="X", is_async=True)
+        with tempfile.TemporaryDirectory() as tmp:
+            source_dir = Path(tmp) / "proj"
+            source_dir.mkdir()
+            script_path = _generate_wrapper_script(
+                [op],
+                class_name="X",
+                module_name="proj.x",
+                file_stem="x",
+                source_dir=str(source_dir),
+            )
+        content = script_path.read_text(encoding="utf-8")
+        self.assertIn("asyncio.run(_get_instance", content)
+        # Balanced parens: opens with asyncio.run( and closes ).
+        # We can sanity-check the count of `(` and `)`.
+        self.assertEqual(content.count("("), content.count(")"))
+
+    def test_async_generator_uses_run_async_iter(self) -> None:
+        op = _make_op(
+            name="stream_go",
+            class_name="X",
+            is_async=True,
+            is_async_generator=True,
+            return_type="AsyncIterator[Any]",
+            parameters=[_make_param("agent_team", "str"), _make_param("inputs", "Any")],
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            source_dir = Path(tmp) / "proj"
+            source_dir.mkdir()
+            script_path = _generate_wrapper_script(
+                [op],
+                class_name="X",
+                module_name="proj.x",
+                file_stem="x",
+                source_dir=str(source_dir),
+            )
+        content = script_path.read_text(encoding="utf-8")
+        self.assertIn("def _run_async_iter(make_gen):", content)
+        self.assertIn("async for item in make_gen():", content)
+        self.assertIn("return _run_async_iter(lambda: _get_instance", content)
+        self.assertIn(".stream_go(", content)
+        self.assertNotIn("asyncio.run(_get_instance", content.split("def stream_go")[1])
+
+    def test_skips_star_args_in_stub(self) -> None:
+        # *args / **kwargs should be dropped from the stub signature
+        # since they can't be passed via JSON.
+        op = _make_op(
+            name="variadic",
+            class_name="V",
+            parameters=[
+                _make_param("x", "int"),
+                _make_param("*args", "list", required=False),
+                _make_param("**kwargs", "dict", required=False),
+            ],
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            source_dir = Path(tmp) / "proj"
+            source_dir.mkdir()
+            script_path = _generate_wrapper_script(
+                [op],
+                class_name="V",
+                module_name="proj.v",
+                file_stem="v",
+                source_dir=str(source_dir),
+            )
+        content = script_path.read_text(encoding="utf-8")
+        # The def line should not include *args or **kwargs.
+        for line in content.splitlines():
+            if line.startswith("def variadic"):
+                self.assertNotIn("*args", line)
+                self.assertNotIn("**kwargs", line)
+                break
+        else:
+            self.fail("could not find def variadic")
+
+    def test_optional_param_becomes_none_default(self) -> None:
+        op = _make_op(
+            name="f",
+            class_name="C",
+            parameters=[
+                _make_param("a", "int", required=True),
+                _make_param("b", "int", required=False),
+            ],
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            source_dir = Path(tmp) / "proj"
+            source_dir.mkdir()
+            script_path = _generate_wrapper_script(
+                [op],
+                class_name="C",
+                module_name="proj.c",
+                file_stem="c",
+                source_dir=str(source_dir),
+            )
+        content = script_path.read_text(encoding="utf-8")
+        for line in content.splitlines():
+            if line.startswith("def f"):
+                # `a` is required (no default), `b` is optional (None).
+                self.assertIn("a,", line)
+                self.assertIn("b=None", line)
+                break
+
+    def test_wrapper_emits_imports_for_sdk_default_symbols(self) -> None:
+        source = textwrap.dedent(
+            """\
+            from demo_pkg.enums import WidgetMode, WidgetStatus
+
+            class Handler:
+                def __init__(
+                    self,
+                    name: str,
+                    teammate_mode=WidgetMode.BUILD_MODE,
+                ) -> None:
+                    self.name = name
+                    self.teammate_mode = teammate_mode
+
+                def run(self, status=WidgetStatus.IDLE):
+                    \"\"\"Run handler.\"\"\"
+                    return status
+            """
+        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            pkg = tmp / "demo_pkg"
+            pkg.mkdir()
+            (pkg / "__init__.py").write_text("")
+            (pkg / "enums.py").write_text(
+                textwrap.dedent(
+                    """\
+                    from enum import Enum
+
+                    class WidgetMode(str, Enum):
+                        BUILD_MODE = "build"
+
+                    class WidgetStatus(str, Enum):
+                        IDLE = "idle"
+                    """
+                )
+            )
+            (pkg / "handler.py").write_text(source)
+
+            init_params = [
+                _make_param("name", "str", required=True),
+                _make_param("teammate_mode", "WidgetMode", required=False, default="WidgetMode.BUILD_MODE"),
+            ]
+            op = SourceOperation(
+                name="run",
+                description="Run handler.",
+                class_name="Handler",
+                file_stem="handler",
+                parameters=[
+                    _make_param("status", "WidgetStatus", required=False, default="WidgetStatus.IDLE"),
+                ],
+            )
+            script_path = _generate_wrapper_script(
+                [op],
+                class_name="Handler",
+                module_name="demo_pkg.handler",
+                file_stem="handler",
+                source_dir=str(tmp),
+                init_params=init_params,
+            )
+
+            content = script_path.read_text(encoding="utf-8")
+            self.assertIn("from demo_pkg.enums import WidgetMode, WidgetStatus", content)
+            path_idx = content.index("sys.path.insert(0, _SOURCE_DIR)")
+            import_idx = content.index("from demo_pkg.enums import WidgetMode, WidgetStatus")
+            self.assertLess(path_idx, import_idx)
+
+            compile(content, str(script_path), "exec")
+
+    def test_wrapper_injects_backend_subproject_sys_path(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            app_root = root / "AgentSDK" / "data_generation_platform"
+            utils_dir = app_root / "backend" / "utils"
+            utils_dir.mkdir(parents=True)
+            models_dir = app_root / "backend" / "models"
+            models_dir.mkdir(parents=True)
+            (models_dir / "constants.py").write_text(
+                textwrap.dedent(
+                    """\
+                    DEFAULT_CHUNK_SIZE = 100
+                    DEFAULT_CHUNK_OVERLAP = 10
+                    SPLIT_METHOD_SENTENCE = "sentence"
+                    """
+                ),
+                encoding="utf-8",
+            )
+            (utils_dir / "text_utils.py").write_text(
+                textwrap.dedent(
+                    """\
+                    from backend.models.constants import DEFAULT_CHUNK_SIZE
+
+                    def split_text(text: str, chunk_size: int = DEFAULT_CHUNK_SIZE) -> list[str]:
+                        return [text[:chunk_size]]
+                    """
+                ),
+                encoding="utf-8",
+            )
+
+            op = SourceOperation(
+                name="split_text",
+                description="Split text.",
+                parameters=[
+                    _make_param("text", "str", required=True),
+                    _make_param(
+                        "chunk_size",
+                        "int",
+                        required=False,
+                        default="DEFAULT_CHUNK_SIZE",
+                    ),
+                ],
+                file_stem="text_utils",
+            )
+            script_path = _generate_wrapper_script(
+                [op],
+                class_name=None,
+                module_name=("AgentSDK.data_generation_platform.backend.utils.text_utils"),
+                file_stem="text_utils",
+                source_dir=str(root),
+                scripts_dir=self.scripts_dir,
+            )
+            content = script_path.read_text(encoding="utf-8")
+            self.assertIn(str(app_root.resolve()), content)
+            path_idx = content.index("sys.path.insert(0, _SOURCE_DIR)")
+            extra_idx = content.index(f"sys.path.insert(0, _normalize_bootstrap_path({str(app_root.resolve())!r}))")
+            self.assertLess(extra_idx, path_idx)
+            if "from AgentSDK.data_generation_platform.backend.utils.text_utils import" in content:
+                import_idx = content.index("from AgentSDK.data_generation_platform.backend.utils.text_utils import")
+                self.assertLess(path_idx, import_idx)
+
+            args = json.dumps({"text": "hello world from backend subproject test"})
+            result = __import__("subprocess").run(
+                [__import__("sys").executable, str(script_path), "split_text", args],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(json.loads(result.stdout.strip()), ["hello world from backend subproject test"])
+
+
+# ---------------------------------------------------------------------------
+# _enrich_bridge_params
+# ---------------------------------------------------------------------------
+
+
+class TestEnrichBridgeParams(unittest.TestCase):
+    def test_adds_json_args(self) -> None:
+        result = _enrich_bridge_params({"x": 1, "y": "z"})
+        self.assertIn("json_args", result)
+        # json_args is the JSON-serialised form of the original dict.
+        parsed = json.loads(result["json_args"])
+        self.assertEqual(parsed, {"x": 1, "y": "z"})
+        # Original keys preserved.
+        self.assertEqual(result["x"], 1)
+        self.assertEqual(result["y"], "z")
+
+    def test_empty_params(self) -> None:
+        result = _enrich_bridge_params({})
+        self.assertEqual(result, {"json_args": "{}"})
+
+    def test_unicode_preserved(self) -> None:
+        result = _enrich_bridge_params({"name": "你好"})
+        # ensure_ascii=False → Chinese chars preserved.
+        self.assertIn("你好", result["json_args"])
+
+    def test_does_not_mutate_input(self) -> None:
+        original = {"x": 1}
+        result = _enrich_bridge_params(original)
+        # The original dict is unchanged.
+        self.assertNotIn("json_args", original)
+        # The result is a new dict.
+        self.assertIsNot(result, original)
+
+
+# ---------------------------------------------------------------------------
+# operation_to_spec
+# ---------------------------------------------------------------------------
+
+
+class TestOperationToSpec(unittest.TestCase):
+    def setUp(self) -> None:
+        self._cleanup, self.tool_dir, self.scripts_dir = _isolated_dirs()
+        self.addCleanup(self._cleanup)
+        self.script_path = "/tmp/fake_script.py"
+
+    def test_class_method_kebab_name(self) -> None:
+        op = _make_op(name="invoke", class_name="LLM")
+        spec = operation_to_spec(
+            op,
+            source_dir="/tmp",
+            script_path=self.script_path,
+            comp_name="core",
+        )
+        # {comp}.{class}.{method} → "core.LLM.invoke" → kebab.
+        self.assertEqual(spec.name, "core-llm-invoke")
+
+    def test_class_method_without_comp_name(self) -> None:
+        op = _make_op(name="invoke", class_name="LLM")
+        spec = operation_to_spec(
+            op,
+            source_dir="/tmp",
+            script_path=self.script_path,
+        )
+        # Falls back to {class}.{method}.
+        self.assertEqual(spec.name, "llm-invoke")
+
+    def test_standalone_function_with_comp(self) -> None:
+        op = _make_op(name="load_config", class_name=None, file_stem="utils")
+        spec = operation_to_spec(
+            op,
+            source_dir="/tmp",
+            script_path=self.script_path,
+            comp_name="helpers",
+        )
+        self.assertEqual(spec.name, "helpers-load-config")
+
+    def test_standalone_function_no_comp_falls_back_to_file_stem(self) -> None:
+        op = _make_op(name="load_config", class_name=None, file_stem="utils")
+        spec = operation_to_spec(
+            op,
+            source_dir="/tmp",
+            script_path=self.script_path,
+        )
+        self.assertEqual(spec.name, "utils-load-config")
+
+    def test_no_comp_no_file_stem_kebab_converts(self) -> None:
+        # Even without a comp or file_stem, the raw name goes through
+        # kebab-case conversion. "load_config" → "load-config".
+        op = _make_op(name="load_config", class_name=None, file_stem="")
+        spec = operation_to_spec(
+            op,
+            source_dir="/tmp",
+            script_path=self.script_path,
+        )
+        self.assertEqual(spec.name, "load-config")
+
+    def test_call_type_is_bash(self) -> None:
+        op = _make_op(name="x")
+        spec = operation_to_spec(
+            op,
+            source_dir="/tmp",
+            script_path=self.script_path,
+        )
+        self.assertEqual(spec.call_type, "bash")
+
+    def test_call_impl_uses_script_path(self) -> None:
+        op = _make_op(name="x")
+        spec = operation_to_spec(
+            op,
+            source_dir="/tmp",
+            script_path=self.script_path,
+        )
+        # The bash command should reference the script path and method.
+        self.assertIn(self.script_path, spec.call_impl)
+        self.assertIn("x", spec.call_impl)
+        # And the {json_args} placeholder for the runtime.
+        self.assertIn("{json_args}", spec.call_impl)
+
+    def test_input_schema_basic_param(self) -> None:
+        op = _make_op(
+            name="x",
+            parameters=[_make_param("foo", "str")],
+        )
+        spec = operation_to_spec(
+            op,
+            source_dir="/tmp",
+            script_path=self.script_path,
+        )
+        schema = spec.input_schema
+        self.assertEqual(schema["type"], "object")
+        self.assertIn("foo", schema["properties"])
+        self.assertEqual(schema["properties"]["foo"]["type"], "string")
+        # Required param → "required" list contains "foo".
+        self.assertIn("foo", schema["required"])
+
+    def test_optional_param_not_required(self) -> None:
+        op = _make_op(
+            name="x",
+            parameters=[_make_param("foo", "str", required=False)],
+        )
+        spec = operation_to_spec(
+            op,
+            source_dir="/tmp",
+            script_path=self.script_path,
+        )
+        # "required" key is omitted when there are no required params.
+        self.assertNotIn("required", spec.input_schema)
+
+    def test_param_with_description(self) -> None:
+        op = _make_op(
+            name="x",
+            parameters=[
+                _make_param("foo", "str", description="The foo value"),
+            ],
+        )
+        spec = operation_to_spec(
+            op,
+            source_dir="/tmp",
+            script_path=self.script_path,
+        )
+        self.assertEqual(
+            spec.input_schema["properties"]["foo"]["description"],
+            "The foo value",
+        )
+
+    def test_param_with_default(self) -> None:
+        op = _make_op(
+            name="x",
+            parameters=[_make_param("foo", "str", default="bar")],
+        )
+        spec = operation_to_spec(
+            op,
+            source_dir="/tmp",
+            script_path=self.script_path,
+        )
+        self.assertEqual(
+            spec.input_schema["properties"]["foo"]["default"],
+            "bar",
+        )
