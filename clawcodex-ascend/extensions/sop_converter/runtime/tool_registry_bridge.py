@@ -2749,3 +2749,883 @@ def _operation_tool_name(comp: SourceComponent, op: SourceOperation) -> str:
     else:
         raw_name = op.name
     return _to_kebab_case(raw_name)
+
+
+def register_component_tools(
+    components: list[SourceComponent],
+    source_dir: str,
+    *,
+    persist: bool = True,
+    overwrite: bool = True,
+    bundle_dir: str | Path | None = None,
+    bundle_id: str | None = None,
+    cli_prefix_override: str | None = None,
+    repo_root: str = "",
+    bundle_venv_python: str | None = None,
+    sdk_requirements: tuple[str, ...] = (),
+) -> dict[str, str]:
+    """Bulk-register all operations from a list of SourceComponents as Tools.
+
+    For each unique class (or source file for standalone functions), one
+    wrapper script is generated.  Every ``SourceOperation`` becomes an
+    ``AgentToolSpec``, which is optionally persisted to disk and validated.
+
+    Args:
+        components: Parsed source components from ``SourceCodeParser.parse()``.
+        source_dir: Absolute path to the source root directory.
+        persist: If True, persist each ``AgentToolSpec`` to
+            ``~/.clawcodex/agent-tools/<name>.json``.
+        overwrite: If True, overwrite existing specs and scripts with the
+            same name (idempotent on repeated ``sop convert`` runs).
+
+    Returns:
+        A mapping from original tool names (``"LLM.invoke"``) to kebab-case
+        tool names (``"llm-invoke"``).  Use this to update
+        ``SkillSpec.allowed_tools`` before writing agent markdown.
+    """
+    source_dir_abs = str(Path(source_dir).resolve())
+    bundle_path = Path(bundle_dir).resolve() if bundle_dir is not None else None
+    effective_bundle_id = bundle_id or (bundle_path.name if bundle_path else None)
+    resource_bindings = load_resource_bindings(bundle_path)
+    tool_dir = DEFAULTS.tool_authoring.bundle_tool_dir(bundle_path) if bundle_path is not None else None
+    scripts_dir = DEFAULTS.tool_authoring.scripts_dir_for(tool_dir) if tool_dir is not None else SCRIPTS_DIR
+    effective_repo_root = repo_root
+    if not effective_repo_root:
+        here = Path(__file__).resolve()
+        # runtime/tool_registry_bridge.py → walk up to the converter repo root
+        # (directory that contains ``extensions/sop_converter``).
+        effective_repo_root = str(here.parents[3])
+        for parent in here.parents:
+            if (parent / "extensions" / "sop_converter").is_dir():
+                effective_repo_root = str(parent)
+                break
+
+    # ── Phase 1: group operations by (class_name, module_path) ──
+    # Each group → one wrapper script.
+    # Module path is per-file (file_stem), not per-component, because a
+    # single component can contain operations from multiple .py files.
+
+    from collections import defaultdict
+
+    # Key: (class_name_or_None, module_path_for_file)
+    # Value: list of SourceOperation
+    groups: dict[tuple[str | None, str], list[SourceOperation]] = defaultdict(list)
+    # Per-operation module path cache
+    op_module_map: dict[int, str] = {}
+
+    # Maps (class_name, module_path) → init params for wrapper generation
+    group_init_params: dict[tuple[str | None, str], list[ParamSpec]] = {}
+    # Per-module ``cmd_*`` → CLI subcommand (from ``main()`` dispatch table)
+    cli_dispatch_by_module: dict[str, dict[str, str]] = {}
+
+    for comp in components:
+        for op in comp.operations:
+            module_path = _resolve_module_path(comp, source_dir_abs, op.file_stem or "unknown")
+            key = (op.class_name, module_path)
+            groups[key].append(op)
+            op_module_map[id(op)] = module_path
+            if op.class_name and op.class_name in comp.class_init_params:
+                group_init_params.setdefault(key, comp.class_init_params[op.class_name])
+            if op.class_name is None and (op.file_stem or "") == "cli":
+                cli_dispatch_by_module.setdefault(
+                    module_path,
+                    _parse_cli_dispatch_map(resolve_source_file(source_dir_abs, module_path)),
+                )
+
+    # ── Phase 1.5: batch preload pydantic schemas ──
+    # Collect all structured type hints from operation params and init params,
+    # then probe them in a single subprocess (one import per SDK) to fill
+    # the _BATCH_CACHE.  This avoids N separate subprocess spawns during
+    # Phase 2 (wrapper generation) and Phase 3 (spec creation).
+    _collect_type_hints: list[tuple[str, str | None]] = []
+    for comp in components:
+        for op in comp.operations:
+            module_path = op_module_map[id(op)]
+            for param in op.parameters:
+                if param.type_hint and param.name and not param.name.startswith("*"):
+                    _collect_type_hints.append((param.type_hint, module_path))
+            if op.class_name and op.class_name in comp.class_init_params:
+                for param in comp.class_init_params[op.class_name]:
+                    if param.type_hint and param.name and not param.name.startswith("*"):
+                        _collect_type_hints.append((param.type_hint, module_path))
+    if _collect_type_hints:
+        probe_targets = collect_probe_targets(source_dir_abs, _collect_type_hints)
+        if probe_targets:
+            logger.info(
+                "Batch preloading schemas for %d types in %s",
+                len(probe_targets),
+                source_dir_abs,
+            )
+            # Ensure the bundle venv is created with SDK dependencies installed
+            # so the schema-probe subprocess can import third-party deps (jsonschema_path, pysbd, etc.).
+            effective_venv_python = bundle_venv_python
+            if bundle_path is not None and sdk_requirements:
+                from extensions.sop_converter.bundle_venv import (
+                    ensure_bundle_venv,
+                    is_venv_ready,
+                )
+                from extensions.sop_converter.sdk_dependency_resolver import SdkDependencySpec
+
+                try:
+                    deps = SdkDependencySpec(
+                        requirements=tuple(sdk_requirements),
+                        source="manifest",
+                        raw_path="",
+                    )
+                    ready = is_venv_ready(bundle_path, tuple(sdk_requirements))
+                    if not ready:
+                        _bridge_progress(
+                            f"   Ensuring bundle venv (installing {len(sdk_requirements)} SDK deps for schema probe)..."
+                        )
+                    effective_venv_python = str(ensure_bundle_venv(bundle_path, deps))
+                except Exception as exc:
+                    logger.warning("Failed to ensure bundle venv for schema probe: %s", exc)
+                    effective_venv_python = None
+            preload_schemas_for_source_dir(
+                source_dir_abs,
+                probe_targets,
+                venv_python=effective_venv_python,
+            )
+
+    # ── Phase 2: generate wrapper scripts ──
+
+    # Maps (class_name, module_path) → script absolute path
+    script_paths: dict[tuple[str | None, str], str] = {}
+    skipped_groups: list[tuple[str | None, str]] = []
+    total_groups = len(groups)
+
+    _bridge_progress(f"   Generating wrappers: 0/{total_groups}...", end="")
+    for group_idx, ((class_name, module_path), ops) in enumerate(groups.items(), 1):
+        first_op = ops[0]
+        file_stem = first_op.file_stem or "functions"
+
+        try:
+            script_path = _generate_wrapper_script(
+                ops,
+                class_name=class_name,
+                module_name=module_path,
+                file_stem=file_stem,
+                source_dir=source_dir_abs,
+                scripts_dir=scripts_dir,
+                init_params=group_init_params.get((class_name, module_path)),
+                cli_dispatch_map=cli_dispatch_by_module.get(module_path),
+                cli_prefix_override=cli_prefix_override,
+                repo_root=effective_repo_root,
+                bundle_dir=bundle_path,
+                bundle_venv_python=bundle_venv_python,
+                sdk_requirements=sdk_requirements,
+            )
+            script_paths[(class_name, module_path)] = str(script_path.resolve())
+        # ponytail: SystemExit — bad SDK modules must not abort convert
+        except (Exception, SystemExit):
+            logger.warning(
+                "Failed to generate wrapper for class=%s module=%s, skipping %d ops",
+                class_name,
+                module_path,
+                len(ops),
+                exc_info=True,
+            )
+            skipped_groups.append((class_name, module_path))
+
+    _bridge_progress(f"\r   Generating wrappers: {total_groups}/{total_groups} done")
+
+    # ── Phase 3: create AgentToolSpec for each operation ──
+
+    name_map: dict[str, str] = {}
+    dependency_index = build_tool_dependency_index(components, source_dir=source_dir_abs)
+    binding_roles: dict[int, tuple[str, ResourceBinding]] = {}
+    for binding_comp in components:
+        for binding_op in binding_comp.operations:
+            create_binding = _binding_for_operation(
+                resource_bindings,
+                binding_comp,
+                binding_op,
+                role="create",
+            )
+            invoke_binding = _binding_for_operation(
+                resource_bindings,
+                binding_comp,
+                binding_op,
+                role="invoke",
+            )
+            if create_binding and invoke_binding:
+                raise ValueError(f"resource sidecar maps {binding_op.name!r} as both create and invoke")
+            if create_binding:
+                binding_roles[id(binding_op)] = ("create", create_binding)
+            elif invoke_binding:
+                binding_roles[id(binding_op)] = ("invoke", invoke_binding)
+    # §8 type-contract: pre-compute the set of resource types produced by
+    # create-kind ops so invoke-kind ops can be classified via type matching
+    # even when their parameter names don't end with ``_id``.
+    from ..core.heuristics.lifecycle import derive_resource_type, infer_lifecycle_kind as _ilk
+
+    _type_resolver = ModuleImportIndex(source_dir_abs)
+    _op_resource_types: dict[int, str] = {}
+    _create_tool_names_by_type: dict[str, str] = {}
+    _canonical_create_types: set[str] = set()
+    _known_create_types: set[str] = set()
+    for _comp in components:
+        for _op in _comp.operations:
+            _binding_role = binding_roles.get(id(_op))
+            if _binding_role and _binding_role[0] == "invoke":
+                _op_resource_types[id(_op)] = _binding_role[1].normalized_resource_type
+                continue
+            if (_binding_role and _binding_role[0] == "create") or _ilk(_op) == "create":
+                _module_path = op_module_map.get(id(_op), "")
+                _rt = (
+                    _binding_role[1].normalized_resource_type
+                    if _binding_role
+                    else _first_resource_type_for_op(
+                        resolver=_type_resolver,
+                        module_path=_module_path,
+                        op=_op,
+                        prefer_return=True,
+                    )
+                )
+                if not _rt:
+                    _raw_rt = derive_resource_type(_op)
+                    _rt = (
+                        _resource_type_from_hint(
+                            resolver=_type_resolver,
+                            module_path=_module_path,
+                            type_hint=_raw_rt,
+                        )
+                        or _raw_rt
+                    )
+                if _rt:
+                    _op_resource_types[id(_op)] = _rt
+                    _canonical_create_types.add(_rt)
+                    _known_create_types.add(_rt)
+                    _known_create_types.update(_resource_type_tokens_for_op(_op))
+                    _create_tool_names_by_type.setdefault(
+                        _rt,
+                        _operation_tool_name(_comp, _op),
+                    )
+    for _comp in components:
+        for _op in _comp.operations:
+            _module_path = op_module_map.get(id(_op), "")
+            _hints = [_op.return_type, *(param.type_hint for param in _op.parameters)]
+            for _hint in _hints:
+                _resolved = _resource_type_from_hint(
+                    resolver=_type_resolver,
+                    module_path=_module_path,
+                    type_hint=_hint,
+                )
+                if _resolved and _resolved in _canonical_create_types:
+                    _known_create_types.update(_resource_type_hint_tokens(_hint))
+    _known_create_types_frozen = frozenset(_known_create_types)
+    for _comp in components:
+        for _op in _comp.operations:
+            if id(_op) in _op_resource_types:
+                continue
+            _module_path = op_module_map.get(id(_op), "")
+            _rt = _first_resource_type_for_op(
+                op=_op,
+                resolver=_type_resolver,
+                module_path=_module_path,
+                prefer_return=False,
+            )
+            if _rt:
+                _op_resource_types[id(_op)] = _rt
+
+    specs: list[Any] = []
+    total_ops = sum(len(comp.operations) for comp in components)
+    spec_idx = 0
+    _bridge_progress(f"   Building tool specs: 0/{total_ops}...", end="")
+
+    for comp in components:
+        for op in comp.operations:
+            spec_idx += 1
+            if spec_idx % 50 == 0:
+                _bridge_progress(
+                    f"\r   Building tool specs: {spec_idx}/{total_ops}...",
+                    end="",
+                )
+            module_path = op_module_map[id(op)]
+            key = (op.class_name, module_path)
+            if key not in script_paths:
+                continue
+            script_path = script_paths[key]
+
+            try:
+                init_params = comp.class_init_params.get(op.class_name, []) if op.class_name else None
+                dispatch_map = cli_dispatch_by_module.get(module_path, {})
+                cli_subcommand = dispatch_map.get(op.name) if _is_cli_handler_op(op, dispatch_map) else None
+                is_cli_main = _is_cli_main_op(op, source_dir_abs, module_path)
+                tool_deps = dependency_index.get(to_kebab_tool_name(comp.name, op))
+                spec = operation_to_spec(
+                    op,
+                    source_dir=source_dir_abs,
+                    script_path=script_path,
+                    comp_name=comp.name,
+                    bundle_id=effective_bundle_id,
+                    init_params=init_params,
+                    cli_subcommand=cli_subcommand,
+                    cli_main=is_cli_main,
+                    tool_deps=tool_deps,
+                    module_path=module_path,
+                )
+                # L1: create-kind tools get a ``--catalog-metadata`` payload so
+                # the wrapper subprocess can persist the resulting ``agent_id`` to
+                # the bundle-local AgentCatalog.  This makes the create→invoke
+                # workflow recoverable across independent wrapper processes.
+                binding_role = binding_roles.get(id(op))
+                lifecycle_kind = (
+                    binding_role[0]
+                    if binding_role
+                    else infer_lifecycle_kind(
+                        op,
+                        known_create_types=_known_create_types_frozen,
+                    )
+                )
+                lifecycle_extra = {}
+                if init_params:
+                    lifecycle_extra["init_param_names"] = [p.name for p in _skip_variadic_params(init_params)]
+                op_resource_type = _op_resource_types.get(id(op), "")
+                if op_resource_type:
+                    lifecycle_extra["resource_type"] = op_resource_type
+                if binding_role:
+                    lifecycle_extra["handle_field"] = binding_role[1].handle_field
+
+                if lifecycle_kind == "invoke" and op_resource_type:
+                    consume_param = invoke_lifecycle_id_param(op)
+                    if (
+                        not consume_param
+                        and binding_role
+                        and binding_role[1].handle_field in spec.input_schema.get("properties", {})
+                    ):
+                        consume_param = binding_role[1].handle_field
+                    spec = DEFAULTS.tool_authoring.create_spec(
+                        **{
+                            **spec.__dict__,
+                            "input_schema": inject_resource_ref_schema(
+                                spec.input_schema,
+                                resource_type=op_resource_type,
+                                create_tool_name=_create_tool_names_by_type.get(
+                                    op_resource_type,
+                                    "",
+                                ),
+                                consume_param=consume_param,
+                            ),
+                        }
+                    )
+
+                DEFAULTS.tool_authoring.validate_spec(spec)
+
+                if lifecycle_kind == "create":
+                    catalog_meta = lifecycle_metadata_payload(
+                        op,
+                        source_dir=source_dir_abs,
+                        bundle_id=effective_bundle_id,
+                        module_name=module_path,
+                        class_name=op.class_name,
+                        tool_name=spec.name,
+                        known_create_types=_known_create_types_frozen,
+                        lifecycle_kind_override="create" if binding_role else None,
+                        extra_metadata=lifecycle_extra,
+                    )
+                    if catalog_meta and isinstance(spec.call_impl, str):
+                        if bundle_path is not None:
+                            catalog_meta["_bundle_path"] = str(bundle_path)
+                        catalog_json = json.dumps(catalog_meta, ensure_ascii=False)
+                        enriched_call_impl = f"{spec.call_impl} --catalog-metadata {shlex.quote(catalog_json)}"
+                        agent_compatible_type = not op_resource_type or op_resource_type.endswith(
+                            ("agent", "agentconfig")
+                        )
+                        create_required = (
+                            ["agent_id", "created_persisted", "resource_catalog_path"]
+                            if agent_compatible_type
+                            else [
+                                "resource_ref",
+                                "resource_type",
+                                "created_persisted",
+                                "resource_catalog_path",
+                            ]
+                        )
+                        spec = DEFAULTS.tool_authoring.create_spec(
+                            **{
+                                **spec.__dict__,
+                                "call_impl": enriched_call_impl,
+                                "output_schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "resource_ref": {"type": "string"},
+                                        "resource_type": {"type": "string"},
+                                        "agent_id": {"type": "string"},
+                                        "created_persisted": {"const": True},
+                                        "resource_catalog_path": {"type": "string"},
+                                        "resource_catalog_reason": {"type": "string"},
+                                        "callable_by_agent_id": {"type": "boolean"},
+                                        "callable_by_resource_ref": {"type": "boolean"},
+                                    },
+                                    "required": create_required,
+                                },
+                            }
+                        )
+                        DEFAULTS.tool_authoring.validate_spec(spec)
+                elif lifecycle_kind == "invoke":
+                    fallback_meta = lifecycle_fallback_payload(
+                        op,
+                        source_dir=source_dir_abs,
+                        bundle_id=effective_bundle_id,
+                        module_name=module_path,
+                        class_name=op.class_name,
+                        tool_name=spec.name,
+                        known_create_types=_known_create_types_frozen,
+                        lifecycle_kind_override="invoke" if binding_role else None,
+                        extra_metadata=lifecycle_extra,
+                    )
+                    if fallback_meta and isinstance(spec.call_impl, str):
+                        if bundle_path is not None:
+                            fallback_meta["_bundle_path"] = str(bundle_path)
+                        fallback_json = json.dumps(fallback_meta, ensure_ascii=False)
+                        enriched_call_impl = f"{spec.call_impl} --catalog-fallback {shlex.quote(fallback_json)}"
+                        spec = DEFAULTS.tool_authoring.create_spec(**{**spec.__dict__, "call_impl": enriched_call_impl})
+                        DEFAULTS.tool_authoring.validate_spec(spec)
+
+                specs.append(spec)
+
+                # Build name mapping (original → kebab-case).
+                # Primary name: {comp_name}.{op_name} — matches grouper convention
+                # and is used as the tool's registered name.
+                grouper_name = f"{comp.name}.{op.name}"
+                name_map[grouper_name] = spec.name
+
+                # Also register fallback names for robust lookup
+                if op.class_name:
+                    class_name_raw = f"{op.class_name}.{op.name}"
+                    name_map[class_name_raw] = spec.name
+                if op.file_stem:
+                    file_stem_raw = f"{op.file_stem}.{op.name}"
+                    if file_stem_raw != grouper_name:
+                        name_map[file_stem_raw] = spec.name
+                # Class-qualified form: {comp}.{class}.{op} — used by
+                # COMPONENT_GROUP / KEYWORD_MATCH strategies after the
+                # skill_grouper fix that includes class_name in allowed_tools.
+                if op.class_name:
+                    comp_class_name = f"{comp.name}.{op.class_name}.{op.name}"
+                    name_map[comp_class_name] = spec.name
+                # Fully-qualified form used by IO_RELATION strategy
+                full_name = f"{comp.name}.{grouper_name}"
+                name_map[full_name] = spec.name
+            # ponytail: one bad op (e.g. sys.exit at import) must not abort convert
+            except (Exception, SystemExit):
+                logger.warning(
+                    "Failed to build tool spec for %s.%s, skipping",
+                    comp.name,
+                    op.name,
+                    exc_info=True,
+                )
+                continue
+
+    _bridge_progress(f"\r   Building tool specs: {spec_idx}/{total_ops} done")
+
+    # ── Phase 4: persist specs (JSON files) ──
+
+    if persist:
+        if tool_dir is not None:
+            tool_dir.mkdir(parents=True, exist_ok=True)
+        for spec in specs:
+            target_dir = tool_dir or DEFAULTS.tool_authoring.TOOL_DIR
+            spec_path = target_dir / f"{spec.name}.json"
+            if not overwrite and spec_path.exists():
+                logger.debug("Tool spec already exists, skipping: %s", spec.name)
+                continue
+            DEFAULTS.tool_authoring.save_spec(spec, tool_dir=tool_dir)
+            logger.info("Persisted tool spec: %s -> %s", spec.name, spec_path.parent)
+
+    if skipped_groups:
+        skipped_ops = sum(len(ops) for key, ops in groups.items() if key not in script_paths)
+        logger.warning(
+            "%d wrapper script(s) skipped (%d operations) due to syntax errors",
+            len(skipped_groups),
+            skipped_ops,
+        )
+
+    logger.info(
+        "Registered %d tools from %d components (%d wrapper scripts)",
+        len(specs),
+        len(components),
+        len(script_paths),
+    )
+
+    # ── Phase 5: L2 lifecycle dependency metadata ──
+    if bundle_path is not None:
+        try:
+            lifecycle_graph = ToolDependencyGraph.detect_from_components(components)
+            deps_path = bundle_path / ".clawcodex" / "tool-dependencies.yaml"
+            write_tool_dependencies(
+                lifecycle_graph,
+                deps_path,
+                project_name=effective_bundle_id or "",
+            )
+        except Exception as exc:  # pragma: no cover — defensive
+            logger.warning("Failed to write tool-dependencies.yaml: %s", exc)
+
+    return name_map
+
+
+# ---------------------------------------------------------------------------
+# HTTP Tool Registration
+# ---------------------------------------------------------------------------
+
+
+def _sdk_param_to_json_schema_property(param: SdkParam) -> dict[str, Any]:
+    """Convert an SdkParam to a JSON Schema property dict."""
+    prop: dict[str, Any] = {
+        "type": param.param_type,
+    }
+    if param.description:
+        prop["description"] = param.description
+    if param.schema:
+        prop.update(param.schema)
+        if "type" in param.schema:
+            prop["type"] = param.schema["type"]
+    return prop
+
+
+def _build_http_input_schema(method: SdkMethod) -> dict[str, Any]:
+    """Build JSON Schema input schema for an HTTP tool."""
+    properties: dict[str, Any] = {}
+    required: list[str] = []
+
+    has_body_param = any(p.name == "body" and p.location == "body" for p in method.params)
+
+    if has_body_param and method.request_body:
+        content = method.request_body.get("content", {})
+        for media_type, schema in content.items():
+            if isinstance(schema, dict) and "properties" in schema:
+                for prop_name, prop_schema in schema["properties"].items():
+                    properties[prop_name] = prop_schema
+                    if schema.get("required") and prop_name in schema.get("required", []):
+                        required.append(prop_name)
+    else:
+        for param in method.params:
+            prop = _sdk_param_to_json_schema_property(param)
+            properties[param.name] = prop
+            if param.required:
+                required.append(param.name)
+
+        if method.request_body:
+            content = method.request_body.get("content", {})
+            for media_type, schema in content.items():
+                if isinstance(schema, dict):
+                    if "properties" in schema:
+                        for prop_name, prop_schema in schema["properties"].items():
+                            if prop_name not in properties:
+                                properties[prop_name] = prop_schema
+                                if schema.get("required") and prop_name in schema.get("required", []):
+                                    required.append(prop_name)
+                    elif "$ref" in schema:
+                        pass
+
+    schema: dict[str, Any] = {
+        "type": "object",
+        "properties": properties,
+    }
+    if required:
+        schema["required"] = required
+
+    return schema
+
+
+def _build_http_call_impl(method: SdkMethod) -> dict[str, str]:
+    """Build call_impl dict for HTTP tool."""
+    url = method.http_path or ""
+
+    return {
+        "method": method.http_method or "GET",
+        "url": url,
+    }
+
+
+_HTTP_WRAPPER_TEMPLATE = '''#!/usr/bin/env python3
+"""Auto-generated HTTP wrapper for __TOOL_NAME__ - created by SOP converter."""
+
+import argparse
+import json
+import sys
+from typing import Any
+
+
+def _build_request(args: argparse.Namespace) -> dict[str, Any]:
+    """Build request dict from parsed arguments."""
+    request = {}
+__REQUEST_BUILDER__
+    return request
+
+
+def _format_url(url: str, path_params: dict[str, Any]) -> str:
+    """Replace path parameters in URL template."""
+    for key, value in path_params.items():
+        url = url.replace("{" + key + "}", str(value))
+    return url
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="__DESCRIPTION__")
+__ARGPARSE_DEFINITIONS__
+
+    args = parser.parse_args()
+
+    request = _build_request(args)
+
+    # Process URL and body
+    path_params = {}
+    url_template = "__HTTP_PATH__"
+    for k, v in request.items():
+        if "{" + k + "}" in url_template:
+            path_params[k] = v
+
+    url = _format_url(url_template, path_params)
+    body_params = {k: v for k, v in request.items() if k not in path_params}
+    data = json.dumps(body_params).encode("utf-8") if body_params else None
+
+    # Print request info
+    print("=== Request ===")
+    print(f"Method: __HTTP_METHOD__")
+    print(f"URL: {url}")
+    print('Headers: {"Content-Type": "application/json"}')
+    if body_params:
+        print(f"Body: {json.dumps(body_params, indent=2, ensure_ascii=False)}")
+    print()
+
+    # For testing: make actual HTTP request
+    try:
+        import urllib.request
+        import urllib.error
+
+        headers = {"Content-Type": "application/json"}
+
+        req = urllib.request.Request(
+            url,
+            data=data,
+            headers=headers,
+            method="__HTTP_METHOD__",
+        )
+
+        with urllib.request.urlopen(req) as resp:
+            response_body = resp.read().decode("utf-8")
+            print("=== Response ===")
+            print(f"Status: {resp.status}")
+            print(f"Body: {response_body}")
+            return 0
+    except ImportError:
+        print("Note: urllib available, skipping actual HTTP request")
+        return 0
+    except urllib.error.HTTPError as e:
+        print(f"HTTP Error: {e.code} - {e.read().decode('utf-8')}")
+        return e.code
+    except Exception as e:
+        print(f"Error: {e}")
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+'''
+
+
+def _generate_http_wrapper_script(
+    method: SdkMethod,
+    tool_name: str,
+    scripts_dir: Path,
+) -> Path:
+    """Generate a standalone HTTP wrapper script for testing."""
+    script_name = f"{tool_name}.py"
+    script_path = scripts_dir / script_name
+    scripts_dir.mkdir(parents=True, exist_ok=True)
+
+    argparse_definitions: list[str] = []
+    request_builder_lines: list[str] = []
+
+    has_body_param = any(p.name == "body" and p.location == "body" for p in method.params)
+
+    if has_body_param and method.request_body:
+        content = method.request_body.get("content", {})
+        for media_type, schema in content.items():
+            if isinstance(schema, dict) and "properties" in schema:
+                for prop_name, prop_schema in schema["properties"].items():
+                    prop_type = prop_schema.get("type", "string")
+                    if prop_type == "integer":
+                        arg_type = int
+                    elif prop_type == "number":
+                        arg_type = float
+                    elif prop_type == "boolean":
+                        arg_type = bool
+                    elif prop_type == "array":
+                        required_fields = schema.get("required", [])
+                        is_required = prop_name in required_fields
+                        if is_required:
+                            argparse_definitions.append(
+                                f'    parser.add_argument("--{prop_name}", type=str, required=True, help="{prop_schema.get("description", "")}")'
+                            )
+                        else:
+                            argparse_definitions.append(
+                                f'    parser.add_argument("--{prop_name}", type=str, default=None, help="{prop_schema.get("description", "")}")'
+                            )
+                        request_builder_lines.append(
+                            f'    if args.{prop_name} is not None:\n        request["{prop_name}"] = [x.strip() for x in args.{prop_name}.split(",")]'
+                        )
+                        continue
+                    else:
+                        arg_type = str
+
+                    required_fields = schema.get("required", [])
+                    is_required = prop_name in required_fields
+
+                    if is_required:
+                        argparse_definitions.append(
+                            f'    parser.add_argument("--{prop_name}", type={arg_type.__name__}, required=True, help="{prop_schema.get("description", "")}")'
+                        )
+                    else:
+                        argparse_definitions.append(
+                            f'    parser.add_argument("--{prop_name}", type={arg_type.__name__}, default=None, help="{prop_schema.get("description", "")}")'
+                        )
+                    request_builder_lines.append(
+                        f'    if args.{prop_name} is not None:\n        request["{prop_name}"] = args.{prop_name}'
+                    )
+    else:
+        for param in method.params:
+            arg_type = param.param_type
+            if arg_type == "integer":
+                arg_type = int
+            elif arg_type == "number":
+                arg_type = float
+            elif arg_type == "boolean":
+                arg_type = bool
+            else:
+                arg_type = str
+
+            if param.required:
+                argparse_definitions.append(
+                    f'    parser.add_argument("--{param.name}", type={arg_type.__name__}, required=True, help="{param.description}")'
+                )
+            else:
+                argparse_definitions.append(
+                    f'    parser.add_argument("--{param.name}", type={arg_type.__name__}, default=None, help="{param.description}")'
+                )
+            request_builder_lines.append(
+                f'    if args.{param.name} is not None:\n        request["{param.name}"] = args.{param.name}'
+            )
+
+        if method.request_body:
+            content = method.request_body.get("content", {})
+            for media_type, schema in content.items():
+                if isinstance(schema, dict) and "properties" in schema:
+                    for prop_name, prop_schema in schema["properties"].items():
+                        if prop_name not in [p.name for p in method.params]:
+                            prop_type = prop_schema.get("type", "string")
+                            if prop_type == "integer":
+                                arg_type = int
+                            elif prop_type == "number":
+                                arg_type = float
+                            elif prop_type == "boolean":
+                                arg_type = bool
+                            else:
+                                arg_type = str
+
+                            required_fields = schema.get("required", [])
+                            is_required = prop_name in required_fields
+
+                            if is_required:
+                                argparse_definitions.append(
+                                    f'    parser.add_argument("--{prop_name}", type={arg_type.__name__}, required=True, help="{prop_schema.get("description", "")}")'
+                                )
+                            else:
+                                argparse_definitions.append(
+                                    f'    parser.add_argument("--{prop_name}", type={arg_type.__name__}, default=None, help="{prop_schema.get("description", "")}")'
+                                )
+                            request_builder_lines.append(
+                                f'    if args.{prop_name} is not None:\n        request["{prop_name}"] = args.{prop_name}'
+                            )
+
+    content = _HTTP_WRAPPER_TEMPLATE
+    content = content.replace("__TOOL_NAME__", tool_name)
+    content = content.replace("__DESCRIPTION__", method.description or method.name)
+    content = content.replace("__HTTP_METHOD__", method.http_method or "GET")
+    content = content.replace("__HTTP_PATH__", method.http_path or "")
+    content = content.replace("__ARGPARSE_DEFINITIONS__", "\n".join(argparse_definitions))
+    content = content.replace("__REQUEST_BUILDER__", "\n".join(request_builder_lines))
+
+    script_path.write_text(content, encoding="utf-8")
+    script_path.chmod(0o755)
+
+    return script_path
+
+
+def register_http_tools(
+    methods: list[SdkMethod],
+    *,
+    persist: bool = True,
+    overwrite: bool = True,
+    bundle_dir: str | Path | None = None,
+    bundle_id: str | None = None,
+    generate_wrappers: bool = True,
+) -> dict[str, str]:
+    """Register OpenAPI operations as HTTP tools.
+
+    Args:
+        methods: List of SdkMethod parsed from OpenAPI spec.
+        persist: If True, persist each AgentToolSpec to disk.
+        overwrite: If True, overwrite existing specs with the same name.
+        bundle_dir: Optional bundle directory for spec persistence.
+        bundle_id: Optional bundle identifier.
+        generate_wrappers: If True, generate standalone wrapper scripts.
+
+    Returns:
+        A mapping from original method names to kebab-case tool names.
+    """
+    bundle_path = Path(bundle_dir).resolve() if bundle_dir is not None else None
+    effective_bundle_id = bundle_id or (bundle_path.name if bundle_path else None)
+    tool_dir = DEFAULTS.tool_authoring.bundle_tool_dir(bundle_path) if bundle_path is not None else None
+    scripts_dir = DEFAULTS.tool_authoring.scripts_dir_for(tool_dir) if tool_dir is not None else SCRIPTS_DIR
+
+    name_map: dict[str, str] = {}
+    specs: list[Any] = []
+
+    for method in methods:
+        tool_name = _to_kebab_case(method.name)
+
+        input_schema = _build_http_input_schema(method)
+        call_impl = _build_http_call_impl(method)
+
+        tags = tuple(method.tags) if method.tags else ()
+
+        spec = DEFAULTS.tool_authoring.create_spec(
+            name=tool_name,
+            description=method.description or method.name,
+            input_schema=input_schema,
+            call_type="http",
+            call_impl=call_impl,
+            tags=tags,
+            source="openapi-converter",
+            bundle_id=effective_bundle_id,
+        )
+
+        DEFAULTS.tool_authoring.validate_spec(spec)
+        specs.append(spec)
+
+        name_map[method.name] = tool_name
+
+        if generate_wrappers:
+            _generate_http_wrapper_script(method, tool_name, scripts_dir)
+
+    if persist:
+        if tool_dir is not None:
+            tool_dir.mkdir(parents=True, exist_ok=True)
+        for spec in specs:
+            target_dir = tool_dir or DEFAULTS.tool_authoring.TOOL_DIR
+            spec_path = target_dir / f"{spec.name}.json"
+            if not overwrite and spec_path.exists():
+                logger.debug("HTTP tool spec already exists, skipping: %s", spec.name)
+                continue
+            DEFAULTS.tool_authoring.save_spec(spec, tool_dir=tool_dir)
+            logger.info("Persisted HTTP tool spec: %s -> %s", spec.name, spec_path.parent)
+
+    logger.info(
+        "Registered %d HTTP tools from OpenAPI spec",
+        len(specs),
+    )
+
+    return name_map
