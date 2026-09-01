@@ -17,11 +17,11 @@
 # -------------------------------------------------------------------------
 import datetime
 import os
+import re
 import socket
 import subprocess
 import time
 from collections import defaultdict
-from typing import List, re
 
 import openai
 import torch
