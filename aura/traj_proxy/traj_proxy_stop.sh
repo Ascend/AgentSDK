@@ -8,6 +8,14 @@ root_dir=${file_dir}
 
 TRAJ_PROXY_DATA="${TRAJ_PROXY_DATA:-/traj_proxy/data}"
 PG_VERSION=14
+
+# Detect PostgreSQL binary directory (Ubuntu/Debian vs openEuler/RHEL)
+if command -v apt-get >/dev/null 2>&1; then
+    PGSQL_BIN="/usr/lib/postgresql/${PG_VERSION}/bin"
+else
+    PGSQL_BIN="/usr/bin"
+fi
+
 PGDATA="${PGDATA:-${TRAJ_PROXY_DATA}/postgresql}"
 
 # Stop traj_proxy and its Ray child processes
@@ -78,8 +86,8 @@ fi
 
 # Stop PostgreSQL
 echo ">>> Stopping PostgreSQL..."
-if su postgres -c "/usr/lib/postgresql/${PG_VERSION}/bin/pg_isready -q" 2>/dev/null; then
-    su postgres -c "/usr/lib/postgresql/${PG_VERSION}/bin/pg_ctl stop -D \"${PGDATA}\" -m fast -w" || true
+if su postgres -c "${PGSQL_BIN}/pg_isready -q" 2>/dev/null; then
+    su postgres -c "${PGSQL_BIN}/pg_ctl stop -D \"${PGDATA}\" -m fast -w" || true
     echo "PostgreSQL stopped"
 else
     echo "PostgreSQL not running, skipping stop"

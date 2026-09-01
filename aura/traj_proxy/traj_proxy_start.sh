@@ -11,17 +11,25 @@ traj_proxy_dir=${file_dir}/app
 
 TRAJ_PROXY_DATA="${TRAJ_PROXY_DATA:-/traj_proxy/data}"
 PG_VERSION=14
+
+# Detect PostgreSQL binary directory (Ubuntu/Debian vs openEuler/RHEL)
+if command -v apt-get >/dev/null 2>&1; then
+    PGSQL_BIN="/usr/lib/postgresql/${PG_VERSION}/bin"
+else
+    PGSQL_BIN="/usr/bin"
+fi
+
 PGDATA="${PGDATA:-${TRAJ_PROXY_DATA}/postgresql}"
 
 # Start PostgreSQL
 echo ">>> Starting PostgreSQL..."
-if su postgres -c "/usr/lib/postgresql/${PG_VERSION}/bin/pg_isready -q"; then
+if su postgres -c "${PGSQL_BIN}/pg_isready -q"; then
   echo "PostgreSQL is already running, skipping startup"
 else
-  su postgres -c "/usr/lib/postgresql/${PG_VERSION}/bin/pg_ctl start -D \"${PGDATA}\" -l ${TRAJ_PROXY_DATA}/logs/postgresql_init.log -o \"-c max_connections=300\" -w -t 60"
+  su postgres -c "${PGSQL_BIN}/pg_ctl start -D \"${PGDATA}\" -l ${TRAJ_PROXY_DATA}/logs/postgresql_init.log -o \"-c max_connections=300\" -w -t 60"
   # Wait for PostgreSQL to start
   echo ">>> Waiting for PostgreSQL to be ready..."
-  until su postgres -c "/usr/lib/postgresql/${PG_VERSION}/bin/pg_isready -q"; do
+  until su postgres -c "${PGSQL_BIN}/pg_isready -q"; do
       echo "PostgreSQL not ready yet, waiting..."
       sleep 1
   done

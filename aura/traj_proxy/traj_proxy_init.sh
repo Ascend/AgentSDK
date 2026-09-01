@@ -21,6 +21,14 @@ chown -R postgres:postgres "${TRAJ_PROXY_DATA}/archives"
 # Default environment variable values
 # ========================================
 PG_VERSION=14
+
+# Detect PostgreSQL binary directory (Ubuntu/Debian vs openEuler/RHEL)
+if command -v apt-get >/dev/null 2>&1; then
+    PGSQL_BIN="/usr/lib/postgresql/${PG_VERSION}/bin"
+else
+    PGSQL_BIN="/usr/bin"
+fi
+
 PGDATA="${PGDATA:-${TRAJ_PROXY_DATA}/postgresql}"
 POSTGRES_USER="${POSTGRES_USER:-llmproxy}"
 POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-dbpassword9090}"
@@ -49,7 +57,7 @@ if [ ! -f "${PGDATA}/PG_VERSION" ]; then
     cd "${PGDATA}"
 
     # Initialize the database cluster
-    su postgres -c "/usr/lib/postgresql/${PG_VERSION}/bin/initdb -D \"${PGDATA}\" -E UTF8 --locale=C --auth=trust"
+    su postgres -c "${PGSQL_BIN}/initdb -D \"${PGDATA}\" -E UTF8 --locale=C --auth=trust"
 
     # Configure pg_hba.conf to allow local connections
     cat > "${PGDATA}/pg_hba.conf" <<EOF
@@ -72,17 +80,17 @@ cd "${PGDATA}"
 # Phase 2: Start PostgreSQL temporarily, create user and database
 # ========================================
 echo "--- Starting PostgreSQL for initialization ---"
-if su postgres -c "/usr/lib/postgresql/${PG_VERSION}/bin/pg_isready -q"; then
+if su postgres -c "${PGSQL_BIN}/pg_isready -q"; then
     echo "PostgreSQL is already running"
 else
     echo "PostgreSQL is not running, starting..."
-    su postgres -c "/usr/lib/postgresql/${PG_VERSION}/bin/pg_ctl start -D \"${PGDATA}\" -l ${TRAJ_PROXY_DATA}/logs/postgresql_init.log -w -t 60"
+    su postgres -c "${PGSQL_BIN}/pg_ctl start -D \"${PGDATA}\" -l ${TRAJ_PROXY_DATA}/logs/postgresql_init.log -w -t 60"
 fi
 
 # Wait for PostgreSQL to accept connections
 echo "--- Waiting for PostgreSQL to be ready ---"
 for i in $(seq 1 30); do
-    if su postgres -c "/usr/lib/postgresql/${PG_VERSION}/bin/psql -U postgres -c '\q' 2>/dev/null"; then
+    if su postgres -c "${PGSQL_BIN}/psql -U postgres -c '\q' 2>/dev/null"; then
         echo "PostgreSQL is ready"
         break
     fi
@@ -91,13 +99,13 @@ done
 
 # Create user (if not exists)
 echo "--- Creating database user ---"
-su postgres -c "/usr/lib/postgresql/${PG_VERSION}/bin/psql -c \"DO 'BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = ''${POSTGRES_USER}'') THEN CREATE USER ${POSTGRES_USER} WITH PASSWORD ''${POSTGRES_PASSWORD}'' LOGIN; END IF; END'\""
+su postgres -c "${PGSQL_BIN}/psql -c \"DO 'BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = ''${POSTGRES_USER}'') THEN CREATE USER ${POSTGRES_USER} WITH PASSWORD ''${POSTGRES_PASSWORD}'' LOGIN; END IF; END'\""
 
 # Create databases (if not exists)
 echo "--- Creating databases ---"
-su postgres -c "/usr/lib/postgresql/${PG_VERSION}/bin/createdb -O \"${POSTGRES_USER}\" \"${POSTGRES_DB}\"" 2>/dev/null || echo "Database ${POSTGRES_DB} already exists"
+su postgres -c "${PGSQL_BIN}/createdb -O \"${POSTGRES_USER}\" \"${POSTGRES_DB}\"" 2>/dev/null || echo "Database ${POSTGRES_DB} already exists"
 
-su postgres -c "/usr/lib/postgresql/${PG_VERSION}/bin/createdb -O \"${POSTGRES_USER}\" \"${TRAJ_PROXY_DB}\"" 2>/dev/null || echo "Database ${TRAJ_PROXY_DB} already exists"
+su postgres -c "${PGSQL_BIN}/createdb -O \"${POSTGRES_USER}\" \"${TRAJ_PROXY_DB}\"" 2>/dev/null || echo "Database ${TRAJ_PROXY_DB} already exists"
 
 # ========================================
 # Phase 3: Initialize traj_proxy tables
@@ -296,7 +304,7 @@ PYTHON_SCRIPT
 
 if [ $? -ne 0 ]; then
     echo "Error: Table initialization failed"
-    su postgres -c "/usr/lib/postgresql/${PG_VERSION}/bin/pg_ctl stop -D \"${PGDATA}\"" 2>/dev/null || true
+    su postgres -c "${PGSQL_BIN}/pg_ctl stop -D \"${PGDATA}\"" 2>/dev/null || true
     exit 1
 fi
 
@@ -330,7 +338,7 @@ fi
 # Phase 4: Stop temporary PostgreSQL (supervisord will take over)
 # ========================================
 echo "--- Stopping temporary PostgreSQL ---"
-su postgres -c "/usr/lib/postgresql/${PG_VERSION}/bin/pg_ctl stop -D \"${PGDATA}\""
+su postgres -c "${PGSQL_BIN}/pg_ctl stop -D \"${PGDATA}\""
 
 # ========================================
 # Phase 5: Update config file database connection (overridden at runtime)

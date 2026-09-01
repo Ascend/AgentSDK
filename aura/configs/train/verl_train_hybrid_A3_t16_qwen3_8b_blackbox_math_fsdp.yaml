@@ -114,7 +114,7 @@ verl_conf:
       strategy: fsdp2
       use_dynamic_bsz: False
       optim:
-        lr: 2e-6
+        lr: 1e-6
       entropy_coeff: 0.0
       use_kl_loss: False
       calculate_entropy: False

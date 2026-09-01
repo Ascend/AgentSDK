@@ -163,7 +163,7 @@ verl_conf:
     use_rollout_log_probs: True
     staleness_threshold: 0.5
     trigger_parameter_sync_step: 4 # 多久 iter 同步一次权重
-    require_batches: 4  # fully_async 新增参数，控制每个 iter 需要的 mini-batch
+    require_batches: 4  # fully_async 新增参数，单次从 SampleQueue 消费的批次数
     partial_rollout: False
   algorithm:
     adv_estimator: grpo
