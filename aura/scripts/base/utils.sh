@@ -333,27 +333,37 @@ function start_load_balance_for_hybrid() {
   if [ -f "$PROXY_SCRIPT" ]; then
       echo "   - Cleaning up existing load balance processes..."
 
-      if command -v lsof >/dev/null 2>&1; then
-          local PID=$(lsof -t -i:${PORT})
-          if [ ! -z "$PID" ]; then
-              echo "     Killing process $PID using port ${PORT}"
-              kill -9 $PID 2>/dev/null
-              sleep 1
-          fi
-      elif command -v fuser >/dev/null 2>&1; then
-          echo "     Releasing port ${PORT} via fuser"
-          fuser -k -n tcp ${PORT} 2>/dev/null
-          sleep 1
+      # 1) Clear residual LB processes
+      if command -v pkill >/dev/null 2>&1; then
+          pkill -9 -f "$(basename "$PROXY_SCRIPT")" 2>/dev/null
       fi
+
+      # 2) Terminate any remaining processes occupying port 8080
+      if command -v fuser >/dev/null 2>&1; then
+          echo "     force-killing process on port ${PORT}"
+          fuser -k -n tcp ${PORT} 2>/dev/null
+      elif command -v lsof >/dev/null 2>&1; then
+          local PID=$(lsof -t -i:${PORT})
+          echo "     force-killing process on port ${PORT}: ${PID}"
+          [ -z "$PID" ] || kill -9 $PID 2>/dev/null
+      fi
+
+      # 3) Wait for port 8080 to be released
+      local waited=0
+      while [ ${waited} -lt 30 ]; do
+          if command -v ss >/dev/null 2>&1; then
+              ss -ltn 2>/dev/null | grep -q ":${PORT} " || break
+          elif command -v lsof >/dev/null 2>&1; then
+              lsof -i:${PORT} >/dev/null 2>&1 || break
+          else
+              break
+          fi
+          echo "     port ${PORT} still in use, waiting... (${waited}s)"
+          sleep 1
+          waited=$((waited+1))
+      done
 
       timestamp=$(date +"%Y%m%d_%H%M%S")
-      local SCRIPT_PIDS=$(pgrep -f "$(basename "$PROXY_SCRIPT")")
-      if [ ! -z "$SCRIPT_PIDS" ]; then
-          echo "     Killing residual script processes: ${SCRIPT_PIDS}"
-          kill -9 $SCRIPT_PIDS 2>/dev/null
-          sleep 1
-      fi
-
       echo "   - Starting proxy in background: ${PROXY_SCRIPT} on port ${PORT}"
       python $PROXY_SCRIPT \
           --host 0.0.0.0 \

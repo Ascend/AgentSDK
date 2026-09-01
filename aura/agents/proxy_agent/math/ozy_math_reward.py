@@ -23,6 +23,42 @@ from aura.base.log.loggers import Loggers
 
 logger = Loggers(__name__).get_logger()
 
+_REPETITIVE_GEN_WHITELIST = {",", ".", "*", "#"}
+_REPETITIVE_GEN_MIN_LEN = 2
+_REPETITIVE_GEN_MAX_OCCURRENCE = 3
+
+
+def _detect_repetitive_generation(text,
+                                  whitelist=_REPETITIVE_GEN_WHITELIST,
+                                  min_len=_REPETITIVE_GEN_MIN_LEN,
+                                  max_occurrence=_REPETITIVE_GEN_MAX_OCCURRENCE):
+    if not isinstance(text, str) or not text:
+        return False
+
+    runs = []
+    run = []
+    for ch in text:
+        if ch in whitelist:
+            run.append(ch)
+        else:
+            if len(run) >= min_len:
+                runs.append("".join(run))
+            run = []
+    if len(run) >= min_len:
+        runs.append("".join(run))
+
+    substrings = set()
+    for r in runs:
+        for k in range(min_len, len(r) + 1):
+            for i in range(len(r) - k + 1):
+                substrings.add(r[i:i + k])
+
+    for s in substrings:
+        if text.count(s) > max_occurrence:
+            return True
+    return False
+
+
 def math_res_reward_fn(action: dict, task_info: dict) -> RewardOutput:
     reward_config = RewardConfig()
     res_reward_fn = RewardMathFn(reward_config)
@@ -35,8 +71,6 @@ def math_res_reward_fn(action: dict, task_info: dict) -> RewardOutput:
     assert step_idx is not None
     assert max_steps is not None
     done = step_idx >= (max_steps - 1) or is_last
-    logger.info(f"[ozy_math_res_reward] ENTER: step_idx={step_idx}, is_last={is_last}, max_steps={max_steps}, done={done}, "
-                 f"assistant_message_type={type(assistant_message).__name__}, has_finish_tool={'tool_calls' in (assistant_message or {}) if isinstance(assistant_message, dict) else 'N/A'}")
 
     if not done:
         tool_actions = {"assistant_message": assistant_message, "tool_outputs": tool_outputs}
@@ -45,7 +79,6 @@ def math_res_reward_fn(action: dict, task_info: dict) -> RewardOutput:
     else:
         if isinstance(assistant_message, str):
             llm_response = assistant_message
-            logger.info(f"[ozy_math_res_reward] DONE, assistant_message is str, llm_response length={len(llm_response)}")
         elif isinstance(assistant_message, dict):
             # Find the finish tool call
             finish_action = None
@@ -57,14 +90,15 @@ def math_res_reward_fn(action: dict, task_info: dict) -> RewardOutput:
             if finish_action:
                 arguments = finish_action.get("function", {}).get("arguments", {})
                 llm_response = arguments.get("response", "")
-                logger.info(f"[ozy_math_res_reward] DONE, found finish tool call, response length={len(llm_response)}")
             elif "content" in assistant_message and assistant_message["content"]:
                 llm_response = assistant_message["content"]
-                logger.info(f"[ozy_math_res_reward] DONE, no finish tool, using content, length={len(llm_response)}")
             else:
                 # No finish tool call found, use the action itself
                 llm_response = assistant_message
-                logger.info(f"[ozy_math_res_reward] DONE, no finish tool and no content, using raw assistant_message")
+        if _detect_repetitive_generation(llm_response):
+            logger.warning(f"[ozy_math_res_reward] repetitive token/character generation detected, reward forced to 0, step_idx={step_idx}")
+            return RewardOutput(reward=0.0, metadata={"repetition_detected": True}, is_correct=False)
+
         result = res_reward_fn(action=llm_response, task_info=task_info)
         logger.info(f"[ozy_math_res_reward] RESULT: reward={result.reward}, is_correct={result.is_correct}")
         return result

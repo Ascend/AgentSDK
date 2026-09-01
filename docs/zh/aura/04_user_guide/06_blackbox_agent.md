@@ -38,7 +38,7 @@
 
 1. 启动 Aura 容器环境（不需要挂 NPU 卡），用于运行 TrajProxy 服务。
 
-    第一步：拉取预构建镜像：
+    第一步：拉取预构建镜像（本文档以 Atlas A3 服务器 16 卡、Ubuntu 系统为例进行说明）：
 
     ```shell
     docker pull swr.cn-south-1.myhuaweicloud.com/ascendhub/agentsdk:26.1.0-cann9.0.0-torch_npu2.9.0-a3-ubuntu22.04-py3.11
@@ -77,7 +77,7 @@
     bash download_traj_proxy.sh
     ```
 
-    TrajProxy 代码位于 `app` 目录下，将 `app/dockers/allinone/configs/config.yaml` 中的 `model_name` 和 `tokenizer_path` 修改为本地模型路径。
+    TrajProxy 代码位于 `app` 目录下，将 `app/dockers/allinone/configs/config.yaml` 中的 `model_name` 改为 `Qwen3-8B`，并将 `tokenizer_path` 修改为 `Qwen3-8B` 对应的模型路径。
 
 3. 安装依赖：
 
@@ -97,11 +97,56 @@
     bash traj_proxy_start.sh
     ```
 
+    服务成功启动后的预期日志：
+
+    ```log
+    (RemoteWorker pid=24896) INFO:     Started server process [24896]
+    (RemoteWorker pid=24896) INFO:     Waiting for application startup.
+    (RemoteWorker pid=24896) INFO:     Application startup complete.
+    (RemoteWorker pid=24896) INFO:     Uvicorn running on http://0.0.0.0:12301 (Press CTRL+C to quit)
+    ```
+
 6. 发送请求到 TrajProxy 验证服务：
 
     ```shell
     curl -s http://0.0.0.0:12300/models | python3 -m json.tool
     curl http://0.0.0.0:12300/health
+    ```
+
+    日志显示如下即表示 TrajProxy 服务的请求接收正常：
+
+    ```log
+    # curl -s http://0.0.0.0:12300/models | python3 -m json.tool
+    {
+        "status": "success",
+        "count": 3,
+        "models": [
+            {
+                "run_id": "app-001",
+                "model_name": "Qwen3-8B",
+                "tokenizer_path": "/path/to/models/Qwen3-8B",
+                "token_in_token_out": true,
+                "infer_client_url": "http://host.docker.internal:8000/v1"
+            },
+            {
+                "run_id": "app_math_blackbox",
+                "model_name": "/path/to/models/Qwen3-8B",
+                "tokenizer_path": null,
+                "token_in_token_out": false,
+                "infer_client_url": "http://0.0.0.0:8080/v1"
+            },
+            {
+                "run_id": "DEFAULT",
+                "model_name": "Qwen3-8B",
+                "tokenizer_path": null,
+                "token_in_token_out": false,
+                "infer_client_url": "http://host.docker.internal:8000/v1"
+            }
+        ]
+    }
+
+    # curl http://0.0.0.0:12300/health
+    {"status":"ok"}
     ```
 
 ### 步骤二：部署 Agent 服务
@@ -145,8 +190,14 @@
 3. 发送请求到 Agent 验证服务：
 
     ```shell
-    curl -s http://0.0.0.0:28124/models | python3 -m json.tool
     curl http://0.0.0.0:28124/health
+    ```
+
+    日志显示如下即表示 Agent 服务的请求接收正常：
+
+    ```log
+    # curl http://0.0.0.0:28124/health
+    {"status":"ok"}
     ```
 
 ### （可选）步骤：实现轨迹聚合函数
