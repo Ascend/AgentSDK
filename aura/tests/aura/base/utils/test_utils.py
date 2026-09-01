@@ -69,14 +69,6 @@ mock_modules = {
 sys_modules_patch = mock.patch.dict("sys.modules", mock_modules)
 sys_modules_patch.start()
 
-# Fix the re module import issue before importing the module under test
-import re
-# Patch the utils module to use the correct re module
-import importlib
-if importlib.util.find_spec('aura.base.utils.utils') is not None:
-    import aura.base.utils.utils
-    aura.base.utils.utils.re = re
-
 from aura.base.utils.utils import (
     compute_pass_at_k,
     call_oai_rm_llm,
