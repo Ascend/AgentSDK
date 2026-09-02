@@ -150,6 +150,7 @@ bash scripts/start_rl_with_verl_vllm.sh
 | Qwen3-14B     | [✓ 支持](models/qwen3-14b_quick_start/qwen3-14b-hybrid.md) | [✓ 支持](models/qwen3-14b_quick_start/qwen3-14b-one-step-off.md) | —                           |
 | Qwen3-30B-A3B | [✓ 支持](models/qwen3-30b-a3b.md)                          | [✓ 支持](models/qwen3-30b-a3b.md)                                | —                           |
 | Qwen3-32B     | [✓ 支持](models/qwen3_32b.md)                              | [✓ 支持](models/qwen3_32b.md)                                    | [✓ 支持](models/qwen3_32b.md) |
+| Qwen3.6-27B   | [✓ 支持](models/qwen3.6-27b.md)                            | [✓ 支持](models/qwen3.6-27b.md)                                  | —                           |
 
 > [!NOTE]
 > 「—」表示该模型当前未提供对应模式的一键拉起样例；「✓ 支持」为对应场景样例的链接。
