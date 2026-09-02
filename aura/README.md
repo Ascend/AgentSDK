@@ -27,7 +27,7 @@
 
 - 支持[训推共卡](../docs/zh/aura/04_user_guide/02_hybrid.md)和训推分离模式，包括[单步异步分离模式](../docs/zh/aura/04_user_guide/03_one_step_off.md)和[全异步分离模式](../docs/zh/aura/04_user_guide/04_fully_async.md)。
 - 支持[自定义 agent 接入](../docs/zh/aura/04_user_guide/05_custom_agent.md)。
-- 支持[Qwen3-4B](../docs/zh/aura/models/qwen3-4b.md)、[Qwen3-8B](../docs/zh/aura/models/qwen3_8b.md)、[Qwen3-14B](../docs/zh/aura/models/qwen3-14b_quick_start/qwen3-14b-hybrid.md)、[Qwen3-32B](../docs/zh/aura/models/qwen3_32b.md)、[Qwen3-30B-A3B](../docs/zh/aura/models/qwen3-30b-a3b.md)模型。
+- 支持[Qwen3-4B](../docs/zh/aura/models/qwen3-4b.md)、[Qwen3-8B](../docs/zh/aura/models/qwen3_8b.md)、[Qwen3-14B](../docs/zh/aura/models/qwen3-14b_quick_start/qwen3-14b-hybrid.md)、[Qwen3-32B](../docs/zh/aura/models/qwen3_32b.md)、[Qwen3-30B-A3B](../docs/zh/aura/models/qwen3-30b-a3b.md)、[Qwen3.6-27B](../docs/zh/aura/models/qwen3.6-27b.md)模型。
 - 支持 verl 训练引擎，vllm 推理引擎。
 - 支持 rLLM agent 引擎。
 - 使用 tensorboard 记录训练指标。
