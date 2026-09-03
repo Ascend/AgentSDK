@@ -199,6 +199,14 @@ class ToolContext:
     #   old terminal holders remain reachable by raw task_id + auto-
     #   resume (WI-7.4).
     agent_name_registry: AgentNameRegistry = field(default_factory=AgentNameRegistry)
+    # Runtime-only relaunch callbacks installed by the Agent tool. A terminal
+    # background agent keeps its callback so SendMessage can restart the real
+    # model loop with replayed transcript context instead of only flipping the
+    # task state back to ``running``.
+    agent_resume_launchers: dict[str, Callable[[str, list[Any]], Any]] = field(
+        default_factory=dict,
+        repr=False,
+    )
     # Tool registry reference — allows CreateAgentTool to register new tools
     # into the active registry. Set by build_default_registry and runtime contexts.
     tool_registry: Any = None

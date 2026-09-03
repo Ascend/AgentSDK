@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import textwrap
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
@@ -67,14 +68,15 @@ async def test_llm_judge_fail_below_threshold(tmp_path: Path) -> None:
     file = tmp_path / "report.md"
     file.write_text("short")
 
-    client = AsyncMock()
-    client.chat.return_value = '{"score": 0.3, "reasoning": "too short"}'
+    chat = AsyncMock(return_value='{"score": 0.3, "reasoning": "too short"}')
+    client = SimpleNamespace(chat=chat)
 
     validator = ContractValidator(llm_client=client)
     result = await validator.validate({"type": "llm_judge", "path": str(file), "threshold": 0.7})
 
     assert result.passed is False
     assert result.score == pytest.approx(0.3)
+    chat.assert_awaited_once()
 
 
 @pytest.mark.asyncio

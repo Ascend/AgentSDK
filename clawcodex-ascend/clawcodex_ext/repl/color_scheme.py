@@ -133,12 +133,12 @@ class REPLPalette:
     text: str  # Primary body text (near-white on dark)
     text_muted: str  # Secondary / metadata text
     # -- Semantic accents --
-    primary: str  # Interactive elements, links (blue)
-    secondary: str  # Accent complement (purple)
+    primary: str  # Brand / interactive accent (warm orange)
+    secondary: str  # Secondary text accent (neutral)
     success: str  # Positive outcomes (green)
     warning: str  # Attention (amber)
     error: str  # Errors / failures (red)
-    info: str  # Info messages (sky blue)
+    info: str  # Informational text (neutral)
     # -- Role-specific --
     user_bg: str  # User-message background highlight
     agent_label: str  # Agent / assistant name
@@ -155,80 +155,80 @@ class REPLPalette:
     toolbar: str  # Bottom toolbar text
     completion_current_bg: str  # Completion-menu highlighted background
     completion_current_fg: str  # Completion-menu highlighted foreground
+    # Keep this defaulted field last so positional downstream constructors remain
+    # source-compatible with palettes created before the shimmer color was added.
+    spinner_highlight: str = "#eb9f7f"  # Busy-line shimmer band
 
 
 # ── Built-in palettes ───────────────────────────────────────────────────
-# All values hand-tuned in OKLCH for perceptual uniformity.  Hue 280
-# (blue-ish grey) is the neutral axis; semantic hues fan out at equal
-# chroma where possible so no semantic colour visually dominates.
+# Exact tokens from the pinned official ui-tui theme. Keeping them as literals
+# preserves the official warm-orange brand accent and neutral secondary chrome.
 
 DARK = REPLPalette(
     name="dark",
-    # Neutral greys (hue 280)
-    background=oklch_to_hex(0.08, 0.012, 280),
-    surface=oklch_to_hex(0.13, 0.015, 280),
-    surface_alt=oklch_to_hex(0.17, 0.018, 280),
-    border=oklch_to_hex(0.22, 0.025, 280),
-    text=oklch_to_hex(0.92, 0.008, 280),
-    text_muted=oklch_to_hex(0.52, 0.015, 280),
-    # Semantic
-    primary=oklch_to_hex(0.62, 0.16, 255),  # Perceptually clean blue
-    secondary=oklch_to_hex(0.58, 0.18, 305),  # Soft purple
-    success=oklch_to_hex(0.68, 0.18, 145),  # Calm green
-    warning=oklch_to_hex(0.72, 0.16, 85),  # Warm amber
-    error=oklch_to_hex(0.58, 0.20, 25),  # Deep red
-    info=oklch_to_hex(0.65, 0.13, 235),  # Sky blue
+    background="#1a1a1a",
+    surface="#1f1f1f",
+    surface_alt="#383838",
+    border="#505050",
+    text="#ffffff",
+    text_muted="#999999",
+    primary="#d77757",
+    secondary="#bbbbbb",
+    success="#4eba65",
+    warning="#ffc107",
+    error="#ff6b80",
+    info="#bbbbbb",
     # Role
-    user_bg=oklch_to_hex(0.15, 0.015, 250),
-    agent_label=oklch_to_hex(0.72, 0.14, 280),
-    tool_name=oklch_to_hex(0.65, 0.16, 255),
-    tool_call=oklch_to_hex(0.52, 0.015, 280),
-    tool_result=oklch_to_hex(0.52, 0.015, 280),
-    tool_error=oklch_to_hex(0.58, 0.20, 25),
-    diff_add=oklch_to_hex(0.65, 0.16, 145),
-    diff_remove=oklch_to_hex(0.55, 0.18, 25),
-    spinner=oklch_to_hex(0.72, 0.16, 85),
+    user_bg="#373737",
+    agent_label="#ffffff",
+    tool_name="#bbbbbb",
+    tool_call="#999999",
+    tool_result="#999999",
+    tool_error="#ff6b80",
+    diff_add="#225c2b",
+    diff_remove="#7a2936",
+    spinner="#d77757",
+    spinner_highlight="#eb9f7f",
     # Prompt-specific
-    prompt_bg=oklch_to_hex(0.15, 0.015, 250),
-    prompt_fg=oklch_to_hex(0.92, 0.008, 280),
-    toolbar=oklch_to_hex(0.45, 0.015, 280),
-    completion_current_bg=oklch_to_hex(0.35, 0.14, 255),
-    completion_current_fg=oklch_to_hex(0.95, 0.005, 280),
+    prompt_bg="#373737",
+    prompt_fg="#e6e6e6",
+    toolbar="#999999",
+    completion_current_bg="#383838",
+    completion_current_fg="#ffffff",
 )
 
 
 LIGHT = REPLPalette(
     name="light",
-    # Neutral greys (hue 280)
-    background=oklch_to_hex(0.97, 0.005, 280),
-    surface=oklch_to_hex(0.94, 0.008, 280),
-    surface_alt=oklch_to_hex(0.90, 0.01, 280),
-    border=oklch_to_hex(0.82, 0.015, 280),
-    text=oklch_to_hex(0.15, 0.012, 280),
-    text_muted=oklch_to_hex(0.55, 0.015, 280),
-    # Semantic (slightly lower chroma for light bg readability)
-    primary=oklch_to_hex(0.48, 0.16, 255),
-    secondary=oklch_to_hex(0.45, 0.17, 305),
-    success=oklch_to_hex(0.50, 0.16, 145),
-    warning=oklch_to_hex(0.55, 0.15, 85),
-    error=oklch_to_hex(0.48, 0.18, 25),
-    info=oklch_to_hex(0.50, 0.12, 235),
+    background="#ffffff",
+    surface="#f5f5f5",
+    surface_alt="#eed6ce",
+    border="#afafaf",
+    text="#000000",
+    text_muted="#666666",
+    primary="#d77757",
+    secondary="#666666",
+    success="#2c7a39",
+    warning="#966c1e",
+    error="#ab2b3f",
+    info="#666666",
     # Role
-    user_bg=oklch_to_hex(0.88, 0.015, 250),
-    agent_label=oklch_to_hex(0.42, 0.14, 280),
-    tool_name=oklch_to_hex(0.48, 0.16, 255),
-    tool_call=oklch_to_hex(0.55, 0.015, 280),
-    tool_result=oklch_to_hex(0.55, 0.015, 280),
-    tool_error=oklch_to_hex(0.48, 0.18, 25),
-    diff_add=oklch_to_hex(0.42, 0.16, 145),
-    diff_remove=oklch_to_hex(0.45, 0.18, 25),
-    spinner=oklch_to_hex(0.55, 0.15, 85),
+    user_bg="#f0f0f0",
+    agent_label="#000000",
+    tool_name="#666666",
+    tool_call="#666666",
+    tool_result="#666666",
+    tool_error="#ab2b3f",
+    diff_add="#69db7c",
+    diff_remove="#ffa8b4",
+    spinner="#d77757",
+    spinner_highlight="#f59575",
     # Prompt-specific
-    prompt_bg=oklch_to_hex(0.88, 0.015, 250),
-    prompt_fg=oklch_to_hex(0.15, 0.012, 280),
-    toolbar=oklch_to_hex(0.50, 0.015, 280),
-    completion_current_bg=oklch_to_hex(0.65, 0.14, 255),
-    completion_current_fg=oklch_to_hex(0.10, 0.01, 280),
+    prompt_bg="#f0f0f0",
+    prompt_fg="#2b2b2b",
+    toolbar="#666666",
+    completion_current_bg="#eed6ce",
+    completion_current_fg="#000000",
 )
 
 
@@ -286,6 +286,7 @@ def build_rich_theme(palette: REPLPalette | None = None) -> dict:
         "call": p.tool_call,
         "result": p.tool_result,
         "spinner": p.spinner,
+        "spinner_highlight": p.spinner_highlight,
         "primary": p.primary,
         "secondary": p.secondary,
         "user_bg": p.user_bg,

@@ -207,8 +207,6 @@ def test_session_start_and_end_mapping(tmp_path):
 @pytest.mark.parametrize(
     "analytics_type",
     [
-        AnalyticsEventType.TURN_START,
-        AnalyticsEventType.TURN_END,
         AnalyticsEventType.AGENT_SPAWN,
         AnalyticsEventType.AGENT_COMPLETE,
     ],
@@ -232,13 +230,41 @@ def test_command_run_subtypes(tmp_path, analytics_type):
     assert rows[0]["type"] == "command_run"
     # The bridge preserves the original type in `subtype`. The
     # redactor's command-name whitelist does not include
-    # ``turn_start``/``turn_end``/``agent_spawn``/``agent_complete``,
+    # ``agent_spawn``/``agent_complete``,
     # so ``command_name`` is bucketized to ``"other"``. This is the
     # documented privacy guarantee — the analytics event type is
     # carried in ``subtype``, not in the whitelisted command slot.
     assert rows[0]["fields"]["subtype"] == analytics_type.value
     assert rows[0]["fields"]["command_name"] == "other"
     assert rows[0]["fields"]["agent_id"] == "a-1"
+
+
+def test_turn_end_maps_to_completed_turn(tmp_path):
+    impl = _build_impl(tmp_path)
+    override_recorder(impl)
+    install_analytics_bridge()
+
+    get_analytics_bridge().emit(
+        AnalyticsEvent(
+            type=AnalyticsEventType.TURN_END,
+            session_id="s1",
+            data={"success": False, "duration_s": 1.5},
+        )
+    )
+
+    rows = _read_event_rows(recorder_mod.LocalJsonlStorage(tmp_path / "telemetry"))
+    assert rows[0]["type"] == "turn"
+    assert rows[0]["fields"] == {"success": False, "duration_s": 1.5}
+
+
+def test_turn_start_is_not_counted_as_completed_turn(tmp_path):
+    impl = _build_impl(tmp_path)
+    override_recorder(impl)
+    install_analytics_bridge()
+
+    get_analytics_bridge().emit(AnalyticsEvent(type=AnalyticsEventType.TURN_START, session_id="s1"))
+
+    assert not _read_event_rows(recorder_mod.LocalJsonlStorage(tmp_path / "telemetry"))
 
 
 def test_tool_use_maps_to_tool_summary(tmp_path):

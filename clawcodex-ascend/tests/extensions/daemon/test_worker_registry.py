@@ -24,6 +24,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from extensions.daemon.errors import UnknownWorkerKindError
@@ -172,7 +174,7 @@ def test_base_worker_reads_daemon_env():
     }
     cfg = BaseWorker.read_daemon_env(env)
     assert cfg["name"] == "alpha"
-    assert cfg["dir"] == "/tmp/x"
+    assert cfg["dir"] == Path("/tmp/x")
     assert cfg["spawn_mode"] == "worktree"
     assert cfg["capacity"] == 7
     assert cfg["permission_mode"] == "bypassPermissions"

@@ -198,7 +198,7 @@ class TestRegistryDispatch(unittest.TestCase):
         ctx.permission_handler = lambda name, msg, sug: (False, False)
         result = reg.dispatch(ToolCall(name="NeedApproval", input={}), ctx)
         self.assertTrue(result.is_error)
-        self.assertIn("denied", result.output["error"])
+        self.assertIn("doesn't want to proceed", result.output["error"])
 
     def test_dispatch_adapts_legacy_permission_handler_to_ask_request(self) -> None:
         from src.permissions.types import (

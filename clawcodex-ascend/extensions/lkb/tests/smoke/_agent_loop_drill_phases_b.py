@@ -24,7 +24,7 @@
 
 """Phases five and six of the Agent Loop release drill."""
 
-from tests.smoke._agent_loop_drill_support import *
+from ._agent_loop_drill_support import *
 
 
 def _phase5(d) -> None:

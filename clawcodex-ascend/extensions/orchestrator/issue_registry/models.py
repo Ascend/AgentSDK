@@ -127,6 +127,9 @@ class IssueRecord:
     # with the id in ``mark_feedback_processed`` / ``clear_stale_pending``.
     pending_feedback_urls: dict[str, str] = field(default_factory=dict)
     pending_feedback_since: float | None = None
+    # Per-item clocks avoid keeping fresh feedback blocked by an older item.
+    # Older registry files omit this field and load with the empty default.
+    pending_feedback_since_map: dict[str, float] = field(default_factory=dict)
     feedback_cursor: str | None = None
     followup_attempt_count: int = 0
     last_followup_commit_sha: str | None = None

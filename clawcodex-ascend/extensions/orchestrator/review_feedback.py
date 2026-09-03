@@ -30,7 +30,6 @@ from .issue import Issue  # pylint: disable=import-error
 from .issue_registry import IssueRecord, IssueRegistry  # pylint: disable=import-error
 from .tracker import (  # pylint: disable=import-error
     PullRequestFeedback,
-    PullRequestFeedbackCapability,
     PullRequestRef,
     TrackerAdapter,
     UserIdentityCapability,
@@ -130,9 +129,10 @@ class ReviewFeedbackService:
                 number=record.pr_number,
                 url=record.pr_url,
             )
-            if not supports(self.tracker, PullRequestFeedbackCapability):
+            fetch_feedback = getattr(self.tracker, "fetch_pull_request_feedback", None)
+            if not callable(fetch_feedback):
                 continue
-            feedback = await self.tracker.fetch_pull_request_feedback(
+            feedback = await fetch_feedback(
                 pull_request=pull_request,
                 issue_id=record.issue_id,
                 include_ci_failures=getattr(self.config, "include_ci_failures", True),

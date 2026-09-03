@@ -323,7 +323,7 @@ class TestPerMessageAggregateBudget(unittest.TestCase):
         import ast
         from pathlib import Path
 
-        query_src = Path(__file__).parent.parent / "src" / "query" / "query.py"
+        query_src = Path(__file__).parents[2] / "clawcodex_ext" / "query" / "query.py"
         tree = ast.parse(query_src.read_text())
 
         # Find every ``tool_use_context.tool_result_chars_so_far = 0`` and

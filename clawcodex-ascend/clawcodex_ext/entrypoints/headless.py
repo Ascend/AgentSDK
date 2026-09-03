@@ -1798,16 +1798,32 @@ def _filter_registry(registry, *, keep) -> None:
 def _auto_deny_permission_handler(stderr: IO[str]):
     from src.permissions.types import PermissionAskReply, PermissionAskRequest
 
-    def handler(request: PermissionAskRequest) -> PermissionAskReply:
+    def handler(
+        request: PermissionAskRequest | str,
+        message: str | None = None,
+        _suggestion: str | None = None,
+    ) -> PermissionAskReply | tuple[bool, bool]:
+        """Deny both current request objects and the legacy callback shape.
+
+        ``ToolContext.permission_handler`` remains a public compatibility
+        seam used directly by SDK callers.  Registry dispatch adapts either
+        shape, but callers predating ``PermissionAskRequest`` still invoke
+        ``(tool_name, message, suggestion)`` and expect a boolean tuple.
+        """
+        legacy_call = not isinstance(request, PermissionAskRequest)
+        tool_name = str(request) if legacy_call else request.tool_name
+        request_message = (message or "") if legacy_call else request.message
         stderr.write(
-            f"[headless] denying permission for {request.tool_name}: "
-            f"{request.message}"
+            f"[headless] denying permission for {tool_name}: "
+            f"{request_message}"
             " (pass --dangerously-skip-permissions to bypass)\n"
         )
         try:
             stderr.flush()
         except Exception:  # nosec B110
             pass  # Cleanup is best-effort and must not replace the primary operation result.
+        if legacy_call:
+            return False, False
         return PermissionAskReply(behavior="deny")
 
     return handler

@@ -38,7 +38,7 @@ Split from the single ``issue_registry.py`` into a package by concern:
     intent / retry / rebase-conflict / unblock (``IntentMixin``).
 
 The public class below composes the mixins; the external API surface is
-unchanged (``IssueRegistry`` / ``IssueStatus`` / ``IssueRecord`` /
+unchanged (``IssueRegistry`` / ``IssueStatus`` / ``IssueRecord`` / ``Intent`` /
 ``TERMINAL_STATUSES``).
 """
 
@@ -49,7 +49,7 @@ from pathlib import Path
 from .clarification import ClarificationMixin
 from .feedback import FeedbackMixin
 from .intent import IntentMixin
-from .models import TERMINAL_STATUSES, IssueRecord, IssueStatus
+from .models import TERMINAL_STATUSES, Intent, IssueRecord, IssueStatus
 from .state_machine import StateMachineMixin
 from .storage import StorageMixin
 
@@ -58,6 +58,7 @@ __all__ = [
     "IssueRecord",
     "IssueRegistry",
     "IssueStatus",
+    "Intent",
 ]
 
 

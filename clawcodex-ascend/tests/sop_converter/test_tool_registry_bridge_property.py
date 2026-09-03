@@ -135,6 +135,7 @@ class Counter:
                 module_name="demo_pkg.counter",
                 file_stem="counter",
                 source_dir=str(tmp),
+                scripts_dir=tmp / "scripts",
             )
 
             for method, expected in (("value", 0), ("bump", None)):

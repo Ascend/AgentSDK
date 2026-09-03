@@ -26,8 +26,12 @@ import sys
 import time
 from pathlib import Path
 
-from .issue_ops import _get_status_str
-from .issue_transcript import _render_message
+
+def _get_status_str(status) -> str:
+    """Normalize enum-backed and plain status values without importing issue_ops."""
+    if hasattr(status, "value"):
+        return status.value
+    return str(status)
 
 
 def _control_path(workspace_root: str | Path | None = None) -> Path:
@@ -514,6 +518,8 @@ def _run_tail(registry_path: Path | None, args: argparse.Namespace) -> int:
 
     label = f"run {run_id}" if not issue_id else f"issue {issue_id} (run {run_id})"
     print(f"Tailing transcript for {label} (Ctrl+C to stop)...")
+    from .issue_transcript import _render_message
+
     try:
         last_size = transcript_path.stat().st_size
         pending = ""

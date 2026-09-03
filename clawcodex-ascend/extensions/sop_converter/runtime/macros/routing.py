@@ -89,12 +89,18 @@ def _matches_route(query: str, route: MacroRoute) -> bool:
 
     query_lower = query.lower().strip()
 
+    # An explicit phrase is the highest-confidence signal. Check it before
+    # negative keywords so a phrase such as ``用已创建的 agent 回复`` is not
+    # rejected merely because ``创建`` appears inside ``已创建``.
+    has_phrases = bool(route.phrases)
+    has_keywords = bool(route.keywords)
+    phrase_match = has_phrases and any(_phrase_matches(query_lower, phrase) for phrase in route.phrases)
+    if phrase_match:
+        return True
+
     for neg_keyword in route.negative_keywords:
         if _keyword_matches(query_lower, neg_keyword):
             return False
-
-    has_phrases = bool(route.phrases)
-    has_keywords = bool(route.keywords)
 
     if route.match_mode == "exact":
         if has_phrases:
@@ -105,9 +111,6 @@ def _matches_route(query: str, route: MacroRoute) -> bool:
 
     # Phrase hit is high-confidence and sufficient on its own.
     # match_mode (all/any) applies only to the keyword-only path below.
-    if has_phrases and any(_phrase_matches(query_lower, phrase) for phrase in route.phrases):
-        return True
-
     if has_keywords:
         if route.match_mode == "all":
             return all(_keyword_matches(query_lower, keyword) for keyword in route.keywords)
@@ -168,6 +171,12 @@ class MacroRouteCatalog:
                 matches.append(
                     MacroRouteMatch(route=route, matched_tokens=matched_tokens, is_exact_phrase=is_exact_phrase)
                 )
+
+        # Exact phrases are explicit routing contracts. Do not retain weaker
+        # keyword-only matches for the same query; doing so can turn a phrase
+        # such as ``已创建`` into an unrelated create-agent candidate.
+        if any(match.is_exact_phrase for match in matches):
+            matches = [match for match in matches if match.is_exact_phrase]
 
         # §8.4: exact phrase > scope (session > bundle > builtin) > priority > tokens
         matches.sort(
@@ -239,7 +248,7 @@ def ensure_builtin_routes(catalog: MacroRouteCatalog | None = None) -> MacroRout
             # Chinese NL often inserts particles between the two keywords, so
             # phrase-only matching is too brittle. Require both keywords.
             keywords=["恢复", "资源"],
-            negative_keywords=["创建", "删除", "列出"],
+            negative_keywords=["创建", "删除", "列出", "不要"],
             target_tool="resume-resource",
             match_mode="all",
             selection="prefer",

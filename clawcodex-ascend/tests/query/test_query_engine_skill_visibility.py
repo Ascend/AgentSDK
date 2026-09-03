@@ -105,7 +105,7 @@ async def test_query_includes_skill_listing_when_skill_tool_is_available(
 ):
     command_loader, prompt_builder = await _build_prompt(monkeypatch, tmp_path)
 
-    command_loader.assert_called_once_with(str(tmp_path), None)
+    command_loader.assert_called_once_with(str(tmp_path))
     assert prompt_builder.call_args.kwargs["skills"] == ["visible-skill"]
 
 
@@ -151,7 +151,7 @@ async def test_query_filters_canonical_skill_denied_by_permission(
         denied_skill=True,
     )
 
-    command_loader.assert_called_once_with(str(tmp_path), None)
+    command_loader.assert_called_once_with(str(tmp_path))
     assert prompt_builder.call_args.kwargs["skills"] == []
 
 
@@ -163,7 +163,7 @@ def test_real_get_skill_tool_commands_uses_session_catalog(
     from clawcodex_ext.skills.catalog import get_skill_catalog, invalidate_skill_catalog
 
     workspace = tmp_path / "workspace"
-    skill_dir = workspace / ".claude" / "skills" / "real-session-skill"
+    skill_dir = workspace / ".clawcodex" / "skills" / "real-session-skill"
     skill_dir.mkdir(parents=True)
     (skill_dir / "SKILL.md").write_text(
         "---\ndescription: Real session-scoped skill\n---\nUse the real catalog.",

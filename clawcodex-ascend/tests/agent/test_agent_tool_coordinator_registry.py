@@ -42,6 +42,7 @@ from __future__ import annotations
 
 # pylint: disable=C0412,E0611
 import os
+import threading
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -91,9 +92,11 @@ class TestAgentToolCoordinatorRegistry(unittest.TestCase):
         parent_registry = build_default_registry(provider=object())
         parent_tools_before = {t.name for t in parent_registry.list_tools()}
         captured: dict[str, object] = {}
+        worker_started = threading.Event()
 
         async def _fake_run_agent(params):
             captured["tool_registry"] = params.tool_registry
+            worker_started.set()
             yield AssistantMessage(content=[TextBlock(text="worker done")])
 
         with TemporaryDirectory() as tmp:
@@ -107,6 +110,7 @@ class TestAgentToolCoordinatorRegistry(unittest.TestCase):
                         ),
                         context,
                     )
+                    self.assertTrue(worker_started.wait(timeout=2), "coordinator worker did not start")
 
         self.assertFalse(result.is_error, str(result.output))
         worker_registry = captured.get("tool_registry")

@@ -83,13 +83,12 @@ class TestWriteToolPermissions(unittest.TestCase):
         )
         self.assertEqual(result.behavior, "passthrough")
 
-    def test_check_permissions_ask_for_md_file_when_docs_disallowed(self) -> None:
+    def test_check_permissions_passthrough_for_md_file(self) -> None:
         result = WriteTool.check_permissions(
             {"file_path": str(self.root / "test.md"), "content": "hello"},
             self.ctx,
         )
-        self.assertEqual(result.behavior, "ask")
-        self.assertIn("allow_docs", result.message.lower())
+        self.assertEqual(result.behavior, "passthrough")
 
     def test_check_permissions_passthrough_for_md_file_when_docs_allowed(self) -> None:
         self.ctx.allow_docs = True
@@ -99,12 +98,12 @@ class TestWriteToolPermissions(unittest.TestCase):
         )
         self.assertEqual(result.behavior, "passthrough")
 
-    def test_check_permissions_ask_for_markdown_file(self) -> None:
+    def test_check_permissions_passthrough_for_markdown_file(self) -> None:
         result = WriteTool.check_permissions(
             {"file_path": str(self.root / "test.markdown"), "content": "hello"},
             self.ctx,
         )
-        self.assertEqual(result.behavior, "ask")
+        self.assertEqual(result.behavior, "passthrough")
 
 
 class TestEditToolPermissions(unittest.TestCase):
@@ -130,7 +129,7 @@ class TestEditToolPermissions(unittest.TestCase):
         )
         self.assertEqual(result.behavior, "passthrough")
 
-    def test_check_permissions_ask_for_md_file_when_docs_disallowed(self) -> None:
+    def test_check_permissions_passthrough_for_md_file(self) -> None:
         result = EditTool.check_permissions(
             {
                 "file_path": str(self.test_file),
@@ -139,8 +138,7 @@ class TestEditToolPermissions(unittest.TestCase):
             },
             self.ctx,
         )
-        self.assertEqual(result.behavior, "ask")
-        self.assertIn("allow_docs", result.message.lower())
+        self.assertEqual(result.behavior, "passthrough")
 
     def test_check_permissions_passthrough_for_md_file_when_docs_allowed(self) -> None:
         self.ctx.allow_docs = True
@@ -191,7 +189,7 @@ class TestToolRegistryDispatchPermissions(unittest.TestCase):
         self.assertTrue(result.is_error)
         error_msg = result.output.get("error", "").lower()
         self.assertTrue(
-            "permission" in error_msg or "allow_docs" in error_msg or "blocked" in error_msg or "denied" in error_msg,
+            "permission" in error_msg or "allow" in error_msg or "blocked" in error_msg or "denied" in error_msg,
             f"Expected permission-related error, got: {error_msg}",
         )
 
@@ -234,7 +232,7 @@ class TestToolRegistryDispatchPermissions(unittest.TestCase):
         )
 
         self.assertTrue(result.is_error)
-        self.assertIn("denied", result.output.get("error", "").lower())
+        self.assertIn("rejected", result.output.get("error", "").lower())
 
     def test_dispatch_allows_after_handler_enables_setting(self) -> None:
         def mock_handler(tool_name: str, message: str, suggestion: str | None):

@@ -22,7 +22,7 @@
 # pylint: disable=redefined-outer-name
 """End-to-end entry point for the Agent Loop release drill."""
 
-from tests.smoke._agent_loop_drill_phases_a import (
+from ._agent_loop_drill_phases_a import (
     _assert_phase1,
     _assert_phase2,
     _assert_phase3,
@@ -32,13 +32,13 @@ from tests.smoke._agent_loop_drill_phases_a import (
     _phase3,
     _phase4,
 )
-from tests.smoke._agent_loop_drill_phases_b import (
+from ._agent_loop_drill_phases_b import (
     _assert_phase5,
     _assert_phase6,
     _phase5,
     _phase6,
 )
-from tests.smoke._agent_loop_drill_support import drill  # noqa: F401
+from ._agent_loop_drill_support import drill  # noqa: F401
 
 
 def test_agent_loop_drill(drill, capsys) -> None:  # noqa: F811

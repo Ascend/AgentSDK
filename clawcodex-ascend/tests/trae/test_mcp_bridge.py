@@ -145,10 +145,9 @@ def test_bridge_config_from_env_disabled_conversion() -> None:
 
 
 @pytest.mark.asyncio
-async def test_call_tool_unknown_raises() -> None:
+async def test_call_tool_unknown_returns_mcp_error() -> None:
     bridge = TraeMcpBridge()
-    with pytest.raises(ValueError, match="unknown tool"):
-        await bridge.call_tool("bogus", {})
+    assert await bridge.call_tool("bogus", {}) == "error: unknown tool: bogus"
 
 
 @pytest.mark.asyncio

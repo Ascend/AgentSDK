@@ -81,6 +81,12 @@ from .messages import (
 from .state import AppState
 
 
+# Compatibility override used by the focused freeze tests and embedders that
+# need a deterministic modal deadline. ``None`` keeps the runtime setting as
+# the source of truth; non-negative numbers override it (``0`` disables it).
+_PERMISSION_TIMEOUT_S: float | None = None
+
+
 def _resolve_permission_timeout_s() -> float:
     """Layer-0 modal deadline (P108-A / P108-E).
 
@@ -90,6 +96,8 @@ def _resolve_permission_timeout_s() -> float:
     ``done.wait()``). Kept as a function so the bridge re-resolves
     on every prompt (cheap; settings can change between runs).
     """
+    if _PERMISSION_TIMEOUT_S is not None:
+        return float(_PERMISSION_TIMEOUT_S)
     try:
         return float(resolve_freeze_settings().permission_timeout_s)
     except Exception:
@@ -134,6 +142,8 @@ class AgentBridge:
         self._goal_active_since: float | None = None
         self._busy_lock = threading.Lock()
         self._busy = False
+        self._idle = threading.Event()
+        self._idle.set()
         # Runtime permission controller — the unified chokepoint for
         # Shift+Tab cycles. Stored on the bridge so ``replace_runtime``
         # can rewire it if the tool context is swapped mid-session.
@@ -165,6 +175,8 @@ class AgentBridge:
         # empty ``{}`` (or nothing at all) and the agent loop would
         # never see the user's choices.
         tool_context.ask_user = self._ask_user_handler
+        tool_context.allow_session_macro_registration = True
+        tool_context.confirm_session_macro_plan = self._confirm_session_macro_plan
         self._bind_goal_state(
             reset_baseline=True,
             reset_progress=reset_goal_progress,
@@ -205,6 +217,8 @@ class AgentBridge:
         if tool_context.default_permission_handler is None:
             tool_context.default_permission_handler = self._permission_handler
         tool_context.ask_user = self._ask_user_handler
+        tool_context.allow_session_macro_registration = True
+        tool_context.confirm_session_macro_plan = self._confirm_session_macro_plan
         self._bind_goal_state(reset_baseline=False, reset_progress=False)
 
     def replace_session(self, session: Session | None) -> bool:
@@ -349,7 +363,14 @@ class AgentBridge:
         if not hasattr(provider, "add_event_listener") or not hasattr(provider, "slots"):
             self._multimodel_listener = None
             return
-        slots = [slot.name for slot in provider.slots]
+        try:
+            slots = [slot.name for slot in provider.slots]
+        except TypeError:
+            # ``Mock`` objects and partially constructed providers may expose a
+            # non-iterable ``slots`` attribute. They are not multi-model
+            # providers and should not make bridge construction fail.
+            self._multimodel_listener = None
+            return
 
         def listener(kind: str, payload: dict[str, Any]) -> None:
             if kind == "progress":
@@ -467,6 +488,7 @@ class AgentBridge:
                 return False
             self._busy = True
             self._set_in_agent_loop(True)
+            self._idle.clear()
             self._abort_controller = AbortController()
             ## _log(f'[agent_bridge] acquired busy lock')
             # Plumb the controller onto the tool context BEFORE we spawn
@@ -513,6 +535,7 @@ class AgentBridge:
                 return False
             self._busy = True
             self._set_in_agent_loop(True)
+            self._idle.clear()
             self._abort_controller = AbortController()
             self._tool_context.abort_controller = self._abort_controller
 
@@ -540,6 +563,7 @@ class AgentBridge:
                 self._busy = False
                 self._set_in_agent_loop(False)
                 self._abort_controller = None
+                self._idle.set()
             self._state.set_thinking(False)
             return False
 
@@ -582,6 +606,12 @@ class AgentBridge:
             return False
         controller.abort(reason)
         return True
+
+    def shutdown(self, *, timeout: float = 2.0) -> bool:
+        """Cancel the foreground run and wait briefly for its worker."""
+
+        self.cancel("session_exit")
+        return self._idle.wait(max(0.0, timeout))
 
     # ---- worker implementation ----
     def _run_agent_in_thread(self) -> None:
@@ -859,6 +889,7 @@ class AgentBridge:
             # reading the context field, so replacing here doesn't
             # orphan them either.
             self._tool_context.abort_controller = AbortController()
+            self._idle.set()
         # Signal the UI to drain any queued prompts.  The check is a
         # best-effort filter — the UI handler re-verifies on the UI
         # thread, so a spurious post (e.g. the queue was cleared by
@@ -1109,6 +1140,32 @@ class AgentBridge:
         # dismissed itself and emitted ``PermissionResolved``.
         self._state.resolve_permission(pending.request_id)
         return outcome["allowed"], outcome["enable"]
+
+    # ---- session macro confirmation (separate from permissions) ----
+    def _confirm_session_macro_plan(self, plan: Any) -> bool:
+        from extensions.sop_converter.runtime.macros.register_tool import (
+            format_session_macro_plan_for_ui,
+        )
+
+        body = format_session_macro_plan_for_ui(plan)
+        question = (
+            f"Register session macro `{getattr(plan, 'name', '')}` ({getattr(plan, 'action', 'create')})?\n\n{body}"
+        )
+        answers = self._ask_user_handler(
+            [
+                {
+                    "question": question,
+                    "header": "Session macro",
+                    "options": [
+                        {"label": "No", "description": "Cancel registration"},
+                        {"label": "Yes", "description": "Register this session macro"},
+                    ],
+                    "multiSelect": False,
+                }
+            ]
+        )
+        chosen = (answers.get(question) or "").strip().lower()
+        return chosen in ("yes", "y")
 
     # ---- ask_user bridge ----
     def _ask_user_handler(self, questions: list[dict[str, Any]]) -> dict[str, str]:

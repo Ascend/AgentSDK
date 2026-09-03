@@ -149,8 +149,10 @@ all = [
     "pre-commit>=4.0.0",
     "mypy>=1.13.0",
     "import-linter>=2.0",
+    "pexpect>=4.9.0",
     "lark-oapi==1.7.0",
     "qrcode==7.4.2",
+    "pyte>=0.8.0",
     "mem0ai==2.0.4",
     "qdrant-client>=1.18.0,<2",
     "ollama>=0.6.0,<1",
@@ -166,6 +168,7 @@ Repository = "https://github.com/agentforce314/clawcodex"
 Documentation = "https://github.com/agentforce314/clawcodex#readme"
 
 [tool.pytest.ini_options]
+addopts = "--import-mode=importlib"
 asyncio_mode = "auto"
 # Prepend the project root so pytest imports the worktree's ``src/`` rather
 # than the parent repo's editable-install mapping.
@@ -175,6 +178,7 @@ pythonpath = [".", "extensions/lkb/src"]
 markers = [
     "integration: marks tests as integration (deselect with '-m \"not integration\"')",
     "linux_only: marks tests that require Linux (auto-skipped on macOS/Windows)",
+    "timeout(seconds): documents a per-test timeout budget",
 ]
 filterwarnings = [
     # Ch16 Phase 0 (WI-0.2/0.3) + ch01 round-2 P3: scripts/audit/remote_runtime

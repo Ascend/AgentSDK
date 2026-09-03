@@ -221,7 +221,7 @@ def test_goal_objective_replaces_unfinished_goal_without_confirmation(
     assert current.objective == "replacement"
     assert current.goal_id != old.goal_id
     assert [message.method for message in context.goal_events.messages] == [  # type: ignore[attr-defined]
-        "thread/goal/set",
+        "thread/goal/replace",
         "thread/goal/updated",
     ]
 

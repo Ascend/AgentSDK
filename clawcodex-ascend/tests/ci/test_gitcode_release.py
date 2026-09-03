@@ -23,6 +23,15 @@
 from __future__ import annotations
 
 import importlib
+from pathlib import Path
+
+import pytest
+
+
+pytestmark = pytest.mark.skipif(
+    not (Path(__file__).resolve().parents[2] / "scripts" / "ci" / "gitcode_release.py").is_file(),
+    reason="standalone ClawCodex release helpers are not part of the AgentSDK runtime migration",
+)
 
 
 def _load_module(monkeypatch):

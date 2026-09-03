@@ -3,12 +3,14 @@
 
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
-# Copyright (c) 2026 Clawd Codex Team
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Originally from Clawd Codex:
+# https://github.com/agentforce314/clawcodex
+# Copyright (c) 2026 Clawd Codex Team
+# Licensed under the MIT License. See clawcodex-ascend/LICENSES/Clawd-Codex-MIT.txt.
+#
+# Portions copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Licensed under Mulan PSL v2. You may obtain a copy of Mulan PSL v2 at:
 #
 #          http://license.coscl.org.cn/MulanPSL2
 #
@@ -39,6 +41,39 @@ if TYPE_CHECKING:
 GOALS_DB_FILENAME = "goals_1.sqlite"
 
 _TOKEN_BUDGET_UNSET = object()
+
+_THREAD_GOAL_COLUMNS = (
+    "thread_id",
+    "goal_id",
+    "objective",
+    "status",
+    "token_budget",
+    "tokens_used",
+    "time_used_seconds",
+    "completion_mode",
+    "evaluation_count",
+    "last_evaluation_reason",
+    "created_at_ms",
+    "updated_at_ms",
+)
+
+# The interpolated identifiers come exclusively from the module-owned tuple above.
+_THREAD_GOAL_COLUMN_SQL = ", ".join(_THREAD_GOAL_COLUMNS)
+# The only interpolated value is the module-owned identifier list above.
+_SELECT_THREAD_GOAL_SQL = f"SELECT {_THREAD_GOAL_COLUMN_SQL} FROM thread_goals WHERE thread_id = :thread_id"  # nosec B608
+
+_UPSERT_THREAD_GOAL_SQL = (
+    f"INSERT INTO thread_goals ({_THREAD_GOAL_COLUMN_SQL}) "  # nosec B608
+    "VALUES (:thread_id, :goal_id, :objective, :status, :token_budget, "
+    "0, 0, :completion_mode, 0, NULL, :created_at_ms, :updated_at_ms) "
+    "ON CONFLICT(thread_id) DO UPDATE SET "
+    "goal_id = excluded.goal_id, objective = excluded.objective, "
+    "status = excluded.status, token_budget = excluded.token_budget, "
+    "tokens_used = 0, time_used_seconds = 0, "
+    "completion_mode = excluded.completion_mode, evaluation_count = 0, "
+    "last_evaluation_reason = NULL, created_at_ms = excluded.created_at_ms, "
+    "updated_at_ms = excluded.updated_at_ms"
+)
 
 _THREAD_GOAL_COLUMN_MIGRATIONS = (
     (
@@ -86,16 +121,9 @@ class GoalStore:
 
     def __init__(self, db_path: Path | str | None = None) -> None:
         self.db_path = Path(db_path) if db_path is not None else goals_db_path()
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        self.db_path.touch(mode=0o600, exist_ok=True)
-        self.db_path.chmod(0o600)
+        _prepare_database_file(self.db_path)
         self._lock = threading.RLock()
-        self._conn = sqlite3.connect(
-            str(self.db_path),
-            isolation_level=None,
-            check_same_thread=False,
-        )
-        self._conn.row_factory = sqlite3.Row
+        self._conn = _open_database(self.db_path)
         self._bootstrap_schema()
 
     def close(self) -> None:
@@ -110,26 +138,12 @@ class GoalStore:
     def get_thread_goal(self, thread_id: str) -> ThreadGoal | None:
         with self._lock:
             row = self._conn.execute(
-                """
-                SELECT
-                    thread_id,
-                    goal_id,
-                    objective,
-                    status,
-                    token_budget,
-                    tokens_used,
-                    time_used_seconds,
-                    completion_mode,
-                    evaluation_count,
-                    last_evaluation_reason,
-                    created_at_ms,
-                    updated_at_ms
-                FROM thread_goals
-                WHERE thread_id = ?
-                """,
-                (thread_id,),
+                _SELECT_THREAD_GOAL_SQL,
+                {"thread_id": thread_id},
             ).fetchone()
-        return _goal_from_row(row) if row is not None else None
+        if row is None:
+            return None
+        return _goal_from_row(row)
 
     def insert_thread_goal(
         self,
@@ -141,75 +155,21 @@ class GoalStore:
     ) -> ThreadGoal | None:
         status = _status_after_budget_limit(_coerce_status(status), 0, token_budget)
         completion_mode = _coerce_completion_mode(completion_mode)
-        now_ms = _now_ms()
-        goal_id = str(uuid.uuid4())
 
         with self._write_transaction():
             existing = self._conn.execute(
-                "SELECT status FROM thread_goals WHERE thread_id = ?",
-                (thread_id,),
+                "SELECT status FROM thread_goals WHERE thread_id = :thread_id",
+                {"thread_id": thread_id},
             ).fetchone()
             if existing is not None and existing["status"] != ThreadGoalStatus.COMPLETE.value:
                 return None
-            if existing is None:
-                self._conn.execute(
-                    """
-                    INSERT INTO thread_goals (
-                        thread_id,
-                        goal_id,
-                        objective,
-                        status,
-                        token_budget,
-                        tokens_used,
-                        time_used_seconds,
-                        completion_mode,
-                        evaluation_count,
-                        last_evaluation_reason,
-                        created_at_ms,
-                        updated_at_ms
-                    ) VALUES (?, ?, ?, ?, ?, 0, 0, ?, 0, NULL, ?, ?)
-                    """,
-                    (
-                        thread_id,
-                        goal_id,
-                        objective,
-                        status.value,
-                        token_budget,
-                        completion_mode.value,
-                        now_ms,
-                        now_ms,
-                    ),
-                )
-            else:
-                self._conn.execute(
-                    """
-                    UPDATE thread_goals
-                    SET
-                        goal_id = ?,
-                        objective = ?,
-                        status = ?,
-                        token_budget = ?,
-                        tokens_used = 0,
-                        time_used_seconds = 0,
-                        completion_mode = ?,
-                        evaluation_count = 0,
-                        last_evaluation_reason = NULL,
-                        created_at_ms = ?,
-                        updated_at_ms = ?
-                    WHERE thread_id = ?
-                    """,
-                    (
-                        goal_id,
-                        objective,
-                        status.value,
-                        token_budget,
-                        completion_mode.value,
-                        now_ms,
-                        now_ms,
-                        thread_id,
-                    ),
-                )
-            return self.get_thread_goal(thread_id)
+            return self._replace_goal_row(
+                thread_id,
+                objective,
+                status,
+                token_budget,
+                completion_mode,
+            )
 
     def replace_thread_goal(
         self,
@@ -221,54 +181,15 @@ class GoalStore:
     ) -> ThreadGoal:
         status = _status_after_budget_limit(_coerce_status(status), 0, token_budget)
         completion_mode = _coerce_completion_mode(completion_mode)
-        now_ms = _now_ms()
-        goal_id = str(uuid.uuid4())
 
         with self._write_transaction():
-            self._conn.execute(
-                """
-                INSERT INTO thread_goals (
-                    thread_id,
-                    goal_id,
-                    objective,
-                    status,
-                    token_budget,
-                    tokens_used,
-                    time_used_seconds,
-                    completion_mode,
-                    evaluation_count,
-                    last_evaluation_reason,
-                    created_at_ms,
-                    updated_at_ms
-                ) VALUES (?, ?, ?, ?, ?, 0, 0, ?, 0, NULL, ?, ?)
-                ON CONFLICT(thread_id) DO UPDATE SET
-                    goal_id = excluded.goal_id,
-                    objective = excluded.objective,
-                    status = excluded.status,
-                    token_budget = excluded.token_budget,
-                    tokens_used = 0,
-                    time_used_seconds = 0,
-                    completion_mode = excluded.completion_mode,
-                    evaluation_count = 0,
-                    last_evaluation_reason = NULL,
-                    created_at_ms = excluded.created_at_ms,
-                    updated_at_ms = excluded.updated_at_ms
-                """,
-                (
-                    thread_id,
-                    goal_id,
-                    objective,
-                    status.value,
-                    token_budget,
-                    completion_mode.value,
-                    now_ms,
-                    now_ms,
-                ),
+            return self._replace_goal_row(
+                thread_id,
+                objective,
+                status,
+                token_budget,
+                completion_mode,
             )
-            goal = self.get_thread_goal(thread_id)
-        if goal is None:
-            raise RuntimeError("replace_thread_goal wrote no row")
-        return goal
 
     def update_thread_goal(
         self,
@@ -383,7 +304,10 @@ class GoalStore:
             goal = self.get_thread_goal(thread_id)
             if goal is None:
                 return None
-            self._conn.execute("DELETE FROM thread_goals WHERE thread_id = ?", (thread_id,))
+            self._conn.execute(
+                "DELETE FROM thread_goals WHERE thread_id = :thread_id",
+                {"thread_id": thread_id},
+            )
             return goal
 
     def account_thread_goal_usage(
@@ -393,9 +317,8 @@ class GoalStore:
         token_delta: int,
         expected_goal_id: str | None = None,
     ) -> ThreadGoal | None:
-        time_delta = max(int(time_delta), 0)
-        token_delta = max(int(token_delta), 0)
-        if time_delta == 0 and token_delta == 0:
+        time_delta, token_delta = (_non_negative_int(value) for value in (time_delta, token_delta))
+        if not time_delta and not token_delta:
             return self.get_thread_goal(thread_id)
 
         with self._write_transaction():
@@ -461,39 +384,39 @@ class GoalStore:
         # instances (or processes) from both observing a legacy schema and
         # racing to add the same column.
         with self._write_transaction():
-            self._conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS thread_goals (
-                    thread_id TEXT PRIMARY KEY NOT NULL,
-                    goal_id TEXT NOT NULL,
-                    created_at_ms INTEGER NOT NULL,
-                    updated_at_ms INTEGER NOT NULL,
-                    objective TEXT NOT NULL,
-                    token_budget INTEGER,
-                    tokens_used INTEGER NOT NULL DEFAULT 0,
-                    time_used_seconds INTEGER NOT NULL DEFAULT 0,
-                    status TEXT NOT NULL CHECK(
-                        status = 'active'
-                        OR status = 'paused'
-                        OR status = 'blocked'
-                        OR status = 'usage_limited'
-                        OR status = 'budget_limited'
-                        OR status = 'complete'
-                    ),
-                    completion_mode TEXT NOT NULL DEFAULT 'tool' CHECK(completion_mode IN (
-                        'tool',
-                        'evaluator'
-                    )),
-                    evaluation_count INTEGER NOT NULL DEFAULT 0,
-                    last_evaluation_reason TEXT
-                )
-                """
-            )
+            self._conn.execute(_create_thread_goals_table_sql())
             columns = {str(row[1]) for row in self._conn.execute("PRAGMA table_info(thread_goals)")}
             for column_name, migration in _THREAD_GOAL_COLUMN_MIGRATIONS:
                 if column_name in columns:
                     continue
                 self._conn.execute(migration)
+
+    def _replace_goal_row(
+        self,
+        thread_id: str,
+        objective: str,
+        status: ThreadGoalStatus,
+        token_budget: int | None,
+        completion_mode: GoalCompletionMode,
+    ) -> ThreadGoal:
+        now_ms = _now_ms()
+        self._conn.execute(
+            _UPSERT_THREAD_GOAL_SQL,
+            {
+                "thread_id": thread_id,
+                "goal_id": str(uuid.uuid4()),
+                "objective": objective,
+                "status": status.value,
+                "token_budget": token_budget,
+                "completion_mode": completion_mode.value,
+                "created_at_ms": now_ms,
+                "updated_at_ms": now_ms,
+            },
+        )
+        goal = self.get_thread_goal(thread_id)
+        if goal is None:
+            raise RuntimeError("goal upsert completed without a readable row")
+        return goal
 
     def _write_transaction(self) -> "_WriteTransaction":
         return _WriteTransaction(self._conn, self._lock)
@@ -544,22 +467,67 @@ def current_goal_thread_id() -> str:
 
 
 def _goal_from_row(row: sqlite3.Row) -> ThreadGoal:
+    values = dict(row)
+
+    def text(column: str) -> str:
+        return str(values[column])
+
+    def integer(column: str) -> int:
+        return int(values[column])
+
     return ThreadGoal(
-        thread_id=str(row["thread_id"]),
-        goal_id=str(row["goal_id"]),
-        objective=str(row["objective"]),
-        status=ThreadGoalStatus.from_wire(str(row["status"])),
-        token_budget=_optional_int(row["token_budget"]),
-        tokens_used=int(row["tokens_used"]),
-        time_used_seconds=int(row["time_used_seconds"]),
-        created_at=_datetime_from_ms(int(row["created_at_ms"])),
-        updated_at=_datetime_from_ms(int(row["updated_at_ms"])),
-        completion_mode=GoalCompletionMode.from_wire(str(row["completion_mode"])),
-        evaluation_count=int(row["evaluation_count"]),
+        thread_id=text("thread_id"),
+        goal_id=text("goal_id"),
+        objective=text("objective"),
+        status=ThreadGoalStatus.from_wire(text("status")),
+        token_budget=_optional_int(values["token_budget"]),
+        tokens_used=integer("tokens_used"),
+        time_used_seconds=integer("time_used_seconds"),
+        created_at=_datetime_from_ms(integer("created_at_ms")),
+        updated_at=_datetime_from_ms(integer("updated_at_ms")),
+        completion_mode=GoalCompletionMode.from_wire(text("completion_mode")),
+        evaluation_count=integer("evaluation_count"),
         last_evaluation_reason=(
-            str(row["last_evaluation_reason"]) if row["last_evaluation_reason"] is not None else None
+            text("last_evaluation_reason") if values["last_evaluation_reason"] is not None else None
         ),
     )
+
+
+def _prepare_database_file(db_path: Path) -> None:
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    db_path.touch(mode=0o600, exist_ok=True)
+    db_path.chmod(0o600)
+
+
+def _open_database(db_path: Path) -> sqlite3.Connection:
+    connection = sqlite3.connect(
+        str(db_path),
+        isolation_level=None,
+        check_same_thread=False,
+    )
+    connection.row_factory = sqlite3.Row
+    return connection
+
+
+def _create_thread_goals_table_sql() -> str:
+    statuses = ", ".join(f"'{status.value}'" for status in ThreadGoalStatus)
+    modes = ", ".join(f"'{mode.value}'" for mode in GoalCompletionMode)
+    return f"""
+        CREATE TABLE IF NOT EXISTS thread_goals (
+            thread_id TEXT PRIMARY KEY NOT NULL,
+            goal_id TEXT NOT NULL,
+            objective TEXT NOT NULL,
+            status TEXT NOT NULL CHECK(status IN ({statuses})),
+            token_budget INTEGER,
+            tokens_used INTEGER NOT NULL DEFAULT 0,
+            time_used_seconds INTEGER NOT NULL DEFAULT 0,
+            completion_mode TEXT NOT NULL DEFAULT 'tool' CHECK(completion_mode IN ({modes})),
+            evaluation_count INTEGER NOT NULL DEFAULT 0,
+            last_evaluation_reason TEXT,
+            created_at_ms INTEGER NOT NULL,
+            updated_at_ms INTEGER NOT NULL
+        )
+    """
 
 
 def _coerce_status(status: ThreadGoalStatus | str) -> ThreadGoalStatus:
@@ -604,6 +572,10 @@ def _optional_int(value: Any) -> int | None:
     if value is None:
         return None
     return int(value)
+
+
+def _non_negative_int(value: Any) -> int:
+    return max(int(value), 0)
 
 
 def _now_ms() -> int:

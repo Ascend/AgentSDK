@@ -60,11 +60,28 @@ _stats_path: Path = _DEFAULT_STATS_PATH
 
 
 def configure(path: str | Path | None = None) -> None:
-    """允许测试或自定义路径时覆盖默认路径。"""
-    global _stats_path
-    if path is not None:
-        _stats_path = Path(path)
+    """Override the default output path for tests or custom storage.
+
+    Reconfiguration is a sink boundary: buffered rows must be flushed to the
+    previous path instead of being redirected into the new file.
+    """
+    global _last_flush, _stats_path
+    if path is None:
+        return
+    target = Path(path)
+    with _lock:
+        if target == _stats_path:
+            return
+        _do_flush()
+        if _buffer:
+            logger.warning(
+                "tool_stats: dropping %d buffered row(s) after the previous sink could not be flushed",
+                len(_buffer),
+            )
+            _buffer.clear()
+        _stats_path = target
         _stats_path.parent.mkdir(parents=True, exist_ok=True)
+        _last_flush = time.monotonic()
 
 
 def record_tool(

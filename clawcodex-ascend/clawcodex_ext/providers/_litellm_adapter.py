@@ -29,9 +29,8 @@ the other Pattern D adapters (``_gitpython_adapter``, ``_pluggy_adapter``,
 ``_treesitter_adapter``, ``_frontmatter_adapter``, ``_outlines_adapter``,
 ``pydantic_adapter``).
 
-The previous ``extensions/providers_ext/`` location remains a deprecated
-re-export shim for backward compatibility — new code should import from
-``clawcodex_ext.providers._litellm_adapter`` directly.
+The deprecated ``extensions/providers_ext/`` forwarding namespace was removed;
+callers must import from ``clawcodex_ext.providers._litellm_adapter`` directly.
 
 Architecture
 ------------

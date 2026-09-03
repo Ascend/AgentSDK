@@ -139,7 +139,14 @@ def test_recap_command_picks_up_cache_when_enabled(monkeypatch, tmp_path) -> Non
     """When config.enable_recap_cache=True and a CSP exists, /recap forwards
     it to the service so the recap can hit the fork path.
     """
-    fake_csp = SimpleNamespace(system_prompt="cached")
+    ctx = _ctx(tmp_path)
+    fake_csp = SimpleNamespace(
+        system_prompt="cached",
+        tool_use_context=SimpleNamespace(
+            _active_provider=ctx.provider,
+            session_id="s1",
+        ),
+    )
 
     monkeypatch.setattr(
         "clawcodex_ext.away_summary.registration.load_away_summary_config",
@@ -184,12 +191,39 @@ def test_recap_command_picks_up_cache_when_enabled(monkeypatch, tmp_path) -> Non
     cmd = registry.get("recap")
     assert cmd is not None
 
-    ctx = _ctx(tmp_path)
     result = cmd._call_impl("", ctx)  # type: ignore[operator]
 
     assert "Recapitulate" in result.value
     assert captured["cache_safe_params"] is fake_csp
     assert captured["trigger"] == "manual"
+
+
+def test_recap_command_rejects_cache_from_another_provider(monkeypatch, tmp_path) -> None:
+    """A process-global snapshot must never route recap through an old session."""
+    ctx = _ctx(tmp_path)
+    stale_provider = FakeProvider(content="stale recap")
+    stale_csp = SimpleNamespace(
+        system_prompt="stale",
+        tool_use_context=SimpleNamespace(
+            _active_provider=stale_provider,
+            session_id="old-session",
+        ),
+    )
+    monkeypatch.setattr(
+        "clawcodex_ext.away_summary.command.load_away_summary_config",
+        lambda cwd=None: AwaySummaryConfig(enable_recap_cache=True),
+    )
+    monkeypatch.setattr(
+        "clawcodex_ext.away_summary.command._try_get_last_cache_safe_params",
+        lambda: stale_csp,
+    )
+
+    from clawcodex_ext.away_summary.command import _recap_call
+
+    result = _recap_call("", ctx)
+
+    assert "manual recap" in result.value
+    assert stale_provider.calls == []
 
 
 def test_recap_command_skips_cache_when_disabled(monkeypatch, tmp_path) -> None:

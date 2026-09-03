@@ -241,7 +241,7 @@ class TestMetadataSimplification:
         d = meta.to_dict()
         assert "cwd" not in d
         assert "total_cost" not in d
-        assert "last_user_input" not in d
+        assert d["last_user_input"] == "should not serialize"
         assert "agent_name" not in d
         assert "cost" not in d
         # List-summary fields ARE written.

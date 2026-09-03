@@ -21,6 +21,7 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 
@@ -99,15 +100,24 @@ class TestStage2CliSmoke:
         assert proc.returncode == 0
         assert elapsed < 5.0, f"--help took {elapsed:.2f}s, expected < 5s"
 
-    def test_cli_print_mode_initializes_without_crash(self):
+    def test_cli_print_mode_initializes_without_crash(self, tmp_path):
         """Verify cli print mode initializes without crash."""
         import subprocess as _sp
 
+        env = os.environ.copy()
+        env.update(
+            {
+                "HOME": str(tmp_path),
+                "CLAWCODEX_CONFIG_DIR": str(tmp_path / ".clawcodex"),
+                "CLAW_TELEMETRY_ENABLED": "0",
+            }
+        )
         proc = _sp.Popen(
             [sys.executable, "-m", "src.cli", "-p", "hello"],
             stdout=_sp.PIPE,
             stderr=_sp.STDOUT,
             text=True,
+            env=env,
         )
         try:
             stdout, _ = proc.communicate(timeout=12)

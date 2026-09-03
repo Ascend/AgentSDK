@@ -1409,186 +1409,6 @@ class TestStage5ExtF84Daemon:
             assert mod not in sys.modules, f"{mod} was pulled in by daemon import"
 
 
-class TestStage5ExtPromptLab:
-    """P119-E: prompt_lab variant framework skeleton smoke tests.
-
-    Validates that the ``extensions.prompt_lab`` package is importable,
-    exposes the documented public API, and has zero import side-effects.
-    """
-
-    def test_prompt_lab_package_imports(self):
-        """Top-level package re-exports the consolidated public API."""
-        import extensions.prompt_lab as pl_mod
-
-        for name in (
-            "VariantManager",
-            "ExperimentAssignment",
-            "NDJSONMetricsSink",
-            "VariantProvider",
-            "MetricsSink",
-        ):
-            assert hasattr(pl_mod, name), f"prompt_lab missing {name!r}"
-
-    def test_capabilities_module_exports(self):
-        """capabilities.py exports Protocol classes + PromptEvent dataclass."""
-        from extensions.prompt_lab.capabilities import (
-            MetricsSink,
-            PromptEvent,
-            VariantProvider,
-        )
-
-        # PromptEvent is a dataclass with required fields.
-        event = PromptEvent(
-            timestamp="2026-07-15T00:00:00Z",
-            experiment_id="test",
-            variant="A",
-            session_id="abc",
-            query_source="main",
-        )
-        assert event.timestamp == "2026-07-15T00:00:00Z"
-        assert event.experiment_id == "test"
-        assert event.variant == "A"
-        assert event.prompt_sha256 == ""
-        assert event.section_count == 0
-        assert event.metadata == {}
-
-        # VariantProvider is a Protocol.
-        assert isinstance(VariantProvider, type)
-        assert isinstance(MetricsSink, type)
-
-    def test_variant_manager_resolve_control(self):
-        """Unregistered experiment resolves to 'control'."""
-        from extensions.prompt_lab import VariantManager
-
-        m = VariantManager()
-        assert m.resolve("nonexistent", "s1") == "control"
-        assert m.resolve("nonexistent", "s1", query_source="test") == "control"
-
-    def test_variant_manager_register_list_unregister(self):
-        """Register, list, and unregister providers."""
-        from extensions.prompt_lab import VariantManager
-
-        class _MockProvider:
-            def assign(self, session_id, query_source):
-                return "treatment_A"
-
-            def content_for(self, variant):
-                return f"content for {variant}"
-
-            def list_variants(self):
-                return ["control", "treatment_A"]
-
-        m = VariantManager()
-        assert m.list_experiments() == []
-
-        m.register("exp1", _MockProvider())
-        assert m.list_experiments() == ["exp1"]
-        assert m.resolve("exp1", "s1") == "treatment_A"
-
-        m.register("exp2", _MockProvider())
-        assert sorted(m.list_experiments()) == ["exp1", "exp2"]
-
-        m.unregister("exp1")
-        assert m.list_experiments() == ["exp2"]
-        assert m.resolve("exp1", "s1") == "control"
-
-    def test_experiment_assignment_sticky(self):
-        """Same (experiment_id, session_id) always returns the same variant."""
-        from extensions.prompt_lab import ExperimentAssignment, VariantManager
-
-        class _MockProvider:
-            def assign(self, session_id, query_source):
-                return "ignored"
-
-            def content_for(self, variant):
-                return ""
-
-            def list_variants(self):
-                return ["control", "treatment_A", "treatment_B"]
-
-        m = VariantManager()
-        m.register("exp1", _MockProvider())
-        a = ExperimentAssignment(m)
-
-        first = a.assign("exp1", "s1")
-        for _ in range(10):
-            assert a.assign("exp1", "s1") == first
-        assert first in ("control", "treatment_A", "treatment_B")
-
-    def test_experiment_assignment_without_provider(self):
-        """No provider → assign returns 'control'."""
-        from extensions.prompt_lab import ExperimentAssignment, VariantManager
-
-        m = VariantManager()
-        a = ExperimentAssignment(m)
-        assert a.assign("nonexistent", "s1") == "control"
-
-    def test_experiment_assignment_empty_variants(self):
-        """Provider with empty variant list → returns 'control'."""
-        from extensions.prompt_lab import ExperimentAssignment, VariantManager
-
-        class _EmptyProvider:
-            def assign(self, session_id, query_source):
-                return "ignored"
-
-            def content_for(self, variant):
-                return ""
-
-            def list_variants(self):
-                return []
-
-        m = VariantManager()
-        m.register("empty", _EmptyProvider())
-        a = ExperimentAssignment(m)
-        assert a.assign("empty", "s1") == "control"
-
-    def test_ndjson_sink_writes_file(self):
-        """NDJSONMetricsSink writes a date-stamped .ndjson file."""
-        import tempfile
-        from pathlib import Path
-
-        from extensions.prompt_lab import NDJSONMetricsSink
-        from extensions.prompt_lab.capabilities import PromptEvent
-
-        with tempfile.TemporaryDirectory() as td:
-            sink = NDJSONMetricsSink(td)
-            sink.record(
-                PromptEvent(
-                    timestamp="2026-07-15T10:00:00Z",
-                    experiment_id="intro_v2",
-                    variant="treatment_A",
-                    session_id="abc",
-                    query_source="main",
-                )
-            )
-
-            output_file = Path(td) / "2026-07-15.ndjson"
-            assert output_file.exists()
-            content = output_file.read_text()
-            assert "intro_v2" in content
-            assert "treatment_A" in content
-            assert "abc" in content
-
-    def test_ndjson_sink_default_dir(self):
-        """NDJSONMetricsSink uses '.reports/prompt_lab' by default."""
-        from extensions.prompt_lab.sinks.ndjson import NDJSONMetricsSink
-
-        sink = NDJSONMetricsSink()
-        assert sink._output_dir == ".reports/prompt_lab"
-
-    def test_prompt_lab_import_is_lightweight(self):
-        """Importing prompt_lab must not pull in heavyweight modules."""
-        import sys
-
-        for mod in ("src.tui.app", "src.repl.core", "src.tool_system.registry"):
-            sys.modules.pop(mod, None)
-
-        import extensions.prompt_lab  # noqa: F401
-
-        for mod in ("src.tui.app", "src.repl.core", "src.tool_system.registry"):
-            assert mod not in sys.modules, f"{mod} was pulled in by prompt_lab import"
-
-
 class TestStage5ExtContextProviders:
     """P119-I: context_providers reference implementations smoke tests.
 
@@ -1598,6 +1418,10 @@ class TestStage5ExtContextProviders:
 
     def test_from_issue_import_and_registration(self):
         """from_issue registers 'issue-context' with correct order/tags."""
+        import importlib
+
+        provider_module = importlib.import_module("extensions.context_providers.from_issue")
+        importlib.reload(provider_module)
         from clawcodex_ext.context_system.section_registry import (
             _registry,
         )
@@ -1618,6 +1442,10 @@ class TestStage5ExtContextProviders:
 
     def test_from_ci_import_and_registration(self):
         """from_ci registers 'ci-status' with correct order/tags."""
+        import importlib
+
+        provider_module = importlib.import_module("extensions.context_providers.from_ci")
+        importlib.reload(provider_module)
         from clawcodex_ext.context_system.section_registry import _registry
 
         assert "ci-status" in _registry
@@ -1635,6 +1463,10 @@ class TestStage5ExtContextProviders:
 
     def test_from_config_import_and_registration(self):
         """from_config registers 'declared-config' with correct order/tags."""
+        import importlib
+
+        provider_module = importlib.import_module("extensions.context_providers.from_config")
+        importlib.reload(provider_module)
         from clawcodex_ext.context_system.section_registry import _registry
 
         assert "declared-config" in _registry

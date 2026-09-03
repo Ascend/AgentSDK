@@ -42,15 +42,16 @@ abort-aware exception handler then routes through the same cancellation
 processing as any other in-flight cancel.
 
 These tests pin the provider-level contract using a synthetic stream
-object that mimics the SDK's surface (``__enter__`` / ``__exit__`` /
-``text_stream`` / ``response.close()``). We don't exercise the real
-Anthropic SDK — that would require a live API key.
+object that mimics the SDK's full event-stream surface (``__enter__`` /
+``__exit__`` / iteration / ``response.close()``). We don't exercise
+the real Anthropic SDK — that would require a live API key.
 """
 
 from __future__ import annotations
 
 import threading
 import time
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
@@ -80,8 +81,7 @@ class _FakeStream:
     def __exit__(self, exc_type, exc, tb):
         return False
 
-    @property
-    def text_stream(self):
+    def __iter__(self):
         for chunk in self._chunks:
             if self._closed.is_set():
                 # SDK's iterator would raise once the underlying HTTP
@@ -96,7 +96,7 @@ class _FakeStream:
                     if self._closed.is_set():
                         raise ConnectionError("response closed mid-stream")
                     time.sleep(0.005)
-            yield chunk
+            yield SimpleNamespace(delta=SimpleNamespace(text=chunk, thinking=None))
 
     def get_final_message(self):
         # Build a minimal "final message" shape the provider's

@@ -217,17 +217,16 @@ async def _route_in_process(*, to: str, message_text: str, context: ToolContext)
         prompt=message_text,
         context=context,
     )
+    if result.resumed and result.runtime_started:
+        return _ok(
+            f"Agent {to!r} resumed in the background with your message.",
+            agent_id=agent_id,
+            replayed_message_count=result.replayed_message_count,
+        )
     if result.resumed:
-        # ch10 round-4 (critic M1) — HONEST message. resume_agent_background
-        # re-registers the terminal agent as running and queues the message,
-        # but does NOT yet spawn a run_agent loop (resume_agent.py:163-165 —
-        # "wiring the resumed lifecycle into run_agent is a subsequent
-        # integration step"), so the follow-up is NOT processed. The old
-        # text claimed "resumed it in the background with your message,"
-        # which made the model wait for a reply that never comes — the exact
-        # silent-success failure this chapter's PR exists to eliminate.
-        # Report the limitation and tell the model to spawn a fresh agent.
-        # When the resume lifecycle lands, restore the success message.
+        # Legacy/manual registry entries have no executable relaunch callback.
+        # Keep this honest rather than leaving the model waiting on a task that
+        # was only re-registered structurally.
         return _err(
             f"Agent {to!r} had already {state.status!r}. Live resume of a "
             f"finished background agent is not yet supported, so your "

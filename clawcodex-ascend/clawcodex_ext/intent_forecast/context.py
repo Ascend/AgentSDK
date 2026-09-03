@@ -219,9 +219,9 @@ class IntentForecastContextBuilder:
         if not session_id:
             return None
         try:
-            from clawcodex_ext.services.session_storage import SESSIONS_DIR
+            from clawcodex_ext.services.session_storage import resolve_sessions_dir
 
-            base = self.sessions_dir or SESSIONS_DIR
+            base = self.sessions_dir if self.sessions_dir is not None else resolve_sessions_dir()
             path = Path(base) / session_id / "summary.json"
             data = json.loads(path.read_text(encoding="utf-8"))
             if isinstance(data, dict) and int(data.get("schema_version", 0)) >= 1:
@@ -244,9 +244,9 @@ class IntentForecastContextBuilder:
         if not session_id:
             return []
         try:
-            from clawcodex_ext.services.session_storage import SESSIONS_DIR
+            from clawcodex_ext.services.session_storage import resolve_sessions_dir
 
-            base = self.sessions_dir or SESSIONS_DIR
+            base = self.sessions_dir if self.sessions_dir is not None else resolve_sessions_dir()
             path = Path(base) / session_id / "transcript.jsonl"
             lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
         except Exception:

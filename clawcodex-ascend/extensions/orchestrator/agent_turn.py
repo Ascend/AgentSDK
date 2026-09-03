@@ -171,7 +171,8 @@ class AgentTurnMixin:
 
             registry = RuntimeTaskRegistry()
             registry.upsert(
-                LocalAgentTaskState(
+                # Pylint cannot infer keyword-only fields inherited from the dataclass base.
+                LocalAgentTaskState(  # pylint: disable=unexpected-keyword-arg
                     id=session.run_id,
                     agent_id=session.run_id,
                     status="running",
@@ -241,8 +242,7 @@ class AgentTurnMixin:
         clarification_resolver: Any = None,
     ) -> str:
         """Render the initial issue prompt or a continuation prompt."""
-        from .prompt_builder import PromptBuilder
-        from .prompt_context import resolve_python_executable
+        from .prompt_builder import PromptBuilder, resolve_python_executable
 
         issue = session.issue
         workspace = session.workspace
@@ -375,7 +375,7 @@ class AgentTurnMixin:
         """Build QueryConfig for one turn and return its QueryRunner."""
         from extensions.api.query import QueryConfig, QueryRunner
 
-        routing = session._routing_snapshot
+        routing = getattr(session, "_routing_snapshot", None)
         config = QueryConfig(
             prompt=prompt,
             workspace=session.workspace.path,

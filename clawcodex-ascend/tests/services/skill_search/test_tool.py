@@ -33,7 +33,9 @@ def test_missing_search_query_returns_structured_tool_error() -> None:
 
     assert result.name == "SkillSearch"
     assert result.is_error is True
-    assert result.output == "query is required for search action"
+    assert result.output == (
+        "query is required for search action — provide a natural language description of the skill you need"
+    )
 
 
 def test_unknown_action_returns_structured_tool_error() -> None:

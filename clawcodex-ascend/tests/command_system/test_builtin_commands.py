@@ -319,10 +319,13 @@ def test_resume_with_valid_session_id(
     )
 
     # Create a fake session directory
-    from clawcodex_ext.services.session_storage import SESSIONS_DIR
+    from clawcodex_ext.services import session_storage
+
+    sessions_dir = tmp_path / "sessions"
+    monkeypatch.setattr(session_storage, "SESSIONS_DIR", sessions_dir)
 
     session_id = "test-session-123"
-    fake_dir = SESSIONS_DIR / session_id
+    fake_dir = sessions_dir / session_id
     fake_dir.mkdir(parents=True, exist_ok=True)
     try:
         success, text, error = execute_command_sync("resume", session_id, ctx)

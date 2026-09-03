@@ -47,6 +47,7 @@ from clawcodex_ext.services.channels.capabilities import ProcessingOutcome
 
 from .ipc_protocol import GatewayFrame, FrameType
 from .origin_utils import resolve_origin as _resolve_origin
+from ..socket_path import normalize_unix_socket_path
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +74,7 @@ class GatewayIpcServer:
         max_dispatch_tasks: int = DEFAULT_MAX_DISPATCH_TASKS,
         max_dispatch_tasks_per_writer: int = DEFAULT_MAX_DISPATCH_TASKS_PER_WRITER,
     ) -> None:
-        self.socket_path = Path(socket_path)
+        self.socket_path = normalize_unix_socket_path(socket_path)
         self.gateway = gateway
         self._heartbeat_timeout = heartbeat_timeout
         self._clock = clock

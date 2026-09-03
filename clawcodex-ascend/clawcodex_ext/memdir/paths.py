@@ -129,8 +129,13 @@ def is_auto_memory_enabled() -> bool:
 
 
 def get_claude_config_home_dir() -> str:
-    """Return ``$CLAWCODEX_CONFIG_DIR`` if set, else ``~/.clawcodex``."""
-    override = os.environ.get("CLAWCODEX_CONFIG_DIR")
+    """Return the configured ClawCodex state root.
+
+    ``CLAWCODEX_CONFIG_DIR`` remains the explicit config-only override.  The
+    shared ``CLAWCODEX_HOME`` override is the fallback used by isolated runs,
+    tests, and ``--agent-debug`` so auto-memory cannot escape their state root.
+    """
+    override = os.environ.get("CLAWCODEX_CONFIG_DIR") or os.environ.get("CLAWCODEX_HOME")
     if override:
         return str(Path(override).expanduser())
     return str(Path.home() / ".clawcodex")

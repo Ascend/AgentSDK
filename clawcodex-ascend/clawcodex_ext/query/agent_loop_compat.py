@@ -191,7 +191,7 @@ def run_query_as_agent_loop_sync(
     for new code that owns its event loop.
     """
     import asyncio as _asyncio  # pylint: disable=reimported,redefined-outer-name
-    from ..outputStyles import resolve_output_style
+    from src.outputStyles import resolve_output_style
     from ..tool_system.renderers import AgentLoopResult  # pylint: disable=reimported,redefined-outer-name
 
     style_prompt = resolve_output_style(

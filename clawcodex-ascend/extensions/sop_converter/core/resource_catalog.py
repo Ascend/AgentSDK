@@ -365,8 +365,8 @@ def _is_agent_record(record: ResourceRecord) -> bool:
 def _clawcodex_home() -> Path:
     raw = os.environ.get(HOME_ROOT_ENV, "").strip()
     if raw:
-        return Path(raw).expanduser().resolve()
-    return DEFAULT_HOME.resolve()
+        return Path(raw).expanduser()
+    return DEFAULT_HOME.expanduser()
 
 
 def _is_home_only_forced() -> bool:
@@ -469,7 +469,7 @@ class CatalogExecutionContext:
     def __post_init__(self) -> None:
         bundle_path = self.bundle_path
         if bundle_path is not None:
-            bundle_path = Path(bundle_path).expanduser().resolve()
+            bundle_path = Path(bundle_path).expanduser()
             object.__setattr__(self, "bundle_path", bundle_path)
         bundle_id = str(self.bundle_id or "").strip()
         if not bundle_id and bundle_path is not None:
@@ -936,7 +936,7 @@ def resolve_resource_catalog_path(
         reason = "user-local" if scope == "user" else ("home-forced" if home_only else "no-bundle")
         return ResourceCatalogLocation(path=path, reason=reason, writable=_probe_writable(path))
 
-    bundle_path = Path(bundle).expanduser().resolve()
+    bundle_path = Path(bundle).expanduser()
     path = bundle_path / ".clawcodex" / RESOURCE_CATALOG_FILENAME
     return ResourceCatalogLocation(path=path, reason="bundle-local", writable=_probe_writable(path))
 

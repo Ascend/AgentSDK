@@ -44,22 +44,71 @@ UPDATE_GOAL_TOOL_NAME = "update_goal"
 
 GOAL_MODEL_TOOL_NAMES = frozenset({GET_GOAL_TOOL_NAME, CREATE_GOAL_TOOL_NAME, UPDATE_GOAL_TOOL_NAME})
 
-GET_GOAL_DESCRIPTION = "Read this thread's persisted objective, state, budget, and measured usage."
 
-CREATE_GOAL_DESCRIPTION = f"""Start a persisted goal only after an explicit user or system request.
-Ordinary tasks must not create goals implicitly. Supply a budget only when the request names one. An unfinished goal cannot be replaced; use {UPDATE_GOAL_TOOL_NAME} for its terminal state."""
+def _join_description(*parts: str, separator: str = " ") -> str:
+    return separator.join(parts)
 
-UPDATE_GOAL_DESCRIPTION = """Set the terminal state of the current persisted goal.
-Use complete only after current evidence verifies every required outcome. Use blocked only when the same obstacle has prevented meaningful progress for three consecutive goal turns; a resumed goal begins a new count. Difficulty, uncertainty, an expiring budget, or the end of a turn are not terminal conditions. Pause, resume, and limit states remain under user or runtime control. This tool is unavailable while an evaluator-managed goal is active because the evaluator owns completion. Report the returned usage when completing a budgeted goal."""
 
-_OBJECTIVE_DESCRIPTION = "The explicit, concrete outcome that the persisted goal must achieve."
+GET_GOAL_DESCRIPTION = _join_description(
+    "Get the current",
+    "goal for this",
+    "thread, including status,",
+    "budgets, token and",
+    "elapsed-time usage, and",
+    "remaining token budget.",
+)
+
+CREATE_GOAL_DESCRIPTION = _join_description(
+    _join_description(
+        "Create a goal only",
+        "when explicitly requested by",
+        "the user or system/developer",
+        "instructions; do not infer",
+        "goals from ordinary tasks.",
+    ),
+    _join_description(
+        "Set token_budget only when",
+        "an explicit token budget",
+        "is requested. Fails if",
+        "an unfinished goal exists;",
+        f"use {UPDATE_GOAL_TOOL_NAME} only",
+        "for status.",
+    ),
+    separator="\n",
+)
+
+UPDATE_GOAL_DESCRIPTION = " ".join(
+    (
+        "Update the goal that already belongs to this thread.",
+        "Use this tool only for a genuinely achieved or genuinely blocked goal.",
+        "Complete means the objective is fully achieved and no required work remains.",
+        "Blocked requires the same obstacle for three consecutive goal turns and no",
+        "meaningful progress without user input or an external state change.",
+        "A resumed goal starts a new blocked audit.",
+        "Difficulty, uncertainty, incomplete work, or useful clarification alone do not qualify.",
+        "Do not complete a goal merely because its budget is nearly exhausted or work is stopping.",
+        "The agent cannot use this tool to pause, resume, budget-limit, or usage-limit a goal;",
+        "those transitions belong to the user or system.",
+        "For a budgeted goal completed successfully, report final token usage from the result.",
+    )
+)
+
+_OBJECTIVE_DESCRIPTION = (
+    "Required. The concrete objective to start pursuing. This starts a new "
+    "active goal when no goal exists or replaces the current goal when it is complete."
+)
 
 # Bandit B105 is a false positive: this is a public schema description.
-_TOKEN_BUDGET_DESCRIPTION = "Optional positive token ceiling, allowed only when the request supplies it."  # nosec B105
+_TOKEN_BUDGET_DESCRIPTION = (  # nosec B105
+    "Positive token budget for the new goal. Omit unless explicitly requested."
+)
 
 _UPDATE_STATUS_DESCRIPTION = (
-    "Terminal state: complete after verified success, or blocked after the same "
-    "impasse spans three consecutive goal turns."
+    "Required. Set to `complete` only when the objective is achieved and no "
+    "required work remains. Set to `blocked` only after the same blocking "
+    "condition has recurred for at least three consecutive goal turns and the "
+    "agent is at an impasse. After a previously blocked goal is resumed, the "
+    "resumed run starts a fresh blocked audit."
 )
 
 _NO_ARGUMENTS_SCHEMA = {
@@ -266,7 +315,7 @@ def _completion_budget_report(goal: ThreadGoal) -> str | None:
     if goal.token_budget is None and goal.time_used_seconds <= 0:
         return None
     return (
-        "The goal is complete. Use the structured goal payload to report its "
+        "Goal achieved. Use the structured goal payload to report its "
         "tokensUsed and tokenBudget values when present, plus a concise elapsed "
         "time summary when timeUsedSeconds is positive."
     )

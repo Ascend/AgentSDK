@@ -22,6 +22,7 @@
 
 import json
 from pathlib import Path
+import sys
 
 from clawcodex_ext.services.mcp.config import (
     get_claude_desktop_config_path,
@@ -98,7 +99,7 @@ class TestVscodeDiscovery:
 
 class TestValidateServerConnectivity:
     def test_valid_command(self):
-        config = McpStdioServerConfig(command="python")
+        config = McpStdioServerConfig(command=sys.executable)
         issues = validate_server_connectivity(config)
         assert issues == []
 

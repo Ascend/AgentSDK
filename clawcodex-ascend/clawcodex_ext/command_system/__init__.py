@@ -31,7 +31,6 @@ from src.utils.startup_profiler import profile_checkpoint
 from .aggregator import (
     clear_commands_cache,
     get_commands,
-    get_skill_tool_commands,
     get_slash_command_tool_skills,
 )
 from .argument_substitution import parse_argument_names, substitute_arguments
@@ -86,6 +85,7 @@ from .shell_prompt import (
 )
 from .skills_integration import (
     get_skill_command,
+    get_skill_tool_commands,
     load_and_register_skills,
     load_skill_from_directory,
     register_skill_as_command,

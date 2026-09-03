@@ -30,11 +30,17 @@ from __future__ import annotations
 import sys
 import types
 import unittest
+from importlib import import_module
 
 # --- compact stub registration ---
 
 
 def _reg(name: str, **attrs: object) -> None:
+    try:
+        import_module(name)
+        return
+    except ImportError:
+        pass
     _SKIP = {"extensions", "extensions.orchestrator"}
     parts = name.split(".")
     for i in range(1, len(parts)):

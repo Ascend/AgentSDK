@@ -31,6 +31,14 @@ import sys
 import time
 from pathlib import Path
 
+import pytest
+
+
+pytestmark = pytest.mark.skipif(
+    os.environ.get("CLAWCODEX_RUN_EXTERNAL_TESTS") != "1",
+    reason="set CLAWCODEX_RUN_EXTERNAL_TESTS=1 to run live MiniMax API tests",
+)
+
 
 def _check_key() -> str:
     """Test helper for check key."""

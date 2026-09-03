@@ -13,6 +13,7 @@ notices and license texts are provided below.
 - License: MIT License
 - Modified source: All files under `clawcodex_ext/` that mirror TypeScript sources,
   including but not limited to:
+  - `clawcodex_ext/goal/`
   - `clawcodex_ext/services/analytics/`
   - `clawcodex_ext/services/api/`
   - `clawcodex_ext/services/bridge/`
@@ -32,6 +33,7 @@ notices and license texts are provided below.
   - `clawcodex_ext/services/templates/`
   - `clawcodex_ext/services/tool_execution/`
   - `clawcodex_ext/services/ultraplan/`
+  - `extensions/orchestrator/tool_event_log.py`
 
 Copyright notice:
 

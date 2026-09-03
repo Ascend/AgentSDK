@@ -42,11 +42,15 @@ from clawcodex_ext.types.messages import AssistantMessage
 
 @pytest.fixture(autouse=True)
 def _clear_strategies():
-    """Clean recovery strategies before each test."""
+    """Isolate custom strategies while restoring production defaults."""
     clear_recovery_strategies()
     yield
-    # Strategies are re-registered by module import; clean again after
+    # The module stays cached for the rest of the pytest session, so merely
+    # clearing here would permanently remove production recovery behavior.
     clear_recovery_strategies()
+    from clawcodex_ext.query.recovery_strategies import _register_builtin_strategies
+
+    _register_builtin_strategies()
 
 
 class TestRegisterRecoveryStrategy:

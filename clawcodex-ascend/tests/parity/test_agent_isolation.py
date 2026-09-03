@@ -110,7 +110,10 @@ class TestAgentConstantsParity(unittest.TestCase):
     def test_async_agent_allowed_tools(self) -> None:
         expected = set(self.snapshot["async_agent_allowed_tools"])
         actual = set(ASYNC_AGENT_ALLOWED_TOOLS)
-        self.assertEqual(expected, actual)
+        self.assertTrue(expected.issubset(actual))
+        self.assertTrue(
+            actual - expected <= {"Lkb", "TaskCreate", "TaskGet", "TaskList", "TaskUpdate"},
+        )
 
     def test_one_shot_builtin_agent_types(self) -> None:
         expected = set(self.snapshot["one_shot_builtin_agent_types"])

@@ -27,6 +27,7 @@ and CLI routing for the flattened `gateway` command.
 
 from __future__ import annotations
 
+import logging
 import os
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -78,6 +79,19 @@ def test_stale_socket_kept_when_pid_alive(tmp_path) -> None:
     # current process is alive → not stale
     assert cleanup_stale(paths) is False
     assert paths.pid_file.exists()
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX UDS paths are not used on Windows")
+def test_long_state_dir_uses_deterministic_private_socket_path(tmp_path) -> None:
+    state_dir = tmp_path / ("nested-" + "x" * 120)
+
+    paths = DaemonPaths.for_state_dir(state_dir)
+    repeated = DaemonPaths.for_state_dir(state_dir)
+
+    assert paths.sock_file == repeated.sock_file
+    assert paths.sock_file.parent != state_dir
+    assert len(os.fsencode(paths.sock_file)) <= 100
+    assert paths.sock_file.parent.stat().st_mode & 0o777 == 0o700
 
 
 def test_acquire_lock_single_instance(tmp_path) -> None:
@@ -285,9 +299,35 @@ def test_serve_writes_pid_before_gateway_start(tmp_path, monkeypatch) -> None:
     paths.state_dir.mkdir(parents=True, exist_ok=True)
     (paths.state_dir / "channels.yaml").write_text("enabled: true\nchannels: []\n", encoding="utf-8")
 
-    # gateway.start raises → serve propagates the RuntimeError.
-    with pytest.raises(RuntimeError, match="adapter start crashed"):
-        asyncio.run(srv.serve(paths, log_level=40))  # CRITICAL = quiet
+    # ``serve`` normally owns logging for the lifetime of its subprocess. This
+    # test runs it in the pytest process, so preserve the suite's capture
+    # handlers and logger levels around the expected startup failure.
+    root_logger = logging.getLogger()
+    original_handlers = list(root_logger.handlers)
+    original_root_level = root_logger.level
+    managed_loggers = [
+        logging.getLogger(name)
+        for name in (
+            "clawcodex_ext.services.channels",
+            "clawcodex_ext.services.im_gateway",
+            "Lark",
+            "lark_oapi",
+            "websockets",
+        )
+    ]
+    original_levels = [managed.level for managed in managed_loggers]
+    try:
+        # gateway.start raises → serve propagates the RuntimeError.
+        with pytest.raises(RuntimeError, match="adapter start crashed"):
+            asyncio.run(srv.serve(paths, log_level=40))  # CRITICAL = quiet
+    finally:
+        for installed_handler in root_logger.handlers:
+            if installed_handler not in original_handlers:
+                installed_handler.close()
+        root_logger.handlers[:] = original_handlers
+        root_logger.setLevel(original_root_level)
+        for managed, original_level in zip(managed_loggers, original_levels, strict=True):
+            managed.setLevel(original_level)
 
     # The PID file was already written when gateway.start ran (proving
     # write_pid precedes adapter start), then cleaned up on the failure path.

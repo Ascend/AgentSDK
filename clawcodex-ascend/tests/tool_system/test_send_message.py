@@ -58,6 +58,23 @@ def _call_send_message(input: dict, ctx: ToolContext):
     return asyncio.run(SendMessageTool.call(input, ctx))
 
 
+def _install_test_resume_launcher(ctx: ToolContext, state) -> None:
+    """Install the runtime seam that production Agent launches retain."""
+
+    from src.tasks.local_agent import register_async_agent
+
+    def _launch(prompt: str, _replayed_messages: list) -> None:
+        register_async_agent(
+            agent_id=state.id,
+            description=state.description,
+            prompt=prompt,
+            agent_type=state.agent_type,
+            registry=ctx.runtime_tasks,
+        )
+
+    ctx.agent_resume_launchers[state.id] = _launch
+
+
 # ---------------------------------------------------------------------------
 # WI-7.1 — Tool registration + schema
 # ---------------------------------------------------------------------------
@@ -269,6 +286,7 @@ def test_message_to_terminal_agent_triggers_resume(tmp_path: Path) -> None:
         agent_type="general-purpose",
         registry=ctx.runtime_tasks,
     )
+    _install_test_resume_launcher(ctx, state)
     complete_agent_task(state.id, result_text="done", registry=ctx.runtime_tasks)
 
     result = _call_send_message(
@@ -294,13 +312,14 @@ async def test_concurrent_resume_race_only_one_winner(tmp_path: Path) -> None:
     )
 
     ctx = ToolContext(workspace_root=tmp_path)
-    register_async_agent(
+    state = register_async_agent(
         agent_id="a-race",
         description="x",
         prompt="x",
         agent_type="general-purpose",
         registry=ctx.runtime_tasks,
     )
+    _install_test_resume_launcher(ctx, state)
     complete_agent_task("a-race", result_text="done", registry=ctx.runtime_tasks)
 
     # Race two calls via asyncio.gather. The atomic claim mutator

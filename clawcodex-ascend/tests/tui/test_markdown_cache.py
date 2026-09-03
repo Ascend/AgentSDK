@@ -199,7 +199,7 @@ def test_render_swallows_partial_token_failures_falls_back_to_text(
     def boom(*args, **kwargs):
         raise RuntimeError("simulated Rich.Markdown failure")
 
-    monkeypatch.setattr("src.tui.markdown_cache.Markdown", boom)
+    monkeypatch.setattr("clawcodex_ext.tui.markdown_cache.Markdown", boom)
     rendered = cache.get_or_render("# heading would normally hit Markdown")
     assert isinstance(rendered, Text)
 

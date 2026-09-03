@@ -159,10 +159,12 @@ def enqueue_summary_job(
             os.fsync(fh.fileno())
     if session_id != "latest":
         try:
-            from clawcodex_ext.services.session_storage import SESSIONS_DIR
+            from clawcodex_ext.services.session_storage import resolve_sessions_dir
 
             session_dir = (
-                Path(base_dir) / "sessions" / session_id if base_dir is not None else Path(SESSIONS_DIR) / session_id
+                Path(base_dir) / "sessions" / session_id
+                if base_dir is not None
+                else resolve_sessions_dir() / session_id
             )
             write_status(
                 session_dir,

@@ -117,30 +117,35 @@ class KeychainStashTests(unittest.TestCase):
 class ApplySafeEnvExtraTests(unittest.TestCase):
     def setUp(self) -> None:
         self._original = os.environ.get(_SAFE_KEY)
+        self._original_unsafe = os.environ.get(_UNSAFE_KEY)
         os.environ.pop(_SAFE_KEY, None)
+        os.environ.pop(_UNSAFE_KEY, None)
 
     def tearDown(self) -> None:
         if self._original is None:
             os.environ.pop(_SAFE_KEY, None)
         else:
             os.environ[_SAFE_KEY] = self._original
+        if self._original_unsafe is None:
+            os.environ.pop(_UNSAFE_KEY, None)
+        else:
+            os.environ[_UNSAFE_KEY] = self._original_unsafe
 
     def test_extra_env_applies_safe_keys(self) -> None:
         apply_safe_config_environment_variables(config_env={}, extra_env={_SAFE_KEY: "from-mdm"})
         self.assertEqual(os.environ.get(_SAFE_KEY), "from-mdm")
 
-    def test_extra_env_ignores_unsafe_keys(self) -> None:
+    def test_extra_env_applies_managed_policy_keys_in_full(self) -> None:
         apply_safe_config_environment_variables(
             config_env={},
             extra_env={_UNSAFE_KEY: "sk-leaked"},
         )
-        self.assertIsNone(os.environ.get(_UNSAFE_KEY))
+        self.assertEqual(os.environ.get(_UNSAFE_KEY), "sk-leaked")
 
-    def test_extra_env_loses_to_existing_environ(self) -> None:
+    def test_extra_env_overrides_existing_environ(self) -> None:
         os.environ[_SAFE_KEY] = "from-env"
         apply_safe_config_environment_variables(config_env={}, extra_env={_SAFE_KEY: "from-mdm"})
-        # setdefault: pre-existing wins
-        self.assertEqual(os.environ.get(_SAFE_KEY), "from-env")
+        self.assertEqual(os.environ.get(_SAFE_KEY), "from-mdm")
 
     def test_config_env_overrides_extra_env_via_setdefault_ordering(self) -> None:
         # extra_env applies FIRST via setdefault, then config_env via

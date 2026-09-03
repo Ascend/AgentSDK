@@ -199,7 +199,7 @@ def test_atomic_write_survives_failed_replace(
     """If ``os.replace`` raises, the temp scratch must be cleaned up
     and the destination file must not exist.
     """
-    import src.services.langfuse.exporter as exporter_module
+    import clawcodex_ext.services.langfuse.exporter as exporter_module
 
     real_replace = exporter_module.os.replace
 

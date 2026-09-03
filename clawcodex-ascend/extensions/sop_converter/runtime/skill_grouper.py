@@ -321,8 +321,7 @@ class SkillGrouper:
                 return self._keyword_match_group()
             return self._static_group()
         if GroupStrategy.LLM_SEMANTIC in self._strategy:
-            logger.warning("LLM semantic grouping is unavailable; falling back to static grouping")
-            return self._static_group()
+            return self._group_with_llm(requirements)
         if GroupStrategy.IO_RELATION in self._strategy:
             return self._io_relation_group()
         return self._static_group()
@@ -339,8 +338,7 @@ class SkillGrouper:
         if self._strategy == GroupStrategy.IO_RELATION:
             return self._io_relation_group()
         if self._strategy == GroupStrategy.LLM_SEMANTIC:
-            logger.warning("LLM semantic grouping is unavailable; falling back to static grouping")
-            return self._static_group()
+            return self._group_with_llm(requirements)
         return self._static_group()
 
     def _static_group(self) -> list[SkillSpec]:

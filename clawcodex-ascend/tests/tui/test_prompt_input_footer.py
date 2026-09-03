@@ -79,11 +79,8 @@ async def test_default_hints_rendered_with_vim_off():
     async with _Host(footer).run_test() as pilot:
         await pilot.pause()
         line = footer.last_line
-        # Three hints visible when vim is off — vim hint is filtered.
-        assert "/ command" in line
-        assert "Esc cancel" in line
-        assert "Ctrl+L clear" in line
-        assert "i/Esc vim" not in line
+        assert line == "? for shortcuts"
+        assert "i/esc vim" not in line
 
 
 @pytest.mark.asyncio
@@ -93,7 +90,7 @@ async def test_vim_hint_appears_when_vim_on():
     async with _Host(footer).run_test() as pilot:
         await pilot.pause()
         line = footer.last_line
-        assert "i/Esc vim" in line
+        assert "i/esc vim" in line
 
 
 @pytest.mark.asyncio
@@ -103,11 +100,11 @@ async def test_refresh_hints_picks_up_vim_toggle():
     footer = PromptInputFooter(vim_state=vim)
     async with _Host(footer).run_test() as pilot:
         await pilot.pause()
-        assert "i/Esc vim" not in footer.last_line
+        assert "i/esc vim" not in footer.last_line
         vim.set_enabled(True)
         footer.refresh_hints()
         await pilot.pause()
-        assert "i/Esc vim" in footer.last_line
+        assert "i/esc vim" in footer.last_line
 
 
 @pytest.mark.asyncio

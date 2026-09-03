@@ -677,7 +677,7 @@ class TestBuiltinCommands(unittest.TestCase):
         self.assertIn("test-project-skill", result)
 
 
-class TestCommandEngine(unittest.TestCase):
+class TestCommandEngine(unittest.IsolatedAsyncioTestCase):
     """Tests for the command engine."""
 
     def setUp(self):
@@ -763,7 +763,7 @@ class TestSkillsIntegration(unittest.TestCase):
         self.assertEqual(cmd.markdown_content, "Hello $name")
 
 
-class TestInitCommand(unittest.TestCase):
+class TestInitCommand(unittest.IsolatedAsyncioTestCase):
     """Tests for the /init command implementation."""
 
     def setUp(self):
@@ -809,7 +809,7 @@ class TestInitCommand(unittest.TestCase):
         """Test that /init has the correct description."""
         init_cmd = self._get_init_command()
         self.assertIsNotNone(init_cmd)
-        self.assertIn("CLAUDE.md", init_cmd.description)
+        self.assertIn("CLAWCODEX.md", init_cmd.description)
         self.assertIn("skills", init_cmd.description)
         self.assertIn("hooks", init_cmd.description)
 
@@ -840,7 +840,7 @@ class TestInitCommand(unittest.TestCase):
         self.assertIsNotNone(init_cmd)
         content = init_cmd.markdown_content
         # Verify it includes key CLAUDE.md content requirements
-        self.assertIn("CLAUDE.md", content)
+        self.assertIn("CLAWCODEX.md", content)
         self.assertIn("build/test/lint", content.lower())
         self.assertIn("code style", content.lower())
 

@@ -20,12 +20,10 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""Unit tests for ``src/permissions/trust_boundary.py`` (P1.1).
+"""Unit tests for the source-aware environment trust boundary.
 
-Mirrors the chapter §"The Trust Boundary" semantic: only the safe env-
-var subset applies pre-trust; everything else (PATH, LD_PRELOAD,
-NODE_EXTRA_CA_CERTS, proxies, base URLs, API keys) is excluded by
-default-deny.
+User-owned global settings are trusted before the folder gate.  A cloned
+project is not: only its allow-listed variables apply until trust is granted.
 """
 
 from __future__ import annotations
@@ -41,6 +39,7 @@ from src.permissions.trust_boundary import (
     apply_full_config_environment_variables,
     apply_safe_config_environment_variables,
     is_safe_env_key,
+    reset_trust_boundary_for_test_only,
 )
 
 
@@ -117,16 +116,28 @@ class TestUnknownKeyDefaultDeny(unittest.TestCase):
 
 class TestApplySafeDoesNotApplyUnsafe(unittest.TestCase):
     def test_unsafe_keys_excluded_from_safe_apply(self, *, monkeypatch=None):
-        # Use a synthetic config_env so we don't depend on real disk
-        # state. Pass it explicitly to bypass _load_config_env.
-        config_env = {
+        project_env = {
             "ANTHROPIC_MODEL": "claude-sonnet-4-6",  # safe
             "PATH": "/opt/evil/bin",  # unsafe
             "NODE_EXTRA_CA_CERTS": "/opt/evil.crt",  # unsafe
             "LD_PRELOAD": "/opt/evil.so",  # unsafe (prefix)
             "DISABLE_TELEMETRY": "1",  # safe
         }
-        with mock.patch.dict(os.environ, {}, clear=False):
+        with (
+            mock.patch.dict(os.environ, {}, clear=False),
+            mock.patch(
+                "src.permissions.trust_boundary._load_global_config_env",
+                return_value={},
+            ),
+            mock.patch(
+                "src.permissions.trust_boundary._load_user_settings_env",
+                return_value={},
+            ),
+            mock.patch(
+                "src.permissions.trust_boundary._load_project_scoped_env",
+                return_value=project_env,
+            ),
+        ):
             # Remove any pre-existing keys to make the test deterministic
             for k in (
                 "ANTHROPIC_MODEL",
@@ -136,7 +147,8 @@ class TestApplySafeDoesNotApplyUnsafe(unittest.TestCase):
                 "LD_PRELOAD",
             ):
                 os.environ.pop(k, None)
-            apply_safe_config_environment_variables(config_env)
+            reset_trust_boundary_for_test_only()
+            apply_safe_config_environment_variables()
 
             self.assertEqual(os.environ.get("ANTHROPIC_MODEL"), "claude-sonnet-4-6")
             self.assertEqual(os.environ.get("DISABLE_TELEMETRY"), "1")
@@ -151,6 +163,7 @@ class TestApplySafeDoesNotOverwriteExisting(unittest.TestCase):
         # Pre-existing process env wins; setdefault doesn't clobber.
         config_env = {"ANTHROPIC_MODEL": "from-config"}
         with mock.patch.dict(os.environ, {"ANTHROPIC_MODEL": "from-shell"}, clear=False):
+            reset_trust_boundary_for_test_only()
             apply_safe_config_environment_variables(config_env)
             self.assertEqual(os.environ["ANTHROPIC_MODEL"], "from-shell")
 
@@ -163,17 +176,19 @@ class TestApplyFullOverwritesUnsafe(unittest.TestCase):
         with mock.patch.dict(os.environ, {}, clear=False):
             os.environ.pop("PATH", None)
             os.environ.pop("ANTHROPIC_MODEL", None)
+            reset_trust_boundary_for_test_only()
             apply_full_config_environment_variables(config_env)
             self.assertEqual(os.environ.get("PATH"), "/opt/safe/bin")
             self.assertEqual(os.environ.get("ANTHROPIC_MODEL"), "claude-4")
 
-    def test_full_apply_overwrites_existing(self) -> None:
-        # Full apply uses assignment, not setdefault — so a config value
-        # wins over the shell value, mirroring TS's post-trust behavior.
+    def test_full_apply_preserves_original_shell_value(self) -> None:
+        # This port intentionally keeps explicit shell overrides even after
+        # trust; only managed-policy (MDM) values may replace them.
         config_env = {"ANTHROPIC_MODEL": "from-config"}
         with mock.patch.dict(os.environ, {"ANTHROPIC_MODEL": "from-shell"}, clear=False):
+            reset_trust_boundary_for_test_only()
             apply_full_config_environment_variables(config_env)
-            self.assertEqual(os.environ["ANTHROPIC_MODEL"], "from-config")
+            self.assertEqual(os.environ["ANTHROPIC_MODEL"], "from-shell")
 
 
 class TestLoadConfigEnvFallthrough(unittest.TestCase):
@@ -191,16 +206,8 @@ class TestLoadConfigEnvFallthrough(unittest.TestCase):
             apply_safe_config_environment_variables()  # must not raise
 
 
-class TestLoadConfigEnvOnlyReadsGlobal(unittest.TestCase):
-    """Security invariant: _load_config_env reads ONLY load_global,
-    never load_project / load_local. A malicious project clone
-    shipping ``.claude/config.json`` with ``env: {PATH: /opt/evil}``
-    must NOT poison the pre-trust env.
-
-    Per the chapter §"The Trust Boundary" and the TS reference
-    (managedEnv.ts:106-110, which reads from user/policy/flag sources
-    only). The plan's risk-register row 3 committed to this test.
-    """
+class TestProjectConfigIsFilteredBeforeTrust(unittest.TestCase):
+    """Project sources are read, but their unsafe keys stay unapplied."""
 
     def test_project_env_not_applied_pre_trust(self) -> None:
         # Simulate the attack: global config has no env, but project
@@ -226,13 +233,13 @@ class TestLoadConfigEnvOnlyReadsGlobal(unittest.TestCase):
                 return_value={"env": attacker_env},
             ) as mock_local,
         ):
+            reset_trust_boundary_for_test_only()
             apply_safe_config_environment_variables()
             # PATH unchanged — defense-in-depth from is_safe_env_key.
             self.assertEqual(os.environ.get("PATH", ""), original_path)
-            # _load_config_env reads only the global source.
             mock_global.assert_called_once()
-            mock_project.assert_not_called()
-            mock_local.assert_not_called()
+            mock_project.assert_called_once()
+            mock_local.assert_called_once()
 
 
 class TestUnsafeKeySetIsAuditable(unittest.TestCase):

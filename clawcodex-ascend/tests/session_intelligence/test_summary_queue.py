@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import json
 
+from clawcodex_ext.session_intelligence.index import load_summary
 from clawcodex_ext.session_intelligence.queue import (
     enqueue_summary_job,
     process_pending_summary_jobs,
@@ -38,6 +39,37 @@ def test_enqueue_summary_job(tmp_path) -> None:
     path = enqueue_summary_job("s1", cwd=tmp_path, base_dir=tmp_path)
     rows = path.read_text(encoding="utf-8").splitlines()
     assert json.loads(rows[-1])["session_id"] == "s1"
+
+
+def test_summary_pipeline_honors_runtime_sessions_override(tmp_path, monkeypatch) -> None:
+    from clawcodex_ext.services import session_storage
+
+    state_dir = tmp_path / "state"
+    sessions_dir = state_dir / "sessions"
+    session_dir = sessions_dir / "debug-session"
+    session_dir.mkdir(parents=True)
+    (session_dir / "metadata.json").write_text('{"title":"Debug"}', encoding="utf-8")
+    (session_dir / "transcript.jsonl").write_text(
+        '{"role":"user","content":"isolated task"}\n',
+        encoding="utf-8",
+    )
+    stale_sessions_dir = tmp_path / "stale-sessions"
+    monkeypatch.setattr(session_storage, "SESSIONS_DIR", stale_sessions_dir)
+    monkeypatch.setenv("CLAWCODEX_HOME", str(state_dir))
+    monkeypatch.setenv("CLAWCODEX_SESSIONS_DIR", str(sessions_dir))
+
+    enqueue_summary_job("debug-session", cwd=tmp_path)
+
+    assert (session_dir / "summary.status.json").exists()
+    assert not (stale_sessions_dir / "debug-session").exists()
+    assert process_pending_summary_jobs() == {
+        "processed": 1,
+        "failed": 0,
+        "remaining": 0,
+    }
+    summary = load_summary("debug-session")
+    assert summary is not None
+    assert summary["title"] == "Debug"
 
 
 def test_summarize_session_atomic_write(tmp_path) -> None:

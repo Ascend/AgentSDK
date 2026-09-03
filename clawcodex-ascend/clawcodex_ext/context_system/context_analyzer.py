@@ -108,7 +108,7 @@ def get_context_window_for_model(model: str) -> int:
     # Prefer the canonical registry/settings resolver. The old local-first
     # order could hide a user-declared 1M limit behind a broad substring row.
     try:
-        from clawcodex_ext.models.context import (  # pylint: disable=no-name-in-module
+        from src.models.context import (
             DEFAULT_CONTEXT_WINDOW as _REGISTRY_DEFAULT,
             get_context_window_for_model as _registry_window,
         )

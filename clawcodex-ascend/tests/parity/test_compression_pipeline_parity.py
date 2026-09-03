@@ -110,12 +110,12 @@ class TestCompressionLayerOrderParity(unittest.TestCase):
 
         with (
             patch(
-                "src.services.compact.pipeline.apply_tool_result_budget",
+                "clawcodex_ext.services.compact.pipeline.apply_tool_result_budget",
                 mock_tool_result_budget,
             ),
-            patch("src.services.compact.pipeline.snip_compact", mock_snip_compact),
+            patch("clawcodex_ext.services.compact.pipeline.snip_compact", mock_snip_compact),
             patch(
-                "src.services.compact.pipeline.microcompact_typed_messages",
+                "clawcodex_ext.services.compact.pipeline.microcompact_typed_messages",
                 mock_microcompact,
             ),
         ):
@@ -179,10 +179,10 @@ class TestCompressionPipelineBehavior(unittest.TestCase):
 
         with (
             patch(
-                "src.services.compact.pipeline.apply_tool_result_budget",
+                "clawcodex_ext.services.compact.pipeline.apply_tool_result_budget",
                 mock_tool_result_budget,
             ),
-            patch("src.services.compact.pipeline.snip_compact", mock_snip_compact),
+            patch("clawcodex_ext.services.compact.pipeline.snip_compact", mock_snip_compact),
         ):
             result = asyncio.run(run_compression_pipeline(messages, config=config))
 
@@ -206,12 +206,12 @@ class TestCompressionPipelineBehavior(unittest.TestCase):
 
         with (
             patch(
-                "src.services.compact.pipeline.apply_tool_result_budget",
+                "clawcodex_ext.services.compact.pipeline.apply_tool_result_budget",
                 mock_tool_result_budget_fail,
             ),
-            patch("src.services.compact.pipeline.snip_compact", mock_snip_compact),
+            patch("clawcodex_ext.services.compact.pipeline.snip_compact", mock_snip_compact),
             patch(
-                "src.services.compact.pipeline.microcompact_typed_messages",
+                "clawcodex_ext.services.compact.pipeline.microcompact_typed_messages",
                 mock_microcompact,
             ),
         ):

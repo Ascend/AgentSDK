@@ -49,8 +49,25 @@ from __future__ import annotations
 
 import json
 import time
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
+
+_JSON_SCALAR_TYPES = (str, int, float, bool)
+
+
+def _json_safe(value: Any) -> Any:
+    """Preserve JSON values and redact objects that would stringify data."""
+    if value is None or isinstance(value, _JSON_SCALAR_TYPES):
+        return value
+    if isinstance(value, Mapping):
+        sanitized: dict[str, Any] = {}
+        for key, item in value.items():
+            sanitized[str(key)] = _json_safe(item)
+        return sanitized
+    if isinstance(value, (list, tuple)):
+        return list(map(_json_safe, value))
+    return "[REDACTED]"
 
 
 @dataclass(frozen=True)
@@ -83,7 +100,7 @@ class ToolEventLog:
         row: dict[str, Any] = {
             "ts": self.ts,
             "tool": self.tool,
-            "params": self.params,
+            "params": _json_safe(self.params),
             "approved": self.approved,
             "deny_reason": self.deny_reason,
             "permission_mode": self.permission_mode,
@@ -99,4 +116,4 @@ class ToolEventLog:
         return row
 
     def to_json(self) -> str:
-        return json.dumps(self.to_dict(), ensure_ascii=False, default=str)
+        return json.dumps(self.to_dict(), ensure_ascii=False)

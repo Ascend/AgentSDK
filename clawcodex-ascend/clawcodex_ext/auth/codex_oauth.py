@@ -33,6 +33,7 @@ from clawcodex_ext.auth.codex_store import (
     CODEX_PROVIDER_ID,
     CodexAuthRecord,
     CodexOAuthTokens,
+    codex_cli_auth_is_newer,
     get_auth_file,
     import_codex_cli_tokens,
     read_codex_tokens,
@@ -212,10 +213,17 @@ def resolve_codex_runtime_credentials(
     refresh_skew_seconds: int = CODEX_ACCESS_TOKEN_REFRESH_SKEW_SECONDS,
 ) -> CodexRuntimeCredentials:
     record = read_codex_tokens()
-    if record is None:
+    should_import_cli = record is None or (
+        record.source == "codex-cli" and codex_cli_auth_is_newer(record.last_refresh)
+    )
+    if should_import_cli:
         imported = import_codex_cli_tokens()
         if imported is not None:
-            record = CodexAuthRecord(tokens=imported, source="codex-cli")
+            record = CodexAuthRecord(
+                tokens=imported,
+                source="codex-cli",
+                last_refresh=time.time(),
+            )
     if record is None:
         raise CodexAuthError(
             "OpenAI Codex is not authenticated. Run `clawcodex login` and select openai-codex.",

@@ -126,7 +126,7 @@ def test_reporter_payload_omits_sensitive_raw_event_fields(tmp_path) -> None:
     assert "Sessions: 1" in rendered
     assert "Command runs: 1" in rendered
     assert "anthropic 1" in rendered
-    assert "print: 1" in rendered
+    assert "print: 1" not in rendered
     for value in sensitive_values:
         assert value not in rendered
     assert "--secret" not in rendered

@@ -154,6 +154,7 @@ class SharedMemoryManager:
                 file_stem="memory",
                 source_dir=str(tmp),
                 init_params=init,
+                scripts_dir=tmp / "scripts",
             )
             ast.parse(script.read_text(encoding="utf-8"))
             args = json.dumps({"team_memory_dir": str(tmp / "team-memory")})

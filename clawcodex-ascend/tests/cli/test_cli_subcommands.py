@@ -147,7 +147,14 @@ def test_registered_subcommand_handler_is_callable(subcommand: str):
     # Some handlers raise SystemExit on empty args (argparse errors);
     # that's acceptable — it means routing + resolution succeeded.
     try:
-        rc = handler([])
+        if subcommand == "viz":
+            # Empty arguments intentionally start the long-running visualizer
+            # server.  Stub its service body while still exercising command
+            # discovery, routing, and the handler signature.
+            with patch("extensions.visualizer.cli.run_viz", return_value=0):
+                rc = handler([])
+        else:
+            rc = handler([])
         assert isinstance(rc, int), f"{subcommand} handler returned {type(rc).__name__}, expected int"
     except (SystemExit, TypeError):
         pass  # CLI handlers may signal usage through these expected exceptions.

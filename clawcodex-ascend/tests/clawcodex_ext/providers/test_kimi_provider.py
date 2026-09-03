@@ -106,6 +106,7 @@ class TestKimiProvider(unittest.TestCase):
     def test_chat(self, mock_openai):
         """Test synchronous chat."""
         mock_client = MagicMock()
+        mock_client.with_options.return_value = mock_client
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
         mock_response.choices[0].message.content = "Hello!"
@@ -130,6 +131,7 @@ class TestKimiProvider(unittest.TestCase):
     def test_chat_accepts_dict_messages(self, mock_openai):
         """Test synchronous chat with dict messages."""
         mock_client = MagicMock()
+        mock_client.with_options.return_value = mock_client
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
         mock_response.choices[0].message.content = "Hello!"
@@ -156,6 +158,7 @@ class TestKimiProvider(unittest.TestCase):
     def test_chat_stream_response_rebuilds_tool_calls(self, mock_openai):
         """Streaming chunks are rebuilt into a final response with tool calls."""
         mock_client = MagicMock()
+        mock_client.with_options.return_value = mock_client
 
         chunk1 = MagicMock()
         chunk1.model = "kimi-k2.6"

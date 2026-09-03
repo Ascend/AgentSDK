@@ -1,152 +1,142 @@
-"""SOP converter — transforms professional workflows into reusable Agents.
+"""Transform professional workflows into reusable agents, skills, and tools."""
 
-Three-layer mapping:
-    SOP (Standard Operating Procedure)     → Agent
-    workflow steps                → Skill
-    SDK interfaces               → atomic tools
+from __future__ import annotations
 
-Architecture::
+from pathlib import Path
+from typing import TYPE_CHECKING
 
-    SDK Spec + Requirements
-         │
-         ▼
-    SdkParser ──────────────────► atomic_tools: list[str]
-         │
-         ▼
-    SkillGrouper ────────────────► skills: list[SkillSpec]
-         │
-         ▼
-    AgentBuilder ────────────────► agent: AgentDefinition
-         │
-         ▼
-    Persistence / Registration
-"""
+if TYPE_CHECKING:
+    from .runtime.composite_tools.models import CompositeToolSpec
 
-# ── Dependency Injection ────────────────────────────────────────────────────
-# Populate the module-level DEFAULTS container with the default adapter
-# implementations (Layer 1.5).  This must happen before any SOP converter
-# module imports ``DEFAULTS`` so the factories are available at runtime.
-# See ``docs/DECOUPLE_SOP_CONVERTER_PLAN.md`` §3.4.
 from .adapters import DEFAULTS as _DEFAULTS, fill_defaults as _fill_defaults
 
 _fill_defaults(_DEFAULTS)
 
-# ── Core (pure algorithm, no clawcodex_ext / src dependency) ────────────────
-from .core import (  # noqa: E402  (DI fill must run first)
-    SdkParser,
+from .core import (  # noqa: E402
+    AGENT_MD_TEMPLATE,
+    AGENT_TEMPLATE,
+    OVERVIEW_AGENT_TEMPLATE,
+    SKILL_MD_TEMPLATE_JINJA,
+    SKILL_TEMPLATE,
+    MacroCoverage,
+    MappingRule,
+    ParamSpec,
+    ResourceCatalog,
+    ResourceHandler,
+    ResourceRecord,
     SdkMethod,
+    SdkParser,
     SourceCodeParser,
     SourceComponent,
     SourceOperation,
-    ParamSpec,
-    AGENT_TEMPLATE,
-    SKILL_TEMPLATE,
-    MappingRule,
-    AGENT_MD_TEMPLATE,
-    SKILL_MD_TEMPLATE_JINJA,
-    OVERVIEW_AGENT_TEMPLATE,
-    resolve_default_agent,
-    resolve_agent_by_type,
-    ResourceCatalog,
-    ResourceRecord,
-    get_resource_record,
-    resolve_resource_catalog_path,
-    ResourceHandler,
-    get_resource_handler,
-    register_resource_handler,
-    require_resource_handler,
-    MacroCoverage,
     ToolRetrievalIndex,
     ToolRetrievalProfile,
+    get_resource_handler,
+    get_resource_record,
     load_tool_retrieval_index,
+    register_resource_handler,
+    require_resource_handler,
+    resolve_agent_by_type,
+    resolve_default_agent,
+    resolve_resource_catalog_path,
 )
-
-# F-56 catalog write facade (canonical implementation lives in core/).
 from .resource_catalog import build_resource_record_from_create  # noqa: E402
-
-# ── Runtime (agent runtime integration layer) ────────────────────────────────
 from .runtime import (  # noqa: E402
+    AgentBuildResult,
+    AgentBuilder,
+    AgentComponentInfo,
+    AgentMarkdownWriter,
+    GroupStrategy,
+    MatchTarget,
+    MatchType,
     SkillGrouper,
     SkillSpec,
-    GroupStrategy,
-    MatchType,
-    MatchTarget,
-    group_source_components,
-    AgentBuilder,
-    AgentBuildResult,
-    AgentMarkdownWriter,
-    AgentComponentInfo,
     WorkflowStage,
+    group_source_components,
     register_component_tools,
     register_http_tools,
 )
-
-# ── workflow_mode (kept independent) ────────────────────────────────────────
 from .workflow_mode import (  # noqa: E402
-    WorkflowDiscriminator,
     DiscriminationResult,
+    WorkflowDiscriminator,
     discriminate_and_extract,
     extract_workflow,
 )
 
 
-def register_composite_tools(*args, **kwargs):
+def register_composite_tools(
+    *,
+    persist: bool = True,
+    bundle_dir: Path | None = None,
+    sdk_source_dir: str = "",
+) -> dict[str, str]:
+    """Register composite tools after the runtime package is initialized."""
     from .runtime.composite_tools import register_composite_tools as _register
 
-    return _register(*args, **kwargs)
+    return _register(
+        persist=persist,
+        bundle_dir=bundle_dir,
+        sdk_source_dir=sdk_source_dir,
+    )
 
 
-def emit_composite_workflow_yaml(*args, **kwargs):
+def emit_composite_workflow_yaml(
+    spec: CompositeToolSpec,
+    output_dir: str | Path,
+    *,
+    project_name: str = "",
+) -> Path | None:
+    """Emit composite workflow YAML through the canonical runtime."""
     from .runtime.composite_tools import emit_composite_workflow_yaml as _emit
 
-    return _emit(*args, **kwargs)
+    return _emit(spec, output_dir, project_name=project_name)
 
 
 __all__ = [
-    "SdkParser",
+    "AGENT_MD_TEMPLATE",
+    "AGENT_TEMPLATE",
+    "AgentBuildResult",
+    "AgentBuilder",
+    "AgentComponentInfo",
+    "AgentMarkdownWriter",
+    "DiscriminationResult",
+    "GroupStrategy",
+    "MacroCoverage",
+    "MappingRule",
+    "MatchTarget",
+    "MatchType",
+    "OVERVIEW_AGENT_TEMPLATE",
+    "ParamSpec",
+    "ResourceCatalog",
+    "ResourceHandler",
+    "ResourceRecord",
+    "SKILL_MD_TEMPLATE_JINJA",
+    "SKILL_TEMPLATE",
     "SdkMethod",
+    "SdkParser",
     "SkillGrouper",
     "SkillSpec",
-    "GroupStrategy",
-    "MatchType",
-    "MatchTarget",
-    "group_source_components",
-    "AgentBuilder",
-    "AgentBuildResult",
-    "AGENT_TEMPLATE",
-    "SKILL_TEMPLATE",
-    "MappingRule",
-    "AGENT_MD_TEMPLATE",
-    "SKILL_MD_TEMPLATE_JINJA",
-    "OVERVIEW_AGENT_TEMPLATE",
     "SourceCodeParser",
     "SourceComponent",
     "SourceOperation",
-    "ParamSpec",
-    "AgentMarkdownWriter",
-    "AgentComponentInfo",
-    "WorkflowStage",
-    "resolve_default_agent",
-    "resolve_agent_by_type",
-    "register_component_tools",
-    "register_http_tools",
-    "ResourceCatalog",
-    "ResourceRecord",
-    "build_resource_record_from_create",
-    "get_resource_record",
-    "resolve_resource_catalog_path",
-    "ResourceHandler",
-    "get_resource_handler",
-    "register_resource_handler",
-    "require_resource_handler",
-    "MacroCoverage",
     "ToolRetrievalIndex",
     "ToolRetrievalProfile",
-    "load_tool_retrieval_index",
-    "register_composite_tools",
-    "emit_composite_workflow_yaml",
     "WorkflowDiscriminator",
-    "DiscriminationResult",
+    "WorkflowStage",
+    "build_resource_record_from_create",
     "discriminate_and_extract",
+    "emit_composite_workflow_yaml",
     "extract_workflow",
+    "get_resource_handler",
+    "get_resource_record",
+    "group_source_components",
+    "load_tool_retrieval_index",
+    "register_component_tools",
+    "register_composite_tools",
+    "register_http_tools",
+    "register_resource_handler",
+    "require_resource_handler",
+    "resolve_agent_by_type",
+    "resolve_default_agent",
+    "resolve_resource_catalog_path",
 ]

@@ -108,11 +108,15 @@ def test_resume_carries_resume_prompt_into_fresh_state(tmp_path: Path) -> None:
     assert refreshed.prompt == "retry the failed work"
 
 
-def test_resume_reads_transcript_via_transcript_reader(tmp_path: Path) -> None:
+def test_resume_reads_transcript_via_transcript_reader(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """DIP claim — ``resume_agent_background`` consumes the transcript
     via ``TranscriptReader``. Verify by writing some entries to the
     transcript pre-resume and asserting ``replayed_message_count``.
     """
+    monkeypatch.setenv("CLAWCODEX_CONFIG_DIR", str(tmp_path / "config"))
     ctx = ToolContext(workspace_root=tmp_path)
     agent_id = _make_terminal_agent(ctx)
 
@@ -133,6 +137,50 @@ def test_resume_reads_transcript_via_transcript_reader(tmp_path: Path) -> None:
     )
     assert result.resumed is True
     assert result.replayed_message_count == 3
+
+
+def test_resume_launcher_starts_runtime_with_hydrated_history(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("CLAWCODEX_CONFIG_DIR", str(tmp_path / "config"))
+    ctx = ToolContext(workspace_root=tmp_path)
+    agent_id = _make_terminal_agent(ctx)
+    state = ctx.runtime_tasks.get(agent_id)
+    assert isinstance(state, LocalAgentTaskState)
+
+    with TranscriptWriter(state.output_file) as writer:
+        writer.append({"role": "user", "content": "prior context"})
+
+    captured: dict[str, object] = {}
+
+    def _launch(prompt: str, messages: list[object]) -> None:
+        captured["prompt"] = prompt
+        captured["messages"] = messages
+        register_async_agent(
+            agent_id=agent_id,
+            description=state.description,
+            prompt=prompt,
+            agent_type=state.agent_type,
+            registry=ctx.runtime_tasks,
+        )
+
+    ctx.agent_resume_launchers[agent_id] = _launch
+    result = asyncio.run(
+        resume_agent_background(
+            agent_id=agent_id,
+            prompt="continue now",
+            context=ctx,
+        )
+    )
+
+    assert result.resumed is True
+    assert result.runtime_started is True
+    assert captured["prompt"] == "continue now"
+    messages = captured["messages"]
+    assert isinstance(messages, list)
+    assert messages[0].role == "user"
+    assert messages[0].content[0].text == "prior context"
 
 
 def test_resume_handles_missing_transcript_gracefully(tmp_path: Path) -> None:

@@ -331,9 +331,23 @@ def _task_list_call(tool_input: dict[str, Any], context: ToolContext) -> ToolRes
     handled, result = try_handle("TaskList", tool_input, context)
     if handled:
         return result
+
+    # ``context.tasks`` may contain legacy internal records restored from an
+    # older session.  They are runtime bookkeeping, not user-visible todos.
+    visible_tasks = [
+        task
+        for task in context.tasks.values()
+        if not (isinstance(task.get("metadata"), dict) and task["metadata"].get("_internal") is True)
+    ]
+    open_task_ids = {task["id"] for task in visible_tasks if task.get("status") not in {"completed", "deleted"}}
+    tasks = []
+    for task in visible_tasks:
+        item = dict(task)
+        item["blockedBy"] = [task_id for task_id in task.get("blockedBy") or [] if task_id in open_task_ids]
+        tasks.append(item)
     return ToolResult(
         name="TaskList",
-        output={"tasks": list(context.tasks.values())},
+        output={"tasks": tasks},
     )
 
 

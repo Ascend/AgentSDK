@@ -35,6 +35,7 @@ downloads the npm package on first invocation — slow).
 from __future__ import annotations
 
 import asyncio
+import os
 import shutil
 
 import pytest
@@ -46,8 +47,8 @@ from clawcodex_ext.services.mcp.types import (
 )
 
 pytestmark = pytest.mark.skipif(
-    shutil.which("npx") is None,
-    reason="`npx` (Node) required for the real-MCP-server smoke test",
+    shutil.which("npx") is None or os.environ.get("CLAWCODEX_RUN_EXTERNAL_TESTS") != "1",
+    reason="set CLAWCODEX_RUN_EXTERNAL_TESTS=1 and install npx to run the external MCP smoke test",
 )
 
 

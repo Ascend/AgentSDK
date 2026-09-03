@@ -40,7 +40,8 @@ class TestLiveDashboardAssets:
         assert "return esc(s).replace(/\"/g, '&quot;');" in resp.text
 
     def test_orchestrator_issue_row_partial_is_hardened(self):
-        templates_dir = Path("extensions/visualizer/templates")
+        repo_root = Path(__file__).resolve().parents[2]
+        templates_dir = repo_root / "extensions" / "visualizer" / "templates"
         env = Environment(
             loader=FileSystemLoader(str(templates_dir)),
             autoescape=select_autoescape(["html"]),

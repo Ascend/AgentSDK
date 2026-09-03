@@ -60,6 +60,7 @@ from clawcodex_ext.services.im_gateway.config import (
 )
 from clawcodex_ext.services.im_gateway.gateway import MessageGateway
 from clawcodex_ext.services.im_gateway.retention import run_retention_sweep
+from clawcodex_ext.services.socket_path import normalize_unix_socket_path
 from clawcodex_ext.utils.file_lock import HAS_FLOCK, flock_exclusive
 
 logger = logging.getLogger(__name__)
@@ -122,7 +123,7 @@ class DaemonPaths:
             state_dir=base,
             pid_file=base / "gateway.pid",
             lock_file=base / "gateway.lock",
-            sock_file=base / "gateway.sock",
+            sock_file=normalize_unix_socket_path(base / "gateway.sock"),
             health_file=base / "health.json",
             log_file=base / "gateway.log",
         )

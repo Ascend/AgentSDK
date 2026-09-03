@@ -39,7 +39,13 @@ def test_cli_status_json(capsys) -> None:
     assert '"idle_seconds": 120' in out
 
 
-def test_cli_process_pending(capsys) -> None:
+def test_cli_process_pending(monkeypatch, tmp_path, capsys) -> None:
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    monkeypatch.delenv("CLAWCODEX_HOME", raising=False)
+    monkeypatch.setenv(
+        "CLAWCODEX_SESSIONS_DIR",
+        str(tmp_path / ".clawcodex" / "sessions"),
+    )
     rc = run_forecast_command(["summarize", "--pending", "--json"])
     assert rc == 0
     assert '"processed"' in capsys.readouterr().out

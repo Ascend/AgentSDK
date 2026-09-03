@@ -116,7 +116,7 @@ def test_replace_or_append_date_block_replaces_existing_block() -> None:
 
 def test_update_or_create_creates_inbox_issue_when_missing(tmp_path) -> None:
     client = _FakeClient(existing=None)
-    reporter, storage = _reporter(tmp_path, client)
+    reporter, storage = _reporter(tmp_path, client, mode="update_or_create")
 
     assert reporter.emit("# Summary\n", date="2026-06-15") is True
 

@@ -34,6 +34,7 @@ import sys
 import types
 import unittest
 from dataclasses import dataclass
+from importlib import import_module
 from typing import Any
 
 # ---------------------------------------------------------------------------
@@ -102,6 +103,11 @@ def _ensure_parent(dotted_name: str) -> None:
 
 
 def _register_stub(dotted_name: str, **attrs: Any) -> None:
+    try:
+        import_module(dotted_name)
+        return
+    except ImportError:
+        pass
     _ensure_parent(dotted_name)
     mod = types.ModuleType(dotted_name)
     for k, v in attrs.items():

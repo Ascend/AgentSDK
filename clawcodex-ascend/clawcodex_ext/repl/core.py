@@ -380,12 +380,13 @@ def _lazy_runtime_placeholder(func: Callable[..., Any]) -> Callable[..., Any]:
 
 
 def _is_lazy_runtime_placeholder(name: str) -> bool:
-    return bool(
+    return (
         getattr(
             globals().get(name),
             "_clawcodex_lazy_runtime_placeholder",
             False,
         )
+        is True
     )
 
 
@@ -845,6 +846,11 @@ class ClawcodexREPL:
         else:
             self.tool_context.permission_handler = self._handle_permission_ask_request
 
+        # The main REPL may register session macros, but confirmation uses a
+        # dedicated prompt rather than a persistent permission rule.
+        self.tool_context.allow_session_macro_registration = True
+        self.tool_context.confirm_session_macro_plan = self._confirm_session_macro_plan
+
         # Runtime permission controller — the single chokepoint for
         # Shift+Tab cycles and ``/permissions`` picks. The controller
         # owns the threading.Lock that serializes the multi-field swap
@@ -938,6 +944,7 @@ class ClawcodexREPL:
             "/clear",
             "/save",
             "/load",
+            "/resume",
             "/stream",
             "/render-last",
             "/tools",
@@ -1183,12 +1190,15 @@ class ClawcodexREPL:
         """Single-line status footer for the input prompt.
 
         Mirrors the TS Ink reference's persistent status row at the
-        bottom: provider, model, current working directory, and
-        accumulated turn / token counts for the session. Kept terse so
-        it doesn't compete with the input row for attention.
+        bottom: provider, model, current working directory, accumulated
+        turn / token counts, and compact Task/LKB progress for the session.
+        Kept terse so it doesn't compete with the input row for attention.
         """
 
         try:
+            refresh_tasks = getattr(self, "_maybe_refresh_lkb_tasks", None)
+            if callable(refresh_tasks):
+                refresh_tasks()
             provider = getattr(self.provider, "provider_name", None) or self.provider_name or "?"
             model = getattr(self.provider, "model", "") or "?"
             cwd_full = str(self.tool_context.cwd or self.tool_context.workspace_root)
@@ -1266,6 +1276,7 @@ class ClawcodexREPL:
 
             goal_segment = self._goal_footer_status()
             goal_part = f" · {goal_segment}" if goal_segment else ""
+            task_part = self._task_toolbar_part()
             status_segments = advisor_part + proactive_part
             return status_segments + (
                 f" {provider} · {model} · {cwd} · "
@@ -1277,6 +1288,7 @@ class ClawcodexREPL:
                 f"{advisor_tokens}"
                 f"{cost_part}"
                 f"{goal_part}"
+                f"{task_part}"
                 f" "
             )
         except Exception:
@@ -1347,6 +1359,28 @@ class ClawcodexREPL:
                 exc_info=True,
             )
             return True
+
+    def _task_toolbar_part(self) -> str:
+        """Return the optional LKB-owned task progress footer segment."""
+
+        try:
+            from lkb.repl_status import format_task_progress
+
+            return format_task_progress(self.tool_context)
+        except Exception:
+            logger.debug("LKB task footer render failed", exc_info=True)
+            return ""
+
+    def _maybe_refresh_lkb_tasks(self, *, force: bool = False) -> bool:
+        """Delegate the optional LKB projection refresh to the extension."""
+
+        try:
+            from lkb.repl_status import refresh_task_projection
+
+            return refresh_task_projection(self.tool_context, force=force)
+        except Exception:
+            logger.debug("LKB task footer refresh failed", exc_info=True)
+            return False
 
     def _echo_user_input(self, text: str) -> None:
         """Print a user message to the transcript (transparent background).
@@ -1565,6 +1599,28 @@ class ClawcodexREPL:
             allow_other=allow_other,
             multi_select=multi_select,
         )
+
+    def _confirm_session_macro_plan(self, plan: Any) -> bool:
+        """Prompt before registering a session macro."""
+        from extensions.sop_converter.runtime.macros.register_tool import (
+            format_session_macro_plan_for_ui,
+        )
+
+        if self._current_status is not None:
+            try:
+                self._current_status.stop()
+            except Exception:  # nosec B110
+                pass
+
+        body = format_session_macro_plan_for_ui(plan)
+        self.console.print("")
+        self.console.print(
+            f"[bold]Register session macro `{getattr(plan, 'name', '')}` ({getattr(plan, 'action', 'create')})?[/bold]"
+        )
+        self.console.print(body)
+        self.console.print("")
+        choice = self._safe_input("Register this session macro? [y/N]: ").strip().lower()
+        return choice in ("y", "yes")
 
     def _ask_user_questions(self, questions: list[dict]) -> dict[str, str]:
         # Stop the Rich status spinner if running, so we can get clean input
@@ -2242,7 +2298,7 @@ class ClawcodexREPL:
         try:
             return await execute_command_async(command, args, self.command_context)
         except Exception as e:
-            return CommandResult.error(command, str(e))
+            return CommandResult.failure(command, str(e))
 
     def _run_command_async_with_status(
         self,
@@ -2546,6 +2602,12 @@ class ClawcodexREPL:
                                 result = pool.submit(lambda: asyncio.run(_run_query())).result()
                         else:
                             result = loop.run_until_complete(_run_query())
+                        if streamed_text:
+                            # ``patch_stdout`` buffers partial lines. Terminate
+                            # the streamed response while LiveStatus is still
+                            # mounted so it is committed above the live input
+                            # region instead of being discarded on teardown.
+                            self.console.print()
                     finally:
                         self._active_live_status = None
         except (AbortError, asyncio.CancelledError):
@@ -2922,7 +2984,7 @@ class ClawcodexREPL:
         "save": "Save the conversation to a file",
         "load": "Load a saved conversation",
         "tool": "Inspect or invoke a single tool",
-        "init": "Initialize a CLAUDE.md for this workspace",
+        "init": "Initialize a CLAWCODEX.md for this workspace",
         "tui": "Switch to the Textual TUI",
         "gateway": "Connect, status, or disconnect the IM gateway",
     }
@@ -3690,9 +3752,14 @@ class ClawcodexREPL:
         original_erase_when_done = getattr(app, "erase_when_done", False)
 
         async def _watch_outbox():
-            """Watch for cron events and wake the prompt when found."""
+            """Watch for cron events and refresh the persistent task footer."""
             while True:
                 await asyncio.sleep(1.0)
+                if self._maybe_refresh_lkb_tasks(force=True):
+                    try:
+                        app.invalidate()
+                    except Exception:  # nosec B110
+                        pass
                 outbox = getattr(self.tool_context, "outbox", None)
                 if outbox and getattr(app, "future", None) is not None:
                     app.erase_when_done = True
@@ -5739,7 +5806,7 @@ class ClawcodexREPL:
 - `/tools` - List available built-in tools
 - `/tool <name> <json>` - Run a tool directly
 - `/skills` - List all available skills
-- `/init` - Create CLAUDE.md file for the project
+- `/init` - Create CLAWCODEX.md file for the project
 - `/cost` - Show session cost and usage
 - `/compact` - Compact conversation to save context space
 - `/tui` - Switch into the Textual-based full-screen TUI (opt-in)
@@ -6207,13 +6274,8 @@ class ClawcodexREPL:
 
             stream_started = False
 
-            def _stop_status_once() -> None:
+            def _mark_stream_started() -> None:
                 nonlocal stream_started
-                if self._current_status is not None and not stream_started:
-                    try:
-                        self._current_status.stop()
-                    except Exception:  # nosec B110
-                        pass  # Cleanup is best-effort and must not replace the primary operation result.
                 stream_started = True
 
             # Direct-stream skips the tool loop; it can only carry plain
@@ -6224,7 +6286,7 @@ class ClawcodexREPL:
                 def on_text_chunk_direct(chunk: str) -> None:
                     if not chunk:
                         return
-                    _stop_status_once()
+                    _mark_stream_started()
                     self.console.print(chunk, end="", markup=False, highlight=False, soft_wrap=True)
 
                 self._direct_abort_controller = AbortController()
@@ -6281,6 +6343,12 @@ class ClawcodexREPL:
                                 direct_response = self._stream_direct_response(
                                     on_text_chunk=on_text_chunk_direct,
                                 )
+                                if stream_started:
+                                    # Flush the proxy's partial-line buffer
+                                    # before LiveStatus exits; stopping the
+                                    # live input here would disable ESC,
+                                    # queued input, and permission cycling.
+                                    self.console.print()
                             finally:
                                 self._active_live_status = None
                 finally:
@@ -6294,7 +6362,6 @@ class ClawcodexREPL:
                     self._enqueue_prompt(pending)
                 if direct_response is not None:
                     self._account_direct_goal_turn(getattr(self, "_last_direct_response_usage", None))
-                    self.console.print("\n")
                     # Per-turn save: persist JSONL transcript only (lightweight).
                     try:
                         self.session.save_transcript()
@@ -6476,8 +6543,7 @@ class ClawcodexREPL:
                             if content:
                                 last_text = content
                                 last_text_was_printed = False
-                                _stop_status_once()
-                                stream_started = True
+                                _mark_stream_started()
                         elif isinstance(content, list):
                             for block in content:
                                 if isinstance(block, TextBlock) and block.text:
@@ -6486,8 +6552,7 @@ class ClawcodexREPL:
                                     # lands above the explanatory text.
                                     _flush_task_snapshot_if_any()
                                     last_text = block.text
-                                    _stop_status_once()
-                                    stream_started = True
+                                    _mark_stream_started()
                                     self.console.print(Markdown(block.text))
                                     last_text_was_printed = True
                                 elif isinstance(block, ToolUseBlock):
@@ -6532,14 +6597,12 @@ class ClawcodexREPL:
                     if isinstance(msg, SystemMessage):
                         subtype = getattr(msg, "subtype", None)
                         if subtype == "max_turns_reached":
-                            _stop_status_once()
-                            stream_started = True
+                            _mark_stream_started()
                             self.console.print(
                                 "[warning]Reached maximum number of turns. The task may be incomplete.[/warning]"
                             )
                         elif subtype in {"goal_evaluation", "goal_achieved"}:
-                            _stop_status_once()
-                            stream_started = True
+                            _mark_stream_started()
                             evaluator_usage = getattr(msg, "usage", None)
                             if isinstance(evaluator_usage, dict):
                                 in_toks = int(evaluator_usage.get("input_tokens", 0) or 0)
@@ -6561,8 +6624,7 @@ class ClawcodexREPL:
                             else:
                                 self.session.conversation.add_message(msg.role, msg.content)
                         elif subtype == "goal_evaluator_error":
-                            _stop_status_once()
-                            stream_started = True
+                            _mark_stream_started()
                             self._last_chat_outcome = "goal_evaluator_error"
                             evaluator_usage = getattr(msg, "usage", None)
                             if isinstance(evaluator_usage, dict):

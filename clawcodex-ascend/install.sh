@@ -939,9 +939,9 @@ parse_args() {
             --uninstall|-u)
                 SUBCOMMAND="uninstall"; shift ;;
             --help|-h)
-                print_help; exit 0 ;;
+                SUBCOMMAND="help"; shift ;;
             --help-zh)
-                print_help_zh; exit 0 ;;
+                SUBCOMMAND="help-zh"; shift ;;
 
             --)
                 shift; break ;;
@@ -1929,6 +1929,7 @@ case "${SUBCOMMAND:-install}" in
     update)    cmd_update ;;
     uninstall) uninstall ;;
     help)      print_help ;;
+    help-zh)   print_help_zh ;;
     *)
         log_err "Unknown subcommand: $SUBCOMMAND"
         echo "Usage: $0 {install|status|doctor|verify|update|uninstall|help}"

@@ -1532,13 +1532,13 @@ class ClawCodexTUI(App):
 
     def _enqueue_summary_sidecar_job(self) -> None:
         try:
-            from src.services.session_storage import SESSIONS_DIR
+            from clawcodex_ext.services.session_storage import resolve_sessions_dir
             from clawcodex_ext.session_intelligence.queue import enqueue_summary_job
 
             sid = str(getattr(self.session, "session_id", "") or "")
             if not sid:
                 return
-            transcript = SESSIONS_DIR / sid / "transcript.jsonl"
+            transcript = resolve_sessions_dir() / sid / "transcript.jsonl"
             enqueue_summary_job(
                 sid,
                 cwd=self.workspace_root,

@@ -226,6 +226,30 @@ def test_resolve_codex_runtime_credentials_imports_codex_cli_tokens(
     assert credentials.source == "codex-cli"
 
 
+def test_resolve_codex_runtime_credentials_reimports_newer_codex_cli_tokens(
+    monkeypatch,
+) -> None:
+    stale = CodexOAuthTokens("stale-access", "stale-refresh", expires_at=time.time() + 3600)
+    current = CodexOAuthTokens("current-access", "current-refresh", expires_at=time.time() + 3600)
+
+    monkeypatch.setattr(
+        codex_oauth,
+        "read_codex_tokens",
+        lambda: CodexAuthRecord(
+            tokens=stale,
+            source="codex-cli",
+            last_refresh=time.time() - 3600,
+        ),
+    )
+    monkeypatch.setattr(codex_oauth, "codex_cli_auth_is_newer", lambda _last_refresh: True)
+    monkeypatch.setattr(codex_oauth, "import_codex_cli_tokens", lambda: current)
+
+    credentials = resolve_codex_runtime_credentials()
+
+    assert credentials.api_key == "current-access"
+    assert credentials.source == "codex-cli"
+
+
 def test_resolve_codex_runtime_credentials_raises_when_not_authenticated(
     monkeypatch,
 ) -> None:

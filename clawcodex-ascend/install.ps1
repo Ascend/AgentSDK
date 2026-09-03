@@ -466,7 +466,7 @@ $script:UpstreamUrl      = 'https://github.com/agentforce314/clawcodex.git'
 # patches/upstream/<commit>/ directory.
 $script:UpstreamRef      = '398b44f08f9de6dd36ab590d7d83799b34a28b3c'
 $script:PatchSetId       = '398b44f'
-$script:ExpectedPatchCount = 584
+$script:ExpectedPatchCount = 585
 $script:UvVersion        = '0.11.16'
 $script:UvWindowsSha256  = @{
     'aarch64' = 'e4f8e70eb21f0f4efd2eeb159ab289f9a16057d59881a4475758be4ce39bc8c5'

@@ -63,7 +63,11 @@ class AgentControlMixin:
         session_context: dict[str, Any],
     ) -> "ToolCallEvent":
         """Intercept a tool call and mirror its approval decision."""
-        from .approval_policy import ToolCallEvent as PolicyToolCallEvent
+        from .approval_policy import (
+            ToolCallEvent as PolicyToolCallEvent,
+            apply_approval_decision,
+            read_approval_decision,
+        )
 
         policy_event = PolicyToolCallEvent(
             tool_name=event.tool_name,
@@ -71,8 +75,7 @@ class AgentControlMixin:
             tool_use_id=event.tool_use_id,
         )
         self._approval_policy.evaluate(policy_event, session_context)
-        event._approved = policy_event._approved
-        event._deny_reason = policy_event._deny_reason
+        apply_approval_decision(event, read_approval_decision(policy_event))
         return event
 
     @staticmethod
@@ -90,11 +93,14 @@ class AgentControlMixin:
         if isinstance(event, TextDelta):
             return {"content": str(getattr(event, "content", ""))}
         if isinstance(event, ToolCallEvent):
+            from .approval_policy import read_approval_decision
+
+            decision = read_approval_decision(event)
             return {
                 "tool_name": str(getattr(event, "tool_name", "")),
                 "tool_use_id": getattr(event, "tool_use_id", None),
                 "params": dict(getattr(event, "params", {}) or {}),
-                "approved": getattr(event, "_approved", None),
+                "approved": decision.is_approved,
             }
         if isinstance(event, ToolResultEvent):
             return {

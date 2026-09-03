@@ -38,6 +38,7 @@ import tempfile
 import types
 import unittest
 from enum import Enum
+from importlib import import_module
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -47,6 +48,11 @@ _SKIP = {"extensions", "extensions.orchestrator"}
 
 
 def _reg(n: str, **kw: object) -> None:
+    try:
+        import_module(n)
+        return
+    except ImportError:
+        pass
     p = n.split(".")
     for i in range(1, len(p)):
         x = ".".join(p[:i])

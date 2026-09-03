@@ -25,6 +25,7 @@
 from __future__ import annotations
 
 import unittest
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from src.providers import get_provider_class
@@ -159,7 +160,9 @@ class TestAnthropicProvider(unittest.TestCase):
         mock_stream = MagicMock()
         mock_stream.__enter__.return_value = mock_stream
         mock_stream.__exit__.return_value = False
-        mock_stream.text_stream = iter(["Hello", " world"])
+        mock_stream.__iter__.return_value = iter(
+            [SimpleNamespace(delta=SimpleNamespace(text=chunk, thinking=None)) for chunk in ("Hello", " world")]
+        )
 
         final_response = MagicMock()
         text_block = MagicMock()
@@ -365,6 +368,7 @@ class TestOpenAIProvider(unittest.TestCase):
         """Test synchronous chat."""
         # Setup mock
         mock_client = MagicMock()
+        mock_client.with_options.return_value = mock_client
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
         mock_response.choices[0].message.content = "Hello!"
@@ -387,6 +391,7 @@ class TestOpenAIProvider(unittest.TestCase):
     def test_chat_accepts_dict_messages(self, mock_openai):
         """Test synchronous chat with dict messages."""
         mock_client = MagicMock()
+        mock_client.with_options.return_value = mock_client
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
         mock_response.choices[0].message.content = "Hello!"
@@ -408,6 +413,7 @@ class TestOpenAIProvider(unittest.TestCase):
     def test_chat_stream_response_rebuilds_tool_calls(self, mock_openai):
         """Streaming chunks are rebuilt into a final response with tool calls."""
         mock_client = MagicMock()
+        mock_client.with_options.return_value = mock_client
 
         chunk1 = MagicMock()
         chunk1.model = "gpt-4"
@@ -477,6 +483,7 @@ class TestGLMProvider(unittest.TestCase):
         """Test synchronous chat."""
         # Setup mock
         mock_client = MagicMock()
+        mock_client.with_options.return_value = mock_client
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
         mock_response.choices[0].message.content = "Hello!"
@@ -501,6 +508,7 @@ class TestGLMProvider(unittest.TestCase):
         """Test chat with reasoning content."""
         # Setup mock
         mock_client = MagicMock()
+        mock_client.with_options.return_value = mock_client
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
         mock_response.choices[0].message.content = "Answer"

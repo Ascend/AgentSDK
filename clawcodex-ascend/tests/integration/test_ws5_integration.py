@@ -276,7 +276,7 @@ class TestWS5IntegrationGitPipeline(unittest.TestCase):
             with patch.dict(os.environ, {"CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS": ""}):
                 sys_ctx = _run(get_system_context(cwd=tmp))
                 self.assertIn("gitStatus", sys_ctx)
-                self.assertIn("Git repository detected", sys_ctx["gitStatus"])
+                self.assertIn("Current branch: main", sys_ctx["gitStatus"])
                 self.assertIn("Integration Test", sys_ctx["gitStatus"])
 
     def test_git_context_disabled_via_env(self):
@@ -352,7 +352,7 @@ class TestWS5IntegrationPromptAssembly(unittest.TestCase):
 
                 # System context should have git
                 self.assertIn("gitStatus", parts.system_context)
-                self.assertIn("Git repository", parts.system_context["gitStatus"])
+                self.assertIn("Current branch: main", parts.system_context["gitStatus"])
 
     def test_custom_system_prompt_skips_default_and_system(self):
         """Custom system prompt skips default prompt and system context."""
@@ -795,7 +795,7 @@ class TestWS5IntegrationBackwardCompat(unittest.TestCase):
         """Legacy API produces prompt with runtime context + instructions."""
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            (root / "CLAUDE.md").write_text("Legacy compat rule.", encoding="utf-8")
+            (root / "CLAWCODEX.md").write_text("Legacy compat rule.", encoding="utf-8")
             (root / "README.md").write_text("# Test\n", encoding="utf-8")
             (root / "src").mkdir()
             (root / "src" / "app.py").write_text("pass\n", encoding="utf-8")
@@ -815,7 +815,7 @@ class TestWS5IntegrationBackwardCompat(unittest.TestCase):
             prompt = build_context_prompt(root)
 
             self.assertIn("## Git Context", prompt)
-            self.assertIn("Git repository", prompt)
+            self.assertIn("Current branch: main", prompt)
 
 
 # ---------------------------------------------------------------------------

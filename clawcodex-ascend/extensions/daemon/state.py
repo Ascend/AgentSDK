@@ -83,6 +83,7 @@ class DaemonState:
         except ValueError:
             logger.warning("DaemonState: unknown status %r; defaulting to RUNNING", status_str)
             kwargs["last_status"] = DaemonStatus.RUNNING
+        kwargs.setdefault("name", "remote-control")
         kwargs.setdefault("extra", {})
         _validate_state_fields(kwargs)
         return cls(**kwargs)

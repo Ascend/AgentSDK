@@ -31,6 +31,7 @@ from __future__ import annotations
 
 
 # pylint: disable=E0611,W0621
+import json
 import os
 import tempfile
 
@@ -63,6 +64,20 @@ def stats_path():
 
 
 # ── Core recording tests ──────────────────────────────────────────────
+
+
+def test_configure_keeps_buffered_rows_with_their_original_sink(tmp_path) -> None:
+    first = tmp_path / "first.jsonl"
+    second = tmp_path / "second.jsonl"
+    configure(first)
+    record_tool("First", dur_ms=1.0, ok=True)
+
+    configure(second)
+    record_tool("Second", dur_ms=2.0, ok=True)
+    flush()
+
+    assert json.loads(first.read_text(encoding="utf-8"))["tool"] == "First"
+    assert json.loads(second.read_text(encoding="utf-8"))["tool"] == "Second"
 
 
 class TestRecordTool:

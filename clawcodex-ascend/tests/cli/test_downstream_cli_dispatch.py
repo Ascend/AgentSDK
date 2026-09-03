@@ -324,7 +324,11 @@ def test_run_cli_agent_debug_resume_uses_isolated_sessions_dir(
         "CLAWCODEX_SESSIONS_DIR",
         "CLAW_TELEMETRY_STORAGE_DIR",
     ):
-        monkeypatch.delenv(name, raising=False)
+        # Register every key with monkeypatch even when it was initially
+        # absent.  The command writes these keys directly to os.environ;
+        # delenv(..., raising=False) would not record an absent key and the
+        # command's value would then leak into the rest of the test suite.
+        monkeypatch.setenv(name, "")
     monkeypatch.setenv("CLAWCODEX_AGENT_DEBUG_DIR", str(debug_dir))
     monkeypatch.setattr("src.init.run_pre_action", lambda args: None)
     monkeypatch.setattr(
@@ -456,7 +460,9 @@ def test_run_cli_agent_debug_sets_debug_environment(monkeypatch):
         "CLAWCODEX_SESSIONS_DIR",
         "CLAW_TELEMETRY_STORAGE_DIR",
     ):
-        monkeypatch.delenv(name, raising=False)
+        # The CLI mutates os.environ itself, so make monkeypatch track each
+        # key and restore the process environment after this test.
+        monkeypatch.setenv(name, "")
 
     monkeypatch.setattr("src.init.run_pre_action", lambda args: None)
     monkeypatch.setattr("clawcodex_ext.cli.permissions.resolve_permission_state", lambda args: None)

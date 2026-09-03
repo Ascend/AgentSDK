@@ -2,7 +2,7 @@ diff --git a/providers/_litellm_adapter.py b/providers/_litellm_adapter.py
 new file mode 100644
 --- /dev/null
 +++ b/providers/_litellm_adapter.py	2026-06-25 15:09:03.000000 +0800
-@@ -0,0 +1,26 @@
+@@ -0,0 +1,24 @@
 +"""Facade — providers/_litellm_adapter.py has been moved to clawcodex_ext.
 +
 +The full LiteLLM provider implementation now lives in
@@ -13,9 +13,7 @@ new file mode 100644
 +New code should import from ``clawcodex_ext.providers._litellm_adapter``
 +directly.
 +
-+The previous location ``extensions.providers_ext.litellm_provider`` is
-+preserved as a deprecated re-export shim for backward compatibility —
-+see ``extensions/providers_ext/__init__.py``.
++The deprecated ``extensions.providers_ext`` forwarding namespace was removed.
 +"""
 +
 +from clawcodex_ext.providers._litellm_adapter import (  # noqa: F401

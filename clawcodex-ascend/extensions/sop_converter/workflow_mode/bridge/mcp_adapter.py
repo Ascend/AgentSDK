@@ -79,7 +79,11 @@ def register_bridge_tool(
             },
             "project_dir": {
                 "type": "string",
-                "description": "Pipeline run workspace directory",
+                "description": "Pipeline run workspace directory (alias: run_dir)",
+            },
+            "run_dir": {
+                "type": "string",
+                "description": "Alias for project_dir — pipeline run workspace",
             },
         },
         "required": ["stage_id"],

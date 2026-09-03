@@ -464,6 +464,8 @@ class TestPushToTalkController(unittest.TestCase):
         self.assertEqual(result.text, "final words")
         self.assertEqual(result.provider, "__test_stub")
         self.assertIsNone(result.error)
+        self.assertIsNotNone(provider.last_connection)
+        self.assertTrue(provider.last_connection.closed)
 
     def test_start_feeds_audio_to_connection(self) -> None:
         provider = _StubStreamingProvider()
@@ -480,6 +482,8 @@ class TestPushToTalkController(unittest.TestCase):
         controller.start()
         controller.disarm()
         self.assertEqual(controller.state, VoiceSessionState.IDLE)
+        self.assertIsNotNone(provider.last_connection)
+        self.assertTrue(provider.last_connection.closed)
 
     def test_unknown_provider_emits_error(self) -> None:
         recorder = _StubRecorder()

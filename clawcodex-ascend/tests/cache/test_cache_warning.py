@@ -95,31 +95,34 @@ class TestCacheWarning:
         assert cache.get("source_0") is None  # Evicted
         assert cache.get("source_extra") is not None  # New entry present
 
-    def test_boundary_exactly_fifty_no_eviction(self):
-        """At exactly 50 entries, no eviction should occur."""
+    def test_boundary_exactly_at_capacity_no_eviction(self):
+        """At exactly the configured capacity, no eviction should occur."""
         cache = CacheWarning()
 
-        for i in range(50):
+        for i in range(MAX_SOURCE_ENTRIES):
             cache.update(f"source_{i}", CacheWarningState(warned=False, count=i))
 
-        assert len(cache.cache_warning_state_by_source) == 50
+        assert len(cache.cache_warning_state_by_source) == MAX_SOURCE_ENTRIES
         assert cache.get("source_0") is not None
-        assert cache.get("source_49") is not None
+        assert cache.get(f"source_{MAX_SOURCE_ENTRIES - 1}") is not None
 
-    def test_boundary_fifty_first_triggers_eviction(self):
-        """The 51st entry should trigger eviction of the oldest."""
+    def test_boundary_capacity_plus_one_triggers_eviction(self):
+        """The first entry beyond capacity should evict the oldest."""
         cache = CacheWarning()
 
-        for i in range(50):
+        for i in range(MAX_SOURCE_ENTRIES):
             cache.update(f"source_{i}", CacheWarningState(warned=False, count=i))
 
-        # This should trigger eviction
-        cache.update("source_50", CacheWarningState(warned=False, count=50))
+        extra_source = f"source_{MAX_SOURCE_ENTRIES}"
+        cache.update(
+            extra_source,
+            CacheWarningState(warned=False, count=MAX_SOURCE_ENTRIES),
+        )
 
-        assert len(cache.cache_warning_state_by_source) == 50
+        assert len(cache.cache_warning_state_by_source) == MAX_SOURCE_ENTRIES
         assert cache.get("source_0") is None  # First entry evicted
         assert cache.get("source_1") is not None  # Second entry still present
-        assert cache.get("source_50") is not None  # New entry present
+        assert cache.get(extra_source) is not None  # New entry present
 
     def test_reset_for_test(self):
         cache = CacheWarning()
@@ -138,19 +141,17 @@ class TestCacheWarning:
         """Verify eviction happens correctly over multiple cycles."""
         cache = CacheWarning()
 
-        # Add 100 entries, should trigger eviction twice
-        for i in range(100):
+        overflow = 50
+        for i in range(MAX_SOURCE_ENTRIES + overflow):
             cache.update(f"source_{i}", CacheWarningState(warned=False, count=i))
 
         # Should have exactly MAX_SOURCE_ENTRIES entries
         assert len(cache.cache_warning_state_by_source) == MAX_SOURCE_ENTRIES
 
-        # Entries 0-49 should be evicted (first 50 entries)
-        for i in range(50):
+        for i in range(overflow):
             assert cache.get(f"source_{i}") is None
 
-        # Entries 50-99 should still be present
-        for i in range(50, 100):
+        for i in range(overflow, MAX_SOURCE_ENTRIES + overflow):
             assert cache.get(f"source_{i}") is not None
 
     def test_fifo_order(self):
@@ -162,7 +163,7 @@ class TestCacheWarning:
         cache.update("third", CacheWarningState(warned=False, count=3))
 
         # Add entries to trigger eviction
-        for i in range(50):
+        for i in range(MAX_SOURCE_ENTRIES):
             cache.update(f"extra_{i}", CacheWarningState(warned=False, count=i))
 
         # First three entries should be evicted in order
@@ -171,12 +172,12 @@ class TestCacheWarning:
         assert cache.get("third") is None
 
         # Most recent entries should still be present
-        assert cache.get("extra_49") is not None
+        assert cache.get(f"extra_{MAX_SOURCE_ENTRIES - 1}") is not None
 
 
 class TestMaxSourceEntries:
     """Tests for MAX_SOURCE_ENTRIES constant."""
 
     def test_max_source_entries_value(self):
-        """Verify the capacity limit is 50 as specified."""
-        assert MAX_SOURCE_ENTRIES == 50
+        """Keep normal usage unbounded while capping daemon memory growth."""
+        assert MAX_SOURCE_ENTRIES == 10_000

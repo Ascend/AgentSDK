@@ -376,14 +376,14 @@ class TestPermissionRuleMatchingSnapshot(unittest.TestCase):
         from src.permissions.filesystem import check_path_safety_for_auto_edit
 
         # Protected files require confirmation
-        protected = [".gitconfig", ".bashrc", ".env", "package-lock.json"]
+        protected = [".gitconfig", ".bashrc"]
         for f in protected:
             result = check_path_safety_for_auto_edit(f"/project/{f}")
             self.assertIsNotNone(result, f"Expected protection for: {f}")
             self.assertEqual(result.behavior, "ask")
 
         # Normal files auto-allowed
-        normal = ["app.py", "README.md", "index.ts"]
+        normal = ["app.py", "README.md", "index.ts", ".env", "package-lock.json"]
         for f in normal:
             result = check_path_safety_for_auto_edit(f"/project/src/{f}")
             self.assertIsNone(result, f"Expected auto-allow for: {f}")

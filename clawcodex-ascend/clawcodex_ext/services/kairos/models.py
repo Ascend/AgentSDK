@@ -36,7 +36,7 @@ import re
 import time
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any
 
 # Reuse the path-safe id pattern from ultraplan/templates.
@@ -219,7 +219,7 @@ def format_local_timestamp(when: float | None = None) -> str:
     """Format a wall-clock timestamp as an ISO 8601 local string."""
     if when is None:
         when = time.time()
-    return datetime.fromtimestamp(when, tz=timezone.utc).isoformat(timespec="seconds")
+    return datetime.fromtimestamp(when).astimezone().isoformat(timespec="seconds")
 
 
 __all__ = [

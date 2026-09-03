@@ -34,6 +34,8 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+_MISSING = object()
+
 
 # ---------------------------------------------------------------------------
 # ToolCallEvent — the event object passed to policy.evaluate()
@@ -74,6 +76,56 @@ class ToolCallEvent:
     def is_approved(self) -> bool | None:
         """True if allowed, False if denied, None if not yet evaluated."""
         return self._approved
+
+    @property
+    def denial_reason(self) -> str | None:
+        """Return the rejection reason, or None when the call is not denied."""
+        return self._deny_reason
+
+
+@dataclass(frozen=True)
+class ApprovalDecision:
+    """Read-only approval state shared with orchestrator consumers."""
+
+    is_approved: bool | None
+    denial_reason: str | None
+
+
+def read_approval_decision(event: Any) -> ApprovalDecision:
+    """Read an approval decision through the public event contract."""
+    approved = getattr(event, "is_approved", _MISSING)
+    if approved is not _MISSING and callable(approved):
+        approved = approved()
+    if approved is _MISSING:
+        approved = getattr(event, "_approved", None)
+
+    denial_reason = getattr(event, "denial_reason", _MISSING)
+    if denial_reason is not _MISSING and callable(denial_reason):
+        denial_reason = denial_reason()
+    if denial_reason is _MISSING:
+        denial_reason = getattr(event, "_deny_reason", None)
+
+    return ApprovalDecision(
+        is_approved=approved,
+        denial_reason=denial_reason,
+    )
+
+
+def apply_approval_decision(event: Any, decision: ApprovalDecision) -> None:
+    """Apply a decision via public methods, with a legacy-field fallback."""
+    if decision.is_approved is True:
+        allow = getattr(event, "allow", None)
+        if callable(allow):
+            allow()
+            return
+    elif decision.is_approved is False:
+        deny = getattr(event, "deny", None)
+        if callable(deny):
+            deny(decision.denial_reason or "")
+            return
+
+    setattr(event, "_approved", decision.is_approved)
+    setattr(event, "_deny_reason", decision.denial_reason)
 
 
 # ---------------------------------------------------------------------------

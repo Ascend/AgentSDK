@@ -215,22 +215,10 @@ def test_upstream_tui_entrypoint_uses_upstream_app(monkeypatch):
     # Monkey-patch _textual_available to True so run_tui proceeds.
     monkeypatch.setattr(tui_entrypoint, "_textual_available", lambda: True)
 
-    # Allow the provider-building path to succeed without real config.
-    # run_tui needs the provider factory path — use that.
+    # Use the explicit provider-factory seam so this entrypoint contract does
+    # not depend on local credentials.
     fake_provider = Mock()
     fake_provider.provider_name = "anthropic"
-
-    monkeypatch.setattr(tui_entrypoint, "get_default_provider", lambda: "anthropic")
-    monkeypatch.setattr(
-        tui_entrypoint,
-        "get_provider_config",
-        lambda _: {
-            "api_key": "test-key",
-            "default_model": "claude-3-sonnet-20240229",
-            "base_url": "https://api.anthropic.com",
-        },
-    )
-    monkeypatch.setattr(tui_entrypoint, "get_provider_class", lambda _: Mock(return_value=fake_provider))
 
     called = False
 
@@ -240,10 +228,14 @@ def test_upstream_tui_entrypoint_uses_upstream_app(monkeypatch):
         assert type(self) is ClawCodexTUI
         monkeypatch.setattr(self, "run", Mock(return_value=None))
         object.__setattr__(self, "_exit_code", 0)
+        object.__setattr__(self, "_shutdown_managed_tasks", Mock(return_value=None))
 
     monkeypatch.setattr(ClawCodexTUI, "__init__", mock_init)
 
-    options = TUIOptions()
+    options = TUIOptions(
+        provider_factory=lambda: fake_provider,
+        provider_name="anthropic",
+    )
     result = tui_entrypoint.run_tui(options)
     assert result == 0
     assert called, "ClawCodexTUI was never instantiated"

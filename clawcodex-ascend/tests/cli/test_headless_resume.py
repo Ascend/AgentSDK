@@ -77,7 +77,7 @@ class _FakeRegistry:
 
 
 @pytest.fixture
-def fake_wiring(monkeypatch):
+def fake_wiring(monkeypatch, tmp_path):
     """Patch provider/tool wiring with a no-network fake.
 
     ``run_headless`` calls ``get_provider_class(name)`` to instantiate
@@ -86,6 +86,12 @@ def fake_wiring(monkeypatch):
     """
 
     scripted: list[ChatResponse] = []
+
+    # Resume now restores goal state as part of runtime bootstrap. Keep every
+    # test in this module away from the user's real ClawCodex state directory,
+    # including tests that do not persist the resumed Session itself.
+    monkeypatch.setenv("CLAWCODEX_HOME", str(tmp_path / "clawcodex-home"))
+    monkeypatch.setenv("CLAWCODEX_SESSIONS_DIR", str(tmp_path / "sessions"))
 
     def _fake_provider_class(provider_name):
         def _factory(api_key, base_url=None, model=None):
@@ -698,11 +704,8 @@ def test_resume_accumulates_history_across_two_runs(fake_wiring, monkeypatch, tm
 
     # Scope SessionStorage to tmp_path so the test doesn't touch the
     # user's real ~/.clawcodex/sessions directory.
-    from src.services import session_storage as ss_mod
-
     fake_sessions_dir = tmp_path / "sessions"
     fake_sessions_dir.mkdir()
-    monkeypatch.setattr(ss_mod, "SESSIONS_DIR", fake_sessions_dir)
 
     # Capture the session_id created by run 1 without patching
     # Session.create (which would recurse or mis-bind the classmethod).

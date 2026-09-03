@@ -46,6 +46,7 @@ from clawcodex_ext.services.compact.autocompact import (
     calculate_token_warning_state,
     MAX_CONSECUTIVE_AUTOCOMPACT_FAILURES,
     AUTOCOMPACT_BUFFER_TOKENS,
+    AUTOCOMPACT_FLOOR_BUFFER_TOKENS,
     MAX_OUTPUT_TOKENS_FOR_SUMMARY,
 )
 
@@ -71,7 +72,7 @@ class TestGetEffectiveContextWindowSize(unittest.TestCase):
     def test_floor(self):
         """Effective context has a floor to prevent negative thresholds."""
         effective = get_effective_context_window_size(25_000)
-        self.assertGreaterEqual(effective, MAX_OUTPUT_TOKENS_FOR_SUMMARY + AUTOCOMPACT_BUFFER_TOKENS)
+        self.assertGreaterEqual(effective, MAX_OUTPUT_TOKENS_FOR_SUMMARY + AUTOCOMPACT_FLOOR_BUFFER_TOKENS)
 
     @patch.dict(os.environ, {"CLAUDE_CODE_AUTO_COMPACT_WINDOW": "100000"})
     def test_env_override(self):

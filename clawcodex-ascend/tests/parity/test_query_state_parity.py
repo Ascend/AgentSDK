@@ -129,7 +129,8 @@ class TestTransitionReasonsParity(unittest.TestCase):
         import typing as _typing
 
         py_reasons = set(_typing.get_args(TerminalReason))
-        self.assertEqual(ts_reasons, py_reasons)
+        self.assertTrue(ts_reasons.issubset(py_reasons))
+        self.assertEqual(py_reasons - ts_reasons, {"goal_evaluator_error"})
 
     def test_terminal_can_be_created_for_each_reason(self) -> None:
         for reason in self.snapshot["terminal_reasons"]:

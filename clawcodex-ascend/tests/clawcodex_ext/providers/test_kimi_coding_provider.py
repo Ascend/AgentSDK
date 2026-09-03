@@ -25,6 +25,7 @@
 from __future__ import annotations
 
 import unittest
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from clawcodex_ext.providers.base import ChatMessage
@@ -121,7 +122,9 @@ class TestKimiCodingProvider(unittest.TestCase):
         mock_stream = MagicMock()
         mock_stream.__enter__.return_value = mock_stream
         mock_stream.__exit__.return_value = False
-        mock_stream.text_stream = iter(["Hello", " world"])
+        mock_stream.__iter__.return_value = iter(
+            [SimpleNamespace(delta=SimpleNamespace(text=chunk, thinking=None)) for chunk in ("Hello", " world")]
+        )
 
         final_response = MagicMock()
         text_block = MagicMock()

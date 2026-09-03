@@ -24,6 +24,7 @@
 
 from __future__ import annotations
 
+import base64
 import json
 import os
 import time
@@ -160,6 +161,27 @@ def test_import_codex_cli_tokens_ignores_expired_tokens(tmp_path: Path) -> None:
                     "access_token": "cli-access",
                     "refresh_token": "cli-refresh",
                     "expires_at": time.time() - 1,
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert import_codex_cli_tokens(source_path=source, destination_path=destination) is None
+    assert not destination.exists()
+
+
+def test_import_codex_cli_tokens_derives_expiry_from_access_token(tmp_path: Path) -> None:
+    source = tmp_path / "codex-auth.json"
+    destination = tmp_path / "claw-auth.json"
+    header = base64.urlsafe_b64encode(b'{"alg":"none"}').rstrip(b"=").decode()
+    payload = base64.urlsafe_b64encode(json.dumps({"exp": time.time() - 1}).encode("utf-8")).rstrip(b"=").decode()
+    source.write_text(
+        json.dumps(
+            {
+                "tokens": {
+                    "access_token": f"{header}.{payload}.signature",
+                    "refresh_token": "cli-refresh",
                 }
             }
         ),

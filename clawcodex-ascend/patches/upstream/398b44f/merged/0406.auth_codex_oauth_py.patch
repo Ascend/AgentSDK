@@ -2,7 +2,13 @@ diff --git a/auth/codex_oauth.py b/auth/codex_oauth.py
 new file mode 100644
 --- /dev/null
 +++ b/auth/codex_oauth.py	2026-06-24 13:07:42.000000 +0800
-@@ -0,0 +1,3 @@
-+"""Compatibility facade — see :mod:`clawcodex_ext.auth.codex_oauth`."""
+@@ -0,0 +1,9 @@
++"""Module-identity facade for the downstream Codex OAuth runtime."""
 +
-+from clawcodex_ext.auth.codex_oauth import *  # noqa: F401,F403
++from __future__ import annotations
++
++import sys
++
++from clawcodex_ext.auth import codex_oauth as _module
++
++sys.modules[__name__] = _module
