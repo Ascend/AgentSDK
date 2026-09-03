@@ -1,0 +1,131 @@
+# ── F-57 Handwritten MacroDefinition (Canonical Template) ─────────────
+# 手写 / 模型填写宏的权威骨架。复制到项目源树后改名再填：
+#   <source>/sop-macros/<your-macro-name>.yaml
+#
+# convert 装载：
+#   - 自动：源树存在 sop-macros/*.yaml
+#   - 显式：sop convert ... --macro-manifest <path>
+# 产物：
+#   <bundle>/.clawcodex/macros/<name>.yaml  + call_type=workflow 工具注册
+#
+# 硬约束（validate_macro_definition / Phase 4 convert）：
+#   - version 必须为 1
+#   - scope 手写装载目前仅支持 bundle
+#   - workflow.steps 非空；每步必须有 id + callable_ref
+#   - 手写/bundle 宏 step.kind 仅允许 tool（禁止 python / catalog）
+#   - $input.* 必须在 workflow.inputs 声明
+#   - $steps.<id>.output[.<field>] 禁止前向引用；跨步字段建议配 output_schema
+#   - selection=exclusive 且 verified=false → 自动降级为 prefer
+#   - selection=exclusive 且 verified=true → 必须填 intent_key + covered_tools
+#
+# 权威路径（本文件）：
+#   extensions/sop_converter/macros/templates/macro.definition.yaml.template
+# 规范说明：docs/feature_plan/04-architecture-sdk/f-57-sop-executable-composite-workflows.md §4.2
+# ────────────────────────────────────────────────────────────────────
+
+version: 1                          # 必填；目前仅支持 1
+name: your-macro-name               # 必填；注册为 call_type=workflow 的工具名（建议 kebab-case）
+description: 一句话说明意图与编排范围   # 推荐；给人 / ToolSearch / Skill 看
+scope: bundle                       # bundle | session | builtin；手写 convert 仅接受 bundle
+enabled: true                       # false 时 convert 直接失败（macro_disabled）
+
+workflow:                           # 必填；内含可执行 CompositeWorkflowSpec
+  inputs:                           # 宏对外参数；所有 $input.<name> 必须在此声明
+    some_arg:
+      type: string                  # 常用：string | object | number | boolean | array
+      description: 参数说明         # 可选；给调用方 / 模型看
+      required: true                # 是否必填
+
+  steps:                            # 必填；非空线性列表（当前 runner 按顺序执行）
+    - id: step1                     # 必填；宏内唯一；供 $steps.step1.output 引用
+      kind: tool                    # 手写/bundle 仅允许 tool
+      callable_ref: some-atomic-tool  # 必填；须能在 bundle ToolIndex / allowlist 唯一解析
+      args:                         # 传给该工具的参数；值可为字面量或绑定表达式
+        x: $input.some_arg          # 绑定：$input.* 或 $steps.<id>.output[.<field>]
+      # output_schema:              # 可选；声明本步 public output，供后续绑定静态校验
+      #   type: object
+      #   properties:
+      #     field: {type: string}
+      #   required: [field]
+
+    # - id: step2
+    #   kind: tool
+    #   callable_ref: another-tool
+    #   args:
+    #     y: $steps.step1.output.field
+    #     z: $input.some_arg
+
+  outputs:                          # 宏对外返回契约（聚合各步 public output）
+    result: $steps.step1.output     # 值必须是绑定表达式或可序列化字面量
+
+routing:                            # MacroRoute；ToolSearch 主动召回本宏
+  phrases:                          # 自然语言召回短语（推荐至少 1 条）
+    - 自然语言召回短语
+  keywords:                         # 关键词；配合 match_mode
+    - 关键词
+  negative_keywords: []             # 命中则抑制本宏
+  target_tool: your-macro-name      # 通常等于 name；省略时 convert 会填成 name
+  match_mode: all                   # exact | all | any
+  selection: prefer                 # prefer | exclusive
+  priority: 100                     # 数值越大优先级越高
+  verified: false                   # exclusive 需要 verified=true，否则降级 prefer
+  # intent_key: ""                  # 可选；F-157 意图键；verified exclusive 时必填
+  # covered_tools: []               # 可选；本宏覆盖的原子工具名；verified exclusive 时必填
+  # unavailable_policy: restore-covered  # 目前仅支持 restore-covered
+
+provenance:
+  kind: handwritten                 # handwritten | template | promoted | ...
+  manifest: sop-macros/your-macro-name.yaml  # 源文件相对路径；便于报错定位
+
+# ── 填好的最小示例（create-and-invoke-agent）──────────────────────────
+# 复制下面块到 sop-macros/create-and-invoke-agent.yaml 时可去掉本注释包装。
+#
+# version: 1
+# name: create-and-invoke-agent
+# description: 创建 Agent 后立即调用
+# scope: bundle
+# enabled: true
+# workflow:
+#   inputs:
+#     agent_config:
+#       type: object
+#       required: true
+#     query:
+#       type: string
+#       required: true
+#   steps:
+#     - id: create
+#       kind: tool
+#       callable_ref: create-llm-agent
+#       args:
+#         agent_config: $input.agent_config
+#       output_schema:
+#         type: object
+#         properties:
+#           agent_id: {type: string}
+#         required: [agent_id]
+#     - id: invoke
+#       kind: tool
+#       callable_ref: invoke-existing-agent
+#       args:
+#         agent_ref: $steps.create.output.agent_id
+#         query: $input.query
+#   outputs:
+#     agent_id: $steps.create.output.agent_id
+#     output: $steps.invoke.output
+# routing:
+#   phrases:
+#     - 创建并调用 agent
+#     - 创建 agent 后回复
+#   keywords:
+#     - 创建
+#     - agent
+#   negative_keywords: []
+#   target_tool: create-and-invoke-agent
+#   match_mode: all
+#   selection: prefer
+#   priority: 100
+#   verified: false
+# provenance:
+#   kind: handwritten
+#   manifest: sop-macros/create-and-invoke-agent.yaml
