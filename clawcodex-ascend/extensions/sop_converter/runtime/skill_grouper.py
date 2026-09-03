@@ -76,6 +76,7 @@ class MatchTarget(Enum):
     FILE_PATH = "file_path"  # SourceComponent file_path
 
 
+@dataclass
 class SkillSpec:
     """Specification for a Skill derived from grouped SDK methods."""
 
@@ -88,6 +89,7 @@ class SkillSpec:
     model: str | None = None
 
 
+@dataclass
 class MappingRule:
     """A mapping rule: SDK method pattern → tool name → skill name.
 
