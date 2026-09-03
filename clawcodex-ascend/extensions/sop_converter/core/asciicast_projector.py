@@ -44,10 +44,16 @@ from __future__ import annotations
 import logging
 import sys
 from types import TracebackType
-from typing import IO
+from typing import IO, TYPE_CHECKING
 
 from extensions.capabilities.recorder import AsciicastCapture
-from extensions.recording.renderers import TeeWriter
+
+if TYPE_CHECKING:
+    # TeeWriter lives in extensions/recording — an optional layer that a
+    # partial checkout (fresh clone / CI smoke) may lack, mirroring the
+    # subcommand_registry guard convention. Only the lazy import inside
+    # ``__enter__`` depends on it, never this module's importability.
+    from extensions.recording.renderers import TeeWriter
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +84,12 @@ class SopStageProjector:
         if self._capture is None:
             return self
         try:
+            # F-REC TeeWriter is imported lazily here (not at module top) so
+            # importing this module during startup never requires
+            # extensions/recording; without it the tee is skipped and only
+            # the capture markers below are lost.
+            from extensions.recording.renderers import TeeWriter
+
             self._original_stdout = sys.stdout
             self._tee = TeeWriter(
                 original=self._original_stdout,

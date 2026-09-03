@@ -39,7 +39,6 @@ import logging
 from typing import Any
 
 from extensions.capabilities.recorder import AsciicastCapture
-from extensions.recording.renderers import format_cron_event
 
 logger = logging.getLogger(__name__)
 
@@ -104,6 +103,13 @@ class AsciicastCronObserver:
     # -- internal --------------------------------------------------------
 
     def _emit(self, *, label: str, payload: dict[str, Any]) -> None:
+        # F-REC: lazy import — extensions/recording is an optional layer that
+        # a partial checkout may lack (subcommand_registry guard convention);
+        # importing this module must not depend on it.
+        try:
+            from extensions.recording.renderers import format_cron_event
+        except ImportError:
+            return
         text = format_cron_event(payload)
         try:
             self._capture.marker(label, text=text)
