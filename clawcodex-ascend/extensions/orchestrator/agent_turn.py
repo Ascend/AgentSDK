@@ -241,7 +241,8 @@ class AgentTurnMixin:
         clarification_resolver: Any = None,
     ) -> str:
         """Render the initial issue prompt or a continuation prompt."""
-        from .prompt_builder import PromptBuilder, resolve_python_executable
+        from .prompt_builder import PromptBuilder
+        from .prompt_context import resolve_python_executable
 
         issue = session.issue
         workspace = session.workspace

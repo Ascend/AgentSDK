@@ -56,7 +56,7 @@ from .steering import (
 from .tools import (
     UPDATE_GOAL_TOOL_NAME,
     _is_review_subagent_context,
-    _persistent_thread_id,
+    _thread_id_from_context,
 )
 
 logger = logging.getLogger(__name__)
@@ -427,7 +427,7 @@ class GoalRuntime:
 def goal_runtime_for_context(context: Any) -> GoalRuntime | None:
     if not goal_enabled() or context is None:
         return None
-    thread_id = _persistent_thread_id(context)
+    thread_id = _thread_id_from_context(context)
     if thread_id is None:
         return None
     runtime = getattr(context, "goal_runtime", None)
