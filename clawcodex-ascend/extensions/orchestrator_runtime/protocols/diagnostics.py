@@ -1,0 +1,58 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+# Copyright (c) 2026 Clawd Codex Team
+# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+#
+# AgentSDK is licensed under Mulan PSL v2.
+# You can use this software according to the terms and conditions of the Mulan PSL v2.
+# You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
+"""DiagnosticsProbe protocol.
+
+The orchestrator heartbeat loop calls ``DiagnosticsProbe.heartbeat()``
+to detect process freeze / deadlock. ``FreezeDetector`` is the default
+implementation (copied from ``clawcodex_ext.diagnostics.freeze_detector``).
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Literal, Protocol, runtime_checkable
+
+HeartbeatState = Literal["alive", "frozen", "stalled"]
+
+
+@dataclass(slots=True)
+class HeartbeatStatus:
+    """Result of one ``heartbeat()`` snapshot.
+
+    Attributes:
+        state: ``alive`` / ``frozen`` / ``stalled``
+        last_tick_age: seconds since the last tick the watcher observed
+        detail: optional free-form context (free-form string)
+    """
+
+    state: HeartbeatState
+    last_tick_age: float
+    detail: str = ""
+
+
+@runtime_checkable
+class DiagnosticsProbe(Protocol):
+    """Called by orchestrator heartbeat loop."""
+
+    def heartbeat(self) -> HeartbeatStatus: ...
+
+
+__all__ = ["DiagnosticsProbe", "HeartbeatState", "HeartbeatStatus"]
