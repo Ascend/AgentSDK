@@ -33,8 +33,8 @@ from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from extensions.sop_converter.agent_md_writer import AgentMarkdownWriter, WorkflowStage
-from extensions.sop_converter.skill_grouper import SkillSpec
+from extensions.sop_converter.runtime.agent_md_writer import AgentMarkdownWriter, WorkflowStage
+from extensions.sop_converter.runtime.skill_grouper import SkillSpec
 
 from ..ast_helpers import extract_callee_names, to_kebab
 from ..capability.models import ExecutionMode, StageAgentMap
