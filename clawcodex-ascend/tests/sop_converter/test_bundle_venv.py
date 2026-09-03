@@ -33,7 +33,7 @@ from extensions.sop_converter.runtime_paths import (
     windows_path_to_wsl_path,
     wsl_path_to_windows_path,
 )
-from extensions.sop_converter.sdk_dependency_resolver import SdkDependencySpec
+from extensions.sop_converter.core.sdk_dependency_resolver import SdkDependencySpec
 
 
 def test_wsl_and_windows_path_converters() -> None:
