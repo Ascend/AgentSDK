@@ -197,9 +197,9 @@ def _get_or_create_user_id() -> str:
     if isinstance(existing, str) and existing:
         return existing
     new_id = secrets.token_hex(32)
-    from src.config import get_default_manager
+    from src.config import _get_default_manager
 
-    get_default_manager().set_global("user_id", new_id)
+    _get_default_manager().set_global("user_id", new_id)
     return new_id
 
 

@@ -44,7 +44,7 @@ from src.command_system.types import (
     LocalCommand,
     LocalCommandResult,
 )
-from src.config import get_default_manager
+from src.config import _get_default_manager
 from src.constants.xml import COMMON_HELP_ARGS, COMMON_INFO_ARGS
 
 
@@ -80,13 +80,13 @@ def _title_case(s: str) -> str:
 
 
 def _save_companion(stored: dict) -> None:
-    mgr = get_default_manager()
+    mgr = _get_default_manager()
     mgr.set_global("companion", stored)
     mgr.set_global("companion_muted", False)
 
 
 def _set_companion_muted(muted: bool) -> None:
-    get_default_manager().set_global("companion_muted", muted)
+    _get_default_manager().set_global("companion_muted", muted)
 
 
 def buddy_command_call(args: str, context: CommandContext) -> LocalCommandResult:
@@ -153,7 +153,7 @@ def buddy_command_call(args: str, context: CommandContext) -> LocalCommandResult
         PET_REACTIONS,
         f"{now_ms}:{companion.name}",
     )
-    get_default_manager().set_global("companion_pet_at", now_ms)
+    _get_default_manager().set_global("companion_pet_at", now_ms)
     return LocalCommandResult(
         type="text",
         value=f"{companion.name} {reaction}",

@@ -766,9 +766,9 @@ def _invalidate_config_manager_cache() -> None:
     MCP add/remove that already landed on disk.
     """
     try:
-        from src.config import get_default_manager
+        from src.config import _get_default_manager
 
-        get_default_manager().invalidate()
+        _get_default_manager().invalidate()
     except Exception:  # noqa: BLE001  # nosec B110 - best-effort cache coherence; failure must not break MCP add/remove
         pass  # The file update is authoritative; cache invalidation is best-effort.
 

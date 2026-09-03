@@ -227,9 +227,9 @@ def _atomic_write_json(path: Path, data: dict[str, Any]) -> None:
 
 
 def _workspace_root(cwd: Path) -> Path:
-    from src.config import find_git_root
+    from src.config import _find_git_root
 
-    return (find_git_root(cwd) or cwd).resolve()
+    return (_find_git_root(cwd) or cwd).resolve()
 
 
 def _paths(cwd: Path) -> tuple[Path, list[tuple[ConfigScope, Path, Path]]]:

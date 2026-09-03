@@ -40,7 +40,7 @@ from extensions.orchestrator_runtime.adapters.clawcodex_compat import (  # pylin
 )
 from .config.schema import AgentConfig, HooksConfig, PrTemplateConfig  # pylint: disable=import-error,no-name-in-module
 from .issue import Issue  # pylint: disable=import-error
-from .prompt_builder import resolve_python_executable  # pylint: disable=import-error
+from .prompt_context import resolve_python_executable  # pylint: disable=import-error
 from .tracker import (  # pylint: disable=import-error,no-name-in-module
     PullRequestCapability,
     PullRequestMaintenanceCapability,
