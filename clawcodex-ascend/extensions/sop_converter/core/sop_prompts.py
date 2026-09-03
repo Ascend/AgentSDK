@@ -543,7 +543,7 @@ def append_sop_overview_routing(
     from extensions.sop_converter.runtime.macros.overview_intent import (
         format_overview_macro_intent_block,
     )
-    from extensions.sop_converter.sdk_overview import format_sdk_overview_block
+    from extensions.sop_converter.runtime.sdk_overview import format_sdk_overview_block
 
     # Macro intent table must sit above SDK_OVERVIEW pointers so overview
     # routes handwritten-macro tasks without falling back to source search.

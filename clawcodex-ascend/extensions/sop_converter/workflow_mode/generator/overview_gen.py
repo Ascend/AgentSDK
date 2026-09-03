@@ -28,7 +28,7 @@
 
 from __future__ import annotations
 
-from extensions.sop_converter.agent_md_writer import WorkflowStage
+from extensions.sop_converter.runtime.agent_md_writer import WorkflowStage
 
 from ..capability.models import StageAgentMap
 from ..extractors.models import WorkflowGraph

@@ -31,8 +31,8 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from extensions.sop_converter.skill_grouper import SkillSpec
-from extensions.sop_converter.source_parser import SourceComponent
+from extensions.sop_converter.runtime.skill_grouper import SkillSpec
+from extensions.sop_converter.core.source_parser import SourceComponent
 
 from ..extractors.pattern import resolve_pipeline_dir
 from ..extractors.models import ExtractedStage, WorkflowGraph

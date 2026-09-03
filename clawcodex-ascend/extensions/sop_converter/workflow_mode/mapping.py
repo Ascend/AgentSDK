@@ -30,7 +30,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from extensions.sop_converter.agent_md_writer import AgentComponentInfo, WorkflowStage
+from extensions.sop_converter.runtime.agent_md_writer import AgentComponentInfo, WorkflowStage
 from .extractors.models import ExtractedStage, WorkflowGraph
 
 if TYPE_CHECKING:
