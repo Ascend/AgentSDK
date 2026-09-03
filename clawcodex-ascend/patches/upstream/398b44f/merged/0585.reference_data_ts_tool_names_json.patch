@@ -1,0 +1,12 @@
+diff --git a/reference_data/ts_tool_names.json b/reference_data/ts_tool_names.json
+--- a/reference_data/ts_tool_names.json
++++ b/reference_data/ts_tool_names.json
+@@ -132,7 +132,6 @@
+   },
+   "not_yet_implemented": [
+     "PowerShell",
+-    "REPL",
+-    "RemoteTrigger"
++    "REPL"
+   ]
+ }

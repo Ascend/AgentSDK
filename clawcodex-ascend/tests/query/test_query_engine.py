@@ -540,14 +540,15 @@ class TestEngineProducesCacheableSystemBlocks(unittest.TestCase):
             1,
             "Engine must emit at least one cache_control marker",
         )
-        # Boundary literal must be present.
+        # The boundary is an internal split signal and must not reach the
+        # provider wire payload.
         from src.context_system.cache_boundary import SYSTEM_PROMPT_DYNAMIC_BOUNDARY
 
         boundary_blocks = [b for b in system_arg if b.get("text") == SYSTEM_PROMPT_DYNAMIC_BOUNDARY]
         self.assertEqual(
             len(boundary_blocks),
-            1,
-            "Engine must emit exactly one boundary-marker block",
+            0,
+            "Engine must strip the internal boundary-marker block before the provider call",
         )
 
     def test_engine_threads_mcp_servers_to_block_assembly(self):

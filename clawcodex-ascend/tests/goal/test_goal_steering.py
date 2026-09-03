@@ -173,7 +173,8 @@ def test_goal_tool_builders_preserve_names_and_schemas() -> None:
     assert tools[0].input_schema["properties"] == {}
     assert tools[1].input_schema["required"] == ["objective"]
     assert tools[2].input_schema["properties"]["status"]["enum"] == ["complete", "blocked"]
-    assert "unavailable while an evaluator-managed goal is active" in UPDATE_GOAL_DESCRIPTION
+    assert "three consecutive goal turns" in UPDATE_GOAL_DESCRIPTION
+    assert "cannot use this tool to pause" in UPDATE_GOAL_DESCRIPTION
 
 
 def test_update_goal_status_errors_distinguish_invalid_and_disallowed_values() -> None:

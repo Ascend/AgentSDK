@@ -59,7 +59,6 @@ symmetry.
 from __future__ import annotations
 
 import importlib
-import sys
 
 
 def _purge_provider_registry() -> None:
@@ -80,46 +79,26 @@ def _purge_provider_registry() -> None:
 
     _EXTRA_PROVIDER_CLASSES.clear()
 
-    # Reset the deferred-init flag so the next call re-runs the
-    # registration body. Without this, the ``_provider_extensions_initialized``
-    # guard would short-circuit subsequent calls.
-    try:
-        from clawcodex_ext.providers import _provider_extensions_initialized  # noqa: F401
+    # Reset the deferred-init flag so the next call re-runs the registration
+    # body. Keep the package object itself alive: test collection may already
+    # have imported child modules such as ``codex_models``. Replacing only the
+    # parent package leaves those cached children bound to the old object, so
+    # later dotted-path monkeypatches cannot resolve them.
+    provider_package = importlib.import_module("clawcodex_ext.providers")
+    setattr(provider_package, "_provider_extensions_initialized", False)
 
-        # Module-level ``global`` rebinding via ctypes is overkill; the
-        # cleanest way is to purge the module so the next import
-        # re-executes the body and re-initializes the flag to False.
-    except ImportError:
-        pass  # An absent registry is already in the desired clean state.
-
-    # Evict the modules whose import-time or init-time side effects are
-    # what triggers the registration. We must evict them in
-    # reverse-dependency order so a re-import doesn't see stale partial
-    # state.
-    for name in (
-        "clawcodex_ext.providers",
-        "clawcodex_ext.providers.factory",
-        "clawcodex_ext.providers.runtime",
-        "src.providers.runtime",
-        # Also evict the clawcodex_ext provider classes themselves
-        # so the lazy import inside ``_ClawcodexAnthropicProvider_lazy``
-        # re-resolves against the freshly-cleared registry on the
-        # next ``get_provider_class`` call.
-        "clawcodex_ext.providers.anthropic_provider",
-        "clawcodex_ext.providers.minimax_provider",
-        "clawcodex_ext.providers.openai_codex_provider",
-    ):
-        sys.modules.pop(name, None)
+    # Do not evict provider or runtime modules here. Pytest imports test
+    # modules during collection, so rebuilding one of these modules would
+    # leave already-collected functions and classes pointing at stale module
+    # globals. Clearing the production registry and resetting its idempotency
+    # guard is the complete cold-registration state this test needs.
 
 
 def _trigger_provider_init() -> None:
-    """Re-import the providers package (rebuilding the init flag) and
-    call the deferred init function.
+    """Import the providers package and call the deferred init function.
 
-    After ``_purge_provider_registry`` evicts the cached modules, the
-    next import re-executes the package body and resets
-    ``_provider_extensions_initialized`` to False. We then call the
-    init function explicitly — this is the same code path
+    After ``_purge_provider_registry`` resets the package flag and clears the
+    registry, call the init function explicitly — this is the same path
     ``ensure_eager_extensions_installed()`` invokes in production.
     """
     importlib.import_module("clawcodex_ext.providers")
@@ -148,9 +127,10 @@ def test_init_registers_anthropic_override() -> None:
         "~60s for the platform socket timeout."
     )
     cls = get_provider_class("anthropic")
-    assert cls.__name__ == "ClawcodexAnthropicProvider", (
-        f"Expected ClawcodexAnthropicProvider, got {cls.__name__}; cancel-latency fix is not wired up in production."
-    )
+    from clawcodex_ext.providers.anthropic_provider import ClawcodexAnthropicProvider
+
+    assert cls is ClawcodexAnthropicProvider
+    assert _EXTRA_PROVIDER_CLASSES["anthropic"] is ClawcodexAnthropicProvider
 
 
 def test_init_registers_minimax_override() -> None:
@@ -188,7 +168,10 @@ def test_runtime_import_triggers_init_via_ensure_eager_extensions() -> None:
 
     assert "anthropic" in _EXTRA_PROVIDER_CLASSES
     assert "minimax" in _EXTRA_PROVIDER_CLASSES
-    assert get_provider_class("anthropic").__name__ == "ClawcodexAnthropicProvider"
+    from clawcodex_ext.providers.anthropic_provider import ClawcodexAnthropicProvider
+
+    assert get_provider_class("anthropic") is ClawcodexAnthropicProvider
+    assert _EXTRA_PROVIDER_CLASSES["anthropic"] is ClawcodexAnthropicProvider
 
 
 def test_provider_package_init_runs_register_provider_calls() -> None:
@@ -225,6 +208,9 @@ def test_registration_survives_repeated_init() -> None:
 
     from src.providers import _EXTRA_PROVIDER_CLASSES, get_provider_class
 
-    assert get_provider_class("anthropic").__name__ == "ClawcodexAnthropicProvider"
+    from clawcodex_ext.providers.anthropic_provider import ClawcodexAnthropicProvider
+
+    assert get_provider_class("anthropic") is ClawcodexAnthropicProvider
+    assert _EXTRA_PROVIDER_CLASSES["anthropic"] is ClawcodexAnthropicProvider
     # Sanity: the registry still has exactly the expected set.
     assert set(_EXTRA_PROVIDER_CLASSES.keys()) >= {"anthropic", "minimax", "openai-codex"}

@@ -114,7 +114,7 @@ class TestValidation:
         # top-level ``permission_mode`` still works as back-compat.
         s = SettingsSchema(permission_mode="bad")
         errors = validate_settings(s)
-        assert any(e.field == "permissions.defaultMode" for e in errors)
+        assert any(e.field == "permission_mode" for e in errors)
 
     def test_empty_permission_mode_is_unset(self):
         # the new default ``""`` is treated as "unset" and skips the
@@ -123,10 +123,10 @@ class TestValidation:
         errors = validate_settings(s)
         assert not any("defaultMode" in e.field for e in errors)
 
-    def test_invalid_output_style(self):
+    def test_custom_output_style_is_allowed(self):
         s = SettingsSchema(output_style=OutputStyleSettings(style="nonexistent"))
         errors = validate_settings(s)
-        assert any(e.field == "output_style.style" for e in errors)
+        assert not any(e.field == "output_style.style" for e in errors)
 
     def test_max_width_too_small(self):
         s = SettingsSchema(output_style=OutputStyleSettings(max_width=10))

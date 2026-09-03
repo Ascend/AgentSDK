@@ -1994,10 +1994,10 @@ async def execute_command_async(
     cmd = registry.get(cmd_name)
 
     if cmd is None:
-        return CommandResult.error(cmd_name, f"Unknown command: {cmd_name}")
+        return CommandResult.failure(cmd_name, f"Unknown command: {cmd_name}")
 
     if not cmd.is_enabled():
-        return CommandResult.error(cmd_name, f"Command {cmd_name} is disabled")
+        return CommandResult.failure(cmd_name, f"Command {cmd_name} is disabled")
 
     engine = CommandEngine(
         registry=registry,

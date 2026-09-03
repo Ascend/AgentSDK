@@ -38,6 +38,7 @@ import sys
 import tempfile
 import types
 import unittest
+from importlib import import_module
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
@@ -73,17 +74,20 @@ def _get_current_branch(cwd: str | None = None) -> str | None:
     return stdout or None if rc == 0 else None
 
 
-_compat = types.ModuleType("extensions.orchestrator_runtime.adapters.clawcodex_compat")
-_compat._run_git = _run_git
-_compat.get_current_branch = _get_current_branch
+try:
+    import_module("extensions.orchestrator_runtime.adapters.clawcodex_compat")
+except ImportError:
+    _compat = types.ModuleType("extensions.orchestrator_runtime.adapters.clawcodex_compat")
+    _compat._run_git = _run_git
+    _compat.get_current_branch = _get_current_branch
 
-for _name in (
-    "extensions.orchestrator_runtime",
-    "extensions.orchestrator_runtime.adapters",
-):
-    if _name not in sys.modules:
-        sys.modules[_name] = types.ModuleType(_name)
-sys.modules["extensions.orchestrator_runtime.adapters.clawcodex_compat"] = _compat
+    for _name in (
+        "extensions.orchestrator_runtime",
+        "extensions.orchestrator_runtime.adapters",
+    ):
+        if _name not in sys.modules:
+            sys.modules[_name] = types.ModuleType(_name)
+    sys.modules["extensions.orchestrator_runtime.adapters.clawcodex_compat"] = _compat
 
 # ---------------------------------------------------------------------------
 # Now safe to import git_sync_rebase

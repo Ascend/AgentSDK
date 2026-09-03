@@ -22,7 +22,6 @@
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 from clawcodex_ext.command_system.builtins import execute_command_sync
@@ -39,10 +38,10 @@ from clawcodex_ext.services.proactive import (
 from clawcodex_ext.tool_system.context import ToolContext
 
 
-def test_proactive_section_is_goal_aware(tmp_path: Path) -> None:
+def test_proactive_section_is_goal_aware(tmp_path: Path, monkeypatch) -> None:
     # Point CLAWCODEX_HOME at tmp_path so _active_goal_block's GoalStore()
     # shares the same SQLite database as the test setup.
-    os.environ["CLAWCODEX_HOME"] = str(tmp_path)
+    monkeypatch.setenv("CLAWCODEX_HOME", str(tmp_path))
     store = GoalStore()
     store.insert_thread_goal(
         thread_id="sess",

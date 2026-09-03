@@ -209,9 +209,7 @@ def _normalized_path_text(text: str) -> str:
 
 
 def _wsl_to_windows_path(text: str) -> str | None:
-    """Map ``/mnt/d/projects/...`` → ``D:/projects/...`` on Windows."""
-    if sys.platform != "win32":
-        return None
+    """Map ``/mnt/d/projects/...`` to its Windows spelling for comparison."""
     norm = _normalized_path_text(text).lower()
     match = re.match(r"^/mnt/([a-z])/(.+)$", norm)
     if not match:

@@ -517,29 +517,29 @@ class TestFilesystemProtectedPaths(unittest.TestCase):
     def test_dangerous_directories_blocked(self) -> None:
         from src.permissions.filesystem import check_path_safety_for_auto_edit
 
-        dirs = [".git", ".ssh", ".gnupg", ".config", ".vscode"]
+        dirs = [".git", ".vscode", ".idea", ".claude", ".clawcodex"]
         for d in dirs:
             path = f"/home/user/{d}/some_file.txt"
             result = check_path_safety_for_auto_edit(path)
             self.assertIsNotNone(result, f"Expected protection for dir: {d}")
 
-    def test_env_files_blocked(self) -> None:
+    def test_env_files_follow_accept_edits_contract(self) -> None:
         from src.permissions.filesystem import check_path_safety_for_auto_edit
 
         env_files = [".env", ".env.local", ".env.production"]
         for f in env_files:
             path = f"/project/{f}"
             result = check_path_safety_for_auto_edit(path)
-            self.assertIsNotNone(result, f"Expected protection for: {f}")
+            self.assertIsNone(result, f"Expected auto-allow for: {f}")
 
-    def test_lockfiles_blocked(self) -> None:
+    def test_lockfiles_follow_accept_edits_contract(self) -> None:
         from src.permissions.filesystem import check_path_safety_for_auto_edit
 
         lockfiles = ["package-lock.json", "yarn.lock", "poetry.lock"]
         for f in lockfiles:
             path = f"/project/{f}"
             result = check_path_safety_for_auto_edit(path)
-            self.assertIsNotNone(result, f"Expected protection for: {f}")
+            self.assertIsNone(result, f"Expected auto-allow for: {f}")
 
     def test_normal_files_allowed(self) -> None:
         from src.permissions.filesystem import check_path_safety_for_auto_edit

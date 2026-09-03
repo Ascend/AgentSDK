@@ -51,16 +51,16 @@ voice stack testable without a real terminal.
 
 Concurrency
 -----------
-``start`` / ``stop`` are *not* async — they're called from the UI thread
-on a key event. The async connection machinery runs on the event loop
-the controller binds at ``start`` time (the REPL's running loop). The
-recorder runs on its own daemon thread and pushes into the thread-safe
-:class:`AudioChunkQueue`.
+``start`` is synchronous and ``stop`` is awaited by the UI integration. The
+async connection machinery runs on the event loop the controller binds at
+``start`` time (the REPL's running loop). The recorder runs on its own daemon
+thread and pushes into the thread-safe :class:`AudioChunkQueue`.
 """
 
 from __future__ import annotations
 
 import asyncio
+import inspect
 import logging
 from dataclasses import dataclass
 from enum import Enum
@@ -339,7 +339,7 @@ class PushToTalkController:
             except Exception as exc:
                 self._emit_error(f"Voice finalize failed: {exc}")
                 final_text = ""
-            self._cleanup_connection()
+            await self._cleanup_connection_async()
 
         if self._last_error is not None:
             self._set_state(VoiceSessionState.ERROR)
@@ -360,29 +360,59 @@ class PushToTalkController:
     def _cleanup_connection(self) -> None:
         if self._connection is None:
             return
+        connection = self._connection
+        self._connection = None
         try:
-            close_fn = getattr(self._connection, "close", None)
-            if close_fn is not None and asyncio.iscoroutinefunction(close_fn):
-                # close() is async — schedule it on the bound loop. We
-                # don't await here because stop() may already be running
-                # on that loop and we don't want a nested await; the
-                # socket close is fire-and-forget.
+            close_fn = getattr(connection, "close", None)
+            if not callable(close_fn):
+                return
+            if asyncio.iscoroutinefunction(close_fn):
+                close_coro = close_fn()  # pylint: disable=not-callable
                 if self._loop is not None and self._loop.is_running():
-                    self._loop.create_task(close_fn())  # pylint: disable=not-callable
+                    try:
+                        running_loop = asyncio.get_running_loop()
+                    except RuntimeError:
+                        running_loop = None
+                    if running_loop is self._loop:
+                        self._loop.create_task(close_coro)  # pylint: disable=not-callable
+                    else:
+                        asyncio.run_coroutine_threadsafe(close_coro, self._loop)
+                elif self._loop is not None and not self._loop.is_closed():
+                    # start() may have created a loop for a synchronous UI
+                    # caller.  Scheduling onto that stopped loop leaks a
+                    # pending coroutine forever, so drive the close now.
+                    self._loop.run_until_complete(close_coro)
                 else:
-                    asyncio.ensure_future(close_fn())  # pylint: disable=not-callable
-            elif close_fn is not None:
-                close_fn()
+                    asyncio.run(close_coro)
+            else:
+                close_fn()  # pylint: disable=not-callable
         except Exception:
             logger.exception("voice connection close raised")
+
+    async def _cleanup_connection_async(self) -> None:
+        """Close the active connection before the caller's loop can exit."""
+
+        if self._connection is None:
+            return
+        connection = self._connection
         self._connection = None
+        try:
+            close_fn = getattr(connection, "close", None)
+            if not callable(close_fn):
+                return
+            result = close_fn()  # pylint: disable=not-callable
+            if inspect.isawaitable(result):
+                await result
+        except Exception:
+            logger.exception("voice connection close raised")
 
     def disarm(self) -> None:
         """Force-stop any active session without awaiting transcripts.
 
         Used when the REPL is shutting down or the user disables voice
-        mid-recording. Synchronous: stops the recorder and schedules a
-        connection close on the event loop.
+        mid-recording. Synchronous: stops the recorder and either schedules
+        the connection close on a running loop or completes it immediately
+        when the controller owns a stopped loop.
         """
         if self._recorder is not None:
             try:

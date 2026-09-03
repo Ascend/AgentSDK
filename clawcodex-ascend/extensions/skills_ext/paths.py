@@ -94,12 +94,12 @@ def get_clawcodex_user_skills_dirs() -> list[Path]:
 def get_clawcodex_project_skills_dir(
     project_root: str | Path | None,
 ) -> Path | None:
-    """Return the legacy project skill directory, if a root was supplied."""
+    """Return the canonical project skill directory, if a root was supplied."""
 
     if project_root is None:
         return None
-    dirs = canonical_loader._legacy_project_skill_dirs(project_root)
-    return dirs[0] if dirs else None
+    root = Path(project_root).expanduser().resolve()
+    return root / canonical_loader.get_skills_path("projectSettings")
 
 
 def _append_unique(target: list[str], path: str | Path) -> None:
@@ -129,7 +129,10 @@ def resolve_skills_paths(
 
     if project_root is not None:
         root = Path(project_root).expanduser().resolve()
-        _append_unique(result["project"], root / ".claude" / "skills")
+        _append_unique(
+            result["project"],
+            root / canonical_loader.get_skills_path("projectSettings"),
+        )
         for legacy_root in canonical_loader._legacy_project_skill_dirs(root):
             _append_unique(result["project"], legacy_root)
 

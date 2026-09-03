@@ -427,6 +427,7 @@ class TestCollectFollowups(unittest.TestCase):
         record = self.registry.get("i1")
         # Force stale.
         record.pending_feedback_since = 0.0  # ancient
+        record.pending_feedback_since_map["stale-fb"] = 0.0
         self.registry._save()
 
         tracker = _FakeTracker(feedback_by_issue={"i1": [_feedback(id="new-fb", author_login="alice")]})

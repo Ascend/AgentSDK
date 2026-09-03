@@ -51,9 +51,9 @@ class TestShouldExcludeFromPostCompactRestore(unittest.TestCase):
     def test_plan_file_excluded(self):
         self.assertTrue(_should_exclude_from_post_compact_restore("/tmp/plan.md", plan_file_path="/tmp/plan.md"))
 
-    def test_claude_md_excluded(self):
-        self.assertTrue(_should_exclude_from_post_compact_restore("CLAUDE.md"))
-        self.assertTrue(_should_exclude_from_post_compact_restore(".claude.md"))
+    def test_clawcodex_md_excluded(self):
+        self.assertTrue(_should_exclude_from_post_compact_restore("CLAWCODEX.md"))
+        self.assertTrue(_should_exclude_from_post_compact_restore(".clawcodex.md"))
 
     def test_memory_path_excluded(self):
         paths = {os.path.abspath("/home/user/.claude/memory.md")}

@@ -24,8 +24,6 @@
 
 from __future__ import annotations
 
-import json
-
 from telemetry import cli
 from telemetry.config import ReportingConfig, TelemetryConfig
 from telemetry.recorder import reset_recorder_for_tests
@@ -60,30 +58,44 @@ def test_status_default(monkeypatch, tmp_path, capsys):
     assert "enabled        : True" in out  # dev-default
 
 
-def test_enable_prints_snippet(monkeypatch, tmp_path, capsys):
-    monkeypatch.setenv("HOME", str(tmp_path))
+def test_enable_persists_config(monkeypatch, capsys):
+    saved: list[dict] = []
+    monkeypatch.setattr(
+        "src.config.load_config",
+        lambda: {"telemetry": {"storage_dir": "/tmp/telemetry"}},
+    )
+    monkeypatch.setattr("src.config.save_config", saved.append)
+
     rc = cli.run_enable([])
     out = capsys.readouterr().out
+
     assert rc == 0
-    # The snippet should be parseable JSON.
-    assert "telemetry" in out
-    # Find the JSON blob in the output.
-    start = out.find("{")
-    assert start != -1
-    blob = out[start:]
-    parsed = json.loads(blob)
-    assert "telemetry" in parsed
-    assert "storage_dir" in parsed["telemetry"]
+    assert saved[0]["telemetry"]["enabled"] is True
+    assert saved[0]["telemetry"]["reporting"]["reporting_enabled"] is True
+    assert saved[0]["telemetry"]["storage_dir"] == "/tmp/telemetry"
+    assert "Telemetry enabled" in out
 
 
-def test_disable_prints_snippet(monkeypatch, tmp_path, capsys):
-    monkeypatch.setenv("HOME", str(tmp_path))
+def test_disable_persists_config(monkeypatch, capsys):
+    saved: list[dict] = []
+    monkeypatch.setattr(
+        "src.config.load_config",
+        lambda: {
+            "telemetry": {
+                "enabled": True,
+                "reporting": {"reporting_enabled": True},
+            }
+        },
+    )
+    monkeypatch.setattr("src.config.save_config", saved.append)
+
     rc = cli.run_disable([])
     out = capsys.readouterr().out
+
     assert rc == 0
-    start = out.find("{")
-    parsed = json.loads(out[start:])
-    assert parsed["telemetry"]["enabled"] is False
+    assert saved[0]["telemetry"]["enabled"] is False
+    assert saved[0]["telemetry"]["reporting"]["reporting_enabled"] is False
+    assert "Telemetry disabled" in out
 
 
 def test_preview_when_disabled(monkeypatch, tmp_path, capsys):
@@ -204,33 +216,32 @@ def test_status_prints_issue_reporting_fields_without_secret(monkeypatch, tmp_pa
     assert secret not in out
 
 
-def test_enable_snippet_includes_issue_fields_without_api_key(monkeypatch, tmp_path, capsys):
+def test_enable_preserves_issue_fields_without_printing_api_key(monkeypatch, capsys):
     secret = "ghp_12345678901234567890"
-    monkeypatch.setenv("HOME", str(tmp_path))
+    saved: list[dict] = []
     monkeypatch.setattr(
-        cli,
-        "load_config",
-        lambda: TelemetryConfig(
-            storage_dir=tmp_path / "telemetry",
-            reporting=ReportingConfig(
-                reporting_enabled=True,
-                kind="issue",
-                owner="acme",
-                repo="widget",
-                api_key=secret,
-            ),
-        ),
+        "src.config.load_config",
+        lambda: {
+            "telemetry": {
+                "reporting": {
+                    "reporting_enabled": True,
+                    "kind": "issue",
+                    "owner": "acme",
+                    "repo": "widget",
+                    "api_key": secret,
+                }
+            }
+        },
     )
+    monkeypatch.setattr("src.config.save_config", saved.append)
 
     rc = cli.run_enable([])
     out = capsys.readouterr().out
-    parsed = json.loads(out[out.find("{") :])
-    reporting = parsed["telemetry"]["reporting"]
+    reporting = saved[0]["telemetry"]["reporting"]
 
     assert rc == 0
     assert reporting["kind"] == "issue"
     assert reporting["owner"] == "acme"
     assert reporting["repo"] == "widget"
-    assert reporting["token_env"] == "CLAW_TELEMETRY_REPORTING_TOKEN"
-    assert "api_key" not in reporting
+    assert reporting["api_key"] == secret
     assert secret not in out

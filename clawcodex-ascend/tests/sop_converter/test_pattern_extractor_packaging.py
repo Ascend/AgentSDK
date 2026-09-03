@@ -27,32 +27,36 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def test_examples_namespace_reexports_production_types() -> None:
-    from examples.sdk_extractor import PatternExtractor as CompatibilityExtractor
-    from examples.sdk_extractor import PipelineConfig as CompatibilityConfig
+    compatibility = pytest.importorskip(
+        "examples.sdk_extractor",
+        reason="AgentSDK migration intentionally excludes example-only code",
+    )
     from extensions.sop_converter.workflow_mode.extractors.pattern import (
         PatternExtractor,
         PipelineConfig,
     )
 
-    assert CompatibilityExtractor is PatternExtractor
-    assert CompatibilityConfig is PipelineConfig
+    assert compatibility.PatternExtractor is PatternExtractor
+    assert compatibility.PipelineConfig is PipelineConfig
 
 
 def test_production_modules_do_not_import_examples() -> None:
-    production_files = (
-        REPO_ROOT / "extensions" / "sop_converter" / "workflow_mode" / "extractors" / "pattern.py",
-        REPO_ROOT / "extensions" / "sop_converter" / "workflow_mode" / "extractors" / "adapters" / "arc.py",
-    )
+    production_files = (REPO_ROOT / "extensions" / "sop_converter" / "workflow_mode" / "extractors" / "pattern.py",)
 
     for path in production_files:
         source = path.read_text(encoding="utf-8")
         assert "from examples" not in source
         assert "import examples" not in source
+
+    deprecated_arc = REPO_ROOT / "extensions" / "sop_converter" / "workflow_mode" / "extractors" / "adapters" / "arc.py"
+    assert not deprecated_arc.exists()
 
 
 def test_capability_import_outside_repo_does_not_load_arc_support(tmp_path: Path) -> None:

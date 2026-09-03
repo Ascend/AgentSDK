@@ -37,7 +37,7 @@ from typing import Any
 
 import pytest
 
-from src.services.langfuse import client as client_module
+import clawcodex_ext.services.langfuse.client as client_module
 from src.services.langfuse.client import (
     LangfuseConfig,
     get_langfuse_client,

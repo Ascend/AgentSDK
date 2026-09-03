@@ -57,6 +57,7 @@ from pathlib import Path
 from typing import Any, Self
 
 from .ipc_protocol import FrameType, GatewayFrame
+from ..socket_path import normalize_unix_socket_path
 
 logger = logging.getLogger(__name__)
 
@@ -107,7 +108,7 @@ class GatewayIpcClient:
         on_deliver: OnDeliverFn | None = None,
         delivery_cache_size: int = DEFAULT_DELIVERY_CACHE_SIZE,
     ) -> None:
-        self.socket_path = Path(socket_path)
+        self.socket_path = normalize_unix_socket_path(socket_path)
         self.instance_id = instance_id
         self.on_deliver = on_deliver
         self._reader: asyncio.StreamReader | None = None

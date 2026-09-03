@@ -336,7 +336,7 @@ async def test_ipc_heartbeat_after_unregister_does_not_crash_handler(tmp_path) -
     reader = None
     writer = None
     try:
-        reader, writer = await asyncio.open_unix_connection(str(tmp_path / "gw.sock"))
+        reader, writer = await asyncio.open_unix_connection(str(server.socket_path))
 
         writer.write(GatewayFrame.register(session_id="orchestrator-1130", origin="o1").encode())
         await writer.drain()
@@ -371,13 +371,13 @@ async def test_ipc_same_session_reconnect_keeps_replacement_online(tmp_path) -> 
     old_writer = None
     new_writer = None
     try:
-        old_reader, old_writer = await asyncio.open_unix_connection(str(tmp_path / "gw.sock"))
+        old_reader, old_writer = await asyncio.open_unix_connection(str(server.socket_path))
         old_writer.write(GatewayFrame.register(session_id="orchestrator-1130", origin="o1").encode())
         await old_writer.drain()
         old_registered = GatewayFrame.decode(await old_reader.readline())
         assert old_registered.ack_layer == "accepted"
 
-        new_reader, new_writer = await asyncio.open_unix_connection(str(tmp_path / "gw.sock"))
+        new_reader, new_writer = await asyncio.open_unix_connection(str(server.socket_path))
         new_writer.write(GatewayFrame.register(session_id="orchestrator-1130", origin="o1").encode())
         await new_writer.drain()
         new_registered = GatewayFrame.decode(await new_reader.readline())

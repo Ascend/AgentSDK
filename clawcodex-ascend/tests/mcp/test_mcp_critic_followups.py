@@ -629,7 +629,10 @@ class TestSseTransportTimeouts:
             return MagicMock()
 
         transport = SseTransport(url="https://example.com/sse", headers={"X": "y"})
-        with patch("clawcodex_ext.services.mcp.transport.sse_client", side_effect=fake_sse_client):
+        with patch(
+            "clawcodex_ext.services.mcp.transport._lazy_sse",
+            return_value=fake_sse_client,
+        ):
             transport._open()
 
         assert captured["url"] == "https://example.com/sse"

@@ -98,9 +98,9 @@ class TestPermissionPipelineFilesystem(unittest.TestCase):
         self.assertIsNotNone(result)
         self.assertEqual(result.behavior, "ask")
 
-    def test_env_file_blocked(self) -> None:
+    def test_env_file_follows_accept_edits_contract(self) -> None:
         result = check_path_safety_for_auto_edit("/project/.env")
-        self.assertIsNotNone(result)
+        self.assertIsNone(result)
 
     def test_git_dir_blocked(self) -> None:
         result = check_path_safety_for_auto_edit("/project/.git/config")
@@ -110,9 +110,9 @@ class TestPermissionPipelineFilesystem(unittest.TestCase):
         result = check_path_safety_for_auto_edit("/project/src/main.py")
         self.assertIsNone(result)
 
-    def test_lockfile_blocked(self) -> None:
+    def test_lockfile_follows_accept_edits_contract(self) -> None:
         result = check_path_safety_for_auto_edit("/project/package-lock.json")
-        self.assertIsNotNone(result)
+        self.assertIsNone(result)
 
 
 class TestPermissionRuleFlow(unittest.TestCase):

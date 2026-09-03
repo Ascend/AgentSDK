@@ -326,12 +326,13 @@ def _wait_for_terminal(ctx: ToolContext, task_id: str, timeout_s: float = 2.0) -
     return getattr(state, "status", "<missing>")
 
 
-def test_async_agent_writes_jsonl_transcript_on_disk(tmp_path: Path) -> None:
+def test_async_agent_writes_jsonl_transcript_on_disk(tmp_path: Path, monkeypatch) -> None:
     """Gate-zero acceptance: after an async agent runs, the JSONL
     transcript file exists at ``state.output_file`` with one line per
     yielded message. This is the prerequisite for Phase 3 / WI-3.1
     notification XML and Phase 7 / WI-7.4 auto-resume.
     """
+    monkeypatch.setenv("CLAWCODEX_CONFIG_DIR", str(tmp_path / ".clawcodex"))
     registry = build_default_registry(provider=object())
     ctx = ToolContext(workspace_root=tmp_path)
 
@@ -378,11 +379,12 @@ def test_async_agent_writes_jsonl_transcript_on_disk(tmp_path: Path) -> None:
         assert isinstance(parsed, dict)
 
 
-def test_async_agent_finalize_total_tokens_is_no_longer_zero(tmp_path: Path) -> None:
+def test_async_agent_finalize_total_tokens_is_no_longer_zero(tmp_path: Path, monkeypatch) -> None:
     """WI-2.4 acceptance: ``finalize_agent_tool.total_tokens`` reports
     the chapter-correct latest_input + cumulative_output instead of the
     pre-WI-2.4 hard-coded ``0``.
     """
+    monkeypatch.setenv("CLAWCODEX_CONFIG_DIR", str(tmp_path / ".clawcodex"))
     registry = build_default_registry(provider=object())
     ctx = ToolContext(workspace_root=tmp_path)
 

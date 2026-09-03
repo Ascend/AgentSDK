@@ -44,6 +44,7 @@ from .prompt_context import (
     _get_workspace_diff,
     _resolve_workspace_path,
     _to_jinja_value,
+    resolve_python_executable,  # noqa: F401
 )
 from .rules_learner import RuleEngine
 from .workflow_store import get_workflow_store

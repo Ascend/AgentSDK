@@ -78,7 +78,7 @@ def test_window_ref_from_dict_rejects_blank_title() -> None:
 
 
 def test_input_action_rejects_non_dict_args() -> None:
-    with pytest.raises(ValueError):
+    with pytest.raises(TypeError):
         InputAction(kind="click", args="not-a-dict")  # type: ignore[arg-type]
 
 

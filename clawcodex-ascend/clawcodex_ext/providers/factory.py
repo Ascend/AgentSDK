@@ -36,7 +36,6 @@ Architecture::
     clawcodex_ext/providers/factory.py              ← extension factory and registration
         ↑ import
     clawcodex_ext/providers/_litellm_adapter.py     ← LiteLLM fallback provider (canonical)
-    extensions/providers_ext/                       ← deprecated re-export shim (backward compat)
 """
 
 from __future__ import annotations
@@ -119,7 +118,7 @@ def register_provider(name: str, info: "ProviderInfo", cls: type | callable) -> 
     Idempotent: calling twice with the same *name* is a no-op
     (first registration wins).
     """
-    from src.providers import EXTRA_PROVIDER_CLASSES as _EXTRA_PROVIDER_CLASSES
+    from src.providers import _EXTRA_PROVIDER_CLASSES
 
     register_provider_info(name, info)
     if name not in _EXTRA_PROVIDER_CLASSES:

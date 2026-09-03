@@ -180,6 +180,7 @@ class StateMachineMixin:
             record.pending_feedback_ids = list(existing.pending_feedback_ids)
             record.pending_feedback_urls = dict(existing.pending_feedback_urls)
             record.pending_feedback_since = existing.pending_feedback_since
+            record.pending_feedback_since_map = dict(existing.pending_feedback_since_map)
             record.feedback_cursor = existing.feedback_cursor
             record.followup_attempt_count = existing.followup_attempt_count
             record.last_feedback_checked_at = existing.last_feedback_checked_at

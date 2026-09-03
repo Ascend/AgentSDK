@@ -68,7 +68,7 @@ class PipeMessage:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> PipeMessage:
         if not isinstance(data, dict):
-            raise TypeError("PipeMessage data must be a JSON object")
+            raise ValueError("PipeMessage data must be a JSON object")
 
         try:
             message_type = PipeMessageType(str(data["type"]))
@@ -80,7 +80,7 @@ class PipeMessage:
 
         payload = data.get("payload", {})
         if not isinstance(payload, dict):
-            raise TypeError("PipeMessage payload must be a JSON object")
+            raise ValueError("PipeMessage payload must be a JSON object")
 
         target_id = data.get("target_id")
         permission_token = data.get("permission_token")
@@ -124,7 +124,7 @@ class PipePeer:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> PipePeer:
         if not isinstance(data, dict):
-            raise TypeError("PipePeer data must be a JSON object")
+            raise ValueError("PipePeer data must be a JSON object")
 
         try:
             instance_id = str(data["instance_id"])
@@ -135,7 +135,7 @@ class PipePeer:
 
         capabilities = data.get("capabilities", [])
         if not isinstance(capabilities, list):
-            raise TypeError("PipePeer capabilities must be a list")
+            raise ValueError("PipePeer capabilities must be a list")
 
         return cls(
             instance_id=instance_id,

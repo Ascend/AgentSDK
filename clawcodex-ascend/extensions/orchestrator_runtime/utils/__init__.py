@@ -18,11 +18,7 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""Standalone copies of clawcodex_ext dataclasses and helpers.
-
-Git, API errors, diagnostics, and intent-focus helpers live here so
-this package does not import the upstream runtime.
-"""
+"""Standalone copies of Git, API-error, and intent-focus helpers."""
 
 from __future__ import annotations
 

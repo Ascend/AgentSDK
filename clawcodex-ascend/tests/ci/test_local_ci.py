@@ -30,6 +30,12 @@ from pathlib import Path
 import pytest
 
 
+pytestmark = pytest.mark.skipif(
+    not (Path(__file__).resolve().parents[2] / "scripts" / "ci" / "local_ci.py").is_file(),
+    reason="standalone ClawCodex CI helpers are not part of the AgentSDK runtime migration",
+)
+
+
 def _load_module(monkeypatch):
     monkeypatch.syspath_prepend("scripts/ci")
     return importlib.import_module("local_ci")

@@ -190,7 +190,7 @@ def _coerce_model(value: Any) -> str | None:
         return None
 
     try:
-        from clawcodex_ext.models.aliases import MODEL_ALIASES  # pylint: disable=no-name-in-module
+        from src.models.aliases import MODEL_ALIASES
 
         known_aliases = set(MODEL_ALIASES.keys())
     except Exception:
@@ -1286,7 +1286,7 @@ def get_registered_skill(name: str) -> Skill | None:
     if bundled is not None:
         return bundled
     try:
-        from clawcodex_ext.plugins.builtin_plugins import get_builtin_plugin_skill_commands  # pylint: disable=no-name-in-module
+        from src.plugins.builtin_plugins import get_builtin_plugin_skill_commands
 
         for skill in get_builtin_plugin_skill_commands():
             if skill.name == name or name in getattr(skill, "aliases", ()):

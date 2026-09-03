@@ -45,7 +45,8 @@ def _ctx(workspace_root: Path | None = None):
 
 
 @pytest.fixture(autouse=True)
-def _reset_lodestone_singleton():
+def _reset_lodestone_singleton(tmp_path, monkeypatch):
+    monkeypatch.setenv("CLAWCODEX_CONFIG_DIR", str(tmp_path))
     reset_default_service()
     yield
     reset_default_service()

@@ -61,7 +61,8 @@ def replace_cron_tools(registry: Any) -> None:
         try:
             registry.register(tool)
         except Exception as exc:  # nosec B110 - ignore duplicate tool registration
-            _log.warning("failed to register cron tool %s: %s", tool.__name__, exc)
+            tool_name = getattr(tool, "__name__", getattr(tool, "name", type(tool).__name__))
+            _log.warning("failed to register cron tool %s: %s", tool_name, exc)
 
 
 def attach_cron_runtime(

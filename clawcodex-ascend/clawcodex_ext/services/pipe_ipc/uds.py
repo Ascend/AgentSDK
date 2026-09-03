@@ -28,6 +28,7 @@ from collections import defaultdict
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 
+from ..socket_path import normalize_unix_socket_path
 from .codec import PipeJsonCodec
 from .models import PipeMessage, PipeMessageType
 
@@ -36,7 +37,7 @@ MessageHandler = Callable[[PipeMessage], Awaitable[None] | None]
 
 class UdsPipeServer:
     def __init__(self, socket_path: Path | str, on_message: MessageHandler | None = None) -> None:
-        self.socket_path = Path(socket_path)
+        self.socket_path = normalize_unix_socket_path(socket_path)
         self.on_message = on_message
         self._server: asyncio.AbstractServer | None = None
         self._writers: set[asyncio.StreamWriter] = set()
@@ -147,7 +148,7 @@ class UdsPipeClient:
         *,
         on_message: MessageHandler | None = None,
     ) -> None:
-        self.socket_path = Path(socket_path)
+        self.socket_path = normalize_unix_socket_path(socket_path)
         self.instance_id = instance_id
         self.on_message = on_message
         self._reader: asyncio.StreamReader | None = None

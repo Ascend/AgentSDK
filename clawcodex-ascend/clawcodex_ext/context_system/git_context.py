@@ -300,9 +300,12 @@ def format_git_status(ctx: GitContextSnapshot) -> str:
     if ctx.user_name:
         parts.append(f"Git user: {ctx.user_name}")
 
-    # The truncation notice (when any) is already embedded in ctx.status
-    # with the TS-exact wording by collect_git_context.
-    parts.append(f"Status:\n{ctx.status or '(clean)'}")
+    # ``collect_git_context`` embeds the notice in normal snapshots. Keep the
+    # formatter truthful for snapshots supplied by adapters or tests too.
+    status = ctx.status or "(clean)"
+    if ctx.status_truncated and "truncated" not in status.lower():
+        status += "\n... (truncated because it exceeds 2k characters)"
+    parts.append(f"Status:\n{status}")
 
     if ctx.recent_commits:
         parts.append(f"Recent commits:\n{ctx.recent_commits}")

@@ -577,6 +577,7 @@ class TestFeedbackMutations(unittest.TestCase):
         # Force the pending_since into the past by patching.
         record = self.registry.get("i1")
         record.pending_feedback_since = time.time() - 1000
+        record.pending_feedback_since_map["fb-1"] = record.pending_feedback_since
         self.registry._save()
         count = self.registry.clear_stale_pending("i1", timeout_seconds=10)
         self.assertEqual(count, 1)
@@ -628,6 +629,7 @@ class TestFeedbackMutations(unittest.TestCase):
         self.registry.mark_feedback_pending("i1", ["fb-1"], feedback_urls={"fb-1": "u1"})
         record = self.registry.get("i1")
         record.pending_feedback_since = time.time() - 1000
+        record.pending_feedback_since_map["fb-1"] = record.pending_feedback_since
         self.registry._save()
         self.registry.clear_stale_pending("i1", timeout_seconds=10)
         cleared = self.registry.get("i1")

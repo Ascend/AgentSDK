@@ -423,7 +423,7 @@ def _clawcodex_data_dir_line() -> str | None:
     # Environment block without busting the cache prefix.
     """
     try:
-        from clawcodex_ext.utils.clawcodex_dirs import get_user_config_dir  # pylint: disable=no-name-in-module
+        from src.utils.clawcodex_dirs import get_user_config_dir
 
         root = str(get_user_config_dir())
     except Exception:

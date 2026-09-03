@@ -610,6 +610,7 @@ class TestREPL(unittest.TestCase):
                 self.kwargs = kwargs
                 self._pending_text = "queued during goal"
                 self.updates = []
+                self.stop_calls = 0
                 self.__class__.instances.append(self)
 
             def __enter__(self):
@@ -620,6 +621,9 @@ class TestREPL(unittest.TestCase):
 
             def update(self, message):
                 self.updates.append(message)
+
+            def stop(self):
+                self.stop_calls += 1
 
         previous_controller = AbortController()
         repl = ClawcodexREPL.__new__(ClawcodexREPL)
@@ -669,6 +673,8 @@ class TestREPL(unittest.TestCase):
                 FakeLiveStatus.instances[-1].kwargs["on_cancel"],
             )
             self.assertIs(repl.tool_context.abort_controller, kwargs["abort_controller"])
+            kwargs["on_text_chunk"]("goal ")
+            kwargs["on_text_chunk"]("response")
             kwargs["on_attachment"](SimpleNamespace(role="user", content="attachment payload"))
             return AgentLoopRunResult(
                 response_text="goal response",
@@ -712,6 +718,8 @@ class TestREPL(unittest.TestCase):
         self.assertIs(repl.tool_context.abort_controller, previous_controller)
         self.assertIsNone(repl._im_active_cancel)
         self.assertIsNone(repl._active_live_status)
+        self.assertEqual(FakeLiveStatus.instances[-1].stop_calls, 0)
+        self.assertTrue(any(not args for args, _kwargs in repl.console.print.call_args_list))
         repl._enqueue_prompt.assert_called_once_with("queued during goal")
         self.assertEqual(repl._stats_turns, 1)
         self.assertEqual(repl._stats_input_tokens, 4)
@@ -1096,6 +1104,28 @@ class TestREPL(unittest.TestCase):
 
     def test_chat_uses_true_api_stream_for_simple_prompt(self):
         """Simple prompts should use provider.chat_stream when stream mode is enabled."""
+
+        live_statuses = []
+
+        class FakeLiveStatus:
+            def __init__(self, _message, **_kwargs):
+                self.kwargs = _kwargs
+                self._pending_text = ""
+                self.stop_calls = 0
+                live_statuses.append(self)
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, _exc_type, _exc, _tb):
+                return None
+
+            def stop(self):
+                self.stop_calls += 1
+
+            def update(self, _message):
+                return None
+
         with patch("src.config.get_config_path", return_value=self.config_dir / "config.json"):
             with patch("src.agent.Session.create") as mock_session_factory:
                 mock_session = Mock()
@@ -1112,15 +1142,30 @@ class TestREPL(unittest.TestCase):
                 ):
                     mock_provider = Mock()
                     mock_provider.model = "glm-4.5"
-                    mock_provider.chat_stream.return_value = iter(["你", "好"])
+
+                    def _stream_chunks():
+                        yield "你"
+                        self.assertEqual(live_statuses[-1].stop_calls, 0)
+                        live_statuses[-1].kwargs["on_submit"]("queued after first chunk")
+                        yield "好"
+
+                    mock_provider.chat_stream.return_value = _stream_chunks()
                     mock_provider_class.return_value = Mock(return_value=mock_provider)
 
                     repl = ClawcodexREPL(provider_name="glm", stream=True)
                     repl.console.print = Mock()
+                    repl._enqueue_prompt = Mock()
 
-                    repl.chat("你是谁")
+                    with (
+                        patch("clawcodex_ext.repl.core.LiveStatus", FakeLiveStatus),
+                        patch("clawcodex_ext.repl.core._pt_patch_stdout", return_value=unittest.mock.MagicMock()),
+                    ):
+                        repl.chat("你是谁")
 
                     mock_provider.chat_stream.assert_called_once()
+                    self.assertEqual(live_statuses[-1].stop_calls, 0)
+                    repl._enqueue_prompt.assert_called_once_with("queued after first chunk")
+                    self.assertTrue(any(not args for args, _kwargs in repl.console.print.call_args_list))
                     self.assertFalse(
                         any(
                             args and isinstance(args[0], Markdown)

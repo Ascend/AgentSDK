@@ -35,6 +35,7 @@ Supports three modes:
 from __future__ import annotations
 
 import asyncio
+from dataclasses import replace
 import logging
 import os
 import sys
@@ -893,7 +894,8 @@ def make_agent_tool(
         # transcript path; mirrors what ``register_async_agent`` writes
         # for the async path. The state is mutated in place on success /
         # failure below.
-        sync_state = LocalAgentTaskState(
+        # Pylint cannot infer keyword-only fields inherited from the dataclass base.
+        sync_state = LocalAgentTaskState(  # pylint: disable=unexpected-keyword-arg
             id=agent_id,
             agent_id=agent_id,
             description=description,
@@ -1169,6 +1171,32 @@ def make_agent_tool(
             # TaskStop and session shutdown can still terminate the worker.
             run_params.abort_controller = AbortController()
 
+        def _resume_launcher(
+            resume_prompt: str,
+            replayed_messages: list[Any],
+        ) -> ToolResult:
+            """Restart this exact agent configuration with transcript context."""
+
+            resumed_params = replace(
+                run_params,
+                prompt=resume_prompt,
+                context_messages=list(replayed_messages),
+                agent_id=agent_id,
+                is_async=True,
+                abort_controller=AbortController(),
+            )
+            return _launch_async_agent(
+                run_params=resumed_params,
+                context=context,
+                agent_id=agent_id,
+                description=description,
+                prompt=resume_prompt,
+                agent_type=agent_type,
+                agent_name=agent_name,
+            )
+
+        context.agent_resume_launchers[agent_id] = _resume_launcher
+
         register_async_agent(
             agent_id=agent_id,
             description=description,
@@ -1394,6 +1422,7 @@ def make_agent_tool(
                 ),
             )
         except TaskManagerClosedError as exc:
+            context.agent_resume_launchers.pop(agent_id, None)
             kill_async_agent(
                 agent_id,
                 context.runtime_tasks,

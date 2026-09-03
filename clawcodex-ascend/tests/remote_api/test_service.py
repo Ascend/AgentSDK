@@ -130,11 +130,13 @@ def _reset_runner(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_health_models_capabilities_and_auth(tmp_path: Path) -> None:
+    from src import __version__
+
     service = RemoteAPIService(RemoteAPIConfig(tmp_path, api_key="secret", model="service-model", state_limit=4))
 
     assert service.health() == {
         "status": "ok",
-        "version": "unknown",
+        "version": __version__,
         "workspace": str(tmp_path),
         "model": "service-model",
         "provider": "default",

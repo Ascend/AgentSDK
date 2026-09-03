@@ -61,7 +61,8 @@ class TestResolveHookPermissionDecision:
         tool = _make_tool()
         ctx = _make_context()
         decision = await resolve_hook_permission_decision(None, tool, {}, ctx, None, _make_assistant_msg(), "tu_1")
-        assert decision["behavior"] == "allow"
+        assert decision["behavior"] == "deny"
+        assert "no handler" in decision["message"]
 
     @pytest.mark.asyncio
     async def test_hook_allow(self):

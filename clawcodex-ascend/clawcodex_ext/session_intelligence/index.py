@@ -30,9 +30,10 @@ from typing import Any
 
 
 def load_summary(session_id: str, *, sessions_dir: Path | None = None) -> dict[str, Any] | None:
-    from clawcodex_ext.services.session_storage import SESSIONS_DIR
+    from clawcodex_ext.services.session_storage import resolve_sessions_dir
 
-    path = Path(sessions_dir or SESSIONS_DIR) / session_id / "summary.json"
+    base = sessions_dir if sessions_dir is not None else resolve_sessions_dir()
+    path = Path(base) / session_id / "summary.json"
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except Exception:

@@ -47,7 +47,7 @@ from .errors import (
     WorkflowEngineError,
     WorkflowSchemaError,
 )
-from .checkpoint import CheckpointManager
+from .checkpoint import CheckpointManager, WorkflowResumer  # noqa: F401
 from .event_bus import EventBus
 from .rollback import RollbackManager
 from .gate_rollback import GateRollbackHandler
@@ -260,7 +260,6 @@ class DeclarativeWorkflowEngine:
             )
             self._gate_rollback_handler = GateRollbackHandler(
                 rollback_manager=self._rollback_manager,
-                workspace_dir=self.config.workspace_dir,
             )
 
     def set_checkpoint_manager(self, checkpoint_manager: CheckpointManager) -> None:

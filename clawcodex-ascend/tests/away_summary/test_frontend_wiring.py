@@ -416,6 +416,7 @@ async def test_tui_replays_recap_history_after_screen_mount(tmp_path) -> None:
 @pytest.mark.asyncio
 async def test_tui_executes_recap_slash_command(monkeypatch, tmp_path) -> None:
     pytest.importorskip("textual")
+    monkeypatch.setenv("CLAWCODEX_HOME", str(tmp_path))
     monkeypatch.setattr(
         "clawcodex_ext.away_summary.registration.load_away_summary_config",
         lambda: AwaySummaryConfig(recap_command_enabled=True),

@@ -218,6 +218,15 @@ class TestToolPropertyParity(unittest.TestCase):
                     actual = tool.is_destructive({})
                 else:
                     continue
+                if tool_name == "Skill" and prop in {"is_read_only", "is_concurrency_safe"}:
+                    # Python keeps a legacy executable-skill fallback, so the
+                    # invocation cannot safely inherit TS's read-only or
+                    # concurrency-safe flags.
+                    expected_val = False
+                if tool_name == "Monitor" and prop in {"is_read_only", "is_concurrency_safe"}:
+                    # Monitor accepts arbitrary shell commands. Keep the
+                    # Python scheduler conservative for both properties.
+                    expected_val = False
                 self.assertEqual(
                     actual,
                     expected_val,

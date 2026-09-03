@@ -81,6 +81,13 @@ def _recap_call(args: str, context: Any) -> LocalCommandResult:
     cache_safe_params = None
     if cfg.enable_recap_cache:
         cache_safe_params = _try_get_last_cache_safe_params()
+        if cache_safe_params is not None and not _cache_snapshot_matches_context(
+            cache_safe_params,
+            provider=provider,
+            session=session,
+        ):
+            logger.debug("/recap: ignoring cache snapshot from another provider or session")
+            cache_safe_params = None
         if cache_safe_params is not None:
             logger.debug("/recap: using cached CacheSafeParams (cache hit)")
         else:
@@ -120,3 +127,33 @@ def _try_get_last_cache_safe_params() -> Any | None:
         return get_last_cache_safe_params()
     except Exception:
         return None
+
+
+def _cache_snapshot_matches_context(
+    cache_safe_params: Any,
+    *,
+    provider: Any,
+    session: Any | None,
+) -> bool:
+    """Reject process-global cache snapshots that belong to another session.
+
+    The fork cache is intentionally process-local, but a long-lived server can
+    host multiple sessions. Replaying a snapshot from a previous session would
+    route the recap through that snapshot's provider and prompt context.
+    """
+    tool_context = getattr(cache_safe_params, "tool_use_context", None)
+    if tool_context is None or getattr(tool_context, "_active_provider", None) is not provider:
+        return False
+
+    current_session_id = _session_id(session)
+    cached_session_id = str(getattr(tool_context, "session_id", "") or "")
+    return not (current_session_id and cached_session_id and current_session_id != cached_session_id)
+
+
+def _session_id(session: Any | None) -> str:
+    if session is None:
+        return ""
+    try:
+        return str(getattr(session, "session_id", "") or "")
+    except Exception:
+        return ""

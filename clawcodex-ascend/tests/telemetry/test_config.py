@@ -98,8 +98,8 @@ def test_reporting_config_defaults():
     rc = ReportingConfig()
     assert rc.reporting_enabled is True  # dev-default
     assert rc.kind == "local_file"
-    assert rc.platform == "github"
-    assert rc.mode == "update_or_create"
+    assert rc.platform == "gitcode"
+    assert rc.mode == "create_daily"
     assert rc.interval_hours == 24
 
 
@@ -262,8 +262,8 @@ def test_load_config_reads_telemetry_toml(monkeypatch, tmp_path):
     assert cfg.retention_days == 7
 
 
-def test_load_config_json_overrides_toml(monkeypatch, tmp_path):
-    """when both TOML and JSON provide the same key, JSON wins."""
+def test_load_config_project_toml_overrides_global_json(monkeypatch, tmp_path):
+    """Project-scoped TOML wins over the legacy global JSON section."""
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.delenv("CLAW_TELEMETRY_ENABLED", raising=False)
     _write_telemetry_toml(tmp_path)  # TOML: enabled = true
@@ -274,7 +274,7 @@ def test_load_config_json_overrides_toml(monkeypatch, tmp_path):
 
     cfg = load_config(cwd=tmp_path)
 
-    assert cfg.enabled is False  # JSON wins
+    assert cfg.enabled is True
 
 
 def test_load_config_toml_invalid_falls_back_to_defaults(monkeypatch, tmp_path):

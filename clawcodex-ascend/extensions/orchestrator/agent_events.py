@@ -50,7 +50,10 @@ class AgentEventMixin:
         audit_log = session_context.get("audit_log", "full")
         if audit_log == "none":
             return
-        if audit_log == "minimal" and event._approved is not False:
+        from .approval_policy import read_approval_decision
+
+        decision = read_approval_decision(event)
+        if audit_log == "minimal" and decision.is_approved is not False:
             return
         try:
             from .tool_event_log import ToolEventLog
@@ -72,8 +75,8 @@ class AgentEventMixin:
             row = ToolEventLog(
                 tool=event.tool_name,
                 params=event.params,
-                approved=event._approved,
-                deny_reason=event._deny_reason,
+                approved=decision.is_approved,
+                deny_reason=decision.denial_reason,
                 permission_mode=session_context.get("permission_mode", "unknown"),
                 turn=session_context.get("turn", 0),
                 session_run_id=run_id,
@@ -169,14 +172,11 @@ class AgentEventMixin:
             blocks.append(TextBlock(text=session._transcript_asst_text))
         blocks.extend(session._transcript_tool_uses)
         if blocks:
+            routing_snapshot = getattr(session, "_routing_snapshot", None)
             storage.write_message(
                 create_assistant_message(
                     content=blocks,
-                    model=(
-                        session._routing_snapshot.model
-                        if session._routing_snapshot is not None
-                        else self.agent_config.model
-                    ),
+                    model=(routing_snapshot.model if routing_snapshot is not None else self.agent_config.model),
                 )
             )
 

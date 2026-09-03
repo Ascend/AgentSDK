@@ -48,10 +48,28 @@ from typing import Iterable, Literal
 from rich.text import Text
 from textual.widgets import Static
 
-from clawcodex_ext.logical_kanban.types import LkbStatus
-
-
 TaskStatus = Literal["pending", "in_progress", "completed", "cancelled", "failed"]
+
+
+@dataclass(frozen=True, slots=True)
+class LkbStatus:
+    """Minimal logical-kanban read model consumed by the task-list UI.
+
+    Logical-kanban persistence now lives in the standalone extension. Keeping
+    this presentation-facing value object local avoids reintroducing the old
+    runtime dependency while preserving the migrated status-badge contract.
+    """
+
+    derived_status: str = "ready"
+    validation_result: str | None = None
+    blocked_by: tuple[str, ...] = ()
+    has_pending_clarification: bool = False
+    stale_assumptions: tuple[str, ...] = ()
+
+    @property
+    def is_blocked(self) -> bool:
+        """Return whether dependencies or the derived state block the task."""
+        return self.derived_status == "blocked" or bool(self.blocked_by)
 
 
 @dataclass

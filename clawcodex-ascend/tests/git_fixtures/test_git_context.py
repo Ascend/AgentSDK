@@ -172,7 +172,7 @@ class TestFormatGitStatus(unittest.TestCase):
             recent_commits="abc1234 Initial commit",
         )
         result = format_git_status(ctx)
-        self.assertIn("Git repository detected", result)
+        self.assertIn("snapshot in time", result)
         self.assertIn("feature/ws-5", result)
         self.assertIn("main", result)
         self.assertIn("Test User", result)
@@ -185,7 +185,7 @@ class TestFormatGitStatus(unittest.TestCase):
             branch="main",
         )
         result = format_git_status(ctx)
-        self.assertIn("Working tree clean", result)
+        self.assertIn("Status:\n(clean)", result)
 
     def test_truncated_status(self):
         ctx = GitContextSnapshot(

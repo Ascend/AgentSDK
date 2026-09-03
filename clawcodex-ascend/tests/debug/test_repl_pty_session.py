@@ -80,6 +80,22 @@ def test_default_repl_command_uses_current_python_module() -> None:
     assert command[command.index("--permission-mode") + 1] == "bypassPermissions"
 
 
+def test_compatibility_script_exposes_controller_cli() -> None:
+    repo_root = Path(__file__).parents[2]
+    result = subprocess.run(
+        [sys.executable, str(repo_root / "scripts/debug/repl_pty_session.py"), "--help"],
+        cwd=repo_root,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "Control the real ClawCodex REPL through a PTY." in result.stdout
+    assert "interactive" in result.stdout
+    assert "run-script" in result.stdout
+
+
 def test_session_start_send_observe_stop(tmp_path: Path) -> None:
     session = ReplPtySession(command=fake_command(), artifact_dir=tmp_path, timeout=5.0)
 

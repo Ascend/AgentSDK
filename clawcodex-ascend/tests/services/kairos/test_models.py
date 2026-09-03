@@ -75,7 +75,7 @@ class TestTickConfig:
             TickConfig(id="x", interval_seconds=0)
         with pytest.raises(ValueError, match="interval_seconds must be positive"):
             TickConfig(id="x", interval_seconds=-1.0)
-        with pytest.raises(ValueError, match="interval_seconds must be a number"):
+        with pytest.raises(TypeError, match="interval_seconds must be a number"):
             TickConfig(id="x", interval_seconds="not a number")  # type: ignore[arg-type]
 
     def test_jitter_must_be_in_unit_interval(self) -> None:
@@ -83,7 +83,7 @@ class TestTickConfig:
             TickConfig(id="x", interval_seconds=1.0, jitter_fraction=-0.1)
         with pytest.raises(ValueError, match="jitter is a fraction"):
             TickConfig(id="x", interval_seconds=1.0, jitter_fraction=1.5)
-        with pytest.raises(ValueError, match="jitter must be a number"):
+        with pytest.raises(TypeError, match="jitter must be a number"):
             TickConfig(id="x", interval_seconds=1.0, jitter_fraction="0.1")  # type: ignore[arg-type]
         # Boundaries are accepted.
         TickConfig(id="x", interval_seconds=1.0, jitter_fraction=0.0)
@@ -232,7 +232,7 @@ class TestDailyLogEntry:
             DailyLogEntry(timestamp=123, body="x")  # type: ignore[arg-type]
 
     def test_body_must_be_string(self) -> None:
-        with pytest.raises(ValueError, match="body must be a string"):
+        with pytest.raises(TypeError, match="body must be a string"):
             DailyLogEntry(timestamp="t", body=42)  # type: ignore[arg-type]
 
     def test_tags_coerced_and_validated(self) -> None:

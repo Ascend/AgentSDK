@@ -238,14 +238,23 @@ def test_get_task_by_type_dream_registered_f100() -> None:
 
 def test_get_task_by_type_unknown_returns_none() -> None:
     """Out-of-scope chapter task types stay unregistered (per plan §3:
-    RemoteAgent / Workflow / Monitor are deferred; ``dream`` is now
-    registered, so it's not in this list).
+    RemoteAgent / Monitor are deferred; ``dream`` and ``local_workflow``
+    are now registered, so they are not in this list).
     """
-    # ``dream`` is now registered — moved to its own test above.
-    # Still-unregistered: remote_agent / monitor_mcp / local_workflow.
+    # ``dream`` and ``local_workflow`` are registered by ``src.tasks``.
+    # Still unregistered: remote_agent / monitor_mcp.
     assert get_task_by_type("remote_agent") is None
     assert get_task_by_type("monitor_mcp") is None
-    assert get_task_by_type("local_workflow") is None
+
+
+def test_get_task_by_type_local_workflow_registered() -> None:
+    """The migrated local-workflow implementation self-registers."""
+    from src.tasks import local_workflow  # noqa: F401
+
+    impl = get_task_by_type("local_workflow")
+    assert impl is not None
+    assert impl.name == "LocalWorkflowTask"
+    assert impl.type == "local_workflow"
 
 
 def test_in_process_teammate_registered_post_chunk_f() -> None:

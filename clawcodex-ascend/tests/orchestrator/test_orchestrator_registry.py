@@ -212,7 +212,7 @@ class TestClearStalePending(unittest.TestCase):
             assert record is not None
             record.pending_feedback_since_map["a"] = time.time() - 10
             self.assertEqual(reg.clear_stale_pending("7", timeout_seconds=600), 0)
-            self.assertIsNone(reg.clear_stale_pending("missing"))
+            self.assertEqual(reg.clear_stale_pending("missing"), 0)
 
     def test_clears_maps_when_all_dropped(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

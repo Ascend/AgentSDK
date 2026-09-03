@@ -198,6 +198,7 @@ class SharedMemoryManager:
                 file_stem="memory",
                 source_dir=str(tmp),
                 init_params=init_params,
+                scripts_dir=tmp / "scripts",
             )
 
             args = json.dumps({"team_memory_dir": "/tmp/my-team/team-memory"})
@@ -297,6 +298,7 @@ class SharedMemoryManager:
                 file_stem="memory",
                 source_dir=str(tmp),
                 init_params=init_params,
+                scripts_dir=tmp / "scripts",
             )
             import ast
 

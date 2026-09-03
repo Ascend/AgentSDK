@@ -288,7 +288,7 @@ def _init_provider_extensions() -> None:
     # config persistence, and catalog lookup must all normalize ``glm`` to the
     # canonical upstream ``zai`` entry; ``src.providers.get_provider_class``
     # deliberately checks this literal compatibility route before aliasing.
-    from src.providers import EXTRA_PROVIDER_CLASSES as _EXTRA_PROVIDER_CLASSES
+    from src.providers import _EXTRA_PROVIDER_CLASSES
 
     _EXTRA_PROVIDER_CLASSES.setdefault("glm", _GLMProvider_lazy)  # type: ignore[arg-type]
 

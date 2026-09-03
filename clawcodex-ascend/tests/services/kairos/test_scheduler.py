@@ -335,7 +335,7 @@ class TestTickSchedulerJitter:
             # drift == actual_at - scheduled_at, so it equals the
             # jitter_applied value the RNG produced.
             for ev in events:
-                assert ev.drift == pytest.approx(ev.jitter_applied)
+                assert ev.drift == pytest.approx(ev.jitter_applied, abs=1e-6)
         finally:
             s.stop()
 

@@ -24,6 +24,27 @@ stability-gate coverage.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def _isolate_cache_safe_params() -> Iterator[None]:
+    """Keep process-wide side-question cache state out of these unit tests."""
+
+    from clawcodex_ext.agent.forked_agent import (
+        get_last_cache_safe_params,
+        save_cache_safe_params,
+    )
+
+    previous = get_last_cache_safe_params()
+    save_cache_safe_params(None)
+    try:
+        yield
+    finally:
+        save_cache_safe_params(previous)
+
 
 class TestBtwCommandRegistration:
     """Verify /btw command is registered and callable."""
@@ -242,9 +263,15 @@ class TestBtwCommandScrollableHeuristic:
             return SideQuestionResult(response=long_response, usage={})
 
         ctx = CommandContext(workspace_root="/tmp", cwd="/tmp")
-        with patch(
-            "clawcodex_ext.command_system.btw_command.run_side_question",
-            _fake_run_side_question,
+        with (
+            patch(
+                "clawcodex_ext.command_system.btw_command.run_side_question",
+                _fake_run_side_question,
+            ),
+            patch(
+                "clawcodex_ext.command_system.btw_command.get_last_cache_safe_params",
+                return_value=object(),
+            ),
         ):
             outcome = asyncio.run(btw_command_run("what?", ctx))
 
@@ -264,13 +291,20 @@ class TestBtwCommandScrollableHeuristic:
             return SideQuestionResult(response="short reply", usage={})
 
         ctx = CommandContext(workspace_root="/tmp", cwd="/tmp")
-        with patch(
-            "clawcodex_ext.command_system.btw_command.run_side_question",
-            _fake_run_side_question,
+        with (
+            patch(
+                "clawcodex_ext.command_system.btw_command.run_side_question",
+                _fake_run_side_question,
+            ),
+            patch(
+                "clawcodex_ext.command_system.btw_command.get_last_cache_safe_params",
+                return_value=object(),
+            ),
         ):
             outcome = asyncio.run(btw_command_run("hi", ctx))
 
         assert outcome.scrollable is False
+        assert "short reply" in (outcome.message or "")
 
 
 class TestReplScrollViewerPlumbing:
@@ -431,9 +465,15 @@ class TestHeadlessBtwDispatcher:
             )
 
         ctx = CommandContext(workspace_root="/tmp", cwd="/tmp")
-        with patch(
-            "clawcodex_ext.command_system.btw_command.run_side_question",
-            _fake_short,
+        with (
+            patch(
+                "clawcodex_ext.command_system.btw_command.run_side_question",
+                _fake_short,
+            ),
+            patch(
+                "clawcodex_ext.command_system.btw_command.get_last_cache_safe_params",
+                return_value=object(),
+            ),
         ):
             outcome = asyncio.run(btw_command_run("what?", ctx))
         assert "💡" in (outcome.message or "")

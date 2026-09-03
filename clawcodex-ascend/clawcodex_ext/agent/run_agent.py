@@ -381,7 +381,7 @@ async def run_agent(params: RunAgentParams) -> AsyncGenerator[Message, None]:
     # per-request model) and gives this subagent its own .model.
     turn_provider = params.provider
     try:
-        from .agent_model import get_agent_model
+        from src.agent.agent_model import get_agent_model
 
         resolved_model = get_agent_model(
             params.model,

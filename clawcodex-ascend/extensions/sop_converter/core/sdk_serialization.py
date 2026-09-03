@@ -84,6 +84,15 @@ def coerce_mapping_value(value: Any) -> dict[str, Any] | None:
     )
 
 
+def _parse_json_config(value: Any) -> Any:
+    """Parse an inline JSON object while preserving already-coerced values."""
+    if isinstance(value, str):
+        text = value.strip()
+        if text.startswith("{"):
+            return json.loads(text)
+    return value
+
+
 def resolve_env_references(value: Any, *, environ: dict[str, str] | None = None) -> Any:
     """Resolve explicit ``env:NAME`` values recursively.
 
@@ -294,6 +303,61 @@ def dumps_sdk_result(result: Any) -> str:
     return json.dumps(_redact_sensitive_fields(to_jsonable(result)), ensure_ascii=False, default=str)
 
 
+WRAPPER_TEAM_DATABASE_COERCION = '''
+def _coerce_team_database(value):
+    """Coerce an inline mapping or JSON string into a TeamDatabase."""
+    import asyncio
+    from openjiuwen.agent_teams.tools.database import TeamDatabase
+    from openjiuwen.agent_teams.tools.database.config import DatabaseConfig
+
+    if isinstance(value, TeamDatabase):
+        return value
+
+    cfg = _parse_json_config(value)
+    if isinstance(cfg, dict):
+        if "config" in cfg:
+            cfg = cfg["config"]
+        if not cfg.get("connection_string"):
+            cfg = {**cfg, "connection_string": ":memory:"}
+        db = TeamDatabase(DatabaseConfig.model_validate(cfg))
+        try:
+            asyncio.run(db.initialize())
+        except RuntimeError as exc:
+            if "Event loop is running" in str(exc):
+                loop = asyncio.get_running_loop()
+                loop.run_until_complete(db.initialize())
+            else:
+                raise
+        return db
+
+    raise TypeError(f"Cannot coerce db from {type(value).__name__}")
+'''.lstrip()
+
+
+WRAPPER_MESSAGER_COERCION = '''
+def _coerce_messager(value, *, team_name=None):
+    """Coerce an inline mapping or JSON string into a Messager."""
+    from openjiuwen.agent_teams.messager.base import (
+        MessagerTransportConfig,
+        create_messager,
+    )
+    from openjiuwen.agent_teams.messager.messager import Messager
+
+    if isinstance(value, Messager):
+        return value
+
+    cfg = _parse_json_config(value)
+    if isinstance(cfg, dict):
+        if "backend" not in cfg:
+            cfg = {**cfg, "backend": "inprocess"}
+        if team_name and not cfg.get("team_name"):
+            cfg = {**cfg, "team_name": team_name}
+        return create_messager(MessagerTransportConfig.model_validate(cfg))
+
+    raise TypeError(f"Cannot coerce messager from {type(value).__name__}")
+'''.lstrip()
+
+
 # ---------------------------------------------------------------------------
 # Wrapper-script helper source generation
 # ---------------------------------------------------------------------------
@@ -322,6 +386,7 @@ _WRAPPER_SERIALIZATION_HELPERS_SPEC: list[tuple[str, object]] = [
 
 _WRAPPER_COERCION_HELPERS_SPEC: list[tuple[str, object]] = [
     ("_resolve_env_references", resolve_env_references),
+    ("_parse_json_config", _parse_json_config),
     ("_coerce_mapping_value", coerce_mapping_value),
     ("_coerce_sdk_type", coerce_sdk_type),
 ]

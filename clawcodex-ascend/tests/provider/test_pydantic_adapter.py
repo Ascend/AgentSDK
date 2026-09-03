@@ -87,9 +87,14 @@ class TestSettingsConversion:
 
 class TestLoadFromConfigManager:
     def test_load_from_config_manager(self):
-        from src.config import ConfigManager
+        class EmptyConfigManager:
+            @staticmethod
+            def get_merged():
+                return {}
 
-        settings = load_settings_from_config_manager(config_manager=ConfigManager())
+        settings = load_settings_from_config_manager(
+            config_manager=EmptyConfigManager()  # type: ignore[arg-type]
+        )
         assert settings.default_provider == "anthropic"
         assert isinstance(settings.providers, dict)
 

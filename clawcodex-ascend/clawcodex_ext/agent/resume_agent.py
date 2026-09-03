@@ -60,6 +60,7 @@ winner just registered).
 
 from __future__ import annotations
 
+import inspect
 import logging
 from dataclasses import dataclass, replace
 from typing import Any, TYPE_CHECKING
@@ -97,6 +98,7 @@ class ResumeResult:
     agent_id: str
     output_file: str = ""
     replayed_message_count: int = 0
+    runtime_started: bool = False
     reason: str = ""
 
 
@@ -182,15 +184,11 @@ async def resume_agent_background(
     * Target not terminal / not present → ``resumed=False`` with a
       reason like ``"task not terminal"`` or ``"task not found"``.
 
-    **The resume run does NOT actually drive a model call in this
-    chunk.** Wiring the resumed lifecycle into ``run_agent`` requires
-    threading the reconstructed messages and the resume prompt through
-    ``RunAgentParams`` — that's a subsequent integration step. This
-    chunk lands the structural primitive (race-safe re-registration +
-    transcript replay scaffolding) so SendMessage's auto-resume
-    branch has something to call. The resumed entry's ``status`` is
-    ``"running"`` so other callers see it and queue rather than
-    re-resume.
+    Agents launched by the Agent tool retain a runtime-only relaunch callback.
+    The callback starts the real background model loop with the reconstructed
+    transcript as context. Legacy/manual registry entries without that callback
+    keep the structural re-registration fallback, but callers can distinguish
+    it through ``ResumeResult.runtime_started`` and must not report success.
     """
     runtime = context.runtime_tasks
     state = runtime.get(agent_id)
@@ -241,6 +239,57 @@ async def resume_agent_background(
             agent_id,
         )
 
+    launcher = context.agent_resume_launchers.get(agent_id)
+    if launcher is not None:
+        from clawcodex_ext.types.messages import message_from_dict
+
+        hydrated: list[Any] = []
+        for item in replayed:
+            if isinstance(item, dict):
+                try:
+                    hydrated.append(message_from_dict(item))
+                except Exception:  # nosec - skip a malformed replay record
+                    logger.warning(
+                        "skipping malformed transcript record while resuming %s",
+                        agent_id,
+                        exc_info=True,
+                    )
+            else:
+                hydrated.append(item)
+        try:
+            launched = launcher(prompt, hydrated)
+            if inspect.isawaitable(launched):
+                await launched
+        except Exception as exc:  # noqa: BLE001 - boundary reports a safe no-op
+            logger.exception("background relaunch failed for %s", agent_id)
+            runtime.upsert(replace(prev, is_resuming=False))
+            return ResumeResult(
+                resumed=False,
+                agent_id=agent_id,
+                output_file=transcript_path,
+                replayed_message_count=len(replayed),
+                reason=f"background relaunch failed: {exc}",
+            )
+
+        fresh = runtime.get(agent_id)
+        if isinstance(fresh, LocalAgentTaskState) and not is_terminal_task_status(fresh.status):
+            return ResumeResult(
+                resumed=True,
+                agent_id=agent_id,
+                output_file=fresh.output_file,
+                replayed_message_count=len(replayed),
+                runtime_started=True,
+            )
+
+        runtime.upsert(replace(prev, is_resuming=False))
+        return ResumeResult(
+            resumed=False,
+            agent_id=agent_id,
+            output_file=transcript_path,
+            replayed_message_count=len(replayed),
+            reason="background relaunch did not register a running task",
+        )
+
     # Re-register the agent with a fresh running state. ``register_async_agent``
     # ``upsert``s, replacing the terminal entry. The new state has
     # ``is_resuming=False`` (default) so a future resume can fire if
@@ -264,6 +313,7 @@ async def resume_agent_background(
         agent_id=agent_id,
         output_file=fresh_state.output_file,
         replayed_message_count=len(replayed),
+        runtime_started=False,
         reason="",
     )
 

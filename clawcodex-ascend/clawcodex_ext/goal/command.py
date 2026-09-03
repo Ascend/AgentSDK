@@ -43,7 +43,7 @@ from .protocol import (
     ThreadGoalProtocol,
     ThreadGoalReplaceParams,
 )
-from .service import goal_thread_id_from_context
+from .service import GoalServiceError, goal_thread_id_from_context
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +66,8 @@ class GoalCommand(InteractiveCommand):
             return _goal_summary(api, thread_id, context)
         if command.lower() in GOAL_CLEAR_ALIASES:
             return _clear_goal(api, thread_id, context)
+        if len(command) > MAX_THREAD_GOAL_OBJECTIVE_CHARS:
+            raise GoalServiceError(f"Goal condition must be {MAX_THREAD_GOAL_OBJECTIVE_CHARS:,} characters or fewer.")
         return _set_goal_condition(api, thread_id, command, context)
 
 

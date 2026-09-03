@@ -636,7 +636,7 @@ def suggestions_for_bash_command(command: str) -> list[PermissionUpdate]:
     # A NAME-eval subscript attack (`printf -v 'a[$(id)]'`) or a
     # /proc/*/environ read must not mint a savable rule either — a `printf:*`
     # / `cat:*` grant would then auto-run/leak.
-    from .read_only_commands import (
+    from src.permissions.read_only_commands import (
         accesses_proc_environ,
         find_name_eval_subscript_attack,
     )

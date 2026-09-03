@@ -148,10 +148,10 @@ class TestWriteTool(ToolSystemTests):
         WriteTool.call({"file_path": str(p), "content": "new"}, self.ctx)
         self.assertEqual(p.read_text(encoding="utf-8"), "new")
 
-    def test_write_blocks_docs_by_default(self) -> None:
+    def test_write_does_not_add_a_markdown_specific_gate(self) -> None:
         p = self.root / "README.md"
         result = WriteTool.check_permissions({"file_path": str(p), "content": "x"}, self.ctx)
-        self.assertEqual(result.behavior, "ask")
+        self.assertEqual(result.behavior, "passthrough")
 
 
 class TestEditTool(ToolSystemTests):
@@ -518,10 +518,12 @@ class TestSkillTool(ToolSystemTests):
             arguments=["name"],
         )
         with patch.dict(os.environ, {"CLAWCODEX_SKILLS_DIR": str(skills_dir)}):
-            out = SkillTool.call({"skill": "hello", "args": "bob"}, self.ctx).output
+            result = SkillTool.call({"skill": "hello", "args": "bob"}, self.ctx)
+            out = result.output
             self.assertTrue(out["success"])
-            self.assertIn("Hello bob!", out["prompt"])
-            self.assertEqual(out["loadedFrom"], "user")
+            self.assertEqual(out["commandName"], "hello")
+            self.assertIsNotNone(result.new_messages)
+            self.assertIn("Hello bob!", result.new_messages[0].content)
 
     def test_skill_runs_legacy_python_skill(self) -> None:
         skills_dir = self.root / "skills"
@@ -887,58 +889,89 @@ class TestWorktreeTools(ToolSystemTests):
 
 
 class TestPlanModeTools(ToolSystemTests):
+    def setUp(self) -> None:
+        super().setUp()
+        from src.utils.plans import (
+            _reset_plans_directory_cache_for_tests,
+            clear_all_plan_slugs,
+        )
+
+        self.plans_dir = self.root / ".clawcodex" / "plans"
+        self._plans_patch = patch(
+            "src.utils.plans.get_default_plans_directory",
+            return_value=self.plans_dir,
+        )
+        self._plans_patch.start()
+        _reset_plans_directory_cache_for_tests()
+        clear_all_plan_slugs()
+        self.ctx.permission_handler = lambda _name, _message, _suggestion: (True, False)
+        self.registry = ToolRegistry([EnterPlanModeTool, ExitPlanModeTool])
+
+    def tearDown(self) -> None:
+        from src.utils.plans import (
+            _reset_plans_directory_cache_for_tests,
+            clear_all_plan_slugs,
+        )
+
+        clear_all_plan_slugs()
+        _reset_plans_directory_cache_for_tests()
+        self._plans_patch.stop()
+        super().tearDown()
+
+    def _dispatch(self, name: str, tool_input: dict[str, Any] | None = None):
+        return self.registry.dispatch(
+            ToolCall(name=name, input=tool_input or {}),
+            self.ctx,
+        )
+
     def test_plan_mode_roundtrip(self) -> None:
-        enter_out = EnterPlanModeTool.call({}, self.ctx).output
-        self.assertTrue(self.ctx.plan_mode)
+        initial_mode = self.ctx.permission_context.mode
+        enter_out = self._dispatch("EnterPlanMode").output
+        self.assertEqual(self.ctx.permission_context.mode, "plan")
         self.assertIn("Entered plan mode", enter_out["message"])
 
-        exit_out = ExitPlanModeTool.call({}, self.ctx).output
-        self.assertFalse(self.ctx.plan_mode)
+        exit_out = self._dispatch("ExitPlanMode").output
+        self.assertEqual(self.ctx.permission_context.mode, initial_mode)
         self.assertFalse(exit_out["isAgent"])
-        self.assertTrue(exit_out["hasTaskTool"])
 
     def test_plan_mode_exit_with_plan(self) -> None:
-        EnterPlanModeTool.call({}, self.ctx)
+        self._dispatch("EnterPlanMode")
 
         plan_content = "# My Plan\n\n- Do something\n- Do something else"
-        exit_out = ExitPlanModeTool.call({"plan": plan_content}, self.ctx).output
+        exit_out = self._dispatch("ExitPlanMode", {"plan": plan_content}).output
 
         self.assertEqual(exit_out["plan"], plan_content)
         self.assertIsNotNone(exit_out["filePath"])
 
-        plan_file = self.root / ".clawcodex" / "plan.md"
+        plan_file = Path(exit_out["filePath"])
+        self.assertEqual(plan_file.parent, self.plans_dir)
         self.assertTrue(plan_file.exists())
         self.assertEqual(plan_file.read_text(encoding="utf-8"), plan_content)
 
-    def test_plan_mode_exit_with_custom_path(self) -> None:
-        EnterPlanModeTool.call({}, self.ctx)
+    def test_plan_mode_exit_ignores_untrusted_custom_path(self) -> None:
+        self._dispatch("EnterPlanMode")
 
         custom_path = self.root / "my-plan.md"
         plan_content = "# Custom Plan"
-        exit_out = ExitPlanModeTool.call(
+        exit_out = self._dispatch(
+            "ExitPlanMode",
             {"plan": plan_content, "planFilePath": str(custom_path)},
-            self.ctx,
         ).output
 
-        self.assertEqual(exit_out["filePath"], str(custom_path))
-        self.assertTrue(custom_path.exists())
+        self.assertNotEqual(exit_out["filePath"], str(custom_path))
+        self.assertFalse(custom_path.exists())
 
     def test_plan_mode_exit_not_in_mode(self) -> None:
-        from src.tool_system.errors import ToolPermissionError
-
-        with self.assertRaises(ToolPermissionError):
-            ExitPlanModeTool.call({}, self.ctx)
+        result = self._dispatch("ExitPlanMode")
+        self.assertTrue(result.is_error)
+        self.assertIn("not in plan mode", result.output["error"].lower())
 
     def test_plan_mode_plan_validation(self) -> None:
         from src.tool_system.errors import ToolInputError
 
-        EnterPlanModeTool.call({}, self.ctx)
-
-        with self.assertRaises(ToolInputError):
-            ExitPlanModeTool.call({"plan": 123}, self.ctx)
-
-        with self.assertRaises(ToolInputError):
-            ExitPlanModeTool.call({"plan": "x", "planFilePath": 123}, self.ctx)
+        self._dispatch("EnterPlanMode")
+        with self.assertRaisesRegex(ToolInputError, "string"):
+            self._dispatch("ExitPlanMode", {"plan": 123})
 
 
 if __name__ == "__main__":

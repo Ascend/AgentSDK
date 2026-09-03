@@ -82,7 +82,7 @@ class TestDefaultConfig(unittest.TestCase):
         self.assertIn("providers", config)
         self.assertIn("anthropic", config["providers"])
         self.assertIn("openai", config["providers"])
-        self.assertIn("glm", config["providers"])
+        self.assertIn("zai", config["providers"])
 
     def test_default_provider_is_anthropic(self):
         """Test that default provider is Anthropic."""
@@ -94,7 +94,7 @@ class TestDefaultConfig(unittest.TestCase):
         config = get_default_config()
         self.assertEqual(config["providers"]["anthropic"]["default_model"], "claude-sonnet-4-6")
         self.assertEqual(config["providers"]["openai"]["default_model"], "gpt-5.4")
-        self.assertEqual(config["providers"]["glm"]["default_model"], "zai/glm-5")
+        self.assertEqual(config["providers"]["zai"]["default_model"], "GLM-5.1")
 
 
 class TestLoadSaveConfig(unittest.TestCase):

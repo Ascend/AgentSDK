@@ -376,6 +376,17 @@ _pkg_orch.__path__ = [_ORCHESTRATOR_PATH]
 _pkg_repo = types.ModuleType("extensions.orchestrator.repo_tracker")
 _pkg_repo.__path__ = [_REPO_TRACKER_PATH]
 
+_MODULE_NAMES = (
+    "extensions",
+    "extensions.orchestrator",
+    "extensions.orchestrator.tracker",
+    "extensions.orchestrator.repo_tracker",
+    "extensions.orchestrator.repo_tracker.normalizers",
+    "extensions.orchestrator.repo_tracker.pull_requests",
+)
+_MISSING_MODULE = object()
+_SAVED_MODULES = {name: sys.modules.get(name, _MISSING_MODULE) for name in _MODULE_NAMES}
+
 sys.modules["extensions"] = _pkg_ext
 sys.modules["extensions.orchestrator"] = _pkg_orch
 sys.modules["extensions.orchestrator.tracker"] = _tracker_mod
@@ -387,7 +398,17 @@ _pkg_orch.repo_tracker = _pkg_repo
 _pkg_repo.normalizers = _normalizers_mod
 
 # NOW import the system under test.
+sys.modules.pop("extensions.orchestrator.repo_tracker.pull_requests", None)
 from extensions.orchestrator.repo_tracker import pull_requests as pr  # noqa: E402
+
+# Collection imports every test module before executing any test. Restore the
+# real package graph immediately so these local dependency doubles cannot
+# contaminate unrelated orchestrator tests; ``pr`` keeps its imported globals.
+for _module_name, _saved_module in _SAVED_MODULES.items():
+    if _saved_module is _MISSING_MODULE:
+        sys.modules.pop(_module_name, None)
+    else:
+        sys.modules[_module_name] = _saved_module
 
 # =============================================================================
 # Phase 2: Stub host class providing the mixin's host-class contract

@@ -195,6 +195,7 @@ def test_restore_metadata_from_session_copies_title_and_tags(tmp_path, monkeypat
     from src.services.session_storage import SessionStorage
 
     # Point SESSIONS_DIR at tmp_path so writes don't hit the real home.
+    monkeypatch.setenv("CLAWCODEX_SESSIONS_DIR", str(tmp_path))
     monkeypatch.setattr("clawcodex_ext.services.session_storage.SESSIONS_DIR", tmp_path)
 
     # Create source session metadata with title + tags.
@@ -217,6 +218,7 @@ def test_restore_metadata_from_session_copies_title_and_tags(tmp_path, monkeypat
 def test_restore_metadata_returns_false_when_source_missing(tmp_path, monkeypatch):
     from clawcodex_ext.agent.resume_checks import restore_metadata_from_session
 
+    monkeypatch.setenv("CLAWCODEX_SESSIONS_DIR", str(tmp_path))
     monkeypatch.setattr("clawcodex_ext.services.session_storage.SESSIONS_DIR", tmp_path)
     ok = restore_metadata_from_session(
         target_session_id="tgt",

@@ -35,6 +35,7 @@ import pytest
 from extensions.daemon.constants import (
     BACKOFF_CAP_MS,
     BACKOFF_INITIAL_MS,
+    ENV_VAR_DAEMON_SESSION_KIND,
 )
 from extensions.daemon.errors import WorkerSpawnError
 from extensions.daemon.lifecycle import (
@@ -69,7 +70,7 @@ def test_build_worker_env_includes_daemon_keys(tmp_path):
     assert env["CLAWCODEX_DAEMON_PERMISSION_MODE"] == "bypassPermissions"
     assert env["CLAWCODEX_DAEMON_SANDBOX"] == "1"
     assert env["CLAWCODEX_DAEMON_TIMEOUT_MS"] == "12345"
-    assert env["CLAWCODEX_SESSION_KIND"] == "daemon-worker"
+    assert env[ENV_VAR_DAEMON_SESSION_KIND] == "daemon-worker"
     # Inherited PATH
     assert "PATH" in env
 

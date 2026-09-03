@@ -37,9 +37,9 @@ from clawcodex_ext.session_intelligence.summary_schema import SessionSummary
 
 
 def summarize_session(session_id: str, *, sessions_dir: Path | None = None) -> dict[str, Any]:
-    from clawcodex_ext.services.session_storage import SESSIONS_DIR
+    from clawcodex_ext.services.session_storage import resolve_sessions_dir
 
-    base = sessions_dir or SESSIONS_DIR
+    base = sessions_dir if sessions_dir is not None else resolve_sessions_dir()
     session_dir = Path(base) / session_id
     transcript = session_dir / "transcript.jsonl"
     metadata = _load_json(session_dir / "metadata.json")
@@ -97,9 +97,9 @@ def update_summary_from_away_summary(
 ) -> dict[str, Any]:
     """Bridge Away Summary text into the structured summary sidecar."""
 
-    from clawcodex_ext.services.session_storage import SESSIONS_DIR
+    from clawcodex_ext.services.session_storage import resolve_sessions_dir
 
-    base = sessions_dir or SESSIONS_DIR
+    base = sessions_dir if sessions_dir is not None else resolve_sessions_dir()
     session_dir = Path(base) / session_id
     if not session_dir.is_dir():
         return {"generated": False, "reason": f"session not found: {session_id}"}

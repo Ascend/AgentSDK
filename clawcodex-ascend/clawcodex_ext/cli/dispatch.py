@@ -338,21 +338,6 @@ def run_cli(argv: list[str] | None = None) -> int:
             )
             return rc
 
-        from clawcodex_ext.cli.subcommand_registry import get_subcommand
-
-        subcommand = get_subcommand(token)
-        if subcommand is not None:
-            rc = subcommand(rest_args)
-            _telemetry_record_end(
-                session_id=_telemetry_session_id,
-                command_name=token,
-                mode="non_interactive",
-                success=(rc == 0),
-                duration_s=time.monotonic() - _telemetry_start,
-                exit_status=rc,
-            )
-            return rc
-
         if token == "mcp":  # nosec B105
             from src.entrypoints.mcp import run_mcp_subcommand
 
@@ -386,6 +371,24 @@ def run_cli(argv: list[str] | None = None) -> int:
             _telemetry_record_end(
                 session_id=_telemetry_session_id,
                 command_name="doctor",
+                mode="non_interactive",
+                success=(rc == 0),
+                duration_s=time.monotonic() - _telemetry_start,
+                exit_status=rc,
+            )
+            return rc
+
+        # Load the extensible registry only after the deliberately-light
+        # built-in paths above. Registry discovery imports provider and tool
+        # commands, which defeats the MCP/daemon/doctor cold-start contract.
+        from clawcodex_ext.cli.subcommand_registry import get_subcommand
+
+        subcommand = get_subcommand(token)
+        if subcommand is not None:
+            rc = subcommand(rest_args)
+            _telemetry_record_end(
+                session_id=_telemetry_session_id,
+                command_name=token,
                 mode="non_interactive",
                 success=(rc == 0),
                 duration_s=time.monotonic() - _telemetry_start,

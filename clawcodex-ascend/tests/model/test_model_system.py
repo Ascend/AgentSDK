@@ -81,7 +81,7 @@ class TestModelConfigs:
         assert cfg.cost_input_per_mtok == 1.0
 
     def test_unknown_returns_none(self):
-        assert get_model_config("gpt-4o") is None
+        assert get_model_config("definitely-unknown-model") is None
 
     def test_prefix_match(self):
         cfg = get_model_config("claude-sonnet-4-20250514-v2")

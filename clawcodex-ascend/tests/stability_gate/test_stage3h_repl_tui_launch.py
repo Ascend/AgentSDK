@@ -24,6 +24,7 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
@@ -335,16 +336,24 @@ class TestStage3hReplTuiHandoffReplay:
 class TestStage3hCliSubprocess:
     """Tests for TestStage3hCliSubprocess."""
 
-    def _check_no_crash_startup(self, *args: str) -> None:
+    def _check_no_crash_startup(self, *args: str, config_dir: Path) -> None:
         """Test helper for check no crash startup."""
         import time
 
+        child_env = {
+            **os.environ,
+            "HOME": str(config_dir.parent),
+            "CLAWCODEX_CONFIG_DIR": str(config_dir),
+            "CLAWCODEX_HOME": str(config_dir),
+            "CLAW_TELEMETRY_STORAGE_DIR": str(config_dir / "telemetry"),
+        }
         proc = subprocess.Popen(
             [sys.executable, "-m", "src.cli", *args],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             stdin=subprocess.DEVNULL,
             text=True,
+            env=child_env,
         )
         time.sleep(3)
         returncode = proc.poll()
@@ -405,13 +414,13 @@ class TestStage3hCliSubprocess:
         assert proc.returncode == 0, f"stderr={proc.stderr!r}"
         assert len(proc.stdout.strip()) > 0
 
-    def test_cli_tui_flag_no_traceback(self):
+    def test_cli_tui_flag_no_traceback(self, tmp_path: Path):
         """Verify cli tui flag no traceback."""
-        self._check_no_crash_startup("--tui")
+        self._check_no_crash_startup("--tui", config_dir=tmp_path / ".clawcodex")
 
-    def test_cli_no_tui_flag_no_traceback(self):
+    def test_cli_no_tui_flag_no_traceback(self, tmp_path: Path):
         """Verify cli no tui flag no traceback."""
-        self._check_no_crash_startup("--no-tui")
+        self._check_no_crash_startup("--no-tui", config_dir=tmp_path / ".clawcodex")
 
     def test_cli_legacy_repl_flag_no_traceback(self):
         """Verify cli legacy repl flag no traceback."""
@@ -423,9 +432,9 @@ class TestStage3hCliSubprocess:
         )
         assert proc.returncode == 0, f"stderr={proc.stderr!r}"
 
-    def test_cli_tui_resume_no_traceback(self):
+    def test_cli_tui_resume_no_traceback(self, tmp_path: Path):
         """Verify cli tui resume no traceback."""
-        self._check_no_crash_startup("--tui", "--resume", "browse")
+        self._check_no_crash_startup("--tui", "--resume", "browse", config_dir=tmp_path / ".clawcodex")
 
     def test_cli_tui_remembers_slash_commands_importable(self):
         """Verify cli tui remembers slash commands importable."""

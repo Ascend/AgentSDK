@@ -20,11 +20,11 @@
 
 # Split drill phases intentionally share the support module's private scenario namespace.
 # ruff: noqa: F403, F405
-# pylint: disable=C0207,C3001,E0602,W0401
+# pylint: disable=C0207,C3001,E0602,W0401,W0614
 
 """Phases one through four of the Agent Loop release drill."""
 
-from tests.smoke._agent_loop_drill_support import *
+from ._agent_loop_drill_support import *
 
 
 def _phase1(d) -> None:

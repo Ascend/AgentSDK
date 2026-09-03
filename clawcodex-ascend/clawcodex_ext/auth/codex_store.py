@@ -28,6 +28,7 @@ in-memory zeroization on logout.
 
 from __future__ import annotations
 
+import base64
 import gc
 import hashlib
 import json
@@ -463,6 +464,20 @@ def import_codex_cli_tokens(
     return tokens
 
 
+def codex_cli_auth_is_newer(last_imported_at: float | None) -> bool:
+    """Return whether the Codex CLI auth file should be imported again.
+
+    Codex CLI refreshes its OAuth tokens independently.  A previously
+    imported ClawCodex copy must therefore be refreshed after the source file
+    changes, otherwise the runtime can keep sending an expired access token.
+    """
+    try:
+        source_mtime = CODEX_CLI_AUTH_FILE.stat().st_mtime
+    except OSError:
+        return False
+    return last_imported_at is None or source_mtime > last_imported_at
+
+
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
@@ -479,13 +494,33 @@ def _tokens_from_mapping(value: Any) -> CodexOAuthTokens | None:
         return None
     token_type = value.get("token_type")
     scope = value.get("scope")
+    expires_at = _optional_float(value.get("expires_at"))
+    if expires_at is None:
+        expires_at = _jwt_expiry(access_token)
     return CodexOAuthTokens(
         access_token=access_token.strip(),
         refresh_token=refresh_token.strip(),
-        expires_at=_optional_float(value.get("expires_at")),
+        expires_at=expires_at,
         token_type=token_type if isinstance(token_type, str) and token_type else "Bearer",
         scope=scope if isinstance(scope, str) else None,
     )
+
+
+def _jwt_expiry(token: str) -> float | None:
+    """Read an OAuth JWT ``exp`` claim without validating or logging it."""
+    parts = token.split(".")
+    if len(parts) != 3:
+        return None
+    try:
+        payload = parts[1]
+        payload += "=" * (-len(payload) % 4)
+        decoded = base64.urlsafe_b64decode(payload.encode("ascii"))
+        exp = json.loads(decoded).get("exp")
+    except (UnicodeError, ValueError, TypeError):
+        return None
+    if isinstance(exp, bool) or not isinstance(exp, (int, float)):
+        return None
+    return float(exp)
 
 
 def _optional_float(value: Any) -> float | None:

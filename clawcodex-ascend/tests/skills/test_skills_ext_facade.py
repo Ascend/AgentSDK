@@ -165,8 +165,8 @@ def test_path_facade_projects_canonical_roots_without_discovery(
     )
 
     assert str(custom_user.resolve()) in paths["user"]
-    assert str((tmp_path / ".claude" / "skills").resolve()) in paths["project"]
     assert str((tmp_path / ".clawcodex" / "skills").resolve()) in paths["project"]
+    assert str((tmp_path / ".claude" / "skills").resolve()) not in paths["project"]
     assert str(managed.resolve()) in paths["managed"]
 
 
@@ -241,6 +241,7 @@ def test_catalog_initializes_converter_without_expanding_core_bundled_skills(
     )
 
     core_names = {
+        "batch",
         "simplify",
         "debug",
         "loop",

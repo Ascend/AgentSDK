@@ -216,7 +216,9 @@ MonitorTool: Tool = build_tool(
     map_result_to_api=_monitor_map_result_to_api,
     is_enabled=_monitor_is_enabled,
     is_concurrency_safe=lambda _input: False,
-    is_read_only=lambda _input: True,
+    # The command is arbitrary shell, so starting it can mutate the
+    # workspace even though execution continues in the background.
+    is_read_only=lambda _input: False,
     is_destructive=lambda _input: False,
     check_permissions=_monitor_check_permissions,
     validate_input=_monitor_validate_input,

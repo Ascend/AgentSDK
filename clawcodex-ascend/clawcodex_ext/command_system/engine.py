@@ -60,6 +60,7 @@ class CommandResult:
     should_query: bool = False
     display: str = "system"  # "skip" | "system" | "user" | "assistant"
     meta_messages: list[str] = field(default_factory=list)
+    error: str | None = None
     # propagated from InteractiveOutcome.scrollable — surfaces that
     # recognise scrollable rendering (currently: REPL) branch off their
     # normal text path; others ignore the flag and print ``text`` as usual.
@@ -110,13 +111,14 @@ class CommandResult:
         )
 
     @classmethod
-    def error(cls, command_name: str, error: str) -> "CommandResult":
+    def failure(cls, command_name: str, error: str) -> "CommandResult":
         """Create an error result."""
         return cls(
             success=False,
             command_name=command_name,
             result_type="text",
             text=f"Error: {error}",
+            error=error,
             display="system",
         )
 
@@ -155,7 +157,7 @@ class CommandEngine:
         """
         # Parse command and args
         if not command_input.startswith("/"):
-            return CommandResult.error(
+            return CommandResult.failure(
                 "",
                 "Commands must start with '/'",
             )
@@ -167,14 +169,14 @@ class CommandEngine:
         # Get command
         command = self.registry.get(command_name)
         if command is None:
-            return CommandResult.error(
+            return CommandResult.failure(
                 command_name,
                 f"Unknown command: {command_name}",
             )
 
         # Check if command is enabled
         if not command.is_enabled():
-            return CommandResult.error(
+            return CommandResult.failure(
                 command_name,
                 f"Command {command_name} is disabled",
             )
@@ -188,7 +190,7 @@ class CommandEngine:
         elif command.command_type == CommandType.INTERACTIVE:
             result = await self._execute_interactive(command, args)
         else:
-            result = CommandResult.error(
+            result = CommandResult.failure(
                 command_name,
                 f"Unknown command type: {command.command_type}",
             )
@@ -239,7 +241,7 @@ class CommandEngine:
                 display_text,
             )
         except Exception as e:
-            return CommandResult.error(
+            return CommandResult.failure(
                 command.name,
                 str(e),
             )
@@ -262,7 +264,7 @@ class CommandEngine:
                     "",
                 )
                 if not result_text:
-                    return CommandResult.error(
+                    return CommandResult.failure(
                         command.name,
                         f"Forked skill produced empty result: {command.name}",
                     )
@@ -278,7 +280,7 @@ class CommandEngine:
                 prompt_is_meta=isinstance(command, SkillPromptCommand),
             )
         except Exception as e:
-            return CommandResult.error(
+            return CommandResult.failure(
                 command.name,
                 str(e),
             )
@@ -322,12 +324,12 @@ class CommandEngine:
         except InteractiveUnavailableError as e:
             # Expected on the null surface — a clean, typed message rather
             # than a stack trace.
-            return CommandResult.error(command.name, str(e))
+            return CommandResult.failure(command.name, str(e))
         except Exception as e:
-            return CommandResult.error(command.name, str(e))
+            return CommandResult.failure(command.name, str(e))
 
         if not isinstance(outcome, InteractiveOutcome):
-            return CommandResult.error(
+            return CommandResult.failure(
                 command.name,
                 f"interactive command returned {type(outcome).__name__}, expected InteractiveOutcome",
             )

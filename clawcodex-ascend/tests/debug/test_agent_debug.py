@@ -109,6 +109,21 @@ def test_apply_agent_debug_environment_overrides_inherited_state_paths(tmp_path:
     assert env["CLAW_TELEMETRY_STORAGE_DIR"] == str(tmp_path / "state" / "telemetry")
 
 
+def test_agent_debug_home_redirects_auto_memory(tmp_path: Path, monkeypatch) -> None:
+    from clawcodex_ext.memdir.paths import get_auto_mem_path, get_memory_base_dir
+
+    state_dir = tmp_path / "state"
+    env = apply_agent_debug_environment({}, debug_dir=state_dir)
+    for key, value in env.items():
+        monkeypatch.setenv(key, value)
+    monkeypatch.delenv("CLAWCODEX_CONFIG_DIR", raising=False)
+    monkeypatch.delenv("CLAUDE_CODE_REMOTE_MEMORY_DIR", raising=False)
+    monkeypatch.delenv("CLAUDE_COWORK_MEMORY_PATH_OVERRIDE", raising=False)
+
+    assert Path(get_memory_base_dir()) == state_dir
+    assert Path(get_auto_mem_path(tmp_path)).is_relative_to(state_dir)
+
+
 def test_session_storage_honors_agent_debug_sessions_dir(tmp_path: Path, monkeypatch) -> None:
     from clawcodex_ext.services.session_storage import SessionStorage
 

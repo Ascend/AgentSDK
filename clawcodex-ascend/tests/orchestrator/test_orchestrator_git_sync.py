@@ -33,7 +33,9 @@ import sys
 import tempfile
 import types
 import unittest
+from unittest import mock
 from enum import Enum
+from importlib import import_module
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -43,6 +45,11 @@ _SKIP = {"extensions", "extensions.orchestrator"}
 
 
 def _reg(n: str, **kw: object) -> None:
+    try:
+        import_module(n)
+        return
+    except ImportError:
+        pass
     p = n.split(".")
     for i in range(1, len(p)):
         x = ".".join(p[:i])
@@ -337,6 +344,15 @@ def _build_origin_repo(base: Path) -> Path:
 
 
 class TestGitSyncService(unittest.IsolatedAsyncioTestCase):
+    def setUp(self) -> None:
+        self._home_dir = tempfile.TemporaryDirectory()
+        self._home_patch = mock.patch.object(Path, "home", return_value=Path(self._home_dir.name))
+        self._home_patch.start()
+
+    def tearDown(self) -> None:
+        self._home_patch.stop()
+        self._home_dir.cleanup()
+
     def test_pr_template_renders_fixed_and_generated_content(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             workspace_path = Path(tmp)

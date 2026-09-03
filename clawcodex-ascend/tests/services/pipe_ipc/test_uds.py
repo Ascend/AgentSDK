@@ -144,7 +144,7 @@ async def test_server_drops_malformed_frame_and_keeps_connection(tmp_path: Path)
     await server.start()
 
     try:
-        reader, writer = await asyncio.open_unix_connection(str(tmp_path / "pipe.sock"))
+        reader, writer = await asyncio.open_unix_connection(str(server.socket_path))
         try:
             writer.write(b"this-is-not-json\n")
             valid = PipeMessage(

@@ -105,7 +105,7 @@ def _validate_description(value: str | None) -> None:
     if value is None:
         return
     if not isinstance(value, str):
-        raise TypeError("description must be a string when provided")
+        raise ValueError("description must be a string when provided")
     if len(value) > _DESCRIPTION_MAX:
         raise ValueError(f"description exceeds {_DESCRIPTION_MAX} characters (got {len(value)})")
 
@@ -114,7 +114,7 @@ def _validate_fields(value: Mapping[str, Any] | None) -> None:
     if value is None:
         return
     if not isinstance(value, Mapping):
-        raise TypeError("fields must be a mapping when provided")
+        raise ValueError("fields must be a mapping when provided")
     if len(value) > _FIELDS_MAX:
         raise ValueError(f"fields exceeds {_FIELDS_MAX} entries (got {len(value)})")
     for name in value:
@@ -126,7 +126,7 @@ def _validate_metadata(value: Mapping[str, Any] | None) -> None:
     if value is None:
         return
     if not isinstance(value, Mapping):
-        raise TypeError("metadata must be a mapping when provided")
+        raise ValueError("metadata must be a mapping when provided")
     for key in value:
         if not isinstance(key, str) or not key:
             raise ValueError(f"metadata keys must be non-empty strings: {key!r}")
@@ -430,7 +430,7 @@ class Template:
     @classmethod
     def from_dict(cls, data: Any) -> Template:
         if not isinstance(data, dict):
-            raise TypeError("template payload must be a JSON object")
+            raise ValueError("template payload must be a JSON object")
         # Required fields. Missing -> fail loudly (corrupt payload).
         if "id" not in data:
             raise ValueError("template payload missing required key: id")

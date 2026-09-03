@@ -44,7 +44,7 @@ class PipeJsonCodec:
             raise ValueError("Invalid Pipe IPC JSON") from exc
 
         if not isinstance(data, dict):
-            raise TypeError("Pipe IPC message must be a JSON object")
+            raise ValueError("Pipe IPC message must be a JSON object")
         return PipeMessage.from_dict(data)
 
 

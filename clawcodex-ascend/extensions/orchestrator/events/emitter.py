@@ -33,8 +33,9 @@ from typing import TYPE_CHECKING, Any, Callable
 from .types import EventLevel, OrchestratorEvent, TERMINAL_REASON_LEVEL
 
 if TYPE_CHECKING:
+    from extensions.api.query import PhaseComplete, SessionComplete, TurnComplete
+
     from ..progress_sink import ProgressSink  # noqa: F401
-    from ..api.query import SessionComplete, PhaseComplete, TurnComplete  # noqa: F401
 
 logger = logging.getLogger(__name__)
 

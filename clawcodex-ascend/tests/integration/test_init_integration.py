@@ -44,6 +44,7 @@ from pathlib import Path
 from unittest import mock
 
 import clawcodex_ext.init as init_module
+import clawcodex_ext.permissions.trust_boundary as trust_boundary
 import pytest
 from src.bootstrap.state import reset_state_for_tests
 from src.utils import graceful_shutdown as gs
@@ -55,11 +56,13 @@ WORKTREE_ROOT = Path(__file__).resolve().parent.parent
 @pytest.fixture(autouse=True)
 def _reset_everything():
     init_module.reset_init_for_test_only()
+    trust_boundary.reset_trust_boundary_for_test_only()
     reset_state_for_tests()
     gs.reset_for_test_only()
     startup_profiler.reset_profiler_for_test_only()
     yield
     init_module.reset_init_for_test_only()
+    trust_boundary.reset_trust_boundary_for_test_only()
     reset_state_for_tests()
     gs.reset_for_test_only()
     startup_profiler.reset_profiler_for_test_only()
@@ -113,7 +116,7 @@ class TestFastPathSkipsInit(unittest.TestCase):
 
     def test_version_fast_path_does_not_call_pre_action(self) -> None:
         # The pre-argparse fast-path checks for one-flag --version.
-        with mock.patch("clawcodex_ext.init.run_pre_action") as mock_pre_action:
+        with mock.patch("src.init.run_pre_action") as mock_pre_action:
             with mock.patch.object(sys, "argv", ["clawcodex", "--version"]):
                 from src import cli
 
@@ -124,7 +127,7 @@ class TestFastPathSkipsInit(unittest.TestCase):
         # Multi-arg argv triggers argparse (pre-argparse fast-path
         # requires len(sys.argv) == 2). The args.version short-circuit
         # at cli.py:92-95 must also skip init.
-        with mock.patch("clawcodex_ext.init.run_pre_action") as mock_pre_action:
+        with mock.patch("src.init.run_pre_action") as mock_pre_action:
             with mock.patch.object(sys, "argv", ["clawcodex", "--version", "--debug"]):
                 # argparse rejects unknown flags, so use a known one
                 # that doesn't change behavior:
@@ -142,7 +145,7 @@ class TestFastPathSkipsInit(unittest.TestCase):
     def test_post_argparse_config_short_circuit_skips_init(self) -> None:
         # Same property for --config short-circuit.
         with (
-            mock.patch("clawcodex_ext.init.run_pre_action") as mock_pre_action,
+            mock.patch("src.init.run_pre_action") as mock_pre_action,
             mock.patch("src.cli.show_config", return_value=0),
         ):
             with mock.patch.object(sys, "argv", ["clawcodex", "--config", "--legacy-repl"]):
@@ -163,7 +166,7 @@ class TestPreActionRunsForDefaultInvocation(unittest.TestCase):
         # in the full provider/registry/etc. stack. _resolve_permission_state
         # is allowed to run because cli.start_repl reads args._resolved_*.
         with (
-            mock.patch("clawcodex_ext.init.run_pre_action") as mock_pre,
+            mock.patch("src.init.run_pre_action") as mock_pre,
             mock.patch("src.cli.start_repl", return_value=0),
             mock.patch("src.entrypoints.tui.should_use_tui", return_value=False),
             mock.patch.object(sys, "argv", ["clawcodex"]),
@@ -188,8 +191,16 @@ class TestInitSafeEnvApplyBeforeUnsafe(unittest.TestCase):
         original_path = os.environ.get("PATH", "")
         with (
             mock.patch(
-                "src.permissions.trust_boundary._load_config_env",
+                "clawcodex_ext.permissions.trust_boundary._load_global_config_env",
                 return_value=config_env,
+            ),
+            mock.patch(
+                "clawcodex_ext.permissions.trust_boundary._load_user_settings_env",
+                return_value={},
+            ),
+            mock.patch(
+                "clawcodex_ext.permissions.trust_boundary._load_project_scoped_env",
+                return_value={},
             ),
             mock.patch.object(init_module, "setup_graceful_shutdown"),
             mock.patch.object(init_module, "start_api_preconnect"),

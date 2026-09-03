@@ -21,8 +21,8 @@
 """DiagnosticsProbe protocol.
 
 The orchestrator heartbeat loop calls ``DiagnosticsProbe.heartbeat()``
-to detect process freeze / deadlock. ``FreezeDetector`` is the default
-implementation (copied from ``clawcodex_ext.diagnostics.freeze_detector``).
+to detect process freeze or deadlock. Concrete backends provide the probe;
+the runtime package only owns this boundary contract.
 """
 
 from __future__ import annotations
