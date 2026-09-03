@@ -41,8 +41,8 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator
 
-from .runtime_paths import is_wsl_runtime, normalize_runtime_path
-from .sdk_dependency_resolver import SdkDependencySpec
+from .core.runtime_paths import is_wsl_runtime, normalize_runtime_path
+from .core.sdk_dependency_resolver import SdkDependencySpec
 
 logger = logging.getLogger(__name__)
 

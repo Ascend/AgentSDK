@@ -29,6 +29,8 @@ and tested without any Claude Code runtime.
 See ``docs/DECOUPLE_SOP_CONVERTER_PLAN.md`` §3.5.
 """
 
+from typing import Any
+
 from .sdk_parser import SdkParser, SdkMethod, SdkParam, SdkParseResult, parse_sdk_spec
 from .source_parser import (
     SourceCodeParser,
@@ -173,20 +175,36 @@ from .bundle_workflow import (
     discover_workflow_yaml,
     workflow_artifacts_enabled,
 )
-from .bundle_venv import (
-    bundle_venv_dir,
-    bundle_venv_python,
-    bundle_venv_site_packages,
-    activate_bundle_venv_imports,
-    in_process_bundle_venv_reexec,
-    is_venv_ready,
-    ensure_bundle_venv,
-    ensure_bundle_venv_and_reexec,
-)
 from .agent_catalog import AgentCatalog, AgentCatalogEntry
 from .agent_runtime import materialize_agent, invoke_agent, AgentRuntimeError
 
 
+_BUNDLE_VENV_EXPORTS = frozenset(
+    {
+        "bundle_venv_dir",
+        "bundle_venv_python",
+        "bundle_venv_site_packages",
+        "activate_bundle_venv_imports",
+        "in_process_bundle_venv_reexec",
+        "is_venv_ready",
+        "ensure_bundle_venv",
+        "ensure_bundle_venv_and_reexec",
+    }
+)
+
+
+def __getattr__(name: str) -> Any:
+    """Lazily expose bundle-venv APIs from the top-level canonical module."""
+
+    if name in _BUNDLE_VENV_EXPORTS:
+        from .. import bundle_venv
+
+        return getattr(bundle_venv, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+# The bundle-venv names are provided lazily by ``__getattr__`` above.
+# pylint: disable=undefined-all-variable
 __all__ = [
     "SdkParser",
     "SdkMethod",
