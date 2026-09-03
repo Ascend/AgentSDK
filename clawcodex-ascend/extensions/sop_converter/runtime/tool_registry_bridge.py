@@ -77,8 +77,6 @@ from ..core.sdk_parser import SdkMethod, SdkParam
 from ..core.sdk_serialization import (
     WRAPPER_COERCION_HELPERS,
     WRAPPER_SERIALIZATION_HELPERS,
-    WRAPPER_TEAM_DATABASE_COERCION,
-    WRAPPER_MESSAGER_COERCION,
 )
 from ..core.tool_dependencies import (
     _PRIMITIVE_TYPES,
@@ -2077,20 +2075,6 @@ def _coerce_param_expression(
     ):
         return None, set()
 
-    # Special handling for ABC types that require factory functions:
-    # Messager and TeamDatabase cannot be instantiated directly via cls(**dict)
-    if type_name == "Messager":
-        expr = f"_coerce_messager({param_name}, team_name=team_name)"
-        if is_optional:
-            expr = f"None if {param_name} is None else ({expr})"
-        return expr, set()
-
-    if type_name == "TeamDatabase":
-        expr = f"_coerce_team_database({param_name})"
-        if is_optional:
-            expr = f"None if {param_name} is None else ({expr})"
-        return expr, set()
-
     expr, import_info = _model_coerce_expression(param_name, type_name, source_dir, module_path=module_path)
     if expr is None:
         return None, set()
@@ -2417,12 +2401,6 @@ def _generate_wrapper_script(
     module_dir = _resolve_module_working_dir(source_dir, module_name)
 
     body_text = "\n".join(body_parts)
-    extra_coercion = ""
-    if "_coerce_team_database" in body_text:
-        extra_coercion += "\n" + WRAPPER_TEAM_DATABASE_COERCION
-    if "_coerce_messager" in body_text:
-        extra_coercion += "\n" + WRAPPER_MESSAGER_COERCION
-
     interactive_input_preamble = _generate_interactive_input_preamble(ops)
 
     content = _WRAPPER_SCRIPT_TEMPLATE.format(
@@ -2439,7 +2417,7 @@ def _generate_wrapper_script(
         extra_imports=extra_imports,
         model_imports=model_import_block,
         serialization_helpers=WRAPPER_SERIALIZATION_HELPERS,
-        coercion_helpers=WRAPPER_COERCION_HELPERS + extra_coercion,
+        coercion_helpers=WRAPPER_COERCION_HELPERS,
         body=body_text,
         script_name=script_name,
         interactive_input_preamble=interactive_input_preamble,
