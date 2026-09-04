@@ -957,8 +957,11 @@ async def _call_model_sync(
                         block_types.append(str(type(b).__name__))
                 logger.warning("[DIAG]   msg[%d] role=%s  blocks=%s", i, role, block_types)
     _t0 = time.monotonic()
-    request_model = model or getattr(provider, "model", None) or ""
-    request_tools = filter_tools_for_request(tools, request_model, api_messages)
+    # ``tools`` is already filtered in ``_resolve_effective_tools``. Do not
+    # re-run ``filter_tools_for_request`` on ``api_messages``: those dicts
+    # only have ``role``/``content``, so a type-based discovered-tool scan
+    # would drop deferred tools that ToolSearch already found.
+    request_tools = tools
     tool_schemas = []
     for tool in request_tools:
         # Filter out internal/hidden tools (is_enabled=False) so they

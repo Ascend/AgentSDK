@@ -223,6 +223,17 @@ class TestSopPromptsPhase0(unittest.TestCase):
         self.assertIn("tests/", body)
         self.assertIn("fixtures", body)
 
+    def test_stop_loss_forbids_fabricated_cli(self) -> None:
+        body = domain_agent_sop_body(
+            agent_type="openjiuwen_merged-agent",
+            description="test",
+            skill_name="openjiuwen_merged-skill",
+        )
+        self.assertIn("禁止编造", body)
+        self.assertIn("call_impl", body)
+        self.assertIn("--flag", body)
+        self.assertIn("没有终端入口命令", body)
+
 
 if __name__ == "__main__":
     unittest.main()

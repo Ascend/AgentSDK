@@ -40,10 +40,10 @@ from extensions.sop_converter.cross_domain_orchestration import (
     write_orchestration_routes,
 )
 from extensions.sop_converter.core.intent_tags import collect_intent_phrases
-from extensions.sop_converter.skill_grouper import SkillSpec
-from extensions.sop_converter.source_parser import ParamSpec, SourceComponent, SourceOperation
+from extensions.sop_converter.runtime.skill_grouper import SkillSpec
+from extensions.sop_converter.core.source_parser import ParamSpec, SourceComponent, SourceOperation
 from extensions.sop_converter.task_guide import _format_required_params_note
-from extensions.sop_converter.tool_dependencies import build_tool_dependency_index
+from extensions.sop_converter.core.tool_dependencies import build_tool_dependency_index
 from extensions.sop_converter.sop_prompts import SOP_OVERVIEW_ROUTING, append_sop_overview_routing
 
 

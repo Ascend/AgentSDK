@@ -91,6 +91,20 @@ class TestImportAliasResolver(unittest.TestCase):
             ),
             encoding="utf-8",
         )
+        (app_pkg / "search.py").write_text(
+            textwrap.dedent(
+                """
+                from typing import Any, Dict, List
+
+                def search_repository(query: str) -> Dict[str, Any]:
+                    return {}
+
+                def summarize(results: List[str]) -> List[str]:
+                    return results
+                """
+            ),
+            encoding="utf-8",
+        )
 
     def test_alias_resolves_to_legacy_config(self) -> None:
         resolver = ModuleImportIndex(str(self.root))
@@ -148,6 +162,35 @@ class TestImportAliasResolver(unittest.TestCase):
         )
         self.assertEqual(factory_identity, "demo_sdk_widgets_types_widgetconfig")
         self.assertEqual(runner_identity, factory_identity)
+
+    def test_typing_generic_alias_suppressed_in_identity(self) -> None:
+        """``from typing import Dict`` must not yield a ``typing_dict`` token.
+
+        Otherwise F-55 type-contract pairing fabricates edges between every
+        tool returning ``Dict`` and every tool accepting one.
+        """
+        resolver = ModuleImportIndex(str(self.root))
+        self.assertIsNone(resolver.resolve_type_identity("demo_sdk.app.search", "Dict[str, Any]"))
+        self.assertIsNone(resolver.resolve_type_identity("demo_sdk.app.search", "List[str]"))
+        self.assertIsNone(resolver.resolve_type_identity("demo_sdk.app.search", "Any"))
+
+    def test_module_qualified_generic_hint_suppressed_in_identity(self) -> None:
+        """Fully-qualified ``typing.Dict`` hints are suppressed too."""
+        resolver = ModuleImportIndex(str(self.root))
+        self.assertIsNone(resolver.resolve_type_identity("demo_sdk.app.search", "typing.Dict"))
+        self.assertIsNone(resolver.resolve_type_identity("demo_sdk.app.search", "collections.abc.Mapping"))
+
+    def test_import_path_still_resolves_typing_generics(self) -> None:
+        """``resolve_import_path`` (import generation) must keep resolving generics."""
+        resolver = ModuleImportIndex(str(self.root))
+        self.assertEqual(
+            resolver.resolve_import_path("demo_sdk.app.search", "Dict[str, Any]"),
+            ("typing", "Dict"),
+        )
+        self.assertEqual(
+            resolver.resolve_import_path("demo_sdk.app.search", "List[str]"),
+            ("typing", "List"),
+        )
 
 
 if __name__ == "__main__":

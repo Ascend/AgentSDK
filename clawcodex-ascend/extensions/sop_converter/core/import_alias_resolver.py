@@ -111,6 +111,96 @@ def type_identity_key(qualified: str) -> str:
     return cleaned.lower()
 
 
+# Stdlib generic containers / special forms carry no business identity. When a
+# type hint resolves through import aliases to one of these origins (e.g.
+# ``from typing import Dict`` -> ``("typing", "Dict")``), the identity must be
+# suppressed instead of producing a ``typing_dict`` token: otherwise F-55
+# type-contract pairing fabricates dependency edges between unrelated tools
+# (a tool returning ``Dict[str, Any]`` would "enable" every tool that happens
+# to accept a ``Dict`` parameter). Only stdlib module origins are filtered;
+# business classes sharing these names in SDK modules are unaffected.
+_GENERIC_TYPE_MODULES = frozenset({"typing", "builtins", "collections", "collections.abc", "_collections_abc"})
+_GENERIC_TYPE_NAMES = frozenset(
+    {
+        # builtins containers & scalars
+        "dict",
+        "list",
+        "set",
+        "frozenset",
+        "tuple",
+        "str",
+        "bytes",
+        "int",
+        "float",
+        "bool",
+        "complex",
+        "object",
+        "type",
+        # typing generic aliases & special forms
+        "any",
+        "optional",
+        "union",
+        "literal",
+        "callable",
+        "awaitable",
+        "coroutine",
+        "generator",
+        "asyncgenerator",
+        "asynciterator",
+        "iterator",
+        "iterable",
+        "reversible",
+        "sequence",
+        "mutablesequence",
+        "mapping",
+        "mutablemapping",
+        "abstractset",
+        "mutableset",
+        "collection",
+        "container",
+        "hashable",
+        "sized",
+        "keysview",
+        "itemview",
+        "valuesview",
+        "classvar",
+        "final",
+        "noreturn",
+        "never",
+        "self",
+        "typealias",
+        "text",
+        "string",
+        "pattern",
+        "typeddict",
+        "namedtuple",
+        # collections concrete generics
+        "defaultdict",
+        "ordereddict",
+        "counter",
+        "chainmap",
+        "deque",
+        "userdict",
+        "userlist",
+        "userstring",
+    }
+)
+
+
+def is_stdlib_generic_type(module: str, name: str) -> bool:
+    """True when ``(module, name)`` denotes a stdlib generic container / special form."""
+    if not module or not name:
+        return False
+    return module in _GENERIC_TYPE_MODULES and name.strip().lower() in _GENERIC_TYPE_NAMES
+
+
+def _identity_key_formatter(module: str, name: str) -> str | None:
+    """Default identity formatter: suppress stdlib generic containers."""
+    if is_stdlib_generic_type(module, name):
+        return None
+    return type_identity_key(f"{module}.{name}")
+
+
 @lru_cache(maxsize=64)
 def _module_file_index(source_dir: str) -> dict[str, Path]:
     root = Path(source_dir).resolve()
@@ -266,6 +356,9 @@ class ModuleImportIndex:
             return None
 
         if "." in hint and not hint.endswith("]"):
+            mod, _, name = hint.rpartition(".")
+            if is_stdlib_generic_type(mod, name):
+                return None
             return type_identity_key(hint)
 
         root = re.sub(r"\[.*", "", hint).strip()
@@ -286,15 +379,16 @@ class ModuleImportIndex:
         name: str,
         *,
         depth: int = 0,
-        formatter: Callable[[str, str], str | tuple[str, str]] | None = None,
+        formatter: Callable[[str, str], str | tuple[str, str] | None] | None = None,
     ) -> str | tuple[str, str] | None:
         """Follow ``name`` through local / assignment / import aliases to its origin.
 
         ``formatter(module_path, name)`` builds the return value; the default
-        produces a string identity key, and callers needing the raw
+        produces a string identity key (suppressing stdlib generic containers,
+        see :func:`is_stdlib_generic_type`), and callers needing the raw
         ``(module_path, name)`` pair pass a tuple-building formatter.
         """
-        fmt = formatter or (lambda mod, nm: type_identity_key(f"{mod}.{nm}"))
+        fmt = formatter or _identity_key_formatter
         if depth > 6:
             return None
 

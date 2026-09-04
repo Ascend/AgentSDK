@@ -8,8 +8,8 @@ import unittest
 from pathlib import Path
 
 from extensions.sop_converter.core.import_alias_resolver import ModuleImportIndex
-from extensions.sop_converter.source_parser import ParamSpec, SourceComponent, SourceOperation
-from extensions.sop_converter.tool_dependencies import (
+from extensions.sop_converter.core.source_parser import ParamSpec, SourceComponent, SourceOperation
+from extensions.sop_converter.core.tool_dependencies import (
     _is_chain_builder_producer,
     build_tool_dependency_index,
     dependency_schema_fragment,
@@ -111,13 +111,16 @@ class TestToolDependencies(unittest.TestCase):
             [_comp("a", [factory]), _comp("b", [runner])],
         )
         runner_tool = to_kebab_tool_name("b", runner)
-        spec = operation_to_spec(
-            runner,
-            source_dir="/tmp",
-            script_path="/tmp/script.py",
-            comp_name="b",
-            tool_deps=index[runner_tool],
-        )
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            spec = operation_to_spec(
+                runner,
+                source_dir=tmp,
+                script_path=f"{tmp}/script.py",
+                comp_name="b",
+                tool_deps=index[runner_tool],
+            )
         fragment = spec.input_schema.get("x-sop-dependencies")
         self.assertIsNotNone(fragment)
         assert fragment is not None
@@ -132,7 +135,7 @@ class TestToolDependencies(unittest.TestCase):
         self.assertIsNone(dependency_schema_fragment(None))
 
     def test_task_guide_omits_prerequisite_notes(self) -> None:
-        from extensions.sop_converter.skill_grouper import SkillSpec
+        from extensions.sop_converter.runtime.skill_grouper import SkillSpec
         from extensions.sop_converter.task_guide import generate_task_guide_markdown
 
         factory = SourceOperation(
@@ -177,13 +180,16 @@ class TestToolDependencies(unittest.TestCase):
             [_comp("a", [factory]), _comp("b", [runner])],
         )
         runner_tool = to_kebab_tool_name("b", runner)
-        spec = operation_to_spec(
-            runner,
-            source_dir="/tmp",
-            script_path="/tmp/script.py",
-            comp_name="b",
-            tool_deps=index[runner_tool],
-        )
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            spec = operation_to_spec(
+                runner,
+                source_dir=tmp,
+                script_path=f"{tmp}/script.py",
+                comp_name="b",
+                tool_deps=index[runner_tool],
+            )
         tool = build_tool_from_spec(spec)
         document = tool_search_document(tool)
         self.assertIn("run chat", document)
