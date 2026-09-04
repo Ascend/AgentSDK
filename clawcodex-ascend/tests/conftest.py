@@ -197,6 +197,34 @@ def isolated_tmp_repo(tmp_path):
 
 
 @pytest.fixture(autouse=True)
+def _isolate_clawcodex_state_root(tmp_path, monkeypatch):
+    """Point every ClawCodex state-root override at this test's tmp dir.
+
+    ``CLAWCODEX_CONFIG_DIR`` (explicit config override) and
+    ``CLAWCODEX_HOME`` (shared fallback for isolated runs / tests /
+    ``--agent-debug`` — see ``clawcodex_ext/memdir/paths.py``) are both
+    routed to ``tmp_path`` itself so in-process tests never read the
+    developer's real ``~/.clawcodex`` config (e.g. a real
+    ``config.yaml`` ``multimodel.default_group`` must not trip the
+    MULTIMODEL feature gate inside ``run_cli``).
+
+    The root IS ``tmp_path`` (not a subdirectory): a subdirectory would
+    show up in tests that enumerate the directory's entries and assert
+    an exact listing (e.g. ``tests/input/test_at_file_completer.py``
+    asserts the completion set of an empty dir).
+
+    NOTE: ``clawcodex_ext/feature_gate/config.py`` hardcodes
+    ``Path.home() / ".clawcodex"`` (module-level constant, no env hook),
+    so feature-flag state files are NOT covered here — tests that write
+    feature state must construct their own ``ConfigStore`` on ``tmp_path``
+    (see ``tests/services/feature_gate/test_facade.py``).
+    """
+    monkeypatch.setenv("CLAWCODEX_CONFIG_DIR", str(tmp_path))
+    monkeypatch.setenv("CLAWCODEX_HOME", str(tmp_path))
+    yield tmp_path
+
+
+@pytest.fixture(autouse=True)
 def _isolate_mcp_keyring(request, monkeypatch):
     """Swap ``keyring.get_keyring()`` and the module-level free functions
     to a per-test in-memory backend so MCP token-storage tests don't leak

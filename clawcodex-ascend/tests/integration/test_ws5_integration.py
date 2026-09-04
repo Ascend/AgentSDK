@@ -75,8 +75,15 @@ def _run(coro):
 
 
 def _init_git_repo(path: str) -> None:
-    """Initialize a git repo with an initial commit."""
-    subprocess.run(["git", "init"], cwd=path, capture_output=True, check=True)
+    """Initialize a git repo with an initial commit.
+
+    ``-b main`` pins the initial branch so the git-status assertions
+    ("Current branch: main") hold regardless of the host's
+    ``init.defaultBranch`` / build default (which is ``master`` on many
+    machines, incl. this dev box). Same convention as the project-wide
+    ``isolated_tmp_repo`` fixture (tests/conftest.py).
+    """
+    subprocess.run(["git", "init", "-b", "main"], cwd=path, capture_output=True, check=True)
     subprocess.run(["git", "config", "user.email", "test@test.com"], cwd=path, capture_output=True, check=False)
     subprocess.run(
         ["git", "config", "user.name", "Integration Test"],

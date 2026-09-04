@@ -138,6 +138,13 @@ def test_model_list_loads_codex_extension_and_live_discovery(monkeypatch, capsys
 
     monkeypatch.setenv("CLAWCODEX_HOME", str(tmp_path))
     reset_model_catalog_cache()
+    # ``build_provider_from_config`` (clawcodex_ext/providers/runtime.py:71)
+    # resolves credentials in its OWN module namespace before the provider
+    # is constructed — patch it there too, not only on the provider module.
+    monkeypatch.setattr(
+        "clawcodex_ext.providers.runtime.resolve_codex_runtime_credentials",
+        lambda **kwargs: SimpleNamespace(api_key="live-access-token"),
+    )
     monkeypatch.setattr(
         "clawcodex_ext.providers.openai_codex_provider.resolve_codex_runtime_credentials",
         lambda **kwargs: SimpleNamespace(api_key="live-access-token"),

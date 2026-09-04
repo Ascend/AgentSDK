@@ -107,8 +107,11 @@ class TestHandleList:
             rc = _handle_list(["--enabled"])
         assert rc == 0
         output = stdout_buf.getvalue()
-        assert "en" in output
-        assert "dis" not in output
+        # Anchor on the marker+name prefix (``[+] en``) instead of a bare
+        # substring: built-in default flags also register here, and plain
+        # ``"en"`` / ``"dis"`` substrings collide with their descriptions.
+        assert "[+] en" in output
+        assert "[+] dis" not in output
 
     def test_list_filtered_disabled(self):
         reg = get_registry()
@@ -119,8 +122,8 @@ class TestHandleList:
             rc = _handle_list(["--disabled"])
         assert rc == 0
         output = stdout_buf.getvalue()
-        assert "dis" in output
-        assert "en" not in output
+        assert "[-] dis" in output
+        assert "[-] en" not in output
 
     def test_list_json_output(self):
         import json

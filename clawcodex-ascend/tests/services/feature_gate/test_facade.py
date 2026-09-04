@@ -46,6 +46,7 @@ from src.services.feature_gate import (
     guarded_call,
     guarded_is_enabled,
     handle_list_features,
+    register_defaults,
     reset_registry,
     run_feature_command,
 )
@@ -101,9 +102,16 @@ class TestFacadeFunctionality:
 
     @pytest.fixture(autouse=True)
     def _clean_registry(self):
+        # ``reset_registry()`` yields a registry WITHOUT the built-in default
+        # flags (register_defaults only runs at import time). Re-registering
+        # them after each reset keeps the process-global singleton usable for
+        # any later test file (e.g. tests/multimodel needs the MULTIMODEL
+        # flag definition) regardless of file ordering within the session.
         reset_registry()
+        register_defaults()
         yield
         reset_registry()
+        register_defaults()
 
     def test_register_and_is_enabled(self):
         reg = get_registry()
@@ -155,16 +163,21 @@ class TestFacadeFunctionality:
         assert my_func() == "fallback"
 
     def test_config_load_save(self, tmp_path):
-        reg = get_registry()
+        # Isolated store: the registry singleton's default ConfigStore points
+        # at the real ~/.clawcodex/features.json (hardcoded, no env hook), so
+        # writing through the singleton would clobber the developer's real
+        # feature state (this previously wiped a persisted MULTIMODEL=on).
+        from src.services.feature_gate import ConfigStore
+
+        store = ConfigStore(config_dir=tmp_path / "features")
+        reg = FeatureRegistry(config_store=store)
         reg.register(FeatureFlag(name="persist", default=False))
         reg.enable_feature("persist")
         reg.save_config()
 
         # Verify via a fresh ConfigStore that the file was written
-        from src.services.feature_gate import ConfigStore
-
-        store = ConfigStore(config_dir=reg._config_store.config_dir)
-        assert store.get("persist") is True
+        store2 = ConfigStore(config_dir=tmp_path / "features")
+        assert store2.get("persist") is True
 
     def test_cli_add_args(self):
         import argparse

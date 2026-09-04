@@ -585,6 +585,15 @@ class ReplPtySession:
         saw_substantive_output = False
 
         while time.monotonic() < deadline:
+            # Assess the accumulated transcript *before* each blocking read:
+            # output that arrived during the write/drain phase must start the
+            # idle clock immediately, or an already-answered send would wait
+            # out the full deadline before returning.
+            if not saw_substantive_output:
+                delta = self.raw_text[before_len:]
+                if _has_non_echo_output(delta, ignored_initial_echo):
+                    saw_substantive_output = True
+                    idle_deadline = time.monotonic() + min(0.2, total_timeout)
             read_timeout = 0.05
             if idle_deadline is not None:
                 read_timeout = max(0.0, min(read_timeout, idle_deadline - time.monotonic()))
@@ -669,14 +678,11 @@ class ReplPtySession:
             before_len = len(self.raw_text)
         deadline = time.monotonic() + (self.timeout if timeout is None else timeout)
         while time.monotonic() < deadline:
-            try:
-                chunk = child.read_nonblocking(size=4096, timeout=0.05)
-            except Exception:
-                if hasattr(child, "isalive") and not child.isalive():
-                    break
-                time.sleep(0.01)
-                continue
-            self._collect(str(chunk))
+            # Re-check the accumulated transcript *before* each blocking read:
+            # a fast child usually answers during the write/drain phase, so the
+            # expected text (or a rendered error) is already in ``raw_text``.
+            # Matching only after a fresh read would otherwise stall until the
+            # full deadline despite a satisfied pattern.
             clean_delta = strip_ansi(
                 _without_initial_terminal_echo(
                     self.raw_text[before_len:],
@@ -701,6 +707,18 @@ class ReplPtySession:
                     before_len,
                     sent_text=ignored_initial_echo,
                 )
+            try:
+                chunk = child.read_nonblocking(size=4096, timeout=0.05)
+            except Exception:
+                if hasattr(child, "isalive") and not child.isalive():
+                    break
+                time.sleep(0.01)
+                continue
+            if not chunk:
+                continue
+            self._collect(str(chunk))
+        # Deadline fallback: a match that surfaced in the final read (or was
+        # drained while the loop was exiting) still counts as success.
         clean_delta = strip_ansi(
             _without_initial_terminal_echo(
                 self.raw_text[before_len:],
@@ -933,7 +951,11 @@ def run_script(
     for step in steps:
         if not ok:
             break
-        observed = session.send(step.send, expect=step.expect, timeout=step.timeout)
+        # A step that does not set its own timeout must not outlive the
+        # session timeout the caller chose for ``run_script`` (Step's
+        # dataclass default of 30.0 would otherwise override it).
+        step_timeout = min(step.timeout, session.timeout)
+        observed = session.send(step.send, expect=step.expect, timeout=step_timeout)
         if not observed.ok:
             ok = False
             error = observed.error

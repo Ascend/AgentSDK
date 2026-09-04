@@ -73,6 +73,11 @@ def reset_registry() -> FeatureRegistry:
     """
     global _instance
     _instance = FeatureRegistry()
+    # A fresh instance must mirror process-start state (default flags are
+    # registered at import time); otherwise an in-process consumer running
+    # after a test reset — e.g. get_flag("MULTIMODEL") in a later test
+    # file — observes a registry without its defaults.
+    register_defaults(_instance)
     return _instance
 
 

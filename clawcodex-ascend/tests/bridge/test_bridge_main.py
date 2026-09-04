@@ -446,6 +446,10 @@ async def test_run_loop_respects_capacity() -> None:
     api = FakeApiClient(poll_results=[work1, work2])
     spawner = FakeSpawner()
     cancel = asyncio.Event()
+    # Speed up the shutdown grace so the test finishes quickly: the spawned
+    # session is still active when cancel fires, and shutdown would otherwise
+    # wait out the default 30s grace for it to exit.
+    fast_backoff = BackoffConfig(shutdown_grace_ms=200)
 
     task = asyncio.create_task(
         run_bridge_loop(
@@ -455,6 +459,7 @@ async def test_run_loop_respects_capacity() -> None:
             api,
             spawner,
             cancel,
+            backoff_config=fast_backoff,
         )
     )
     for _ in range(30):

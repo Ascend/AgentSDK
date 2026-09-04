@@ -83,22 +83,29 @@ def fake_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     """Redirect ``Path.home()`` AND ``SESSIONS_DIR`` to ``tmp_path`` and
     reset bootstrap state.
 
-    Both monkeypatches are needed because the production code reaches
-    the sessions root via two different paths:
+    The overrides are needed because the production code reaches the
+    sessions root via three different paths:
 
     * :class:`SessionStorage` falls back to the module-level
       :data:`src.services.session_storage.SESSIONS_DIR` constant
       (captured at import time).
-    * ``Session.save()`` / ``Session.load()`` resolve the path via
-      :func:`Path.home` directly.
+    * Session-directory helpers (``Session.save()`` snapshot append,
+      ``Session.load()``, ``session_persist`` message flush) resolve the
+      path through the canonical override chain ``$CLAWCODEX_SESSIONS_DIR``
+      > ``$CLAWCODEX_CONFIG_DIR`` > ``Path.home()``.
+    * Legacy direct callers still use :func:`Path.home`.
 
-    Patching only one of them leaves the other writing to the real
-    ``~/.clawcodex`` directory and the test then reads from an empty
-    tmp path. Mirrors the pattern used by
-    ``tests/services/test_session_resume_unified.py``.
+    ``CLAWCODEX_CONFIG_DIR`` pointing at the modeled ``<home>/.clawcodex``
+    root keeps every I/O side in the isolated tmp path regardless of the
+    project-wide conftest's own ``CLAWCODEX_CONFIG_DIR`` override (which
+    would otherwise outrank the patched ``Path.home()``). The session
+    override key ``CLAWCODEX_SESSIONS_DIR`` is deliberately NOT used: the
+    cost-restore reader resolves through the config-dir chain only, so a
+    sessions-dir override would split its reads from the writers.
     """
     reset_state_for_tests()
     sessions_root = tmp_path / ".clawcodex" / "sessions"
+    monkeypatch.setenv("CLAWCODEX_CONFIG_DIR", str(tmp_path / ".clawcodex"))
     monkeypatch.setattr("clawcodex_ext.services.session_storage.SESSIONS_DIR", sessions_root)
     patch = mock.patch.object(Path, "home", return_value=tmp_path)
     patch.start()

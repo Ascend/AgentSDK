@@ -325,6 +325,21 @@ class TestFastModeWiring(unittest.TestCase):
 class TestIsFirstPartyProvider(unittest.TestCase):
     """``is_first_party_provider`` gates global-scope emission (used by WI-2.3)."""
 
+    def setUp(self):
+        # ``AnthropicProvider._effective_base_url`` falls back to the
+        # ``ANTHROPIC_BASE_URL`` env var when the constructor gets no
+        # base_url (ch04 round-3). These tests model "no proxy configured",
+        # so scrub the env for the duration of the test and restore it after.
+        import os
+
+        self._saved_anthropic_base_url = os.environ.pop("ANTHROPIC_BASE_URL", None)
+
+    def tearDown(self):
+        import os
+
+        if self._saved_anthropic_base_url is not None:
+            os.environ["ANTHROPIC_BASE_URL"] = self._saved_anthropic_base_url
+
     def test_anthropic_with_no_base_url_is_first_party(self):
         from src.providers.anthropic_provider import AnthropicProvider
         from src.state.cache_state import is_first_party_provider
@@ -366,11 +381,18 @@ class TestShouldUseGlobalCacheScope(unittest.TestCase):
 
         reset_for_test_only()
         os.environ.pop("CLAUDE_CODE_ENABLE_GLOBAL_CACHE_SCOPE", None)
+        # Same env scrub as TestIsFirstPartyProvider: a dev box with
+        # ANTHROPIC_BASE_URL set (e.g. a Claude Code proxy) would make the
+        # bare ``AnthropicProvider(api_key=...)`` below "not first party"
+        # and flip every precondition truth-table cell.
+        self._saved_anthropic_base_url = os.environ.pop("ANTHROPIC_BASE_URL", None)
 
     def tearDown(self):
         import os
 
         os.environ.pop("CLAUDE_CODE_ENABLE_GLOBAL_CACHE_SCOPE", None)
+        if self._saved_anthropic_base_url is not None:
+            os.environ["ANTHROPIC_BASE_URL"] = self._saved_anthropic_base_url
 
     def test_default_is_disabled_without_env_var(self):
         from src.providers.anthropic_provider import AnthropicProvider

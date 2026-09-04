@@ -63,14 +63,20 @@ from src.types.content_blocks import TextBlock, ToolUseBlock, ToolResultBlock
 def mock_sessions_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Isolate sessions under ``tmp_path`` so tests never touch real ``~/.clawcodex``.
 
-    Patches both ``SESSIONS_DIR`` (used by ``SessionStorage``) and
-    ``Path.home()`` (used by ``Session.save()`` to find the sessions dir)
-    so all I/O goes to the isolated temp directory.
+    Patches ``SESSIONS_DIR`` (used by ``SessionStorage``), ``Path.home()``
+    (legacy direct callers), and points ``CLAWCODEX_CONFIG_DIR`` at the
+    modeled ``<home>/.clawcodex`` root so the env-aware session helpers
+    (``Session.load``, snapshot append, message flush, cost restore)
+    converge with the patched home instead of the project-wide conftest's
+    ``CLAWCODEX_CONFIG_DIR`` redirect. ``CLAWCODEX_SESSIONS_DIR`` is not
+    used: the cost-restore reader resolves through the config-dir chain
+    only, so a sessions-dir override would split its reads from writers.
     """
     clawcodex_dir = tmp_path / ".clawcodex"
     sessions_dir = clawcodex_dir / "sessions"
     sessions_dir.mkdir(parents=True, exist_ok=True)
 
+    monkeypatch.setenv("CLAWCODEX_CONFIG_DIR", str(clawcodex_dir))
     monkeypatch.setattr(
         "clawcodex_ext.services.session_storage.SESSIONS_DIR",
         sessions_dir,

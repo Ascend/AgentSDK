@@ -62,7 +62,7 @@ def test_build_provider_from_config_allows_openai_codex_without_config_api_key(m
         return FakeProvider(**kwargs)
 
     monkeypatch.setattr(
-        "src.providers.runtime.get_provider_config",
+        "clawcodex_ext.providers.runtime.get_provider_config",
         lambda provider_name: {
             "api_key": "",
             "base_url": "https://configured.example/codex",
@@ -70,10 +70,10 @@ def test_build_provider_from_config_allows_openai_codex_without_config_api_key(m
         },
     )
     monkeypatch.setattr(
-        "src.providers.runtime.resolve_codex_runtime_credentials",
+        "clawcodex_ext.providers.runtime.resolve_codex_runtime_credentials",
         lambda: FakeCredentials(),
     )
-    monkeypatch.setattr("src.providers.runtime.create_provider", fake_create_provider)
+    monkeypatch.setattr("clawcodex_ext.providers.runtime.create_provider", fake_create_provider)
 
     provider = build_provider_from_config("openai-codex")
 
@@ -95,15 +95,15 @@ def test_build_provider_from_config_uses_codex_base_url_when_config_base_url_mis
     monkeypatch,
 ) -> None:
     monkeypatch.setattr(
-        "src.providers.runtime.get_provider_config",
+        "clawcodex_ext.providers.runtime.get_provider_config",
         lambda provider_name: {"api_key": "", "default_model": "configured-model"},
     )
     monkeypatch.setattr(
-        "src.providers.runtime.resolve_codex_runtime_credentials",
+        "clawcodex_ext.providers.runtime.resolve_codex_runtime_credentials",
         lambda: FakeCredentials(),
     )
     monkeypatch.setattr(
-        "src.providers.runtime.create_provider",
+        "clawcodex_ext.providers.runtime.create_provider",
         lambda provider_name, **kwargs: FakeProvider(**kwargs),
     )
 
@@ -116,14 +116,14 @@ def test_build_provider_from_config_uses_codex_base_url_when_config_base_url_mis
 
 def test_build_provider_from_config_reports_codex_login_guidance(monkeypatch) -> None:
     monkeypatch.setattr(
-        "src.providers.runtime.get_provider_config",
+        "clawcodex_ext.providers.runtime.get_provider_config",
         lambda provider_name: {"api_key": "", "default_model": "gpt-5.3-codex"},
     )
 
     def fake_resolve():
         raise CodexAuthError("missing", code="codex_auth_missing", relogin_required=True)
 
-    monkeypatch.setattr("src.providers.runtime.resolve_codex_runtime_credentials", fake_resolve)
+    monkeypatch.setattr("clawcodex_ext.providers.runtime.resolve_codex_runtime_credentials", fake_resolve)
 
     with pytest.raises(RuntimeError) as exc_info:
         build_provider_from_config("openai-codex")
@@ -135,7 +135,7 @@ def test_build_provider_from_config_still_requires_api_key_for_api_key_providers
     monkeypatch,
 ) -> None:
     monkeypatch.setattr(
-        "src.providers.runtime.get_provider_config",
+        "clawcodex_ext.providers.runtime.get_provider_config",
         lambda provider_name: {
             "api_key": "",
             "base_url": "https://api.example.com",
@@ -151,7 +151,7 @@ def test_build_provider_from_config_still_requires_api_key_for_api_key_providers
 
 def test_build_provider_from_config_constructs_api_key_provider(monkeypatch) -> None:
     monkeypatch.setattr(
-        "src.providers.runtime.get_provider_config",
+        "clawcodex_ext.providers.runtime.get_provider_config",
         lambda provider_name: {
             "api_key": "api-key",
             "base_url": "https://api.example.com",
@@ -159,7 +159,7 @@ def test_build_provider_from_config_constructs_api_key_provider(monkeypatch) -> 
         },
     )
     monkeypatch.setattr(
-        "src.providers.runtime.create_provider",
+        "clawcodex_ext.providers.runtime.create_provider",
         lambda provider_name, **kwargs: FakeProvider(**kwargs),
     )
 

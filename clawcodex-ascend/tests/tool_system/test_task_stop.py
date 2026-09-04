@@ -258,9 +258,14 @@ def test_async_kill_returns_error_on_timeout(ctx: ToolContext) -> None:
         # The dispatch loop drives async tools through asyncio.run when
         # no loop is active. Bound at 7s so a real hang surfaces
         # obviously rather than via pytest-timeout.
-        start = time.time()
-        result = asyncio.run(TaskStopTool.call({"task_id": task_id}, ctx))
-        elapsed = time.time() - start
+        # The 5s budget constant itself isn't under test — patch it to
+        # 1s so the wait_for timeout still fires in real time (~5s) fast.
+        import src.tasks.stop_task as _stop_task_module
+
+        with patch.object(_stop_task_module, "_KILL_TIMEOUT_SECONDS", 1.0):
+            start = time.time()
+            result = asyncio.run(TaskStopTool.call({"task_id": task_id}, ctx))
+            elapsed = time.time() - start
 
     assert elapsed < 7.0, f"async-kill should bound at 5s, took {elapsed:.1f}s"
     assert result.is_error is True

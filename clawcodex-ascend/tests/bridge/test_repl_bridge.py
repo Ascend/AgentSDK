@@ -348,6 +348,11 @@ async def test_poll_loop_spawns_session_for_work_item() -> None:
     assert any(work_id == "work-1" for _e, work_id, _t in api.ack_calls)
     # State 'connected' fired.
     assert ("connected",) in params._state_log  # type: ignore[attr-defined]
+    # Resolve the fake session before teardown so the kill-grace
+    # (wait_done, 2s timeout) returns immediately instead of burning the
+    # full budget on a handle that will never finish on its own.
+    if spawner.handles:
+        spawner.handles[0].complete("completed")
     await handle.teardown()
 
 

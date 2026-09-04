@@ -26,8 +26,14 @@ import time
 
 import httpx
 import pytest
-from src.auth import codex_oauth
-from src.auth.codex_oauth import (
+
+# ``codex_oauth`` must be the CANONICAL module: ``src.auth.codex_oauth`` is
+# only a star-import facade, and functions here resolve their helpers through
+# ``clawcodex_ext.auth.codex_oauth``'s own module globals — monkeypatching the
+# facade (e.g. ``read_codex_tokens`` / ``get_auth_file``) silently misses and
+# the real ~/.clawcodex auth.json is read instead.
+from clawcodex_ext.auth import codex_oauth
+from clawcodex_ext.auth.codex_oauth import (
     CODEX_DEVICE_TOKEN_URL,
     CODEX_DEVICE_USER_CODE_URL,
     CODEX_OAUTH_CLIENT_ID,

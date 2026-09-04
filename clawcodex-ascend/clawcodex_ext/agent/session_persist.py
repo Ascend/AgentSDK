@@ -67,12 +67,19 @@ def _resolve_sessions_dir() -> Path:
 
     Mirrors ``clawcodex_ext.agent.session._get_sessions_dir`` without
     introducing a module-level import. Respects ``CLAWCODEX_SESSIONS_DIR``
-    and evaluates ``Path.home()`` at call time so patches take effect.
+    first, then defers to the canonical ``get_sessions_dir()`` chain
+    (``$CLAWCODEX_CONFIG_DIR`` override, else ``Path.home() / ".clawcodex"``)
+    — evaluated at call time so env overrides and ``Path.home()`` patches
+    take effect.
     """
     override = str(os.environ.get("CLAWCODEX_SESSIONS_DIR", "")).strip()
     if override:
         return Path(override).expanduser()
-    return Path.home() / ".clawcodex" / "sessions"
+    # Function-level import keeps this a stdlib-leaf dependency at module
+    # scope; ``get_user_config_dir`` evaluates ``Path.home()`` per call.
+    from src.utils.clawcodex_dirs import get_sessions_dir
+
+    return get_sessions_dir()
 
 
 def save_to_session_storage(session: Any) -> None:

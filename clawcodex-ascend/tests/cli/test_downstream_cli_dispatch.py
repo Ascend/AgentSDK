@@ -402,6 +402,12 @@ def test_run_cli_model_flag_value_provider_does_not_route_as_subcommand(monkeypa
         lambda repl, ctx: None,
     )
 
+    # ``--model`` resolves provider "anthropic" before the (mocked) REPL
+    # starts — RuntimeContext.build constructs the provider itself at
+    # dispatch.py:742, so a real key would otherwise be required for this
+    # dispatch-level test on any keyless machine (CI included).
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test-dispatch-model")
+
     rc = run_cli(["clawcodex", "--model", "claude-sonnet-4-6"])
 
     assert rc == 0

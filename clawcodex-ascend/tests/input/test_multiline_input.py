@@ -66,6 +66,14 @@ def _make_repl():
     ``self.bindings`` object that ``__init__`` populates. We patch at the
     boundaries the REPL actually calls, which sidesteps the on-disk
     config manager entirely.
+
+    Patch targets are ``clawcodex_ext.repl.core`` — the module where
+    ``ClawcodexREPL.__init__`` physically executes — not the ``src.repl.core``
+    facade: ``src/repl/core.py`` only lazy-forwards reads via ``__getattr__``,
+    so a ``monkeypatch``/``patch`` on it never reaches the executing module's
+    globals. ``_load_heavy_runtime()`` skips re-binding any global that was
+    already replaced (see ``_is_lazy_runtime_placeholder``), which is what
+    keeps these mocks in effect during ``__init__``.
     """
 
     from src.repl.core import ClawcodexREPL
@@ -75,11 +83,11 @@ def _make_repl():
 
     with (
         patch(
-            "src.repl.core.get_provider_config",
+            "clawcodex_ext.repl.core.get_provider_config",
             return_value={"api_key": "x", "default_model": "glm-4.5"},
         ),
-        patch("src.repl.core.Session.create"),
-        patch("src.repl.core.get_provider_class") as mock_provider_class,
+        patch("clawcodex_ext.repl.core.Session.create"),
+        patch("clawcodex_ext.repl.core.get_provider_class") as mock_provider_class,
     ):
         mock_provider_class.return_value = mock_provider
         return ClawcodexREPL(provider_name="glm")

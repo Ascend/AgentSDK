@@ -53,7 +53,10 @@ def test_dispatch_loop_branches_on_iscoroutinefunction(tmp_path: Path) -> None:
     """The registry's ``_invoke_tool_call`` helper drives async tools
     through ``asyncio.run`` when no loop is active.
     """
-    from src.tool_system.registry import _invoke_tool_call
+    # ``src.tool_system.registry`` is a star-import facade — underscore
+    # private helpers are not re-exported by ``import *``, so the
+    # canonical module must be imported directly.
+    from clawcodex_ext.tool_system.registry import _invoke_tool_call
 
     ctx = ToolContext(workspace_root=tmp_path)
 

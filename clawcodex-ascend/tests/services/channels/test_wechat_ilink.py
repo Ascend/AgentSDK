@@ -474,8 +474,13 @@ async def test_adapter_send_success_with_receipt(tmp_path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_adapter_send_splits_long_text(tmp_path) -> None:
+async def test_adapter_send_splits_long_text(tmp_path, monkeypatch) -> None:
     adapter, _, transport = _make_adapter(tmp_path)
+    # Neither throttling gate is asserted here (chunk-delay and min-interval
+    # semantics are exercised elsewhere with fake clocks); this test only
+    # checks the split shape, so skip the real ~1.5s waits between chunks.
+    monkeypatch.setattr(wechat_module, "WECHAT_INTER_CHUNK_DELAY_SECONDS", 0.0)
+    adapter._send_min_interval_seconds = 0.0
     long_text = "x" * 9000
     await adapter.send(ChannelMessage(text=long_text), target="u1")
     # 9000 / 4000 -> 3 chunks
@@ -617,6 +622,9 @@ async def test_adapter_send_rate_limit_retries_then_succeeds(tmp_path, monkeypat
     # 30s; simulate it closing before the next send so the second message
     # reaches the transport (and now succeeds with the override cleared).
     adapter._reset_send_rate_limit_circuit()
+    # The 5 retry attempts also filled the 10s send window; clear it so the
+    # second send is not throttled while waiting for the window to roll.
+    adapter._send_window_attempts.clear()
     second = await adapter.send(ChannelMessage(text="second"), target="u1")
 
     assert first.ok is False
@@ -648,6 +656,9 @@ async def test_adapter_send_rate_limit_does_not_poison_next_send(tmp_path, monke
     # Circuit breaker opens after retries exhaust; clear it so the next send
     # is not short-circuited (simulates the 30s circuit elapsing).
     adapter._reset_send_rate_limit_circuit()
+    # The 5 retry attempts also filled the 10s send window; clear it so the
+    # second send is not throttled while waiting for the window to roll.
+    adapter._send_window_attempts.clear()
     second = await adapter.send(ChannelMessage(text="second"), target="u1")
 
     assert first.ok is False

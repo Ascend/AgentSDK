@@ -210,16 +210,28 @@ def test_kill_timeout_when_kill_coroutine_exceeds_budget(tmp_path: Path) -> None
     async def _hang(_self, _task_id, _registry) -> None:
         await asyncio.sleep(20.0)
 
-    with patch.object(LocalShellTask, "kill", new=_hang):
+    # The real-time bound (5s) is not the contract under test — the
+    # contract is "a hung kill surfaces as kill_timeout". Patch the
+    # budget down to 1s so the wait_for path is still exercised in real
+    # time without pinning the test to the full default.
+    import src.tasks.stop_task as _stop_task_module
+
+    with (
+        patch.object(LocalShellTask, "kill", new=_hang),
+        patch.object(_stop_task_module, "_KILL_TIMEOUT_SECONDS", 1.0),
+    ):
+        # Read the patched budget while the patch is active — the module
+        # global reverts to its default once the with-block exits.
+        expected_budget_s = _stop_task_module._KILL_TIMEOUT_SECONDS
         start = time.time()
         result = asyncio.run(stop_task(task_id, ctx))
         elapsed = time.time() - start
 
-    assert elapsed < 7.0, f"kill should bound at 5s, took {elapsed:.1f}s"
+    assert elapsed < 7.0, f"kill should bound at 1s, took {elapsed:.1f}s"
     assert result.is_error is True
     assert result.error is not None
     assert result.error.code == "kill_timeout"
-    assert "5s" in result.error.message
+    assert f"after {expected_budget_s:.0f}s" in result.error.message
     assert result.stopped is False
 
 
