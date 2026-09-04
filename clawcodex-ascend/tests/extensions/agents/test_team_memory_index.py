@@ -161,8 +161,28 @@ def test_source_weight_ranks_manual_above_system(tmp_path: Path) -> None:
 
 def test_top8_under_50ms_for_1000_entries(tmp_path: Path) -> None:
     """Acceptance #8: 1000 entries, top8 recall < 50ms."""
+    import json
+
     store = TeamMemoryStore(team_id="t1", root=tmp_path, config=TeamMemoryConfig())
-    _seed(store, 1000)
+    # Bulk-seed entries.jsonl directly instead of store.append() × 1000:
+    # every append rebuilds the team MEMORY.md entrypoint (O(n²) total),
+    # which this retrieval test does not exercise.
+    lines: list[str] = []
+    for i in range(1000):
+        ts = make_iso_timestamp()
+        entry = TeamMemoryEntry(
+            id=f"e{i}",
+            team_id="t1",
+            content=f"deploy step {i} for the build pipeline",
+            summary=f"deploy {i}",
+            author_agent_id="lead",
+            created_at=ts,
+            tags=("build",) if i % 2 == 0 else ("deploy",),
+            source="manual",
+            scope="team",
+        )
+        lines.append(json.dumps(entry.to_dict(), ensure_ascii=False))
+    store._entries_path().write_text("\n".join(lines) + "\n", encoding="utf-8")
     idx = TeamMemoryIndex(store)
     q = TeamMemoryQuery(team_id="t1", query="deploy build pipeline", requester_agent_id="lead", top_k=8)
     start = time.perf_counter()

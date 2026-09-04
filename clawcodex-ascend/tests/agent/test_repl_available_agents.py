@@ -73,6 +73,11 @@ class _FakeREPL:
 def _isolate_disk(tmp_path, monkeypatch):
     user_dir = tmp_path / "claude_home"
     user_dir.mkdir()
+    # Canonical override too: the loader prefers ``CLAWCODEX_CONFIG_DIR``
+    # over ``CLAUDE_CONFIG_DIR`` (markdown_config_loader._get_global_config_dir),
+    # and the project-wide conftest autouse fixture already sets it — without
+    # this the test agents under ``user_dir`` would be shadowed.
+    monkeypatch.setenv("CLAWCODEX_CONFIG_DIR", str(user_dir))
     monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(user_dir))
     monkeypatch.setenv("CLAUDE_MANAGED_CONFIG_DIR", str(tmp_path / "noop"))
     clear_agent_definitions_cache()

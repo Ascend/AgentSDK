@@ -216,7 +216,7 @@ class TestIntegrationSmoke:
         old_cwd = Path.cwd()
         try:
             os.chdir(tmp_path)
-            with patch("src.repl.core.get_provider_class", return_value=_FakeProvider):
+            with patch("clawcodex_ext.repl.core.get_provider_class", return_value=_FakeProvider):
                 repl = self._make_repl(_FakeProvider)
                 repl.chat("Say hello in one sentence.")
             msgs = repl.session.conversation.get_messages()
@@ -244,7 +244,7 @@ class TestIntegrationSmoke:
         old_cwd = Path.cwd()
         try:
             os.chdir(work_path)
-            with patch("src.repl.core.get_provider_class", return_value=_WriteToolProvider):
+            with patch("clawcodex_ext.repl.core.get_provider_class", return_value=_WriteToolProvider):
                 repl = self._make_repl(_WriteToolProvider)
                 repl.chat("Create a file named integration_smoke.txt with text integration-ok.")
             assert target.exists(), "Write tool did not create the file"

@@ -167,7 +167,14 @@ class TestApiFallbackModelSwitch(unittest.TestCase):
                 ),
             )
 
-        result = asyncio.run(run())
+        # Collapse the real exponential backoff (0.5+1+2+8 ≈ 12s of wall
+        # clock) to 1ms. The retry/fallback decision tree under test is
+        # clock-independent; only the waits are elided.
+        with patch(
+            "clawcodex_ext.services.api.retry._compute_backoff_ms",
+            return_value=1,
+        ):
+            result = asyncio.run(run())
         self.assertEqual(result, "success")
 
     def test_cannot_retry_on_non_retryable(self) -> None:

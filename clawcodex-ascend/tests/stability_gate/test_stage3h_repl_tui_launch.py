@@ -355,7 +355,11 @@ class TestStage3hCliSubprocess:
             text=True,
             env=child_env,
         )
-        time.sleep(3)
+        # The probe window only needs to cover process startup (imports +
+        # entrypoint init). Crashes past this point would be idle-time
+        # hangs, not startup regressions — 3s was generous; 1s covers a
+        # cold import chain on a slow CI box with headroom.
+        time.sleep(1.0)
         returncode = proc.poll()
         if returncode is not None:
             _out, err = proc.communicate()

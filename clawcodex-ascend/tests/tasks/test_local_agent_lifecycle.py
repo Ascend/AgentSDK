@@ -69,6 +69,8 @@ from src.types.messages import AssistantMessage
 
 
 def test_register_async_agent_sets_transcript_output_file() -> None:
+    from src.utils.clawcodex_dirs import get_transcripts_dir
+
     reg = RuntimeTaskRegistry()
     agent_id = generate_task_id("local_agent")
     state = register_async_agent(
@@ -81,7 +83,11 @@ def test_register_async_agent_sets_transcript_output_file() -> None:
     assert state.id == agent_id
     assert state.status == "running"
     assert state.output_file.endswith(f"{agent_id}.jsonl")
-    assert ".clawcodex/transcripts" in state.output_file
+    # ``get_agent_transcript_path`` honors ``$CLAWCODEX_CONFIG_DIR``
+    # (default ``~/.clawcodex/transcripts``) — under the suite's hermetic
+    # env isolation the root is a tmp dir, so compare through the public
+    # seam instead of pinning the literal default layout.
+    assert state.output_file == str(get_transcripts_dir() / f"{agent_id}.jsonl")
 
 
 def test_register_async_agent_replaces_existing_entry() -> None:

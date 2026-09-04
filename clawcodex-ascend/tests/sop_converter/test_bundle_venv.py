@@ -79,7 +79,13 @@ def test_bundle_venv_dir_wsl_reuses_legacy_hash_dir(tmp_path: Path, monkeypatch)
     assert path == legacy
 
 
-def test_bundle_venv_site_packages_uses_current_platform(tmp_path: Path) -> None:
+def test_bundle_venv_site_packages_uses_current_platform(tmp_path: Path, monkeypatch) -> None:
+    # This test models the venv NEXT TO the bundle (``bundle/.venv``). On a
+    # WSL runtime the impl relocates venvs to ``~/.cache/clawcodex/...``
+    # (WSL cache layout, covered by the ``_wsl_*`` tests below), which would
+    # read the real user cache — pin the non-WSL branch to stay hermetic and
+    # deterministic on any machine.
+    monkeypatch.setattr(bundle_venv, "is_wsl_runtime", lambda: False)
     bundle_dir = tmp_path / "bundle"
 
     paths = bundle_venv.bundle_venv_site_packages(bundle_dir)
@@ -182,6 +188,11 @@ def test_ensure_bundle_venv_resets_wrong_platform_dir(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
+    # Same non-WSL pin as test_bundle_venv_site_packages_uses_current_platform:
+    # this scenario places the venv at ``bundle/.venv``; on a WSL runtime the
+    # impl would operate on the real ``~/.cache/clawcodex`` venv instead and
+    # the fake ``_create_venv`` parent assumption below would not hold.
+    monkeypatch.setattr(bundle_venv, "is_wsl_runtime", lambda: False)
     bundle_dir = tmp_path / "bundle"
     venv_dir = bundle_dir / ".venv"
     wrong_python = venv_dir / "bin" / "python" if os.name == "nt" else venv_dir / "Scripts" / "python.exe"

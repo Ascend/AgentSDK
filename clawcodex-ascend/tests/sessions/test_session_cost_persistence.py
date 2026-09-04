@@ -29,6 +29,7 @@ from __future__ import annotations
 
 # pylint: disable=C2801
 import json
+import os
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -49,18 +50,33 @@ from src.bootstrap.state import (
 
 
 class _SessionDirFixture:
-    """Helper: redirect ~/.clawcodex to a tmpdir via Path.home patching."""
+    """Helper: redirect ~/.clawcodex to a tmpdir via Path.home patching.
+
+    Also pins ``CLAWCODEX_CONFIG_DIR`` to the modeled ``<home>/.clawcodex``:
+    the session helpers (snapshot append, ``Session.load``, cost restore)
+    resolve through the config-dir chain, and the project-wide conftest
+    already points that override at a pytest tmp root — without this the
+    readers would look in a different root than the Path.home writes land
+    in. The fixture restores the env on exit.
+    """
 
     def __init__(self, tmp_home: Path) -> None:
         self.tmp_home = tmp_home
         self._patch = mock.patch.object(Path, "home", return_value=tmp_home)
+        self._config_dir = str(tmp_home / ".clawcodex")
+        self._saved_env = os.environ.get("CLAWCODEX_CONFIG_DIR")
 
     def __enter__(self):
         self._patch.start()
+        os.environ["CLAWCODEX_CONFIG_DIR"] = self._config_dir
         return self
 
     def __exit__(self, *args):
         self._patch.stop()
+        if self._saved_env is None:
+            os.environ.pop("CLAWCODEX_CONFIG_DIR", None)
+        else:
+            os.environ["CLAWCODEX_CONFIG_DIR"] = self._saved_env
 
 
 class SaveCostBlockTests(unittest.TestCase):

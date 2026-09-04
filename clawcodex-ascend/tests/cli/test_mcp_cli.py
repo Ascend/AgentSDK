@@ -42,11 +42,18 @@ from src.entrypoints.mcp import run_mcp_subcommand
 
 @pytest.fixture
 def isolated_config(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
-    """Point ``CLAUDE_CONFIG_DIR`` at ``tmp_path`` so user-scoped writes
-    never touch the real ``~/.claude/config.json``.
+    """Point the config dirs at ``tmp_path`` so user-scoped writes never
+    touch the real ``~/.claude/config.json``.
+
+    ``CLAWCODEX_CONFIG_DIR`` is set too (not only the legacy
+    ``CLAUDE_CONFIG_DIR``): config resolution prefers the canonical override
+    (markdown_config_loader / mcp config discovery), and the project-wide
+    conftest autouse ``_isolate_clawcodex_state_root`` already sets it — a
+    fixture-local value here keeps user-scoped writes inside ``config_dir``.
     """
     config_dir = tmp_path / "claude_home"
     config_dir.mkdir()
+    monkeypatch.setenv("CLAWCODEX_CONFIG_DIR", str(config_dir))
     monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(config_dir))
     return config_dir
 

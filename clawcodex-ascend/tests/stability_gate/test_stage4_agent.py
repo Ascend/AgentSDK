@@ -433,6 +433,12 @@ class TestStage4SubagentInParentSession:
             # Also clear HOMEDRIVE/HOMEPATH so they don't bypass USERPROFILE
             monkeypatch.delenv("HOMEDRIVE", raising=False)
             monkeypatch.delenv("HOMEPATH", raising=False)
+        # These tests model the DEFAULT layout (``<home>/.clawcodex``) via
+        # HOME isolation. The project-wide conftest autouse fixture already
+        # points ``CLAWCODEX_CONFIG_DIR`` at the tmp root, and that override
+        # outranks ``Path.home()`` — re-point it at the modeled
+        # ``<home>/.clawcodex`` so path assertions hold under isolation too.
+        monkeypatch.setenv("CLAWCODEX_CONFIG_DIR", str(tmp_path / ".clawcodex"))
         import clawcodex_ext
         from clawcodex_ext.agent import transcript
         from src.init import init as init_callable

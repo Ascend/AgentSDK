@@ -66,6 +66,13 @@ def _isolated_config_dirs(tmp_path, monkeypatch):
     managed_dir = tmp_path / "managed"
     user_dir.mkdir()
     managed_dir.mkdir()
+    # ``CLAWCODEX_CONFIG_DIR`` (NOT only ``CLAUDE_CONFIG_DIR``) must point at
+    # the isolated user dir: the loader prefers the canonical override first
+    # (src/utils/markdown_config_loader.py ``_get_global_config_dir``), and
+    # the project-wide autouse ``_isolate_clawcodex_state_root`` conftest
+    # fixture already sets it to the tmp root — which would otherwise shadow
+    # this fixture's ``CLAUDE_CONFIG_DIR`` and hide the test agents.
+    monkeypatch.setenv("CLAWCODEX_CONFIG_DIR", str(user_dir))
     monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(user_dir))
     monkeypatch.setenv("CLAUDE_MANAGED_CONFIG_DIR", str(managed_dir))
     clear_agent_definitions_cache()
@@ -129,8 +136,11 @@ def test_managed_wins_over_project(_isolated_config_dirs, tmp_path):
         name="foo",
         description="from project",
     )
+    # Managed agents live under ``<managed root>/.clawcodex/agents`` — the
+    # loader joins ``_get_managed_file_path()`` with ``.clawcodex/<subdir>``
+    # (src/utils/markdown_config_loader.py), not ``.claude/``.
     _write_agent(
-        managed_dir / ".claude" / "agents" / "foo.md",
+        managed_dir / ".clawcodex" / "agents" / "foo.md",
         name="foo",
         description="from managed",
     )
@@ -255,7 +265,7 @@ def test_managed_source_label_preserved(_isolated_config_dirs, tmp_path):
     """Agents loaded from the managed dir keep ``source='managed'``."""
     managed_dir = _isolated_config_dirs["managed"]
     _write_agent(
-        managed_dir / ".claude" / "agents" / "policy.md",
+        managed_dir / ".clawcodex" / "agents" / "policy.md",
         name="policy",
         description="from managed",
     )

@@ -75,7 +75,7 @@ async def test_stream_yields_timeout_when_headless_future_never_completes() -> N
             # Sleep far longer than the 100 ms budget. ``time.sleep`` is
             # blocking but the executor runs it on a worker thread, so
             # ``wait_for`` on the future sees the timeout first.
-            time.sleep(10.0)
+            time.sleep(2.0)
             return 0
 
         runner = QueryRunner(
@@ -211,7 +211,7 @@ async def test_stream_records_remaining_event_count_on_timeout() -> None:
                     error=None,
                 )
             )
-            time.sleep(10.0)
+            time.sleep(2.0)
             return 0
 
         runner = QueryRunner(

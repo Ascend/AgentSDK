@@ -72,7 +72,7 @@ async def test_stall_fires_on_zero_activity() -> None:
         debug_log = tmp_path / "debug.ndjson"
 
         def fake_run_headless_session(options):  # pragma: no cover - stalls
-            time.sleep(10.0)  # no events, no stdout — a dead provider
+            time.sleep(2.0)  # no events, no stdout — a dead provider
             return 0
 
         runner = QueryRunner(
@@ -267,7 +267,7 @@ async def test_zero_disables_the_watchdog() -> None:
         tmp_path = Path(tmp)
 
         def fake_run_headless_session(options):  # pragma: no cover - stalls
-            time.sleep(10.0)
+            time.sleep(2.0)
             return 0
 
         runner = QueryRunner(
