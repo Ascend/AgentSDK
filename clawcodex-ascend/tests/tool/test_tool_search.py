@@ -213,6 +213,25 @@ class TestExtractDiscoveredToolNames(unittest.TestCase):
         result = extract_discovered_tool_names(msgs)
         self.assertIn("mcp__tool_x", result)
 
+    def test_tool_reference_in_normalized_role_user_message(self):
+        msgs = [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": "123",
+                        "content": [
+                            {"type": "tool_reference", "tool_name": "parse_pdf_file"},
+                            {"type": "text", "text": "Found tool"},
+                        ],
+                    }
+                ],
+            }
+        ]
+        result = extract_discovered_tool_names(msgs)
+        self.assertIn("parse_pdf_file", result)
+
     def test_no_tool_reference(self):
         msgs = [
             {

@@ -45,20 +45,22 @@ Skill → ToolSearch 调用过**相应 SDK 工具**后，若出现以下任一�
 
 1. **Glob/Read workspace** 内用户配置（``spec.yaml``、``*.yaml``、``.clawcodex/`` 等）——确定**用户侧**配置路径；**勿**到 SDK 源码树的 ``tests/``、``fixtures/`` 等目录找示例配置
 2. **向用户报告**：本 Agent 环境无真实 TTY，无法代用户完成交互；须在**用户自己的终端**运行
-3. **给出可复制命令**，依据（按优先级）：
-   - Skill「任务指南」与 ToolSearch 已确认的**公共 API 工具**及其参数
-   - 已 Read 的 wrapper ``_SOURCE_DIR`` + 对应模块的 docstring/入口函数
-   - manifest 中的 **SDK 源码根** + workspace 内配置文件的**绝对路径**
-   - **禁止**照搬 SDK ``tests/``、``examples/`` 下的 launcher/样例脚本路径，除非任务指南明确要求
+3. **给出可复制调用**（**禁止编造**）。只允许以下来源，按优先级：
+   - ToolSearch 已确认的 **kebab 工具名** + 本次已用的 JSON 参数（字段名必须与 ``input_schema`` 一致，例如 ``path`` / ``output_dir``）
+   - **仅当已 Read** 该工具的 AgentToolSpec 时，可**原样**给出 ``call_impl``，参数填入 JSON；**不要**把 schema 字段改写成 ``--path``、``--output_dir`` 等 CLI flag
+   - 任务指南 / spec **没有**逐字 shell 命令时：只列出工具名和必填参数，并写明「没有终端入口命令」——**到此为止**
+   - **禁止**照搬 SDK ``tests/``、``examples/`` 下的 launcher/样例脚本路径，除非任务指南里已经写出那条命令
 
 ### 禁止（停损后）
 
+- **禁止** 编造 CLI / argparse 命令，或把函数参数名改写成 ``--flag``
+- **禁止** 用尖括号占位符代替真实入口（如 ``<某模块的入口命令>``、``<文件1>.pdf``）
 - **禁止** 在 SDK 源码树 ``tests/``、``test/``、``fixtures/`` 等目录 Glob/Grep/Bash/Read **寻找**用户配置或 launcher
 - **禁止** background Bash、``script``/``pty`` 伪终端、加长 timeout **重试同一交互式工具**
 - **禁止** 再次 ``Skill`` / ``ToolSearch`` / 委派子 Agent **重复同一交互式启动任务**
 - **禁止** 宣称「已成功启动交互终端」——超时或阻塞即未成功
 
-交互式程序的正确入口以 **Skill 任务指南 + ToolSearch 匹配的 SDK 工具**为准，不是测试目录里的 wrapper 脚本。"""
+交互式程序的正确入口以 **Skill 任务指南 + ToolSearch 匹配的 SDK 工具**为准，不是测试目录里的 wrapper 脚本，也不是模型临时编出来的 CLI。"""
 
 # Default: Skill + ToolSearch path. Source exploration is a gated fallback only.
 SOP_SOURCE_EXPLORATION_POLICY = """\

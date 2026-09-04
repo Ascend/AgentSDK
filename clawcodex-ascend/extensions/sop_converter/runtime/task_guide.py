@@ -60,6 +60,11 @@ _IMPERATIVE_LEAD_RE = re.compile(
 _ORCHESTRATION_NAME_PREFIXES = ("run_", "start_", "open_", "launch_", "ensure_", "invoke_")
 _REGISTRY_NAME_PREFIXES = ("add_", "register_")
 _INTERACTIVE_NAME_RE = re.compile(r"(?:^run_.*_cli$|^.*_cli$|cli$)", re.IGNORECASE)
+# Whole-word only: "cli" in "vlm-http-client" / "repl" in "replace" are not TTY CLIs.
+_INTERACTIVE_DESC_TOKEN_RE = re.compile(
+    r"\b(?:cli|interactive|repl|tui|stdin)\b",
+    re.IGNORECASE,
+)
 _MAX_BUILD_ENTRIES = 4
 
 
@@ -238,8 +243,7 @@ def _looks_like_interactive_terminal(comp: SourceComponent, op: SourceOperation)
         return True
     if _INTERACTIVE_NAME_RE.search(op.name):
         return True
-    desc = (op.description or "").lower()
-    return any(token in desc for token in ("cli", "interactive", "repl", "tui", "stdin"))
+    return bool(_INTERACTIVE_DESC_TOKEN_RE.search(op.description or ""))
 
 
 def _required_param_names(comp: SourceComponent, op: SourceOperation) -> list[str]:

@@ -316,6 +316,8 @@ class TestSopOverviewRouting(unittest.TestCase):
         self.assertIn("交互式终端 / TUI / REPL", SOP_OVERVIEW_ROUTING)
         self.assertIn("tests/", SOP_OVERVIEW_ROUTING)
         self.assertIn("fixtures", SOP_OVERVIEW_ROUTING)
+        self.assertIn("禁止编造", SOP_OVERVIEW_ROUTING)
+        self.assertIn("--flag", SOP_OVERVIEW_ROUTING)
 
 
 class TestToolSearchDocstringQuery(unittest.TestCase):

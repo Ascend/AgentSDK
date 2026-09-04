@@ -343,6 +343,7 @@ def extract_discovered_tool_names(messages: list[Any]) -> set[str]:
 
     for msg in messages:
         msg_type = getattr(msg, "type", None) or (msg.get("type") if isinstance(msg, dict) else None)
+        msg_role = getattr(msg, "role", None) or (msg.get("role") if isinstance(msg, dict) else None)
 
         # Compact boundary carries pre-compact discovered set
         if msg_type == "system":
@@ -361,8 +362,9 @@ def extract_discovered_tool_names(messages: list[Any]) -> set[str]:
                         discovered.update(carried)
                 continue
 
-        # Only user messages contain tool_result blocks
-        if msg_type != "user":
+        # Only user messages contain tool_result blocks.
+        # Normalized API messages have ``role`` but no ``type``.
+        if msg_type != "user" and msg_role != "user":
             continue
 
         content = getattr(msg, "content", None) or (msg.get("content") if isinstance(msg, dict) else None)
