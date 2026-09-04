@@ -9,7 +9,7 @@ notices and license texts are provided below.
 
 ### Software: Clawd Codex
 
-- Homepage: https://github.com/agentforce314/clawcodex
+- Homepage: <https://github.com/agentforce314/clawcodex>
 - License: MIT License
 - Modified source: All files under `clawcodex_ext/` that mirror TypeScript sources,
   including but not limited to:
@@ -17,6 +17,8 @@ notices and license texts are provided below.
   - `clawcodex_ext/services/analytics/`
   - `clawcodex_ext/services/api/`
   - `clawcodex_ext/services/bridge/`
+  - `extensions/agent/`
+  - `tests/test_session_chain.py`
   - `clawcodex_ext/services/chrome/`
   - `clawcodex_ext/services/compact/`
   - `clawcodex_ext/services/computer_use/`
@@ -47,7 +49,7 @@ License text: See `LICENSES/Clawd-Codex-MIT.txt`.
 
 ### Software: Hermes Agent
 
-- Homepage: https://github.com/NousResearch/hermes-agent
+- Homepage: <https://github.com/NousResearch/hermes-agent>
 - License: MIT License
 - Modified source: `clawcodex_ext/providers/_moonshot_schema.py`
 
