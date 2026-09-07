@@ -27,6 +27,19 @@ import sys
 from types import SimpleNamespace
 
 
+def _patch_permission_state_stash(monkeypatch) -> None:
+    """Stub resolve_permission_state while keeping its stash contract."""
+
+    def _stash_defaults(args):
+        args._resolved_permission_mode = "default"
+        args._resolved_is_bypass_available = False
+
+    monkeypatch.setattr(
+        "clawcodex_ext.cli.permissions.resolve_permission_state",
+        _stash_defaults,
+    )
+
+
 def test_run_cli_version_short_circuit(monkeypatch):
     """--version short-circuits without loading TUI/REPL."""
     from clawcodex_ext.cli.dispatch import run_cli
@@ -81,7 +94,7 @@ def test_run_cli_default_invocation_calls_downstream_repl(monkeypatch):
     repl_calls = []
 
     monkeypatch.setattr("src.init.run_pre_action", lambda args: init_calls.append(args))
-    monkeypatch.setattr("clawcodex_ext.cli.permissions.resolve_permission_state", lambda args: None)
+    _patch_permission_state_stash(monkeypatch)
     monkeypatch.setattr(tui_module, "should_use_tui", lambda explicit: False)
 
     def fake_repl_init(self, **kwargs):
@@ -239,6 +252,36 @@ def test_run_cli_print_goal_clear_skips_runtime_provider(monkeypatch, tmp_path, 
     assert "provider runtime must not be built" not in captured.err
 
 
+def test_run_cli_unknown_multimodel_group_warns_and_exits_1(monkeypatch, tmp_path, capsys):
+    """An invalid --multimodel group fails in the build: warning + exit 1."""
+    from clawcodex_ext.cli.dispatch import run_cli
+
+    monkeypatch.setenv("CLAWCODEX_HOME", str(tmp_path / "clawcodex-home"))
+    monkeypatch.setattr("src.init.run_pre_action", lambda args: None)
+
+    rc = run_cli(["clawcodex", "-p", "hi", "--multimodel", "no-such-group"])
+
+    captured = capsys.readouterr()
+    assert rc == 1
+    assert "warning: unknown model group 'no-such-group'" in captured.err
+    assert "Traceback" not in captured.err
+
+
+def test_run_cli_goal_print_with_multimodel_flag_skips_fast_path(monkeypatch, tmp_path, capsys):
+    """A multimodel selection keeps ``-p /goal`` off the provider-free path."""
+    from clawcodex_ext.cli.dispatch import run_cli
+
+    monkeypatch.setenv("CLAWCODEX_HOME", str(tmp_path / "clawcodex-home"))
+    monkeypatch.setattr("src.init.run_pre_action", lambda args: None)
+
+    rc = run_cli(["clawcodex", "-p", "/goal", "--multimodel", "no-such-group"])
+
+    captured = capsys.readouterr()
+    assert rc == 1
+    assert "warning: unknown model group 'no-such-group'" in captured.err
+    assert "No goal set" not in captured.out
+
+
 def test_run_cli_marks_max_turns_as_explicit_for_goal_print(monkeypatch, tmp_path):
     from clawcodex_ext.cli.dispatch import run_cli
 
@@ -389,7 +432,7 @@ def test_run_cli_model_flag_value_provider_does_not_route_as_subcommand(monkeypa
     init_calls = []
     repl_calls = []
     monkeypatch.setattr("src.init.run_pre_action", lambda args: init_calls.append(args))
-    monkeypatch.setattr("clawcodex_ext.cli.permissions.resolve_permission_state", lambda args: None)
+    _patch_permission_state_stash(monkeypatch)
     monkeypatch.setattr(tui_module, "should_use_tui", lambda explicit: False)
 
     def fake_repl_init(self, **kwargs):
@@ -471,7 +514,7 @@ def test_run_cli_agent_debug_sets_debug_environment(monkeypatch):
         monkeypatch.setenv(name, "")
 
     monkeypatch.setattr("src.init.run_pre_action", lambda args: None)
-    monkeypatch.setattr("clawcodex_ext.cli.permissions.resolve_permission_state", lambda args: None)
+    _patch_permission_state_stash(monkeypatch)
     monkeypatch.setattr(tui_module, "should_use_tui", lambda explicit: False)
 
     class FakeFrontend:
@@ -580,3 +623,27 @@ def test_split_csv_utility():
     assert _split_csv("foo") == ["foo"]
     assert _split_csv("foo, bar, baz") == ["foo", "bar", "baz"]
     assert _split_csv("foo,, bar") == ["foo", "bar"]  # empty segments skipped
+
+
+def test_headless_options_from_runtime_opts_forwards_every_shared_field():
+    """The factory copies each same-named RuntimeOptions field verbatim."""
+    from dataclasses import fields as dataclass_fields
+
+    from clawcodex_ext.entrypoints.headless import HeadlessOptions
+    from clawcodex_ext.runtime.context import RuntimeOptions
+
+    shared = {f.name for f in dataclass_fields(HeadlessOptions)} & {f.name for f in dataclass_fields(RuntimeOptions)}
+    assert shared, "projection must cover at least one field"
+
+    for name in sorted(shared):
+        runtime_opts = RuntimeOptions(**{name: f"<marker:{name}>"})
+        projected = HeadlessOptions.from_runtime_opts(runtime_opts)
+        assert getattr(projected, name) == f"<marker:{name}>", f"field {name} not forwarded"
+
+    projected = HeadlessOptions.from_runtime_opts(RuntimeOptions())
+    assert projected.stdin is None
+    assert projected.persist_on_exit is True
+    assert projected.external_session is None
+    assert projected.mcp_clients == {}
+    assert not hasattr(projected, "resume_browse")
+    assert not hasattr(projected, "multimodel_group")

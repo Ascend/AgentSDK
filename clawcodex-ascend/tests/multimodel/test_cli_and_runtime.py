@@ -119,3 +119,88 @@ def test_configured_keyword_routes_build_a_working_strategy(monkeypatch, tmp_pat
 
     router = build_router(load_config().groups["router"], lambda provider, _model: Provider(provider))
     assert router.chat([{"role": "user", "content": "Please perform a security review"}]).content == "two"
+
+
+class _FakeProvider:
+    def __init__(self, model: str) -> None:
+        self.model = model
+
+
+class _FakeRegistry:
+    def __init__(self, provider: _FakeProvider) -> None:
+        self.provider = provider
+        self._tools = []
+
+    def register(self, tool: object) -> None:
+        self._tools.append(tool)
+
+    def unregister(self, name: str) -> None:
+        self._tools = [t for t in self._tools if getattr(t, "name", "") != name]
+
+    def list_tools(self) -> list:
+        return list(self._tools)
+
+
+def test_runtime_build_resolves_config_default_group(monkeypatch, tmp_path) -> None:
+    """RuntimeContext.build activates the config default group on its own."""
+    from types import SimpleNamespace
+
+    from clawcodex_ext.runtime.context import RuntimeContext, RuntimeOptions
+
+    monkeypatch.setenv("CLAWCODEX_CONFIG_DIR", str(tmp_path))
+    assert (
+        run_multimodel_command(
+            [
+                "group",
+                "create",
+                "review",
+                "--slot",
+                "sonnet:claude-sonnet-4-6@anthropic",
+                "--strategy",
+                "voting",
+                "--aggregator",
+                "majority",
+                "--min-votes",
+                "2",
+            ]
+        )
+        == 0
+    )
+    assert run_multimodel_command(["use", "review"]) == 0
+
+    router_groups: list = []
+    single_calls: list = []
+    monkeypatch.setattr(
+        "clawcodex_ext.runtime.context.resolve",
+        lambda **kwargs: SimpleNamespace(provider="glm", model="zai/glm-4"),
+    )
+    monkeypatch.setattr(
+        "clawcodex_ext.runtime.context.attach_cron_runtime",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "clawcodex_ext.runtime.context.replace_cron_tools",
+        lambda registry: None,
+    )
+    monkeypatch.setattr(
+        "src.providers.runtime.build_provider_from_config",
+        lambda provider_name, model=None: (single_calls.append(provider_name) or _FakeProvider(model)),
+    )
+    monkeypatch.setattr(
+        "src.tool_system.defaults.build_default_registry",
+        lambda provider, **kwargs: _FakeRegistry(provider),
+    )
+    monkeypatch.setattr(
+        "clawcodex_ext.multimodel.factory.build_router",
+        lambda group, builder, **kwargs: router_groups.append(group) or _FakeProvider("ensemble"),
+    )
+
+    options = RuntimeOptions(workspace_root=tmp_path)
+    runtime = RuntimeContext.build(options)
+
+    assert runtime.provider_name == "multimodel"
+    assert runtime.provider.model == "ensemble"
+    assert runtime.multimodel_group == "review"
+    assert options.multimodel_group == "review"
+    assert len(router_groups) == 1
+    assert single_calls == []

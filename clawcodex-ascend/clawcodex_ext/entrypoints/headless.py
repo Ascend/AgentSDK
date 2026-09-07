@@ -55,9 +55,12 @@ import os
 import signal as _signal
 import sys
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from pathlib import Path
-from typing import IO, Any, Callable, Iterable
+from typing import IO, TYPE_CHECKING, Any, Callable, Iterable
+
+if TYPE_CHECKING:
+    from clawcodex_ext.runtime.context import RuntimeOptions
 
 from src.agent import Session
 from src.cli_core import (
@@ -207,6 +210,14 @@ class HeadlessOptions:
     # _drain_pending_user_messages fires at ToolResult boundaries.
     agent_id: str | None = None
     runtime_tasks: Any | None = None
+
+    @classmethod
+    def from_runtime_opts(cls, options: RuntimeOptions) -> HeadlessOptions:
+        """Project a RuntimeOptions onto the headless option surface."""
+        from clawcodex_ext.runtime.context import RuntimeOptions as _RuntimeOptions
+
+        shared = {f.name for f in fields(_RuntimeOptions)} & {f.name for f in fields(cls)}
+        return cls(**{name: getattr(options, name) for name in shared})
 
 
 def run_headless(options: HeadlessOptions) -> int:

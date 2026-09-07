@@ -30,7 +30,7 @@ import sys
 import time
 import uuid
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 
 def _telemetry_record_session(*, session_id: str, entrypoint: str, is_non_interactive: bool) -> None:
@@ -80,6 +80,34 @@ def _telemetry_record_end(
         )
     except Exception:  # nosec B110
         pass  # Telemetry is optional and must not affect command execution.
+
+
+def _run_and_record(
+    *,
+    session_id: str,
+    command_name: str,
+    mode: str,
+    start: float,
+    fn: Callable[[], int],
+) -> int:
+    """Run a CLI action and close the telemetry session around its result."""
+    rc = fn()
+    _telemetry_record_end(
+        session_id=session_id,
+        command_name=command_name,
+        mode=mode,
+        success=(rc == 0),
+        duration_s=time.monotonic() - start,
+        exit_status=rc,
+    )
+    return rc
+
+
+def _print_version() -> None:
+    """Print the ``claw-codex version ...`` banner used by both --version channels."""
+    from src import __version__
+
+    print(f"claw-codex version {__version__} (Python)")
 
 
 def _derive_session_id() -> str:
@@ -138,6 +166,18 @@ def _is_provider_free_goal_summary_print(args: object) -> bool:
     return len(words) == 1 or (len(words) == 2 and words[1] in {"clear", "stop", "off", "reset", "none", "cancel"})
 
 
+def _has_multimodel_selection(args: Any) -> bool:
+    """Return True when a multimodel group would activate for this run."""
+    if getattr(args, "multimodel", None) or getattr(args, "runtime_multimodel", None):
+        return True
+    from clawcodex_ext.multimodel.config import MultiModelConfigError, load_config
+
+    try:
+        return bool(load_config().default_group)
+    except MultiModelConfigError:
+        return True
+
+
 def _run_with_worktree_keep_note(callback, worktree_session):
     """Run a local frontend and always report its retained worktree."""
     try:
@@ -174,16 +214,7 @@ def _maybe_argcomplete_top_level(argv: list[str]) -> None:
 
     parser = build_parser()
     load_builtin_subcommands()
-    top_level = (
-        "login",
-        "config",
-        "mcp",
-        "daemon",
-        "doctor",
-        "orchestrator",
-        "autonomy",
-        "schedule",
-    ) + tuple(_SUBCOMMANDS.keys())
+    top_level = tuple(_SUBCOMMANDS.keys())
     # Override the first-positional ``prompt`` argument's choice list
     # so argcomplete offers the subcommand nouns. argcomplete reads the
     # parser's own argument table for flag completion automatically.
@@ -194,333 +225,129 @@ def _maybe_argcomplete_top_level(argv: list[str]) -> None:
     argcomplete.autocomplete(parser, always_complete_options=False)
 
 
-def run_cli(argv: list[str] | None = None) -> int:
-    """CLI main entry point, parameterized to avoid sys.argv mutation in tests."""
-    # (Stage 2 stability gate): print a diagnostic Provider/Model line
-    # at the VERY START of run_cli so it survives the 12s kill when
-    # RuntimeContext.build() takes ~10s. Config reads are cheap (~ms) so
-    # this is safe to do before any heavy initialization. Without this
-    # flush, piped invocations (e.g. stability gate) get no diagnostic
-    # when the process is killed at the timeout. Keep it on stderr so
-    # --output-format json/stream-json leaves stdout machine-parseable.
-    if "--print" in (argv or sys.argv)[1:] or "-p" in (argv or sys.argv)[1:]:
+def _dispatch_frontend(
+    *,
+    args: Any,
+    ctx: Any,
+    argv: list[str],
+    worktree_session: Any,
+    telemetry_session_id: str,
+    telemetry_start: float,
+) -> int:
+    """Run the mode frontend — headless (``-p/--print``), TUI, or REPL."""
+    if args.print:
+        # telemetry notice — shown once on stderr for headless/CLI mode
+        # so users know when collection + reporting are active.
         try:
-            from src.config import get_default_provider, get_provider_config
+            from telemetry.config import load_config as _load_telemetry_cfg
 
-            _argv = (argv or sys.argv)[1:]
-            _provider_arg = None
-            _model_arg = None
-            for _i, _tok in enumerate(_argv):
-                if _tok == "--provider" and _i + 1 < len(_argv):
-                    _provider_arg = _argv[_i + 1]
-                elif _tok.startswith("--provider="):
-                    _provider_arg = _tok.split("=", 1)[1]
-                elif _tok == "--model" and _i + 1 < len(_argv):
-                    _model_arg = _argv[_i + 1]
-                elif _tok.startswith("--model="):
-                    _model_arg = _tok.split("=", 1)[1]
-            _prov_name = _provider_arg or get_default_provider()
-            _prov_cfg = get_provider_config(_prov_name) or {}
-            _model = _model_arg or _prov_cfg.get("default_model")
-            print(
-                f"Provider: {_prov_name}, Model: {_model}",
-                file=sys.stderr,
-                flush=True,
-            )
+            _tc = _load_telemetry_cfg()
+            if _tc.enabled and _tc.reporting.reporting_enabled:
+                print(
+                    "Telemetry: stats ✓ · error reporting ✓  — /telemetry to configure",
+                    file=sys.stderr,
+                )
+                print(
+                    "Collects usage data & error reports; may be uploaded periodically.",
+                    file=sys.stderr,
+                )
         except Exception:  # nosec B110
-            # Config lookup failure must not block init; subsequent paths
-            # will surface authoritative values when they succeed.
-            pass
+            pass  # Telemetry is optional and must not affect command execution.
+        name, command_name, mode = "headless", "print", "non_interactive"
+    else:
+        from src.entrypoints.tui import should_use_tui
 
-    # WI-0.1 (ch17 Phase 0): instrument cold-start phases. Env-gated by
-    # ``CLAUDE_CODE_PROFILE_STARTUP``; a no-op import + no-op call when
-    # disabled (~ns overhead). On exit the profiler writes a Markdown
-    # report to ``$CLAUDE_CONFIG_DIR/startup-perf/{session_id}.txt``.
+        # Interactive path: decide between the Textual TUI (new default)
+        # and the legacy Rich REPL. Explicit flags win; otherwise
+        # auto-detect a compatible TTY.
+        explicit_tui: bool | None = None
+        if args.tui:
+            explicit_tui = True
+        elif getattr(args, "legacy_repl", False) or args.no_tui:
+            explicit_tui = False
+
+        if should_use_tui(explicit_tui):
+            name, command_name, mode = "tui", "tui", "interactive"
+        else:
+            name, command_name, mode = "repl", "repl", "interactive"
+
     from src.utils.startup_profiler import profile_checkpoint
 
-    profile_checkpoint("cli_main_entry")
+    profile_checkpoint(f"mode_dispatch_{name}")
+    profile_checkpoint("phase4_dispatch")
 
-    # A nested CLI inherits the outer session's worktree variables. Strip
-    # them before any prefetch/bootstrap child can snapshot the environment;
-    # only a worktree created by this invocation may be advertised later.
-    from src.utils.worktree_session import strip_worktree_env
+    from clawcodex_ext.frontend import get_frontend
 
-    strip_worktree_env()
-
-    if os.environ.get("CLAWCODEX_DEBUG", "").lower() in ("1", "true", "yes"):
-        import logging
-
-        logging.basicConfig(
-            level=logging.WARNING,
-            format="%(asctime)s %(name)s %(message)s",
-            stream=sys.stderr,
-        )
-
-    if argv is None:
-        argv = sys.argv
-
-    _apply_agent_debug_if_requested(argv)
-
-    # emit session_start as early as possible. The session id
-    # is best-effort and never blocks the CLI; failures are swallowed
-    # inside the helper.
-    _telemetry_session_id = _derive_session_id()
-    _telemetry_start = time.monotonic()
-    _telemetry_record_session(
-        session_id=_telemetry_session_id,
-        entrypoint="cli",
-        is_non_interactive=False,
+    frontend = get_frontend(name)
+    return _run_and_record(
+        session_id=telemetry_session_id,
+        command_name=command_name,
+        mode=mode,
+        start=telemetry_start,
+        fn=lambda: _run_with_worktree_keep_note(lambda: frontend.run(ctx, argv[1:]), worktree_session),
     )
 
-    # --version short-circuit (mirrors TS main.tsx pre-argparse fast-path)
-    if len(argv) == 2 and argv[1] in ("--version", "-v", "-V"):
-        from src import __version__
 
-        print(f"claw-codex version {__version__} (Python)")
-        _telemetry_record_end(
-            session_id=_telemetry_session_id,
-            command_name="version",
-            mode="non_interactive",
-            success=True,
-            duration_s=time.monotonic() - _telemetry_start,
-            exit_status=0,
-        )
-        return 0
+def _maybe_print_startup_diagnostic(args: Any) -> None:
+    """Print a Provider/Model diagnostic line for ``-p/--print`` runs."""
+    if not getattr(args, "print", False):
+        return
+    try:
+        from src.config import get_default_provider, get_provider_config
 
-    # Subcommands are matched BEFORE the main parser to avoid argparse treating
-    # a free-form prompt (e.g. ``clawcodex -p "hello"``) as an unknown
-    # subcommand.
-    #
-    # WI-4.3: ``mcp``, ``daemon``, and ``doctor`` are fast-path subcommands
-    # — they get a thin handler that imports only what it needs, skipping
-    # the TUI/REPL/full-tool-registry load. Mirrors TS ``main.tsx``'s
-    # specialized-subcommand early-returns.
-    #
-    # Sieve looks at ``argv[0]`` ONLY so flag values that happen to equal a
-    # subcommand name don't mis-route (e.g. ``clawcodex --model mcp`` or
-    # ``clawcodex -p "doctor"``). The TS reference also positions
-    # specialized subcommands at argv[0]; global flags don't precede them.
-    #
-    # If argcomplete is active, attach the sieve-mirror parser first so
-    # subcommand-noun completion works before the sieve runs. No-op when
-    # ``_ARGCOMPLETE`` is unset; lazy import keeps ``--help`` under 5s.
-    _maybe_argcomplete_top_level(argv)
-    rest = argv[1:]
-    if rest and not rest[0].startswith("-"):
-        token = rest[0]
-        rest_args = rest[1:]
-
-        # Import src_cli late so monkeypatches to src.cli.* take effect.
-        import src.cli as src_cli
-
-        # each fast-path return is wrapped to record command_run
-        # + session_end. The helper swallows any telemetry failure.
-        if token == "login":  # nosec B105
-            rc = src_cli.handle_login()
-            _telemetry_record_end(
-                session_id=_telemetry_session_id,
-                command_name="login",
-                mode="non_interactive",
-                success=(rc == 0),
-                duration_s=time.monotonic() - _telemetry_start,
-                exit_status=rc,
-            )
-            return rc
-        if token == "config":  # nosec B105
-            rc = src_cli.show_config()
-            _telemetry_record_end(
-                session_id=_telemetry_session_id,
-                command_name="config",
-                mode="non_interactive",
-                success=(rc == 0),
-                duration_s=time.monotonic() - _telemetry_start,
-                exit_status=rc,
-            )
-            return rc
-
-        if token == "mcp":  # nosec B105
-            from src.entrypoints.mcp import run_mcp_subcommand
-
-            rc = run_mcp_subcommand(rest_args)
-            _telemetry_record_end(
-                session_id=_telemetry_session_id,
-                command_name="mcp",
-                mode="non_interactive",
-                success=(rc == 0),
-                duration_s=time.monotonic() - _telemetry_start,
-                exit_status=rc,
-            )
-            return rc
-        if token == "daemon":  # nosec B105
-            from src.entrypoints.daemon import run_daemon_subcommand
-
-            rc = run_daemon_subcommand(rest_args)
-            _telemetry_record_end(
-                session_id=_telemetry_session_id,
-                command_name="daemon",
-                mode="daemon",
-                success=(rc == 0),
-                duration_s=time.monotonic() - _telemetry_start,
-                exit_status=rc,
-            )
-            return rc
-        if token == "doctor":  # nosec B105
-            from src.entrypoints.doctor import run_doctor
-
-            rc = run_doctor()
-            _telemetry_record_end(
-                session_id=_telemetry_session_id,
-                command_name="doctor",
-                mode="non_interactive",
-                success=(rc == 0),
-                duration_s=time.monotonic() - _telemetry_start,
-                exit_status=rc,
-            )
-            return rc
-
-        # Load the extensible registry only after the deliberately-light
-        # built-in paths above. Registry discovery imports provider and tool
-        # commands, which defeats the MCP/daemon/doctor cold-start contract.
-        from clawcodex_ext.cli.subcommand_registry import get_subcommand
-
-        subcommand = get_subcommand(token)
-        if subcommand is not None:
-            rc = subcommand(rest_args)
-            _telemetry_record_end(
-                session_id=_telemetry_session_id,
-                command_name=token,
-                mode="non_interactive",
-                success=(rc == 0),
-                duration_s=time.monotonic() - _telemetry_start,
-                exit_status=rc,
-            )
-            return rc
-        if token == "orchestrator":  # nosec B105
-            from src.entrypoints.orchestrator import run_orchestrator_subcommand
-
-            rc = run_orchestrator_subcommand(rest_args)
-            _telemetry_record_end(
-                session_id=_telemetry_session_id,
-                command_name="orchestrator",
-                mode="daemon",
-                success=(rc == 0),
-                duration_s=time.monotonic() - _telemetry_start,
-                exit_status=rc,
-            )
-            return rc
-        if token == "autonomy":  # nosec B105
-            from clawcodex_ext.cron_system.status import build_autonomy_runs, build_autonomy_status
-
-            deep = "--deep" in rest_args
-            filtered_args = [arg for arg in rest_args if arg != "--deep"]
-            command = filtered_args[0] if filtered_args else "status"
-            rc = 0
-            if command == "status":
-                print(build_autonomy_status(Path.cwd(), deep=deep))
-                rc = 0
-            elif command == "runs":
-                print(build_autonomy_runs(Path.cwd(), deep=deep))
-                rc = 0
-            else:
-                print("usage: clawcodex autonomy [status|runs] [--deep]", file=sys.stderr)
-                rc = 2
-            _telemetry_record_end(
-                session_id=_telemetry_session_id,
-                command_name="autonomy",
-                mode="non_interactive",
-                success=(rc == 0),
-                duration_s=time.monotonic() - _telemetry_start,
-                exit_status=rc,
-            )
-            return rc
-        if token == "schedule":  # nosec B105
-            from clawcodex_ext.cron_system.schedule import (
-                format_cron_task_detail,
-                format_manual_fire_result,
-                get_cron_task_detail,
-                manual_fire_cron_task,
-            )
-            from clawcodex_ext.cron_system.status import build_schedule_list
-
-            command = rest_args[0] if rest_args else "list"
-            rc = 0
-            if command == "list":
-                print(build_schedule_list(Path.cwd()))
-                rc = 0
-            elif command == "get" and len(rest_args) >= 2:
-                cwd = Path.cwd()
-                detail = get_cron_task_detail(cwd, rest_args[1])
-                if detail is None:
-                    print(f"No scheduled job with id '{rest_args[1]}'", file=sys.stderr)
-                    rc = 1
-                else:
-                    print(format_cron_task_detail(detail))
-                    rc = 0
-            elif command == "run" and len(rest_args) >= 2:
-                cwd = Path.cwd()
-                run = manual_fire_cron_task(cwd, rest_args[1], current_dir=cwd)
-                if run is None and get_cron_task_detail(cwd, rest_args[1]) is None:
-                    print(f"No scheduled job with id '{rest_args[1]}'", file=sys.stderr)
-                    rc = 1
-                else:
-                    print(format_manual_fire_result(rest_args[1], run))
-                    rc = 0
-            else:
-                print("usage: clawcodex schedule [list|get ID|run ID]", file=sys.stderr)
-                rc = 2
-            _telemetry_record_end(
-                session_id=_telemetry_session_id,
-                command_name="schedule",
-                mode="non_interactive",
-                success=(rc == 0),
-                duration_s=time.monotonic() - _telemetry_start,
-                exit_status=rc,
-            )
-            return rc
-
-    from clawcodex_ext.cli.parser import build_parser
-
-    parser = build_parser()
-    args = parser.parse_args(argv[1:])
-    profile_checkpoint("argparse_done")
-
-    swarm_requested = bool(getattr(args, "swarm", False)) or getattr(args, "effort", None) == "swarm"
-    if swarm_requested:
-        if not getattr(args, "prompt", None):
-            parser.error("--swarm/--decompose requires a prompt")
-        from extensions.orchestrator.issue import Issue
-        from extensions.orchestrator.task_decomposition import (
-            TaskDecomposer,
-            build_swarm_prompt,
-            write_task_plan,
-        )
-
-        workspace_root = Path.cwd()
-        issue = Issue(
-            id="cli-swarm",
-            identifier="cli-swarm",
-            title=str(args.prompt)[:160],
-            description=str(args.prompt),
-        )
-        import asyncio
-
-        plan = asyncio.run(TaskDecomposer().decompose_issue(issue))
-        plan_path = write_task_plan(plan, workspace_root)
-        args.prompt = build_swarm_prompt(issue, plan, plan_path)
-        args.print = True
-        os.environ["CLAUDE_CODE_COORDINATOR_MODE"] = "1"
+        provider_name = getattr(args, "provider", None) or get_default_provider()
+        provider_cfg = get_provider_config(provider_name) or {}
+        model = getattr(args, "model", None) or provider_cfg.get("default_model")
         print(
-            "NOTE: CLI --swarm/--decompose mode runs outside the orchestrator's "
-            "normal issue tracking pipeline. There will be no IssueRecord "
-            "persistence, no summary comment, and no PR creation. "
-            "The decomposed plan has been written to "
-            f"{plan_path.relative_to(workspace_root)}.",
+            f"Provider: {provider_name}, Model: {model}",
             file=sys.stderr,
+            flush=True,
         )
+    except Exception:  # nosec B110
+        # Config lookup failure must not block init; subsequent paths
+        # will surface authoritative values when they succeed.
+        pass
 
-    if getattr(args, "prompt", None) and not getattr(args, "print", False):
-        parser.error(f"unknown command: {args.prompt} (use -p/--print to send a prompt)")
 
+def _apply_swarm_mode(args: Any, parser: Any) -> None:
+    """Rewrite args for a ``--swarm`` / ``--effort swarm`` invocation."""
+    if not (bool(getattr(args, "swarm", False)) or getattr(args, "effort", None) == "swarm"):
+        return
+    if not getattr(args, "prompt", None):
+        parser.error("--swarm/--decompose requires a prompt")
+    from extensions.orchestrator.issue import Issue
+    from extensions.orchestrator.task_decomposition import (
+        TaskDecomposer,
+        build_swarm_prompt,
+        write_task_plan,
+    )
+
+    workspace_root = Path.cwd()
+    issue = Issue(
+        id="cli-swarm",
+        identifier="cli-swarm",
+        title=str(args.prompt)[:160],
+        description=str(args.prompt),
+    )
+    import asyncio
+
+    plan = asyncio.run(TaskDecomposer().decompose_issue(issue))
+    plan_path = write_task_plan(plan, workspace_root)
+    args.prompt = build_swarm_prompt(issue, plan, plan_path)
+    args.print = True
+    os.environ["CLAUDE_CODE_COORDINATOR_MODE"] = "1"
+    print(
+        "NOTE: CLI --swarm/--decompose mode runs outside the orchestrator's "
+        "normal issue tracking pipeline. There will be no IssueRecord "
+        "persistence, no summary comment, and no PR creation. "
+        "The decomposed plan has been written to "
+        f"{plan_path.relative_to(workspace_root)}.",
+        file=sys.stderr,
+    )
+
+
+def _resolve_session_args(args: Any) -> int | None:
+    """Resolve --continue / --resume references to a concrete session ID."""
     # Resolve --continue: auto-detect the most recent session (S-R3).
     if getattr(args, "continue", None) and not getattr(args, "resume", None):
         from src.services.session_storage import SessionStorage
@@ -559,81 +386,167 @@ def run_cli(argv: list[str] | None = None) -> int:
                     file=sys.stderr,
                 )
                 return 1
+    return None
+
+
+def _bootstrap_cli_environment(argv: list[str] | None) -> list[str]:
+    """Normalize argv and run the pre-telemetry environment setup."""
+    # WI-0.1 (ch17 Phase 0): instrument cold-start phases. Env-gated by
+    # ``CLAUDE_CODE_PROFILE_STARTUP``; a no-op import + no-op call when
+    # disabled (~ns overhead). On exit the profiler writes a Markdown
+    # report to ``$CLAUDE_CONFIG_DIR/startup-perf/{session_id}.txt``.
+    from src.utils.startup_profiler import profile_checkpoint
+
+    profile_checkpoint("cli_main_entry")
+
+    # A nested CLI inherits the outer session's worktree variables. Strip
+    # them before any prefetch/bootstrap child can snapshot the environment;
+    # only a worktree created by this invocation may be advertised later.
+    from src.utils.worktree_session import strip_worktree_env
+
+    strip_worktree_env()
+
+    if os.environ.get("CLAWCODEX_DEBUG", "").lower() in ("1", "true", "yes"):
+        import logging
+
+        logging.basicConfig(
+            level=logging.WARNING,
+            format="%(asctime)s %(name)s %(message)s",
+            stream=sys.stderr,
+        )
+
+    if argv is None:
+        argv = sys.argv
+
+    _apply_agent_debug_if_requested(argv)
+    return argv
+
+
+def _run_pre_parse_channels(
+    argv: list[str],
+    telemetry_session_id: str,
+    telemetry_start: float,
+) -> int | None:
+    """Match ``clawcodex <token>`` subcommands against the registry."""
+    _maybe_argcomplete_top_level(argv)
+
+    # Match the first token only; flag values that equal a subcommand
+    # name (``clawcodex --model mcp``) must not mis-route the sieve.
+    rest = argv[1:]
+    if rest and not rest[0].startswith("-"):
+        token = rest[0]
+        rest_args = rest[1:]
+
+        from clawcodex_ext.cli.subcommand_registry import (
+            get_subcommand,
+            telemetry_mode_for,
+        )
+
+        subcommand = get_subcommand(token)
+        if subcommand is not None:
+            return _run_and_record(
+                session_id=telemetry_session_id,
+                command_name=token,
+                mode=telemetry_mode_for(token),
+                start=telemetry_start,
+                fn=lambda: subcommand(rest_args),
+            )
+    return None
+
+
+def _run_post_parse_channels(
+    args: Any,
+    parser: Any,
+    telemetry_session_id: str,
+    telemetry_start: float,
+) -> int | None:
+    """Run the post-parse arg rewrites and flag fast exits."""
+    from src.utils.startup_profiler import profile_checkpoint
+
+    profile_checkpoint("argparse_done")
+
+    _apply_swarm_mode(args, parser)
+
+    if getattr(args, "prompt", None) and not getattr(args, "print", False):
+        parser.error(f"unknown command: {args.prompt} (use -p/--print to send a prompt)")
+
+    exit_code = _resolve_session_args(args)
+    if exit_code is not None:
+        return exit_code
 
     if args.version:
-        from src import __version__
-
-        print(f"claw-codex version {__version__} (Python)")
-        return 0
+        _print_version()
+        return _run_and_record(
+            session_id=telemetry_session_id,
+            command_name="version",
+            mode="non_interactive",
+            start=telemetry_start,
+            fn=lambda: 0,
+        )
 
     if args.config:
-        import src.cli as src_cli
+        from clawcodex_ext.cli.subcommand_registry import (
+            get_subcommand,
+            telemetry_mode_for,
+        )
 
-        return src_cli.show_config()
+        subcommand = get_subcommand("config")
+        if subcommand is not None:
+            return _run_and_record(
+                session_id=telemetry_session_id,
+                command_name="config",
+                mode=telemetry_mode_for("config"),
+                start=telemetry_start,
+                fn=lambda: subcommand([]),
+            )
+    return None
 
-    # ---- Feature Gate CLI overrides ----------------------------------
-    # Apply ``--enable-feature`` / ``--disable-feature`` before the
-    # agent loop starts.  These programmatic overrides take priority
-    # over env-vars and config-file values.
-    _apply_feature_gate_overrides(args)
+
+def _run_init_and_resolve_permissions(args: Any) -> None:
+    """Run the init hook, then resolve permission state once."""
+    from src.utils.startup_profiler import profile_checkpoint
 
     # Plan-phase-1 wiring (ch02-bootstrap-refactoring-plan.md P1.5):
     # ``run_pre_action(args)`` is the Python analog of Commander's
-    # ``preAction`` hook. It runs the memoized ``init()`` (chapter
-    # phase 2 — safe env vars + graceful-shutdown + API preconnect)
-    # and mutates interactive bootstrap state.
+    # ``preAction`` hook: memoized ``init()`` (safe env vars +
+    # graceful-shutdown + API preconnect) + interactive bootstrap state.
     #
-    # MUST PRECEDE permission resolution so init-side env-var
-    # application can affect permission resolution. ``--version`` /
-    # ``--config`` short-circuit above, so the chapter's
-    # "fast paths skip init" property is preserved.
-    #
-    # The API-preconnect call previously lived here at module level;
-    # it now runs inside ``init()`` so it overlaps with any callers
-    # of ``init()`` (REPL, headless, etc.), not just the cli.py path.
     profile_checkpoint("phase0_end_phase2_start")
     from src.init import run_pre_action
 
     run_pre_action(args)
     profile_checkpoint("phase2_end_phase3_start")
 
-    # Resolve permission state ONCE here so all modes (print/TUI/REPL) honor
-    # ``--dangerously-skip-permissions`` consistently. Mirrors
-    # ``typescript/src/main.tsx:1383-1389``.
     from clawcodex_ext.cli.permissions import resolve_permission_state
-    from clawcodex_ext.cli.runners import split_csv
-    from clawcodex_ext.frontend import get_frontend
-    from clawcodex_ext.runtime.context import RuntimeContext, RuntimeOptions
 
     resolve_permission_state(args)
     profile_checkpoint("permissions_resolved")
     profile_checkpoint("phase3_end_phase4_start")
 
-    if getattr(args, "fallback_model", None) and args.fallback_model == getattr(args, "model", None):
-        print("error: --fallback-model must differ from --model", file=sys.stderr)
-        return 2
 
+def _enter_worktree(args: Any) -> Any | None:
+    """Create or adopt the ``--worktree`` session and enter it."""
     from clawcodex_ext.cli.worktree import WORKTREE_FAILED, maybe_create_worktree
 
     worktree_session = maybe_create_worktree(args)
     if worktree_session is WORKTREE_FAILED:
-        return 1
+        return WORKTREE_FAILED
     if worktree_session is not None:
         os.chdir(worktree_session.worktree_path)
         os.environ.update(worktree_session.to_env())
+    return worktree_session
 
-    # Interactive path: decide between the Textual TUI (new default) and the
-    # legacy Rich REPL. Explicit flags win; otherwise auto-detect a compatible TTY.
-    explicit_tui: bool | None = None
-    if args.tui:
-        explicit_tui = True
-    elif getattr(args, "legacy_repl", False) or args.no_tui:
-        explicit_tui = False
+
+def _build_runtime_options(args: Any, *, worktree_session: Any) -> Any:
+    """Project resolved CLI args into the shared RuntimeOptions."""
+    from clawcodex_ext.cli.runners import split_csv
+    from clawcodex_ext.runtime.context import RuntimeOptions
 
     # ``--resume`` without a SESSION_ID means "browse" mode.
-    # REPL mode now has its own session browser, so no need to force TUI.
     resume_val = getattr(args, "resume", None)
 
+    # An explicit --agent value that names an existing directory is a
+    # slash-command bundle path; ``auto`` and flagless runs stay None.
     bundle_path: Path | None = None
     agent_type_raw = getattr(args, "agent", None)
     if agent_type_raw is not None and agent_type_raw != "auto":
@@ -641,31 +554,7 @@ def run_cli(argv: list[str] | None = None) -> int:
         if candidate.is_dir():
             bundle_path = candidate
 
-    # command-line selection wins over an in-process runtime choice,
-    # which in turn wins over config.yaml's default_group.
-    from clawcodex_ext.multimodel.config import MultiModelConfigError  # fmt: skip
-
-    try:
-        from clawcodex_ext.multimodel.config import load_config, resolve_active_group
-
-        _multimodel_config = load_config()
-        _multimodel_group = resolve_active_group(
-            cli_group=getattr(args, "multimodel", None),
-            runtime_group=getattr(args, "runtime_multimodel", None),
-            config=_multimodel_config,
-        )
-        if _multimodel_group and _multimodel_group not in _multimodel_config.groups:
-            raise MultiModelConfigError(f"unknown model group '{_multimodel_group}'")
-        if _multimodel_group:
-            from clawcodex_ext.multimodel.feature import require_multimodel_enabled
-
-            require_multimodel_enabled()
-    except (MultiModelConfigError, RuntimeError) as exc:
-        print(f"error: {exc}", file=sys.stderr)
-        return 2
-
-    # Build RuntimeContext once from resolved args — shared by all frontends.
-    runtime_opts = RuntimeOptions(
+    return RuntimeOptions(
         provider_name=getattr(args, "provider", None),
         model=getattr(args, "model", None),
         fallback_model=getattr(args, "fallback_model", None),
@@ -675,12 +564,12 @@ def run_cli(argv: list[str] | None = None) -> int:
         input_format=getattr(args, "input_format", "text"),
         include_partial_messages=getattr(args, "include_partial_messages", False),
         max_turns=getattr(args, "max_turns", 20),
-        max_turns_explicit=any(token == "--max-turns" or token.startswith("--max-turns=") for token in argv[1:]),  # nosec B105
+        max_turns_explicit=bool(getattr(args, "max_turns_explicit", False)),
         allowed_tools=tuple(split_csv(getattr(args, "allowed_tools", None))),
         disallowed_tools=tuple(split_csv(getattr(args, "disallowed_tools", None))),
         stream=getattr(args, "stream", False),
-        permission_mode=getattr(args, "_resolved_permission_mode", "default"),
-        is_bypass_permissions_mode_available=getattr(args, "_resolved_is_bypass_available", False),
+        permission_mode=args._resolved_permission_mode,
+        is_bypass_permissions_mode_available=args._resolved_is_bypass_available,
         skip_permissions=getattr(args, "dangerously_skip_permissions", False),
         resume_session_id=resume_val if resume_val and resume_val != "browse" else None,
         resume_browse=(resume_val == "browse"),
@@ -696,55 +585,42 @@ def run_cli(argv: list[str] | None = None) -> int:
         record_height=getattr(args, "record_height", None),
         workspace_root=(Path(worktree_session.worktree_path) if worktree_session is not None else None),
         worktree_session=worktree_session,
+        multimodel_cli_group=getattr(args, "multimodel", None),
+        multimodel_runtime_group=getattr(args, "runtime_multimodel", None),
     )
-    runtime_opts.multimodel_group = _multimodel_group
-    if _is_provider_free_goal_summary_print(args) and not _multimodel_group:
-        from src.entrypoints.headless import HeadlessOptions, run_headless
 
-        headless_options = HeadlessOptions(
-            prompt=runtime_opts.prompt,
-            output_format=runtime_opts.output_format,
-            input_format=runtime_opts.input_format,
-            provider_name=runtime_opts.provider_name,
-            model=runtime_opts.model,
-            fallback_model=runtime_opts.fallback_model,
-            effort=runtime_opts.effort,
-            max_turns=runtime_opts.max_turns,
-            max_turns_explicit=runtime_opts.max_turns_explicit,
-            permission_mode=runtime_opts.permission_mode,
-            is_bypass_permissions_mode_available=runtime_opts.is_bypass_permissions_mode_available,
-            skip_permissions=runtime_opts.skip_permissions,
-            allowed_tools=runtime_opts.allowed_tools,
-            disallowed_tools=runtime_opts.disallowed_tools,
-            include_partial_messages=runtime_opts.include_partial_messages,
-            verbose=runtime_opts.verbose,
-            workspace_root=runtime_opts.workspace_root or Path.cwd(),
-            append_system_prompt=runtime_opts.append_system_prompt,
-            startup_agent=runtime_opts.startup_agent,
-            resume_session_id=runtime_opts.resume_session_id,
-            resume_session_at=runtime_opts.resume_session_at,
-            record=runtime_opts.record,
-            record_width=runtime_opts.record_width,
-            record_height=runtime_opts.record_height,
-        )
-        rc = _run_with_worktree_keep_note(lambda: run_headless(headless_options), worktree_session)
-        _telemetry_record_end(
-            session_id=_telemetry_session_id,
-            command_name="print",
-            mode="non_interactive",
-            success=(rc == 0),
-            duration_s=time.monotonic() - _telemetry_start,
-            exit_status=rc,
-        )
-        return rc
+
+def _run_goal_summary_headless(
+    args: Any,
+    runtime_opts: Any,
+    worktree_session: Any,
+    telemetry_session_id: str,
+    telemetry_start: float,
+) -> int | None:
+    """Run provider-free ``-p /goal`` status/clear commands headless."""
+    if not _is_provider_free_goal_summary_print(args):
+        return None
+    if _has_multimodel_selection(args):
+        return None
+    from src.entrypoints.headless import HeadlessOptions, run_headless
+
+    headless_options = HeadlessOptions.from_runtime_opts(runtime_opts)
+    return _run_and_record(
+        session_id=telemetry_session_id,
+        command_name="print",
+        mode="non_interactive",
+        start=telemetry_start,
+        fn=lambda: _run_with_worktree_keep_note(lambda: run_headless(headless_options), worktree_session),
+    )
+
+
+def _build_runtime_context(runtime_opts: Any, worktree_session: Any) -> Any | None:
+    """Build the RuntimeContext shared by all frontends."""
+    from clawcodex_ext.runtime.context import RuntimeContext
 
     try:
-        ctx = RuntimeContext.build(runtime_opts)
-        ctx.multimodel_group = _multimodel_group
+        return RuntimeContext.build(runtime_opts)
     except RuntimeError as exc:
-        # Configuration errors (missing API key, no provider selected, etc.)
-        # are not programmer errors — surface a clean warning instead of a
-        # traceback so the user knows exactly how to recover.
         message = str(exc).strip() or "Provider configuration is missing."
         print(f"warning: {message}", file=sys.stderr)
         if sys.stdin.isatty() and sys.stdout.isatty():
@@ -756,75 +632,70 @@ def run_cli(argv: list[str] | None = None) -> int:
             from clawcodex_ext.cli.worktree import print_worktree_keep_note
 
             print_worktree_keep_note(worktree_session)
+        return None
+
+
+def run_cli(argv: list[str] | None = None) -> int:
+    """CLI main entry point, parameterized to avoid sys.argv mutation in tests."""
+    argv = _bootstrap_cli_environment(argv)
+
+    _telemetry_session_id = _derive_session_id()
+    _telemetry_start = time.monotonic()
+    _telemetry_record_session(
+        session_id=_telemetry_session_id,
+        entrypoint="cli",
+        is_non_interactive=False,
+    )
+
+    rc = _run_pre_parse_channels(argv, _telemetry_session_id, _telemetry_start)
+    if rc is not None:
+        return rc
+
+    from clawcodex_ext.cli.parser import build_parser
+
+    parser = build_parser()
+    args = parser.parse_args(argv[1:])
+
+    _maybe_print_startup_diagnostic(args)
+
+    rc = _run_post_parse_channels(args, parser, _telemetry_session_id, _telemetry_start)
+    if rc is not None:
+        return rc
+
+    _apply_feature_gate_overrides(args)
+
+    _run_init_and_resolve_permissions(args)
+
+    if getattr(args, "fallback_model", None) and args.fallback_model == getattr(args, "model", None):
+        print("error: --fallback-model must differ from --model", file=sys.stderr)
+        return 2
+
+    from clawcodex_ext.cli.worktree import WORKTREE_FAILED
+
+    worktree_session = _enter_worktree(args)
+    if worktree_session is WORKTREE_FAILED:
         return 1
 
-    # ---- Agent type resolution: --agent flag or auto-detect ----
+    runtime_opts = _build_runtime_options(args, worktree_session=worktree_session)
+
+    rc = _run_goal_summary_headless(args, runtime_opts, worktree_session, _telemetry_session_id, _telemetry_start)
+    if rc is not None:
+        return rc
+
+    ctx = _build_runtime_context(runtime_opts, worktree_session)
+    if ctx is None:
+        return 1
+
     _resolve_startup_agent(args, ctx)
 
-    # Select frontend by name; dispatch stays as the thin orchestration layer.
-    if args.print:
-        # telemetry notice — shown once on stderr for headless/CLI mode
-        # so users know when collection + reporting are active.
-        try:
-            from telemetry.config import load_config as _load_telemetry_cfg
-
-            _tc = _load_telemetry_cfg()
-            if _tc.enabled and _tc.reporting.reporting_enabled:
-                print(
-                    "Telemetry: stats ✓ · error reporting ✓  — /telemetry to configure",
-                    file=sys.stderr,
-                )
-                print(
-                    "Collects usage data & error reports; may be uploaded periodically.",
-                    file=sys.stderr,
-                )
-        except Exception:  # nosec B110
-            pass  # Telemetry is optional and must not affect command execution.
-        profile_checkpoint("mode_dispatch_print")
-        profile_checkpoint("phase4_dispatch")
-        frontend = get_frontend("headless")
-        rc = _run_with_worktree_keep_note(lambda: frontend.run(ctx, argv[1:]), worktree_session)
-        _telemetry_record_end(
-            session_id=_telemetry_session_id,
-            command_name="print",
-            mode="non_interactive",
-            success=(rc == 0),
-            duration_s=time.monotonic() - _telemetry_start,
-            exit_status=rc,
-        )
-        return rc
-
-    from src.entrypoints.tui import should_use_tui
-
-    if should_use_tui(explicit_tui):
-        profile_checkpoint("mode_dispatch_tui")
-        profile_checkpoint("phase4_dispatch")
-        frontend = get_frontend("tui")
-        rc = _run_with_worktree_keep_note(lambda: frontend.run(ctx, argv[1:]), worktree_session)
-        _telemetry_record_end(
-            session_id=_telemetry_session_id,
-            command_name="tui",
-            mode="interactive",
-            success=(rc == 0),
-            duration_s=time.monotonic() - _telemetry_start,
-            exit_status=rc,
-        )
-        return rc
-
-    profile_checkpoint("mode_dispatch_repl")
-    profile_checkpoint("phase4_dispatch")
-
-    frontend = get_frontend("repl")
-    rc = _run_with_worktree_keep_note(lambda: frontend.run(ctx, argv[1:]), worktree_session)
-    _telemetry_record_end(
-        session_id=_telemetry_session_id,
-        command_name="repl",
-        mode="interactive",
-        success=(rc == 0),
-        duration_s=time.monotonic() - _telemetry_start,
-        exit_status=rc,
+    return _dispatch_frontend(
+        args=args,
+        ctx=ctx,
+        argv=argv,
+        worktree_session=worktree_session,
+        telemetry_session_id=_telemetry_session_id,
+        telemetry_start=_telemetry_start,
     )
-    return rc
 
 
 # ---------------------------------------------------------------------------

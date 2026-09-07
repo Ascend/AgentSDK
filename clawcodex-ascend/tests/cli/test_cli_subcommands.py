@@ -32,6 +32,7 @@ from clawcodex_ext.cli.subcommand_registry import (
     _SUBCOMMANDS,
     get_subcommand,
     load_builtin_subcommands,
+    telemetry_mode_for,
 )
 
 # ---------------------------------------------------------------------------
@@ -63,8 +64,40 @@ _ALL_REGISTERED_SUBCOMMANDS = {
 
 
 def test_all_sieve_subcommands_exist():
-    """Every sieve subcommand must have a handler in dispatch.py."""
-    # Import dispatch to verify the sieve handlers exist
+    """Every dispatch-sieve noun must resolve to a registered handler."""
+    load_builtin_subcommands()
+    registered = set(_SUBCOMMANDS.keys())
+    missing = _ALL_SIEVE_SUBCOMMANDS - registered
+    assert not missing, f"Sieve subcommands missing from registry: {missing}"
+    for name in _ALL_SIEVE_SUBCOMMANDS:
+        handler = get_subcommand(name)
+        assert handler is not None, f"get_subcommand({name!r}) returned None"
+        assert callable(handler), f"get_subcommand({name!r}) returned non-callable: {handler}"
+
+
+def test_core_subcommands_resolve_without_builtin_load(monkeypatch: pytest.MonkeyPatch):
+    """Core fast-path nouns resolve at module import; discovery loads only on a miss.
+
+    Looking up a core noun must never trigger the discovery load, and an
+    unknown noun must escalate to it exactly once.
+    """
+    import clawcodex_ext.cli.subcommand_registry as registry
+
+    builtin_calls = []
+    monkeypatch.setattr(
+        registry,
+        "load_builtin_subcommands",
+        lambda: builtin_calls.append(1),
+    )
+
+    for name in ("login", "config", "mcp", "daemon", "doctor", "orchestrator"):
+        handler = registry.get_subcommand(name)
+        assert handler is not None, f"get_subcommand({name!r}) returned None"
+        assert callable(handler)
+    assert builtin_calls == [], "core lookup must not load the discovery set"
+
+    assert registry.get_subcommand("no-such-subcommand") is None
+    assert builtin_calls == [1], "a lookup miss must escalate to the discovery load"
 
 
 def test_all_registered_subcommands_loaded():
@@ -84,6 +117,16 @@ def test_get_subcommand_returns_handler():
         handler = get_subcommand(name)
         assert handler is not None, f"get_subcommand({name!r}) returned None"
         assert callable(handler), f"get_subcommand({name!r}) returned non-callable: {handler}"
+
+
+def test_subcommand_telemetry_modes():
+    """Daemon-style verbs record as ``daemon``; everything else keeps the default."""
+    load_builtin_subcommands()
+    for name in ("daemon", "orchestrator"):
+        assert telemetry_mode_for(name) == "daemon", f"{name!r} should record as 'daemon'"
+    for name in ("login", "config", "mcp", "doctor", "auth", "model"):
+        assert telemetry_mode_for(name) == "non_interactive"
+    assert telemetry_mode_for("no-such-token") == "non_interactive"
 
 
 # ---------------------------------------------------------------------------

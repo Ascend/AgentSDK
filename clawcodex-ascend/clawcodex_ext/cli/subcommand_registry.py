@@ -30,20 +30,33 @@ from collections.abc import Callable
 SubcommandHandler = Callable[[list[str]], int]
 
 _SUBCOMMANDS: dict[str, SubcommandHandler] = {}
+_SUBCOMMAND_MODES: dict[str, str] = {}
 _LOADED = False
 
 
-def register(name: str) -> Callable[[SubcommandHandler], SubcommandHandler]:
+def register(
+    name: str,
+    *,
+    telemetry_mode: str = "non_interactive",
+) -> Callable[[SubcommandHandler], SubcommandHandler]:
     """Register a fast-path subcommand handler."""
 
     def decorator(handler: SubcommandHandler) -> SubcommandHandler:
         _SUBCOMMANDS[name] = handler
+        _SUBCOMMAND_MODES[name] = telemetry_mode
         return handler
 
     return decorator
 
 
+def telemetry_mode_for(name: str) -> str:
+    """Telemetry mode the dispatch sieve records for a subcommand."""
+    return _SUBCOMMAND_MODES.get(name, "non_interactive")
+
+
 def get_subcommand(name: str) -> SubcommandHandler | None:
+    if name in _SUBCOMMANDS:
+        return _SUBCOMMANDS[name]
     load_builtin_subcommands()
     return _SUBCOMMANDS.get(name)
 
@@ -119,6 +132,10 @@ def load_builtin_subcommands() -> None:
     # by name in the sieve above.
     from clawcodex_ext.cli import diag_cmd as _diag_cmd  # noqa: F401  # noqa: F401
 
+    # ``clawcodex-dev autonomy [status|runs] [--deep]`` and
+    # ``clawcodex-dev schedule [list|get ID|run ID]`` cron subcommands.
+    from clawcodex_ext.cli import cron_cmd as _cron_cmd  # noqa: F401
+
     # ``clawcodex-dev tool <name> [--args]`` subcommand that
     # auto-dispatches to any discoverable tool. Idempotent: a single
     # subcommand name is registered (``tool``) — per-tool name routing
@@ -147,3 +164,8 @@ def load_builtin_subcommands() -> None:
         from extensions.recording import cast_to_mp4_cli as _cast_to_mp4_cli  # noqa: F401
     except ImportError:
         _cast_to_mp4_cli = None
+
+
+# Core fast-path commands, imported for their @register side effects.
+# At module bottom so the core_cmd -> this module import cycle resolves.
+from clawcodex_ext.cli import core_cmd as _core_cmd  # noqa: E402, F401

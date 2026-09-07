@@ -27,6 +27,20 @@ from __future__ import annotations
 import argparse
 
 
+class _ExplicitTrackingAction(argparse.Action):
+    """Store the option value and flag it as explicitly provided."""
+
+    def __call__(
+        self,
+        parser: argparse.ArgumentParser,
+        namespace: argparse.Namespace,
+        values: object,
+        option_string: str | None = None,
+    ) -> None:
+        setattr(namespace, self.dest, values)
+        setattr(namespace, f"{self.dest}_explicit", True)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="clawcodex",
@@ -46,7 +60,13 @@ Examples:
     )
 
     parser.add_argument("prompt", nargs="?", help="Prompt to send in non-interactive mode")
-    parser.add_argument("--version", action="store_true", help="Show version information")
+    parser.add_argument(
+        "-v",
+        "-V",
+        "--version",
+        action="store_true",
+        help="Show version information",
+    )
     parser.add_argument("--config", action="store_true", help="Show current configuration")
     parser.add_argument(
         "-w",
@@ -146,6 +166,7 @@ Examples:
         "--max-turns",
         type=int,
         default=20,
+        action=_ExplicitTrackingAction,
         help="Maximum number of agent tool turns (default: 20)",
     )
     noninteractive.add_argument(

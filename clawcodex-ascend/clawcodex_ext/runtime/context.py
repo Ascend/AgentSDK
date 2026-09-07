@@ -75,6 +75,8 @@ class RuntimeOptions:
     record_width: int | None = None
     record_height: int | None = None
     multimodel_group: str = ""
+    multimodel_cli_group: str | None = None
+    multimodel_runtime_group: str | None = None
     worktree_session: Any | None = None
 
 
@@ -128,6 +130,29 @@ class RuntimeContext:
             effective_mode = options.permission_mode
             bypass_available = options.is_bypass_permissions_mode_available
 
+        from clawcodex_ext.multimodel.config import (
+            MultiModelConfigError,
+            default_config_path,
+            load_config,
+        )
+        from clawcodex_ext.multimodel.feature import require_multimodel_enabled
+
+        try:
+            multimodel_config = load_config()
+        except MultiModelConfigError as exc:
+            raise RuntimeError(str(exc)) from exc
+        multimodel_group = (
+            options.multimodel_cli_group
+            or options.multimodel_runtime_group
+            or options.multimodel_group
+            or multimodel_config.default_group
+        )
+        if multimodel_group and multimodel_group not in multimodel_config.groups:
+            raise RuntimeError(f"unknown model group '{multimodel_group}'")
+        if multimodel_group:
+            require_multimodel_enabled()
+        options.multimodel_group = multimodel_group
+
         # Build provider
         resolution = resolve(
             cli_provider=options.provider_name,
@@ -140,13 +165,11 @@ class RuntimeContext:
 
         # replace the ordinary provider only after resolving the base
         # runtime settings, keeping the core query loop unaware of ensembles.
-        if options.multimodel_group:
-            from clawcodex_ext.multimodel.config import default_config_path, load_config
+        if multimodel_group:
             from clawcodex_ext.multimodel.factory import build_router
 
-            group = load_config().groups[options.multimodel_group]
             provider = build_router(
-                group,
+                multimodel_config.groups[multimodel_group],
                 build_provider_from_config,
                 audit_path=default_config_path().parent / "multimodel-audit.jsonl",
             )
@@ -265,6 +288,7 @@ class RuntimeContext:
         )
         runtime._single_provider_name = resolution.provider
         runtime._single_model = resolution.model
+        runtime.multimodel_group = options.multimodel_group
         attach_cron_runtime(runtime)
         return runtime
 
