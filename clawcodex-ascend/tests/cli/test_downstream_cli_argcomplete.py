@@ -182,16 +182,46 @@ def test_argcomplete_orchestrator_noun_completion(monkeypatch):
     assert "parser" in captured, "argcomplete.autocomplete was not called when _ARGCOMPLETE=1"
 
 
-def test_argcomplete_subcommand_noun_set_is_complete():
-    """The hook's noun tuple is a frozen contract — assert it documents the
-    noun-level coverage the user picked during planning.
+def test_argcomplete_noun_set_matches_registry(monkeypatch):
+    """The hook's prompt choices derive from the two-tier registry.
+
+    ``_maybe_argcomplete_top_level`` no longer carries a hardcoded noun
+    tuple — the choice list comes from ``_SUBCOMMANDS`` after the
+    discovery load. Every noun the registry exposes must be
+    offered, and every dispatched noun must resolve to a handler.
     """
-    # Inspect the source to confirm the static noun set is present.
-    import inspect
+    monkeypatch.setenv("_ARGCOMPLETE", "1")
+
+    captured: dict[str, object] = {}
+
+    class _FakeAction:
+        def __init__(self, dest: str) -> None:
+            self.dest = dest
+            self.choices = None  # populated by hook
+
+    class _FakeParser:
+        def __init__(self) -> None:
+            self._actions = [_FakeAction("prompt")]
+
+    fake_parser = _FakeParser()
+
+    import argcomplete as real_argcomplete
+
+    def _fake_autocomplete(parser, **kwargs):
+        captured["parser"] = parser
+
+    monkeypatch.setattr(real_argcomplete, "autocomplete", _fake_autocomplete)
+    monkeypatch.setattr("clawcodex_ext.cli.parser.build_parser", lambda: fake_parser)
 
     from clawcodex_ext.cli import dispatch
+    from clawcodex_ext.cli import subcommand_registry as registry
 
-    src = inspect.getsource(dispatch._maybe_argcomplete_top_level)
+    dispatch._maybe_argcomplete_top_level(["clawcodex-dev"])
+
+    choices = fake_parser._actions[0].choices
+    assert choices is not None
+    offered = set(choices)
+    assert offered == set(registry._SUBCOMMANDS.keys()), "prompt choices must mirror the loaded registry exactly"
     for noun in (
         "login",
         "config",
@@ -202,4 +232,5 @@ def test_argcomplete_subcommand_noun_set_is_complete():
         "autonomy",
         "schedule",
     ):
-        assert f'"{noun}"' in src, f"Noun {noun!r} missing from hook source"
+        assert noun in offered, f"Noun {noun!r} missing from argcomplete choices"
+        assert registry.get_subcommand(noun) is not None, f"Noun {noun!r} has no handler"
