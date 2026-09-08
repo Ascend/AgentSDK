@@ -27,6 +27,8 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import patch
 
+import json as _json
+
 import pytest
 
 from src.tool_system.context import ToolContext
@@ -165,6 +167,82 @@ def test_collision_with_running_agent_raises(tmp_path: Path) -> None:
 
     # Original agent still in the registry; name still maps to it.
     assert ctx.agent_name_registry.get("researcher") == "a-existing"
+
+
+def test_name_collision_spawn_leaves_no_phantom_spawn_record(tmp_path: Path) -> None:
+    """A spawn refused by a name collision must not persist a spawn record."""
+    from src.tool_system.errors import ToolInputError
+
+    registry = build_default_registry(provider=object())
+    ctx = ToolContext(workspace_root=tmp_path)
+
+    from src.tasks.local_agent import register_async_agent
+
+    existing = register_async_agent(
+        agent_id="a-existing",
+        description="x",
+        prompt="x",
+        agent_type="general-purpose",
+        registry=ctx.runtime_tasks,
+    )
+    ctx.agent_name_registry._mapping["researcher"] = existing.id
+
+    spawns_file = tmp_path / ".reports" / "agent_spawns.ndjson"
+
+    async def _fake(_params):
+        yield AssistantMessage(content=[TextBlock(text="ok")])
+
+    with patch("src.tool_system.tools.agent.run_agent", _fake):
+        with pytest.raises(ToolInputError, match="already registered"):
+            registry.dispatch(
+                ToolCall(
+                    name="Agent",
+                    input={
+                        "description": "phantom-spawn",
+                        "prompt": "x",
+                        "name": "researcher",
+                        "run_in_background": True,
+                    },
+                ),
+                ctx,
+            )
+
+    recorded_descriptions: list[str] = []
+    if spawns_file.exists():
+        for line in spawns_file.read_text(encoding="utf-8").splitlines():
+            if line.strip():
+                recorded_descriptions.append(_json.loads(line).get("description", ""))
+    assert "phantom-spawn" not in recorded_descriptions
+    assert ctx.agent_name_registry.get("researcher") == "a-existing"
+
+
+def test_successful_async_spawn_does_persist_spawn_record(tmp_path: Path) -> None:
+    """A committed spawn still writes its spawn-attribution record."""
+    registry = build_default_registry(provider=object())
+    ctx = ToolContext(workspace_root=tmp_path)
+
+    async def _fake(_params):
+        yield AssistantMessage(content=[TextBlock(text="ok")])
+
+    with patch("src.tool_system.tools.agent.run_agent", _fake):
+        result = registry.dispatch(
+            ToolCall(
+                name="Agent",
+                input={
+                    "description": "successful-spawn",
+                    "prompt": "x",
+                    "run_in_background": True,
+                },
+            ),
+            ctx,
+        )
+
+    spawns_file = tmp_path / ".reports" / "agent_spawns.ndjson"
+    assert spawns_file.is_file()
+    records = [_json.loads(line) for line in spawns_file.read_text(encoding="utf-8").splitlines() if line.strip()]
+    agent_id = str(result.output["agent_id"])
+    assert any(r.get("agent_id") == agent_id for r in records)
+    assert any(r.get("description") == "successful-spawn" for r in records)
 
 
 # ---------------------------------------------------------------------------

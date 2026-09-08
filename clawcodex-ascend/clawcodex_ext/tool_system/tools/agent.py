@@ -250,6 +250,38 @@ def _emit_terminal_agent_progress(
         logger.debug("terminal subagent progress emit failed", exc_info=True)
 
 
+def _persist_spawn_attribution(
+    context: ToolContext,
+    *,
+    agent_id: str,
+    description: str,
+    ts: float,
+) -> None:
+    """Persist the spawn-attribution record for a committed sub-agent spawn."""
+    try:
+        import json as _json
+        from pathlib import Path as _Path
+
+        workspace_root = getattr(context, "workspace_root", None)
+        if workspace_root:
+            _reports = _Path(workspace_root) / ".reports"
+            _reports.mkdir(parents=True, exist_ok=True)
+            with open(_reports / "agent_spawns.ndjson", "a", encoding="utf-8") as _f:
+                _f.write(
+                    _json.dumps(
+                        {
+                            "ts": ts,
+                            "agent_id": agent_id,
+                            "description": description or "",
+                        },
+                        ensure_ascii=False,
+                    )
+                    + "\n"
+                )
+    except Exception:  # nosec
+        pass  # Intentional best-effort path; the surrounding fallback remains valid.
+
+
 # Input schema matching typescript/src/tools/AgentTool/AgentTool.tsx
 AGENT_INPUT_SCHEMA: dict[str, Any] = {
     "type": "object",
@@ -621,36 +653,6 @@ def make_agent_tool(
         # kairos terms there belong to their own unported features).
         is_async = run_in_background or is_coordinator_mode()
 
-        # Spawn-attribution record: the Agent tool is the ONLY place that
-        # knows both the child's ``agent_id`` and the ``description`` at
-        # the spawn moment. Persist the mapping so the visualizer can
-        # attach each spawn bar to its exact sub-agent lane (the
-        # call row cannot carry the id — it's minted here, after the
-        # event is emitted — and the result event only carries rendered
-        # text). Best-effort; never affects the spawn.
-        try:
-            import json as _json
-            from pathlib import Path as _Path
-
-            workspace_root = getattr(context, "workspace_root", None)
-            if workspace_root:
-                _reports = _Path(workspace_root) / ".reports"
-                _reports.mkdir(parents=True, exist_ok=True)
-                with open(_reports / "agent_spawns.ndjson", "a", encoding="utf-8") as _f:
-                    _f.write(
-                        _json.dumps(
-                            {
-                                "ts": start_time,
-                                "agent_id": agent_id,
-                                "description": description or "",
-                            },
-                            ensure_ascii=False,
-                        )
-                        + "\n"
-                    )
-        except Exception:  # nosec
-            pass  # Intentional best-effort path; the surrounding fallback remains valid.
-
         if provider is None:
             return ToolResult(
                 name=AGENT_TOOL_NAME,
@@ -908,6 +910,14 @@ def make_agent_tool(
         )
         context.runtime_tasks.upsert(sync_state)
 
+        # Spawn fully committed here — persist the attribution record.
+        _persist_spawn_attribution(
+            context,
+            agent_id=agent_id,
+            description=description,
+            ts=start_time,
+        )
+
         messages_for_finalize: list[Message] = []
         last_assistant: AssistantMessage | None = None
 
@@ -1104,6 +1114,7 @@ def make_agent_tool(
         prompt: str,
         agent_type: str,
         agent_name: str | None = None,
+        persist_spawn_record: bool = True,
     ) -> ToolResult:
         """Launch an agent in the background and return immediately.
 
@@ -1193,6 +1204,8 @@ def make_agent_tool(
                 prompt=resume_prompt,
                 agent_type=agent_type,
                 agent_name=agent_name,
+                # Auto-resume re-launches an already-recorded spawn (same agent_id).
+                persist_spawn_record=False,
             )
 
         context.agent_resume_launchers[agent_id] = _resume_launcher
@@ -1431,6 +1444,15 @@ def make_agent_tool(
             if agent_name is not None and context.agent_name_registry.get(agent_name) == agent_id:
                 context.agent_name_registry.release(agent_name)
             raise ToolInputError("Cannot start background agent: session is shutting down") from exc
+
+        # Hand-off complete — persist the spawn attribution record.
+        if persist_spawn_record:
+            _persist_spawn_attribution(
+                context,
+                agent_id=agent_id,
+                description=description,
+                ts=time.time(),
+            )
 
         return ToolResult(
             name=AGENT_TOOL_NAME,

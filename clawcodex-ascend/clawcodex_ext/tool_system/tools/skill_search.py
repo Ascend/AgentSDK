@@ -48,24 +48,10 @@ def _result(output: Any, *, is_error: bool = False) -> ToolResult:
 
 
 def _get_searcher():
-    """Lazily create and cache a SkillSearcher singleton."""
-    from extensions.skills_ext.registry_ext import get_default_registry
+    """Return the process-wide shared SkillSearcher."""
+    from clawcodex_ext.services.skill_search.searcher import get_default_searcher
 
-    from clawcodex_ext.services.skill_search.config import SkillSearchConfig
-    from clawcodex_ext.services.skill_search.searcher import SkillSearcher
-    from clawcodex_ext.services.skill_search.tokenizer import create_default_tokenizer
-
-    searcher: SkillSearcher | None = getattr(_get_searcher, "_instance", None)
-    if searcher is None:
-        config = SkillSearchConfig.from_feature_gate()
-        registry = get_default_registry()
-        tokenizer = create_default_tokenizer(cjk_word_tokenizer=None)
-        searcher = SkillSearcher(registry, config=config, tokenizer=tokenizer)
-        _get_searcher._instance = searcher  # type: ignore[attr-defined]
-        # Start watcher for incremental index updates (P92-E).
-        if config.enabled:
-            searcher.create_watcher().start()
-    return searcher
+    return get_default_searcher()
 
 
 def _skill_search_call(input_data: dict[str, Any], context: ToolContext) -> ToolResult:
@@ -283,7 +269,7 @@ SkillSearchTool: Tool = build_tool(
             },
             "source": {
                 "type": "string",
-                "enum": ["local", "project", "mcp", "template"],
+                "enum": ["local", "project", "mcp", "template", "bundled"],
                 "description": "Filter results to skills from this source. Only for search action.",
             },
         },

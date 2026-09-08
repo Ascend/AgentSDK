@@ -466,24 +466,10 @@ def _try_get_search_stats() -> list[str]:
 
 
 def _get_skills_searcher():
-    """Lazily create and cache a SkillSearcher singleton for the command system."""
-    from extensions.skills_ext.registry_ext import get_default_registry
+    """Return the process-wide shared skill searcher."""
+    from clawcodex_ext.services.skill_search.searcher import get_default_searcher
 
-    from clawcodex_ext.services.skill_search.config import SkillSearchConfig
-    from clawcodex_ext.services.skill_search.searcher import SkillSearcher
-    from clawcodex_ext.services.skill_search.tokenizer import create_default_tokenizer
-
-    searcher: SkillSearcher | None = getattr(_get_skills_searcher, "_instance", None)
-    if searcher is None:
-        config = SkillSearchConfig.from_feature_gate()
-        registry = get_default_registry()
-        tokenizer = create_default_tokenizer(cjk_word_tokenizer=None)
-        searcher = SkillSearcher(registry, config=config, tokenizer=tokenizer)
-        _get_skills_searcher._instance = searcher  # type: ignore[attr-defined]
-        # Start watcher for incremental index updates (P92-E).
-        if config.enabled:
-            searcher.create_watcher().start()
-    return searcher
+    return get_default_searcher()
 
 
 def exit_command_call(args: str, context: CommandContext) -> LocalCommandResult:

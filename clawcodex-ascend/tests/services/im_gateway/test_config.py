@@ -24,16 +24,21 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from clawcodex_ext.services.channels.models import ChannelConfig, ChannelType
 from clawcodex_ext.services.im_gateway.config import (
     CommandAllowlistConfig,
+    DEFAULT_STATE_DIR,
     GatewayConfig,
     ReliabilityConfig,
     load_config,
+    migrate_legacy_state_dir,
     save_config,
 )
+from src.utils.clawcodex_dirs import CONFIG_DIR_ENV, HOME_DIR_ENV, get_user_config_dir
 
 
 def _cfg() -> GatewayConfig:
@@ -371,3 +376,84 @@ def test_channel_type_lookup_is_case_insensitive() -> None:
     )
 
     assert config.get_channel_by_type("WECHAT").name == "wechat"
+
+
+# ---------------------------------------------------------------------------
+# Env-aware default state root (state-root chain isolation)
+# ---------------------------------------------------------------------------
+
+
+def test_default_state_dir_resolves_inside_active_state_root() -> None:
+    """Defaults resolve inside the redirected state root, never the real home."""
+    expected = get_user_config_dir() / "gateway"
+    assert Path(GatewayConfig().state_dir) == expected
+    assert Path(GatewayConfig.from_dict(None).state_dir) == expected
+    assert Path(GatewayConfig.from_dict({}).state_dir) == expected
+    assert DEFAULT_STATE_DIR == "~/.clawcodex/gateway"
+    assert not str(expected).startswith(str(Path.home() / ".clawcodex"))
+
+
+def test_load_config_default_reads_inside_state_root() -> None:
+    """``load_config()`` (path=None) reads ``<root>/gateway/channels.yaml``."""
+    p = get_user_config_dir() / "gateway" / "channels.yaml"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text("enabled: false\ndefault_targets: [wechat-main]\n", encoding="utf-8")
+
+    cfg = load_config()
+
+    assert cfg.enabled is False
+    assert cfg.default_targets == ["wechat"]
+
+
+def test_save_config_default_roundtrips_inside_state_root() -> None:
+    """Default-path save/load round-trips inside the active state root."""
+    cfg = GatewayConfig(
+        enabled=True,
+        default_targets=["wechat-main"],
+        channels=[
+            ChannelConfig(
+                type=ChannelType.WECHAT,
+                webhook_url="https://ilinkai.weixin.qq.com/dummy",
+                name="wechat-main",
+                enabled=True,
+            )
+        ],
+    )
+
+    saved = save_config(cfg)
+
+    assert saved == get_user_config_dir() / "gateway" / "channels.yaml"
+    loaded = load_config()
+    assert loaded.enabled is True
+    assert loaded.get_channel("wechat") is not None
+    assert Path(loaded.state_dir) == get_user_config_dir() / "gateway"
+
+
+def test_migrate_without_target_stays_inside_state_root() -> None:
+    """No-target migration moves ``<root>/im-gateway`` → ``<root>/gateway``."""
+    root = get_user_config_dir()
+    legacy = root / "im-gateway"
+    legacy.mkdir(parents=True)
+    (legacy / "channels.yaml").write_text("enabled: true\n", encoding="utf-8")
+
+    target = migrate_legacy_state_dir()
+
+    assert target == root / "gateway"
+    assert (target / "channels.yaml").exists()
+    assert not legacy.exists()
+
+
+def test_config_dir_env_wins_over_home_env(monkeypatch, tmp_path) -> None:
+    """``$CLAWCODEX_CONFIG_DIR`` outranks ``$CLAWCODEX_HOME`` (chain rule)."""
+    monkeypatch.setenv(HOME_DIR_ENV, str(tmp_path / "home-fallback"))
+
+    assert get_user_config_dir() == tmp_path
+
+
+def test_state_dir_falls_back_to_home_when_env_cleared(monkeypatch, tmp_path) -> None:
+    """Without the env vars the default is ``~/.clawcodex/gateway`` again."""
+    monkeypatch.delenv(CONFIG_DIR_ENV, raising=False)
+    monkeypatch.delenv(HOME_DIR_ENV, raising=False)
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+
+    assert Path(GatewayConfig().state_dir) == tmp_path / "home" / ".clawcodex" / "gateway"

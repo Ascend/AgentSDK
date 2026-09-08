@@ -32,11 +32,13 @@ Covers:
     - Index not ready: callback does not raise
     - Thread safety: concurrent upserts leave index consistent
     - ``create_watcher()`` factory: returns properly configured watcher
+    - ``flush()``/``close()``: persist pending updates (exit-safe)
 """
 # pylint: disable=no-name-in-module
 
 from __future__ import annotations
 
+import json
 import threading
 from unittest.mock import MagicMock, patch
 
@@ -474,3 +476,113 @@ class TestCreateWatcher:
         stats = searcher.stats()
         assert stats is not None
         assert stats.total_docs == 1
+
+
+# ============================================================================
+# TestWatcherFlush
+# ============================================================================
+
+
+class TestWatcherFlush:
+    @pytest.mark.asyncio
+    async def test_flush_persists_changes_inside_cooldown_window(self):
+        """flush() writes out registrations still inside the cooldown window."""
+        config = _make_config(save_cooldown_seconds=60)
+        registry = _make_registry([_make_skill(name="base", description="base skill")])
+        tokenizer = create_default_tokenizer(cjk_word_tokenizer=None)
+        searcher = SkillSearcher(registry, config=config, tokenizer=tokenizer)
+        await searcher.ensure_index()
+
+        watcher = SkillIndexWatcher(searcher, registry, config=config)
+        watcher.start()
+
+        with patch.object(searcher._index, "save", wraps=searcher._index.save) as mock_save:
+            for i in range(3):
+                registry._notify(_make_skill(name=f"skill_{i}", description=f"skill number {i}"))
+
+            # Only the first registration crosses the cooldown; the rest stay pending.
+            assert mock_save.call_count == 1
+
+            watcher.flush()
+            assert mock_save.call_count == 2
+
+            # A flush with nothing pending is a no-op.
+            watcher.flush()
+            assert mock_save.call_count == 2
+
+        persisted = json.loads(config.index_path.read_text(encoding="utf-8"))
+        names = {d["name"] for d in persisted["doc_store"].values()}
+        assert {"base", "skill_0", "skill_1", "skill_2"} <= names
+
+    @pytest.mark.asyncio
+    async def test_close_flushes_then_stops(self):
+        """close() persists pending updates, then stops responding to events."""
+        config = _make_config(save_cooldown_seconds=60)
+        registry = _make_registry([_make_skill(name="base", description="base skill")])
+        tokenizer = create_default_tokenizer(cjk_word_tokenizer=None)
+        searcher = SkillSearcher(registry, config=config, tokenizer=tokenizer)
+        await searcher.ensure_index()
+
+        watcher = SkillIndexWatcher(searcher, registry, config=config)
+        watcher.start()
+
+        with patch.object(searcher._index, "save", wraps=searcher._index.save) as mock_save:
+            registry._notify(_make_skill(name="first", description="first skill"))
+            assert mock_save.call_count == 1
+
+            # Inside the cooldown window: held in memory until close().
+            registry._notify(_make_skill(name="buffered", description="buffered skill"))
+            watcher.close()
+            assert mock_save.call_count == 2
+            assert watcher._active is False
+
+            # After close(), new registrations no longer reach the index.
+            registry._notify(_make_skill(name="late", description="late skill"))
+
+        stats = searcher.stats()
+        assert stats is not None
+        assert stats.total_docs == 3
+
+        persisted = json.loads(config.index_path.read_text(encoding="utf-8"))
+        names = {d["name"] for d in persisted["doc_store"].values()}
+        assert {"base", "first", "buffered"} <= names
+
+    @pytest.mark.asyncio
+    async def test_failed_flush_keeps_changes_pending_for_retry(self):
+        """A failed flush keeps the dirty state so the next flush retries."""
+        config = _make_config(save_cooldown_seconds=60)
+        registry = _make_registry([_make_skill(name="base", description="base skill")])
+        tokenizer = create_default_tokenizer(cjk_word_tokenizer=None)
+        searcher = SkillSearcher(registry, config=config, tokenizer=tokenizer)
+        await searcher.ensure_index()
+
+        watcher = SkillIndexWatcher(searcher, registry, config=config)
+        watcher.start()
+
+        with patch.object(searcher._index, "save", side_effect=OSError("disk full")):
+            registry._notify(_make_skill(name="pending", description="pending skill"))
+            watcher.flush()
+
+        with patch.object(searcher._index, "save", wraps=searcher._index.save) as mock_save:
+            watcher.flush()
+            mock_save.assert_called_once()
+
+        persisted = json.loads(config.index_path.read_text(encoding="utf-8"))
+        names = {d["name"] for d in persisted["doc_store"].values()}
+        assert "pending" in names
+
+    @pytest.mark.asyncio
+    async def test_flush_without_index_is_noop(self):
+        """flush()/close() never raise when the index has never been loaded."""
+        config = _make_config(save_cooldown_seconds=5)
+        registry = _make_registry([])
+        tokenizer = create_default_tokenizer(cjk_word_tokenizer=None)
+        searcher = SkillSearcher(registry, config=config, tokenizer=tokenizer)
+        # ensure_index() intentionally not called.
+
+        watcher = SkillIndexWatcher(searcher, registry, config=config)
+        watcher.start()
+
+        watcher.flush()
+        watcher.close()
+        assert watcher._active is False

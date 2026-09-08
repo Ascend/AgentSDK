@@ -36,11 +36,16 @@ Architecture
 from __future__ import annotations
 
 
-from extensions.skills_ext.registry_ext import SkillRegistryExt  # noqa: E402
+from extensions.skills_ext.registry_ext import (  # noqa: E402
+    SkillRegistryExt,
+    get_default_registry,
+)
 
+import atexit
 import json
 import logging
 import os
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -411,3 +416,69 @@ class SkillSearcher:
             os.replace(tmp_path, path)
         except OSError:
             logger.warning("Failed to save pinned skills to %s", path)
+
+
+# ---------------------------------------------------------------------------
+# Process-wide shared access point
+# ---------------------------------------------------------------------------
+#
+# All consumers (the ``/skills`` command surface, the ``SkillSearch`` tool)
+# go through ``get_default_searcher()`` — one index, one watcher, one save
+# schedule per process.
+
+_default_searcher: SkillSearcher | None = None
+_default_watcher: SkillIndexWatcher | None = None
+_default_lock = threading.Lock()
+
+
+def get_default_searcher() -> SkillSearcher:
+    """Return the process-wide shared :class:`SkillSearcher`, built lazily and cached."""
+    global _default_searcher
+    if _default_searcher is None:
+        with _default_lock:
+            if _default_searcher is None:
+                _default_searcher = _build_default_searcher()
+    return _default_searcher
+
+
+def _build_default_searcher() -> SkillSearcher:
+    """Create the shared searcher and (when enabled) start its watcher."""
+    global _default_watcher
+
+    config = SkillSearchConfig.from_feature_gate()
+    registry = get_default_registry()
+    tokenizer = create_default_tokenizer(cjk_word_tokenizer=None)
+    searcher = SkillSearcher(registry, config=config, tokenizer=tokenizer)
+    if config.enabled:
+        _default_watcher = searcher.create_watcher()
+        _default_watcher.start()
+    return searcher
+
+
+def flush_default_searcher() -> None:
+    """Force-persist pending watcher updates of the shared searcher."""
+    watcher = _default_watcher
+    if watcher is not None:
+        watcher.flush()
+
+
+def reset_default_searcher() -> None:
+    """Stop the shared watcher and drop the cached searcher."""
+    global _default_searcher, _default_watcher
+    with _default_lock:
+        watcher = _default_watcher
+        _default_watcher = None
+        _default_searcher = None
+    if watcher is not None:
+        watcher.close()
+
+
+def _flush_default_on_exit() -> None:
+    """atexit hook: persist watcher updates still inside the cooldown window."""
+    try:
+        flush_default_searcher()
+    except Exception:  # noqa: BLE001 - a shutdown hook must never raise
+        logger.debug("Failed to flush skill search index at exit", exc_info=True)
+
+
+atexit.register(_flush_default_on_exit)

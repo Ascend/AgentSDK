@@ -200,6 +200,21 @@ class TestExtractSearchDocument:
         assert doc is not None
         assert doc.source == "local"
 
+    def test_source_bundled(self):
+        skill = _make_skill(loaded_from="bundled", source="bundled")
+        doc = extract_search_document(skill)
+        assert doc is not None
+        assert doc.source == "bundled"
+        assert doc.weight == 1.0
+
+    def test_source_bundled_distinct_from_local(self):
+        bundled = extract_search_document(_make_skill(name="shared", loaded_from="bundled"))
+        local = extract_search_document(_make_skill(name="shared", loaded_from="user"))
+        assert bundled is not None and local is not None
+        assert bundled.source == "bundled"
+        assert local.source == "local"
+        assert bundled.id != local.id
+
     def test_source_explicit_mcp(self):
         skill = _make_skill(loaded_from="user")
         doc = extract_search_document(skill, source_type="mcp")
@@ -377,6 +392,7 @@ class TestExtractBatch:
             _make_skill(name="project_b", loaded_from="project"),
             _make_skill(name="mcp_c", loaded_from="user"),
             _make_skill(name="tpl_d", loaded_from="user"),
+            _make_skill(name="bundled_e", loaded_from="bundled", source="bundled"),
         ]
         docs = extract_batch(
             skills,
@@ -388,3 +404,4 @@ class TestExtractBatch:
         assert sources["project_b"] == "project"
         assert sources["mcp_c"] == "mcp"
         assert sources["tpl_d"] == "template"
+        assert sources["bundled_e"] == "bundled"

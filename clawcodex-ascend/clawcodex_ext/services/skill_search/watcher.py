@@ -49,6 +49,8 @@ class SkillIndexWatcher:
     - On skill registration: extracts document → upserts into memory index
     - Cooldown save: batches multiple consecutive registrations into a single
       disk write (controlled by ``config.save_cooldown_seconds``)
+    - Explicit persistence: ``flush()`` / ``close()`` write out pending
+      updates that are still inside the cooldown window (e.g. at shutdown)
     - Thread safety: ``threading.Lock`` protects concurrent index mutations
     - Lifecycle: ``start()`` / ``stop()`` control whether listening is active
 
@@ -60,6 +62,8 @@ class SkillIndexWatcher:
         await searcher.ensure_index()
         watcher = SkillIndexWatcher(searcher, registry, config=config)
         watcher.start()
+        ...
+        watcher.close()
     """
 
     def __init__(
@@ -74,6 +78,7 @@ class SkillIndexWatcher:
         self._config = config
         self._lock = threading.Lock()
         self._last_save_time: float = 0.0
+        self._dirty = False
         self._active = False
 
     # ------------------------------------------------------------------
@@ -99,14 +104,26 @@ class SkillIndexWatcher:
 
         Unregisters the callback.  If not active, this is a no-op.
 
-        Note: ``stop()`` does **not** trigger a save — any modifications
-        that have not yet been persisted will be lost.
+        Note: ``stop()`` itself does **not** persist pending updates — call
+        :meth:`flush` or :meth:`close` when updates must survive shutdown.
         """
         if not self._active:
             return
         self._registry.off_skill_registered(self._on_skill_registered)
         self._active = False
         logger.info("SkillIndexWatcher stopped")
+
+    def flush(self) -> None:
+        """Force-persist pending index updates, bypassing the save cooldown."""
+        with self._lock:
+            if not self._dirty:
+                return
+            self._save_index()
+
+    def close(self) -> None:
+        """Stop listening for registry changes and persist any pending updates."""
+        self.stop()
+        self.flush()
 
     # ------------------------------------------------------------------
     # Internal: registry callback
@@ -141,6 +158,7 @@ class SkillIndexWatcher:
                 return
 
             index.upsert(doc)
+            self._dirty = True
             self._searcher._rebuild_name_to_doc_ids()
             self._schedule_save()
 
@@ -149,30 +167,47 @@ class SkillIndexWatcher:
     # ------------------------------------------------------------------
 
     def _schedule_save(self) -> None:
-        """Save the index to disk if the cooldown period has elapsed.
+        """Save the index to disk if there are pending changes and the
+        cooldown period has elapsed.
 
         Uses ``time.monotonic()`` so the cooldown is unaffected by
         system clock adjustments.  The cooldown duration is controlled
-        by ``config.save_cooldown_seconds`` (default 5s).
+        by ``config.save_cooldown_seconds`` (default 5s).  Must be called
+        with ``self._lock`` held.
         """
+        if not self._dirty:
+            return
+
         now = time.monotonic()
         if now - self._last_save_time < self._config.save_cooldown_seconds:
             return
 
+        self._save_index()
+
+    def _save_index(self) -> None:
+        """Persist the in-memory index to ``config.index_path``.
+
+        Must be called with ``self._lock`` held.  A failed save keeps the
+        dirty flag so a later event or :meth:`flush` retries.
+        """
         index = self._searcher._index
         if index is None:
+            self._dirty = False
             return
 
         try:
             index.save(self._config.index_path)
-            self._last_save_time = now
-            logger.debug(
-                "Skill index saved (%d docs, %d terms)",
-                index.total_docs,
-                len(index.inverted_index),
-            )
         except OSError:
             logger.warning(
                 "Failed to save skill index to %s",
                 self._config.index_path,
             )
+            return
+
+        self._dirty = False
+        self._last_save_time = time.monotonic()
+        logger.debug(
+            "Skill index saved (%d docs, %d terms)",
+            index.total_docs,
+            len(index.inverted_index),
+        )
