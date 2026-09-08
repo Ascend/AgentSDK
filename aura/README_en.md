@@ -31,7 +31,7 @@
 # ⚙️ Features
 
 - Supports [hybrid training-inference](../docs/zh/aura/04_user_guide/02_hybrid.md) and [separate training-inference](../docs/zh/aura/04_user_guide/03_one_step_off.md) modes.
-- Supports [custom Agent integration](../docs/zh/aura/04_user_guide/05_custom_agent.md).
+- Supports [custom Agent integration](../docs/zh/aura/04_user_guide/06_custom_agent.md).
 - Supports [Qwen3-4B](../docs/zh/aura/models/qwen3-4b.md), [Qwen3-8B](../docs/zh/aura/models/qwen3_8b.md), [Qwen3-32B](../docs/zh/aura/models/qwen3_32b.md), and [Qwen3-30B-A3B](../docs/zh/aura/models/qwen3-30b-a3b.md) models.
 - Supports verl training engine and vllm inference engine.
 - Supports rLLM agent engine.
@@ -70,7 +70,7 @@ For detailed steps, please follow the [Installation Guide](../docs/zh/aura/02_in
 
 - Separate training-inference mode (sufficient resources): Please refer to the [Separate Mode Usage Guide](../docs/zh/aura/04_user_guide/03_one_step_off.md).
 - Hybrid training-inference mode (limited resources): Please refer to the [Hybrid Mode Usage Guide](../docs/zh/aura/04_user_guide/02_hybrid.md).
-- Defining Agent content and integrating custom data and toolchains: Please refer to the [Custom Agent Integration Guide](../docs/zh/aura/04_user_guide/05_custom_agent.md).
+- Defining Agent content and integrating custom data and toolchains: Please refer to the [Custom Agent Integration Guide](../docs/zh/aura/04_user_guide/06_custom_agent.md).
 
 # ❓ FAQ
 
