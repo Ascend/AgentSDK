@@ -58,11 +58,13 @@ from pathlib import Path
 from typing import ClassVar
 
 from extensions.sop_converter.workflow_mode.ast_helpers import (
+    collect_stage_rollback_map,
     extract_docstring_first_para,
     find_dict_mapping_assignments,
     find_enum_classes,
     find_gate_assigns,
     get_enum_members_ordered,
+    is_forward_stage_edge,
     parse_ast,
     parse_contracts_dict,
     parse_enum_dict_mapping_from_expr,
@@ -428,6 +430,8 @@ class PatternExtractor(WorkflowExtractorBase):
                     stage_sequence=self._stage_sequence,
                 )
                 for from_id, to_id in pairs:
+                    if not is_forward_stage_edge(from_id, to_id, self._stage_sequence):
+                        continue
                     key = (from_id, to_id)
                     if key not in seen:
                         seen.add(key)
@@ -437,6 +441,7 @@ class PatternExtractor(WorkflowExtractorBase):
                                 to_stage=to_id,
                                 condition=var_name,
                                 is_default=True,
+                                kind="forward",
                             )
                         )
 
@@ -451,6 +456,7 @@ class PatternExtractor(WorkflowExtractorBase):
                             to_stage=nxt,
                             condition=self._config.sequence_var_pattern,
                             is_default=True,
+                            kind="forward",
                         )
                     )
         return transitions
@@ -489,6 +495,15 @@ class PatternExtractor(WorkflowExtractorBase):
                     description=f"Gate from {var_name}",
                     source_name=var_name,
                 )
+        rollbacks = collect_stage_rollback_map(
+            [stages_tree],
+            enum_names,
+            self._member_to_value,
+        )
+        for sid, target in rollbacks.items():
+            gate = gates.get(sid)
+            if gate is not None:
+                gate.rollback_to = target
         return gates
 
     def extract_decisions(self, source_dir: Path) -> dict[int, DecisionSpec]:

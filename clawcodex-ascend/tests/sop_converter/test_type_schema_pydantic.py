@@ -21,6 +21,8 @@
 
 from __future__ import annotations
 
+from contextlib import redirect_stdout
+from io import StringIO
 import sys
 import tempfile
 import textwrap
@@ -31,7 +33,9 @@ from extensions.sop_converter.core.source_parser import ParamSpec, SourceOperati
 from extensions.sop_converter.tool_registry_bridge import operation_to_spec
 from extensions.sop_converter.core.type_schema import (
     param_to_json_schema_property,
+    preload_schemas_for_source_dir,
     pydantic_schema_for_type,
+    reset_schema_probe_runtime_state,
 )
 
 _JIUWEN_AGENT_ROOT = Path(__file__).resolve().parents[2].parent / "JiuwenAgent"
@@ -178,6 +182,79 @@ class TestTypeSchemaDataclass(unittest.TestCase):
         model = spec.input_schema["properties"]["model"]
         self.assertEqual(model["type"], "object")
         self.assertIn("model_info", model["properties"])
+
+    def test_dataclass_leaf_hints_keep_json_primitive_and_array_types(self) -> None:
+        pkg = self.root / "demo_models"
+        (pkg / "research.py").write_text(
+            textwrap.dedent(
+                """
+                from dataclasses import dataclass
+
+
+                @dataclass(frozen=True)
+                class ResearchConfig:
+                    topic: str
+                    domains: tuple[str, ...] = ()
+                    daily_paper_count: int = 0
+                    quality_threshold: float = 0.0
+                    graceful_degradation: bool = True
+
+
+                @dataclass(frozen=True)
+                class SecurityConfig:
+                    hitl_required_stages: tuple[int, ...] = (5, 9, 20)
+                    allow_publish_without_approval: bool = False
+                """
+            ),
+            encoding="utf-8",
+        )
+        reset_schema_probe_runtime_state()
+        research = pydantic_schema_for_type(str(self.root), "ResearchConfig")
+        self.assertIsNotNone(research)
+        assert research is not None
+        props = research["properties"]
+        self.assertEqual(props["topic"]["type"], "string")
+        self.assertEqual(props["daily_paper_count"]["type"], "integer")
+        self.assertEqual(props["quality_threshold"]["type"], "number")
+        self.assertEqual(props["graceful_degradation"]["type"], "boolean")
+        self.assertEqual(props["domains"]["type"], "array")
+        self.assertEqual(props["domains"]["items"]["type"], "string")
+        example = research["examples"][0]
+        self.assertEqual(example["daily_paper_count"], 0)
+        self.assertIsInstance(example["graceful_degradation"], bool)
+        self.assertEqual(example["domains"], [""])
+
+        security = pydantic_schema_for_type(str(self.root), "SecurityConfig")
+        self.assertIsNotNone(security)
+        assert security is not None
+        stages = security["properties"]["hitl_required_stages"]
+        self.assertEqual(stages["type"], "array")
+        self.assertEqual(stages["items"]["type"], "integer")
+        self.assertEqual(security["properties"]["allow_publish_without_approval"]["type"], "boolean")
+
+    def test_param_builtin_hints_do_not_degrade_to_string_when_source_dir_set(self) -> None:
+        self.assertEqual(
+            param_to_json_schema_property(type_hint="int", source_dir=str(self.root))["type"],
+            "integer",
+        )
+        self.assertEqual(
+            param_to_json_schema_property(type_hint="bool", source_dir=str(self.root))["type"],
+            "boolean",
+        )
+        domains = param_to_json_schema_property(
+            type_hint="tuple[str, ...]",
+            source_dir=str(self.root),
+            fallback_json_type="string",
+        )
+        self.assertEqual(domains["type"], "array")
+        self.assertEqual(domains["items"]["type"], "string")
+        stages = param_to_json_schema_property(
+            type_hint="tuple[int, Ellipsis]",
+            source_dir=str(self.root),
+            fallback_json_type="string",
+        )
+        self.assertEqual(stages["type"], "array")
+        self.assertEqual(stages["items"]["type"], "integer")
 
 
 @unittest.skipUnless(
@@ -403,6 +480,55 @@ class TestSiblingSrcLayoutImport(unittest.TestCase):
         cfg = spec.input_schema["properties"]["config"]
         self.assertEqual(cfg["type"], "object")
         self.assertIn("name", cfg.get("properties", {}))
+
+
+class TestBatchProbePureAstFallback(unittest.TestCase):
+    """Batch schema probing must keep its embedded helper functions self-contained."""
+
+    def setUp(self) -> None:
+        self._tmpdir = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmpdir.name)
+        pkg = self.root / "broken_models"
+        pkg.mkdir()
+        (pkg / "__init__.py").write_text("", encoding="utf-8")
+        (pkg / "config.py").write_text(
+            textwrap.dedent(
+                """
+                from typing import Dict
+                from missing_dependency import unavailable  # noqa: F401
+                from pydantic import BaseModel
+
+
+                class BatchConfig(BaseModel):
+                    values: Dict[str, str]
+                """
+            ),
+            encoding="utf-8",
+        )
+        reset_schema_probe_runtime_state()
+
+    def tearDown(self) -> None:
+        reset_schema_probe_runtime_state()
+        self._tmpdir.cleanup()
+
+    def test_pure_ast_fallback_completes_batch_probe(self) -> None:
+        output = StringIO()
+        with redirect_stdout(output):
+            preload_schemas_for_source_dir(
+                str(self.root),
+                [("broken_models.config", "BatchConfig")],
+            )
+
+        self.assertIn("Input schema generation done", output.getvalue())
+        self.assertIn("1 succeeded, 0 degraded", output.getvalue())
+        self.assertNotIn("subprocess exited with code 1", output.getvalue())
+
+        schema = pydantic_schema_for_type(str(self.root), "BatchConfig")
+        self.assertIsNotNone(schema)
+        assert schema is not None
+        values = schema["properties"]["values"]
+        self.assertEqual(values["type"], "object")
+        self.assertEqual(values["additionalProperties"], {"type": "string"})
 
 
 if __name__ == "__main__":

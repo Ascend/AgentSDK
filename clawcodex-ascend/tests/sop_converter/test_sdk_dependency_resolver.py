@@ -80,3 +80,18 @@ def test_empty_when_no_dependency_files(tmp_path: Path) -> None:
 
     assert spec.source == "empty"
     assert spec.requirements == ()
+
+
+def test_walks_up_from_source_file_to_nearest_requirements(tmp_path: Path) -> None:
+    sdk = tmp_path / "monorepo"
+    pkg = sdk / "AgentSDK" / "data_generation_platform"
+    (pkg / "backend").mkdir(parents=True)
+    (pkg / "requirements.txt").write_text("flask\nPyYAML\n", encoding="utf-8")
+    source = pkg / "backend" / "app.py"
+    source.write_text("from flask import Flask\n", encoding="utf-8")
+
+    spec = resolve_sdk_dependencies(sdk, source_file=source)
+
+    assert spec.source == "requirements.txt"
+    assert spec.requirements == ("flask", "PyYAML")
+    assert spec.raw_path == str((pkg / "requirements.txt").resolve())

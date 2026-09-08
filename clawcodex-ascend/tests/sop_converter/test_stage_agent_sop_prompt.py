@@ -69,6 +69,8 @@ class TestStageAgentSopPrompt(unittest.TestCase):
         self.assertIn("run_dir=<绝对路径> 执行本阶段", body)
         self.assertIn("myproject-pipeline-execute-stage", body)
         self.assertNotIn("researchclaw-pipeline-execute-stage", body)
+        self.assertNotIn("config.yaml", body)
+        self.assertNotIn("可省略", body)
         self.assertIn("禁止 pipeline 主路径失败后静默 fallback", body)
         self.assertIn("stage-04/", body)
         self.assertIn("candidates.jsonl", body)

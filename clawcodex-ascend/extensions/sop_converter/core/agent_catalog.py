@@ -162,9 +162,10 @@ def _redact_value(key: str, value: Any, *, bundle_id: str | None) -> tuple[Any, 
     """
     if not _SENSITIVE_KEY_RE.search(key):
         return value, None
-    if isinstance(value, str) and value.startswith("env:"):
-        # Already a reference — leave it alone
-        return value, None
+    if isinstance(value, str) and (value.startswith("env:") or value.startswith("<redacted:env:")):
+        # Already a reference — leave it alone, but keep the env name for env_refs.
+        name = value[4:].strip() if value.startswith("env:") else value[len("<redacted:env:") : -1]
+        return value, name or None
     bundle_prefix = re.sub(r"[^A-Z0-9]+", "_", (bundle_id or "BUNDLE").upper())
     field_suffix = re.sub(r"[^A-Z0-9]+", "_", key.upper())
     env_var = f"CLAWCODEX_{bundle_prefix}_{field_suffix}"

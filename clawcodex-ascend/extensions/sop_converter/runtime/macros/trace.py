@@ -28,19 +28,32 @@ import re
 from dataclasses import dataclass
 from typing import Any, Iterable, Mapping, Sequence
 
+from extensions.capabilities.agent_definition_protocol import AgentToolConstants
+
 from .errors import MacroConvertError
 
 _KEBAB = re.compile(r"^[a-z][a-z0-9]*(-[a-z0-9]+)*$")
 
-_SKIP_TOOL_NAMES = frozenset(
-    {
-        "register-macro-workflow",
-        "RegisterMacroWorkflow",
-        "register-macro-from-trace",
-        "RegisterMacroFromTrace",
-        "promote-macro-workflow",
-        "PromoteMacroWorkflow",
-    }
+# Discovery/meta tools whose effects are not part of the replayed work:
+# ToolSearch (locating a tool the macro already enumerates) and Skill
+# (loading a skill) would add noise and a spurious $input binding to a
+# replay macro. Skipped at trace extraction only — both stay in the macro
+# tool_index, so NL-path definitions may still reference them explicitly.
+_TRACE_META_TOOLS = frozenset({"ToolSearch", "Skill"})
+
+_SKIP_TOOL_NAMES = (
+    frozenset(
+        {
+            "register-macro-workflow",
+            "RegisterMacroWorkflow",
+            "register-macro-from-trace",
+            "RegisterMacroFromTrace",
+            "promote-macro-workflow",
+            "PromoteMacroWorkflow",
+        }
+    )
+    | frozenset(AgentToolConstants.POS_MACRO_FORBIDDEN_BUILTINS)
+    | _TRACE_META_TOOLS
 )
 
 

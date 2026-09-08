@@ -77,3 +77,10 @@ class TestWorkflowEmitter:
         data = graph_to_engine_yaml_dict(graph, agent_map, workflow_name="test-wf")
         kinds = [s.get("kind") for s in data["stages"]]
         assert "gate" in kinds
+
+    def test_gate_rollback_to_uses_rollback_table(self):
+        graph, agent_map = _fwa_graph_and_map()
+        data = graph_to_engine_yaml_dict(graph, agent_map, workflow_name="test-wf")
+        gates = [s for s in data["stages"] if s.get("kind") == "gate"]
+        assert gates
+        assert gates[0]["gate_rollback_to"] == 1

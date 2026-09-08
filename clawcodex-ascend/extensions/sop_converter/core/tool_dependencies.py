@@ -276,7 +276,7 @@ def build_tool_dependency_index(
                 op,
                 resolver=resolver,
                 source_dir=source_dir,
-                type_hints=[op.return_type],
+                type_hints=[op.return_type or getattr(op, "inferred_return_type", None)],
             )
             entries.append((tool_name, comp, op, consumes, produces))
 

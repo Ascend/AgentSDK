@@ -183,9 +183,17 @@ def _check_gate_definition(ctx: SourceScanContext, **_kwargs) -> HeuristicMatch:
     weight = 0.10
     for tree in ctx.trees.values():
         for var_name, value in find_gate_assigns(tree):
-            if isinstance(value, (ast.Call, ast.Set)):
-                call_name = get_name(value) if isinstance(value, ast.Call) else None
-                if call_name in ("frozenset", "set") or isinstance(value, ast.Set):
+            if isinstance(value, ast.Set):
+                return HeuristicMatch(
+                    name="gate_definition",
+                    weight=weight,
+                    matched=True,
+                    evidence=var_name,
+                    score=weight,
+                )
+            if isinstance(value, ast.Call):
+                call_name = get_name(value.func)
+                if call_name in ("frozenset", "set"):
                     return HeuristicMatch(
                         name="gate_definition",
                         weight=weight,

@@ -428,16 +428,31 @@ def _handle_convert_from_source(opts: ConvertOptions) -> int:
     bundle_dir_for_tools = Path(opts.output_dir).resolve() if opts.output_dir else None
     bundle_venv_python_path: str | None = None
     bundle_venv_dir_path: str | None = None
-    if bundle_dir_for_tools is not None and sdk_deps.requirements:
+    if bundle_dir_for_tools is not None:
         bundle_venv_python_path = str(bundle_venv_python(bundle_dir_for_tools))
         bundle_venv_dir_path = str(bundle_venv_dir(bundle_dir_for_tools))
-    if sdk_deps.requirements and not opts.json_output:
-        suffix = (
-            "bundle venv will be created before schema probing"
-            if bundle_venv_python_path
-            else "no --out bundle path; venv isolation disabled"
-        )
-        print(f"   SDK dependencies: {len(sdk_deps.requirements)} from {sdk_deps.source} ({suffix})")
+        try:
+            from extensions.sop_converter.bundle_venv import ensure_bundle_venv
+
+            ensure_bundle_venv(bundle_dir_for_tools, sdk_deps)
+        except Exception as exc:  # noqa: BLE001
+            print(f"warning: bundle venv not created: {exc}", file=sys.stderr)
+            bundle_venv_python_path = None
+            bundle_venv_dir_path = None
+    if not opts.json_output:
+        if sdk_deps.requirements:
+            suffix = (
+                "bundle venv will be created before schema probing"
+                if bundle_venv_python_path
+                else "no --out bundle path; venv isolation disabled"
+            )
+            print(f"   SDK dependencies: {len(sdk_deps.requirements)} from {sdk_deps.source} ({suffix})")
+        elif bundle_venv_dir_path:
+            print(
+                "   warning: no SDK dependency manifest at convert root; "
+                "created empty bundle venv. Runtime may pip-install missing "
+                "imports into it."
+            )
 
     parsed_strategy = opts.strategy.lower() if opts.strategy else ""
     if parsed_strategy == "keyword":
@@ -1151,10 +1166,16 @@ def _create_llm_provider(provider_name: str, model: str) -> object | None:
     try:
         from src.providers.runtime import build_provider_from_config
         from src.config import get_default_provider
+        from extensions.sop_converter.adapters.sop_provider_adapter import (
+            SOPAssistantProviderAdapter,
+        )
 
         resolved_name = provider_name or get_default_provider()
         resolved_model = model or None
-        return build_provider_from_config(resolved_name, model=resolved_model)
+        base_provider = build_provider_from_config(resolved_name, model=resolved_model)
+        # Wrap raw BaseProvider (chat() → ChatResponse) with the adapter
+        # (chat() → str) that skill_grouper._llm_group_via_provider expects.
+        return SOPAssistantProviderAdapter(base_provider)
     except Exception as exc:
         print(f"warning: failed to create LLM provider '{provider_name}': {exc}", file=sys.stderr)
         return None

@@ -44,18 +44,36 @@ class SdkDependencySpec:
     raw_path: str
 
 
-def resolve_sdk_dependencies(sdk_source_dir: str | Path) -> SdkDependencySpec:
+def resolve_sdk_dependencies(
+    sdk_source_dir: str | Path,
+    *,
+    source_file: str | Path | None = None,
+) -> SdkDependencySpec:
     """Resolve runtime dependencies from ``pyproject.toml`` or ``requirements.txt``.
 
     Priority is:
-    1. ``[project].dependencies`` in ``pyproject.toml``
-    2. ``requirements.txt``
-    3. empty dependency set
+    1. nearest manifest walking from *source_file* up to *sdk_source_dir*
+    2. ``[project].dependencies`` in the convert-root ``pyproject.toml``
+    3. convert-root ``requirements.txt``
+    4. empty dependency set
     """
 
     root = Path(sdk_source_dir).expanduser().resolve()
+    if source_file is not None:
+        nearest = _manifest_walking_up(Path(source_file), stop=root)
+        if nearest.requirements:
+            return nearest
 
-    pyproject = root / "pyproject.toml"
+    root_spec = _manifest_at_directory(root)
+    if root_spec.requirements:
+        return root_spec
+
+    logger.debug("No dependency manifest under %s; returning empty dependency set", root)
+    return SdkDependencySpec(requirements=(), source="empty", raw_path=str(root))
+
+
+def _manifest_at_directory(directory: Path) -> SdkDependencySpec:
+    pyproject = directory / "pyproject.toml"
     if pyproject.is_file():
         deps = _parse_pyproject_dependencies(pyproject)
         if deps:
@@ -64,10 +82,11 @@ def resolve_sdk_dependencies(sdk_source_dir: str | Path) -> SdkDependencySpec:
                 source="pyproject.toml",
                 raw_path=str(pyproject),
             )
+        logger.debug("No usable [project].dependencies in %s; falling back to requirements.txt", pyproject)
     else:
-        logger.debug("No pyproject.toml in %s; falling back to requirements.txt", root)
+        logger.debug("No pyproject.toml in %s; falling back to requirements.txt", directory)
 
-    requirements = root / "requirements.txt"
+    requirements = directory / "requirements.txt"
     if requirements.is_file():
         deps = _parse_requirements_txt(requirements)
         if deps:
@@ -76,10 +95,41 @@ def resolve_sdk_dependencies(sdk_source_dir: str | Path) -> SdkDependencySpec:
                 source="requirements.txt",
                 raw_path=str(requirements),
             )
-    else:
-        logger.debug("No requirements.txt in %s; returning empty dependency set", root)
+    return SdkDependencySpec(requirements=(), source="empty", raw_path=str(directory))
 
-    return SdkDependencySpec(requirements=(), source="empty", raw_path=str(root))
+
+def _manifest_walking_up(
+    start: Path,
+    *,
+    stop: Path | None = None,
+    max_hops: int = 12,
+) -> SdkDependencySpec:
+    current = start.expanduser()
+    try:
+        current = current.resolve()
+    except OSError:
+        current = start
+    if current.is_file():
+        current = current.parent
+    stop_resolved: Path | None = None
+    if stop is not None:
+        try:
+            stop_resolved = Path(stop).expanduser().resolve()
+        except OSError:
+            stop_resolved = Path(stop)
+    hops = 0
+    while hops <= max_hops:
+        spec = _manifest_at_directory(current)
+        if spec.requirements:
+            return spec
+        if stop_resolved is not None and current == stop_resolved:
+            break
+        parent = current.parent
+        if parent == current:
+            break
+        current = parent
+        hops += 1
+    return SdkDependencySpec(requirements=(), source="empty", raw_path=str(start))
 
 
 def _parse_pyproject_dependencies(path: Path) -> list[str]:

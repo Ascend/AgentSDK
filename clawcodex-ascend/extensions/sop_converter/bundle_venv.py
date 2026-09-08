@@ -215,7 +215,11 @@ def is_venv_ready(
     bundle_dir: str | Path,
     requirements: tuple[str, ...] | list[str] | None = None,
 ) -> bool:
-    """Return True when the bundle venv exists and matches *requirements*."""
+    """Return True when the bundle venv exists and matches convert-time *requirements*.
+
+    *requirements* is the convert-time ``sdk_requirements`` contract. Runtime extras
+    recorded on the marker do not participate in this hash.
+    """
 
     python_path = bundle_venv_python(bundle_dir)
     marker = bundle_venv_dir(bundle_dir) / _VENV_MARKER
@@ -277,6 +281,70 @@ def ensure_bundle_venv(
         "platform_tag": _platform_tag(),
     }
     (venv_dir / _VENV_MARKER).write_text(
+        json.dumps(marker_payload, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    return python_path
+
+
+def install_bundle_packages(bundle_dir: str | Path, packages: list[str]) -> Path:
+    """Pip-install *packages* into the bundle venv without replacing existing deps.
+
+    Convert-time ``requirements`` / ``requirements_hash`` stay unchanged. Extra
+    packages are recorded on the marker as ``runtime_packages``.
+    """
+
+    if not packages:
+        return bundle_venv_python(bundle_dir)
+
+    bundle_path = normalize_runtime_path(bundle_dir)
+    python_path = bundle_venv_python(bundle_path)
+    if not python_path.is_file():
+        python_path = ensure_bundle_venv(
+            bundle_path,
+            SdkDependencySpec(requirements=(), source="runtime-repair", raw_path=""),
+        )
+    _install_requirements(python_path, list(packages))
+
+    marker = bundle_venv_dir(bundle_path) / _VENV_MARKER
+    convert_requirements: list[str] = []
+    runtime_packages: list[str] = []
+    source = "runtime-repair"
+    raw_path = ""
+    convert_hash: str | None = None
+    data: dict = {}
+    if marker.is_file():
+        try:
+            parsed = json.loads(marker.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            parsed = {}
+        if isinstance(parsed, dict):
+            data = parsed
+        raw_existing = data.get("requirements")
+        if isinstance(raw_existing, list):
+            convert_requirements = [item for item in raw_existing if isinstance(item, str) and item.strip()]
+        raw_extras = data.get("runtime_packages")
+        if isinstance(raw_extras, list):
+            runtime_packages = [item for item in raw_extras if isinstance(item, str) and item.strip()]
+        if isinstance(data.get("source"), str) and data["source"]:
+            source = data["source"]
+        if isinstance(data.get("raw_path"), str):
+            raw_path = data["raw_path"]
+        stored_hash = data.get("requirements_hash")
+        if isinstance(stored_hash, str) and stored_hash:
+            convert_hash = stored_hash
+    extras = tuple(dict.fromkeys([*runtime_packages, *packages]))
+    marker_payload = {
+        "version": 1,
+        "python": str(python_path),
+        "requirements": convert_requirements,
+        "requirements_hash": convert_hash or _requirements_hash(tuple(convert_requirements)),
+        "runtime_packages": list(extras),
+        "source": source,
+        "raw_path": raw_path,
+        "platform_tag": data.get("platform_tag") if isinstance(data.get("platform_tag"), str) else _platform_tag(),
+    }
+    marker.write_text(
         json.dumps(marker_payload, indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",
     )

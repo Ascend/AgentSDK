@@ -47,6 +47,10 @@ EMITTER_VERSION = "1"
 def _build_base_depends_on(graph: WorkflowGraph) -> dict[int, list[int]]:
     deps: dict[int, list[int]] = {s.id: [] for s in graph.stages}
     for t in graph.transitions:
+        if getattr(t, "kind", "forward") != "forward":
+            continue
+        if t.from_stage == t.to_stage:
+            continue
         if t.to_stage in deps and t.from_stage not in deps[t.to_stage]:
             deps[t.to_stage].append(t.from_stage)
     return deps
@@ -131,7 +135,7 @@ def _gate_stage_dict(
         "prompt": gate.description or f"Quality gate after {anchor.label}.",
         "depends_on": sorted(depends_on),
         "gate_mode": gate.approval_mode or "manual",
-        "gate_rollback_to": gate.stage_id,
+        "gate_rollback_to": gate.rollback_to if gate.rollback_to is not None else gate.stage_id,
         "timeout_seconds": 300,
         "on_error": "rollback",
     }

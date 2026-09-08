@@ -114,6 +114,28 @@ class TestSdkSerialization(unittest.TestCase):
         self.assertIs(inline, namespace["resolve_env_references"])
         self.assertEqual(inline("env:FAKE_VAR", environ={"FAKE_VAR": "value"}), "value")
 
+    def test_dumps_keeps_explicit_env_api_key_after_coerce(self) -> None:
+        from extensions.sop_converter.core.sdk_serialization import (
+            _RESOLVED_ENV_REFERENCES,
+            _redact_sensitive_fields,
+            resolve_env_references,
+        )
+
+        _RESOLVED_ENV_REFERENCES.clear()
+        try:
+            coerced = resolve_env_references(
+                {"model": {"model_info": {"api_key": "env:DEEPSEEK_API_KEY"}}},
+                environ={"DEEPSEEK_API_KEY": "sk-live-secret"},
+            )
+            self.assertEqual(coerced["model"]["model_info"]["api_key"], "sk-live-secret")
+            redacted = _redact_sensitive_fields(coerced)
+            self.assertEqual(redacted["model"]["model_info"]["api_key"], "env:DEEPSEEK_API_KEY")
+            parsed = json.loads(dumps_sdk_result(redacted))
+            self.assertEqual(parsed["model"]["model_info"]["api_key"], "env:DEEPSEEK_API_KEY")
+            self.assertNotIn("sk-live-secret", json.dumps(parsed))
+        finally:
+            _RESOLVED_ENV_REFERENCES.clear()
+
 
 if __name__ == "__main__":
     unittest.main()

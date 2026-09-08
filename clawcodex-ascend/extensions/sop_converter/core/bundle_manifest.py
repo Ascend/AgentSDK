@@ -38,6 +38,12 @@ BUNDLE_MANIFEST_NAME = "bundle.json"
 _MANIFEST_VERSION = 1
 
 
+def _requirement_tuple(raw: object) -> tuple[str, ...]:
+    if not isinstance(raw, (list, tuple)):
+        return ()
+    return tuple(item.strip() for item in raw if isinstance(item, str) and item.strip())
+
+
 @dataclass(frozen=True)
 class BundleManifest:
     """On-disk metadata for a pos-convert bundle."""
@@ -49,6 +55,7 @@ class BundleManifest:
     bridge_script: str | None = None
     workflow_mode: str | None = None
     sdk_requirements: tuple[str, ...] = ()
+    runtime_extra_requirements: tuple[str, ...] = ()
     bundle_venv_dir: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
@@ -65,6 +72,8 @@ class BundleManifest:
             payload["workflow_mode"] = self.workflow_mode
         if self.sdk_requirements:
             payload["sdk_requirements"] = list(self.sdk_requirements)
+        if self.runtime_extra_requirements:
+            payload["runtime_extra_requirements"] = list(self.runtime_extra_requirements)
         if self.bundle_venv_dir:
             payload["bundle_venv_dir"] = self.bundle_venv_dir
         return payload
@@ -97,12 +106,8 @@ class BundleManifest:
         workflow_mode = data.get("workflow_mode")
         if workflow_mode is not None and not isinstance(workflow_mode, str):
             workflow_mode = None
-        sdk_requirements_raw = data.get("sdk_requirements")
-        sdk_requirements: tuple[str, ...] = ()
-        if isinstance(sdk_requirements_raw, list):
-            sdk_requirements = tuple(
-                item.strip() for item in sdk_requirements_raw if isinstance(item, str) and item.strip()
-            )
+        sdk_requirements = _requirement_tuple(data.get("sdk_requirements"))
+        runtime_extra_requirements = _requirement_tuple(data.get("runtime_extra_requirements"))
         bundle_venv_dir = data.get("bundle_venv_dir")
         if bundle_venv_dir is not None and not isinstance(bundle_venv_dir, str):
             bundle_venv_dir = None
@@ -114,6 +119,7 @@ class BundleManifest:
             bridge_script=bridge_script,
             workflow_mode=workflow_mode,
             sdk_requirements=sdk_requirements,
+            runtime_extra_requirements=runtime_extra_requirements,
             bundle_venv_dir=bundle_venv_dir,
         )
 
@@ -131,6 +137,7 @@ def write_bundle_manifest(
     bridge_script: str | None = None,
     workflow_mode: str | None = None,
     sdk_requirements: tuple[str, ...] | list[str] = (),
+    runtime_extra_requirements: tuple[str, ...] | list[str] = (),
     bundle_venv_dir: str | None = None,
 ) -> Path:
     """Write ``bundle.json`` under *bundle_dir* (created if missing)."""
@@ -143,7 +150,8 @@ def write_bundle_manifest(
         workflow_yaml=workflow_yaml,
         bridge_script=bridge_script,
         workflow_mode=workflow_mode,
-        sdk_requirements=tuple(item.strip() for item in sdk_requirements if isinstance(item, str) and item.strip()),
+        sdk_requirements=_requirement_tuple(sdk_requirements),
+        runtime_extra_requirements=_requirement_tuple(runtime_extra_requirements),
         bundle_venv_dir=bundle_venv_dir,
     )
     path = manifest_path_for_bundle(bundle_dir)

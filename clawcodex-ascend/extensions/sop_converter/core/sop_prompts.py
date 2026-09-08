@@ -72,6 +72,7 @@ SOP_SOURCE_EXPLORATION_POLICY = """\
 - **允许** 开放式任务在 **SDK 源码根**（manifest 绝对路径）下 Grep/Read 理解行为；禁止无边界广搜
 - 禁止用 Read/Grep/Glob **搜索 kebab 工具名**来**替代** Skill → ToolSearch → 工具调用
 - **禁止**把 Skill ``description`` 里的逻辑路径标签当作相对于当前 workspace 的文件系统路径去 Grep/Glob
+- 报错为 ``ModuleNotFoundError`` / ``No module named 'X'`` 时：缺的就是包 X。执行工具结果里的 ``Command``（只装 X）或等 runtime 自动安装后，立刻重试同一工具。**禁止**因此进入下面的 wrapper / ``agent-tools`` 诊断
 
 **备选项（仅工具失败诊断 — 按顺序，够用即停）**
 
@@ -107,7 +108,11 @@ SOP_NO_SOURCE_EXPLORATION = (
 SOP_TOOL_FAILURE_RECOVERY = """\
 工具调用失败时的恢复规则（阻塞）：
 - **禁止**把报错里的 ``msg`` / ``suggestions`` 当成 SDK 工具的 input 字段——那是权限/框架层信息，不是工具 schema
-- 第一次失败：核对 Skill「任务指南」中的参数；跨域编排时 overview 须把上一步结果写入子代理 prompt
+- **缺失第三方依赖**（``ModuleNotFoundError`` / ``No module named 'X'``）：缺的就是包 X
+  1. 若工具结果含 ``error_code: missing_sdk_dependency`` 或 ``recovery: pip_install_into_bundle_venv``：立刻执行结果里的 ``Command``（只装 X），然后 **再调用同一个 SDK 工具、同一组参数**。不要 ls/find/grep ``agent-tools``，不要改参数、不要换工具
+  2. Runtime 通常会自动完成步骤 1 并重试；若同一错误仍返回，按步骤 1 的 Command 再装一次后重试
+  3. 结果里没有 Command 时，才 Read 该工具 wrapper 取 ``_BUNDLE_VENV_PYTHON``，执行 ``pip install X``，再重试同一工具
+- 第一次失败（非缺依赖）：核对 Skill「任务指南」中的参数；跨域编排时 overview 须把上一步结果写入子代理 prompt
 - 参数已按任务指南填写仍失败：**先**按「源码探索策略 → 备选项」做有限诊断（Read tool spec → Read wrapper 取 ``_SOURCE_DIR``），**再**向用户报告工具名 + 实际入参 + 根因分类
 - **交互式终端超时/无 TTY**：不适用备选项广搜——立即执行「交互式终端停损」
 - 禁止因一次失败就无限重复 Skill/ToolSearch；禁止派 ``Explore`` / ``general-purpose`` 广搜源码代替诊断步骤"""
@@ -132,7 +137,7 @@ SOP_OVERVIEW_ROUTING = f"""\
    ``Agent(subagent_type="<domain>-agent", prompt="...")``
 2. **禁止**用 ``Agent(subagent_type="general-purpose")`` 或 ``Agent(subagent_type="Explore")`` 完成本应由 ``*-agent`` 承担的 SDK 调用
 3. **禁止**主循环自己调用域 ``Skill`` / ``ToolSearch`` / 域 SDK 工具（除非用户明确要求总览代劳）
-4. 子代理内部顺序固定：**Skill → ToolSearch → SDK 工具**；工具失败后才可进入有限诊断（见源码探索策略）
+4. 子代理内部顺序固定：**Skill → ToolSearch → SDK 工具**；``No module named 'X'`` 缺的就是包 X，执行 ``Command`` 只装 X 再重试同一工具，禁止搜 ``agent-tools``；其他失败才进入有限诊断（见源码探索策略）
 5. 用户已给出工作流或任务指南中的示例参数时，**直接执行**，不要反复向用户确认
 
 ### Skill 正文（阻塞）
@@ -255,7 +260,7 @@ def stage_agent_sop_body(
     sdk_section = f"\n\n{sdk_block}" if sdk_block else ""
     pipeline_line = (
         f"- Pipeline 主工具：`{pipeline_tool}` — `stage`=`{stage_label}`，`run_dir`=<绝对路径>；"
-        "`config`/`adapters`/`run_id` 可省略（从 run_dir/config.yaml 加载）"
+        "其余参数按 ToolSearch/工具 schema 的 required 传入（与 SDK 签名一致，不可按参数名省略）"
         if pipeline_tool
         else (
             f"- Pipeline 主工具：Skill 任务指南中的 execute-stage 工具（ToolSearch 返回），"
@@ -379,7 +384,7 @@ def domain_agent_sop_body(
 3. **第三步**：**立即调用** ToolSearch 返回的 SDK 工具；不要写 wrapper 脚本
 4. 参数以 Skill「任务指南」与 ToolSearch schema 为准；跨域编排时 overview 会在 prompt 中给出上一步结果
 5. 任务指南已给出示例参数时直接使用，不要向用户重复确认
-6. **第四步（仅工具失败）**：按「源码探索策略 → 备选项」做有限诊断后向用户报告根因，停止 Skill 重试
+6. **第四步（仅工具失败）**：``No module named 'X'`` 时缺的就是包 X：执行工具结果里的 ``Command``（只装 X）后立刻重试同一工具同一参数。禁止 ls/find/grep ``agent-tools``。其他错误才进入备选项诊断后向用户报告根因，停止 Skill 重试
 7. **交互式终端超时/阻塞**：立即执行「交互式终端停损」——引导用户到真实终端，禁止搜 SDK tests/fixtures
 
 {SOP_TOOLSEARCH_GUIDANCE}

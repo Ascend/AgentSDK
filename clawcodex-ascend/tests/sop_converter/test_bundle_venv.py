@@ -222,6 +222,46 @@ def test_ensure_bundle_venv_resets_wrong_platform_dir(
     assert (venv_dir / ".bundle-venv-ready").is_file()
 
 
+def test_install_bundle_packages_keeps_convert_requirements_hash(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    import json
+
+    bundle_dir = tmp_path / "bundle"
+    convert_reqs = ("openai>=1", "pydantic>=2")
+    python_path = bundle_venv.bundle_venv_python(bundle_dir)
+    python_path.parent.mkdir(parents=True)
+    python_path.write_text("python", encoding="utf-8")
+    convert_hash = bundle_venv._requirements_hash(convert_reqs)
+    marker = bundle_venv.bundle_venv_dir(bundle_dir) / ".bundle-venv-ready"
+    marker.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "python": str(python_path),
+                "requirements": ["openai>=1", "pydantic>=2"],
+                "requirements_hash": convert_hash,
+                "source": "manifest",
+                "raw_path": "",
+                "platform_tag": bundle_venv._platform_tag(),
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(bundle_venv, "_install_requirements", lambda *_args, **_kwargs: None)
+
+    bundle_venv.install_bundle_packages(bundle_dir, ["opentelemetry-sdk"])
+
+    data = json.loads(marker.read_text(encoding="utf-8"))
+    assert data["requirements"] == ["openai>=1", "pydantic>=2"]
+    assert data["requirements_hash"] == convert_hash
+    assert data["runtime_packages"] == ["opentelemetry-sdk"]
+    assert bundle_venv.is_venv_ready(bundle_dir, convert_reqs)
+
+
 def test_install_wheel_preference_flags_uv_vs_pip() -> None:
     assert bundle_venv._install_wheel_preference_flags(use_uv=True) == []
     assert bundle_venv._install_wheel_preference_flags(use_uv=False) == ["--prefer-binary"]

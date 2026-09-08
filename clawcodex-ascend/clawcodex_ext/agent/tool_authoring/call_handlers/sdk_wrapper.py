@@ -62,6 +62,48 @@ _MODULE_CACHE_LOCK = threading.Lock()
 _CWD_LOCK = threading.RLock()
 _NO_CATALOG_FALLBACK = object()
 
+
+def _repair_in_process_missing_import(
+    module: Any,
+    exc: ModuleNotFoundError,
+    *,
+    script_path: Path | None = None,
+) -> bool:
+    """Install a missing import into the bundle venv and refresh sys.path."""
+
+    from extensions.sop_converter.missing_dependency import (
+        MissingDependencyRepair,
+        command_python_for_bundle,
+        missing_sdk_dependency_message,
+        parse_missing_module,
+        wrapper_bundle_dir,
+    )
+
+    missing = exc.name if exc.name else None
+    if not missing:
+        missing = parse_missing_module(str(exc))
+    bundle_dir = getattr(module, "_BUNDLE_DIR", "") or ""
+    if not bundle_dir and script_path is not None:
+        parsed = wrapper_bundle_dir(script_path)
+        bundle_dir = str(parsed) if parsed else ""
+    python_exe = command_python_for_bundle(
+        bundle_dir or None,
+        script_path=script_path,
+        module=module,
+    )
+    if not missing or not bundle_dir:
+        raise SdkWrapperCallError(missing_sdk_dependency_message(missing or "unknown", python_exe=python_exe)) from exc
+    from extensions.sop_converter.bundle_venv import activate_bundle_venv_imports
+
+    outcome = MissingDependencyRepair(bundle_dir).repair(missing)
+    if outcome.error_code == "sdk_dependency_install_failed":
+        raise SdkWrapperCallError(f"sdk_dependency_install_failed: {outcome.message}") from exc
+    if not outcome.installed:
+        raise SdkWrapperCallError(missing_sdk_dependency_message(missing, python_exe=python_exe)) from exc
+    activate_bundle_venv_imports(bundle_dir)
+    return True
+
+
 _SCRIPT_USES_INSTANCE_CACHE: dict[str, bool] = {}
 _SCRIPT_BUNDLE_BOOTSTRAP_CACHE: dict[
     str,
@@ -227,7 +269,7 @@ def _read_wrapper_bundle_bootstrap(
                 if isinstance(parsed, (tuple, list)):
                     requirements = tuple(item for item in parsed if isinstance(item, str))
 
-    result = (bundle_dir, requirements) if bundle_dir and requirements else None
+    result = (bundle_dir, requirements) if bundle_dir else None
     _SCRIPT_BUNDLE_BOOTSTRAP_CACHE[key] = (stat_fingerprint, result)
     return result
 
@@ -307,6 +349,26 @@ def _call_with_catalog_fallback(
 
     try:
         result = fn(**kwargs)
+    except ModuleNotFoundError as exc:
+        recovered_missing = _repair_in_process_missing_import(module, exc)
+        if recovered_missing:
+            try:
+                result = fn(**kwargs)
+            except ModuleNotFoundError as retry_exc:
+                from extensions.sop_converter.missing_dependency import (
+                    command_python_for_bundle,
+                    missing_sdk_dependency_message,
+                    parse_missing_module,
+                )
+
+                missing = parse_missing_module(str(retry_exc)) or retry_exc.name or "unknown"
+                python_exe = command_python_for_bundle(module=module)
+                raise SdkWrapperCallError(missing_sdk_dependency_message(missing, python_exe=python_exe)) from retry_exc
+        else:
+            recovered = _recover(exc)
+            if recovered is not _NO_CATALOG_FALLBACK:
+                return recovered
+            raise
     except Exception as exc:
         recovered = _recover(exc)
         if recovered is not _NO_CATALOG_FALLBACK:
@@ -362,6 +424,27 @@ def _load_wrapper_module(script_path: Path) -> Any:
         sys.modules[spec.name] = module
         try:
             _exec_wrapper_module_in_process(spec, module, script_path)
+        except ModuleNotFoundError as exc:
+            sys.modules.pop(spec.name, None)
+            _repair_in_process_missing_import(module, exc, script_path=script_path)
+            module = importlib.util.module_from_spec(spec)
+            sys.modules[spec.name] = module
+            try:
+                _exec_wrapper_module_in_process(spec, module, script_path)
+            except ModuleNotFoundError as retry_exc:
+                sys.modules.pop(spec.name, None)
+                from extensions.sop_converter.missing_dependency import (
+                    command_python_for_bundle,
+                    missing_sdk_dependency_message,
+                    parse_missing_module,
+                )
+
+                missing = parse_missing_module(str(retry_exc)) or retry_exc.name or "unknown"
+                python_exe = command_python_for_bundle(module=module, script_path=script_path)
+                raise SdkWrapperCallError(missing_sdk_dependency_message(missing, python_exe=python_exe)) from retry_exc
+            except BaseException:
+                sys.modules.pop(spec.name, None)
+                raise
         except BaseException:
             sys.modules.pop(spec.name, None)
             raise
@@ -399,56 +482,68 @@ def execute_sdk_wrapper_in_process(
     agent_id: str | None,
     catalog_fallback: dict[str, Any] | None = None,
 ) -> Any:
-    if not is_allowed_wrapper_script(script_path):
-        raise SdkWrapperCallError(f"Wrapper script outside allowed agent-tools directories: {script_path}")
+    def _run() -> Any:
+        if not is_allowed_wrapper_script(script_path):
+            raise SdkWrapperCallError(f"Wrapper script outside allowed agent-tools directories: {script_path}")
 
-    module = _load_wrapper_module(script_path)
-    fn = getattr(module, method_name, None)
-    if fn is None or not callable(fn):
-        raise SdkWrapperCallError(f"Wrapper {script_path.name} has no callable method {method_name!r}")
+        module = _load_wrapper_module(script_path)
+        fn = getattr(module, method_name, None)
+        if fn is None or not callable(fn):
+            raise SdkWrapperCallError(f"Wrapper {script_path.name} has no callable method {method_name!r}")
 
-    interactive_inputs = kwargs.pop("__interactive_inputs", None)
-    if interactive_inputs is not None:
-        set_interactive_inputs = getattr(module, "_set_interactive_inputs", None)
-        if callable(set_interactive_inputs):
-            set_interactive_inputs(interactive_inputs)
+        interactive_inputs = kwargs.pop("__interactive_inputs", None)
+        if interactive_inputs is not None:
+            set_interactive_inputs = getattr(module, "_set_interactive_inputs", None)
+            if callable(set_interactive_inputs):
+                set_interactive_inputs(interactive_inputs)
 
-    bridge_stdin_config = kwargs.pop("__stdin_config", None)
-    bridge_env = kwargs.pop("__env", None)
-    if bridge_stdin_config is not None:
-        module._bridge_stdin_config = bridge_stdin_config
-    if bridge_env is not None:
-        module._bridge_subprocess_env = bridge_env
+        bridge_stdin_config = kwargs.pop("__stdin_config", None)
+        bridge_env = kwargs.pop("__env", None)
+        if bridge_stdin_config is not None:
+            module._bridge_stdin_config = bridge_stdin_config
+        if bridge_env is not None:
+            module._bridge_subprocess_env = bridge_env
 
-    call_kwargs = _filter_kwargs_for_callable(fn, kwargs)
+        call_kwargs = _filter_kwargs_for_callable(fn, kwargs)
 
-    context_registry = get_sdk_context_registry()
-    context_key: ContextKey = context_registry.context_key(
-        session_id=session_id,
-        agent_id=agent_id,
-    )
-    ctx = context_registry.get_context(context_key)
-    ctx_lock = context_registry.lock_for(context_key)
-
-    if wrapper_uses_instance_cache(script_path):
-        instance_registry = get_sdk_instance_registry()
-        bucket_key: BucketKey = instance_registry.bucket_key(
+        context_registry = get_sdk_context_registry()
+        context_key: ContextKey = context_registry.context_key(
             session_id=session_id,
             agent_id=agent_id,
-            script_path=script_path,
         )
-        bucket_lock = instance_registry.lock_for(bucket_key)
+        ctx = context_registry.get_context(context_key)
+        ctx_lock = context_registry.lock_for(context_key)
 
-        def _run_class_method() -> Any:
-            module._instances = instance_registry.get_bucket(bucket_key)
+        if wrapper_uses_instance_cache(script_path):
+            instance_registry = get_sdk_instance_registry()
+            bucket_key: BucketKey = instance_registry.bucket_key(
+                session_id=session_id,
+                agent_id=agent_id,
+                script_path=script_path,
+            )
+            bucket_lock = instance_registry.lock_for(bucket_key)
+
+            def _run_class_method() -> Any:
+                module._instances = instance_registry.get_bucket(bucket_key)
+                return to_jsonable(_call_wrapper_fn(module, fn, call_kwargs, catalog_fallback))
+
+            with bucket_lock:
+                with ctx_lock:
+                    return ctx.run(_run_class_method)
+
+        def _run_standalone() -> Any:
             return to_jsonable(_call_wrapper_fn(module, fn, call_kwargs, catalog_fallback))
 
-        with bucket_lock:
-            with ctx_lock:
-                return ctx.run(_run_class_method)
+        with ctx_lock:
+            return ctx.run(_run_standalone)
 
-    def _run_standalone() -> Any:
-        return to_jsonable(_call_wrapper_fn(module, fn, call_kwargs, catalog_fallback))
-
-    with ctx_lock:
-        return ctx.run(_run_standalone)
+    # ponytail: SDK-generated wrappers call sys.exit() (e.g. run_full_pipeline on
+    # import failure). In-process that SystemExit would terminate the host REPL;
+    # convert it to a call error so the tool layer returns ToolResult(error).
+    try:
+        return _run()
+    except SystemExit as exc:
+        raise SdkWrapperCallError(
+            f"Wrapper {script_path.name} called sys.exit({exc.code!r}) during "
+            "in-process execution; refusing to terminate the host process"
+        ) from exc

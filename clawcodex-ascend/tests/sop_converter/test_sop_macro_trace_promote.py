@@ -44,6 +44,7 @@ from extensions.sop_converter.runtime.macros.register_tool import (
     REGISTER_MACRO_FROM_TRACE_TOOL_NAME,
     PromoteMacroWorkflowTool,
     RegisterMacroFromTraceTool,
+    build_session_macro_tool_index,
 )
 from extensions.sop_converter.runtime.macros.session import (
     SessionMacroOverlay,
@@ -256,6 +257,160 @@ class TestRegisterFromTrace(unittest.TestCase):
         self.assertIsNotNone(snap)
         self.assertIn("from-trace-demo", snap.definitions)
         self.assertTrue(any(is_session_macro_tool(t) for t in ctx.options.tools or []))
+
+
+class TestMacroToolIndex(unittest.TestCase):
+    def test_index_excludes_orchestration_builtins(self) -> None:
+        from extensions.capabilities.agent_definition_protocol import AgentToolConstants
+
+        orchestration = set(AgentToolConstants.POS_MACRO_FORBIDDEN_BUILTINS)
+        extra = [
+            build_tool(
+                name=n,
+                input_schema={"type": "object", "properties": {}},
+                call=lambda _i, _c: {"ok": True},
+                prompt=n,
+            )
+            for n in [*orchestration, "echo-tool"]
+        ]
+        ctx = _ctx()
+        ctx.options.tools = extra
+        index = build_session_macro_tool_index(ctx)
+        self.assertIn("echo-tool", index)
+        self.assertTrue(orchestration.isdisjoint(index))
+
+    def test_register_agent_step_rejected(self) -> None:
+        ctx = _ctx()
+        data = _minimal_definition()
+        data["workflow"] = {
+            "inputs": {
+                "subagent_type": {"type": "string", "required": True},
+                "description": {"type": "string", "required": True},
+                "prompt": {"type": "string", "required": True},
+            },
+            "steps": [
+                {
+                    "id": "step1",
+                    "kind": "tool",
+                    "callable_ref": "Agent",
+                    "args": {
+                        "subagent_type": "$input.subagent_type",
+                        "description": "$input.description",
+                        "prompt": "$input.prompt",
+                    },
+                }
+            ],
+            "outputs": {"result": "$steps.step1.output"},
+        }
+        with self.assertRaises(MacroConvertError) as raised:
+            register_session_macro(
+                ctx,
+                data,
+                replace=False,
+                tool_index=build_session_macro_tool_index(ctx),
+                workflow_tool_names=set(),
+                protected_builtin_exclusive_targets=set(),
+                create_tool=_create_tool_from_spec,
+            )
+        self.assertEqual(raised.exception.error_code, "macro_callable_unresolved")
+
+    def test_from_trace_pure_agent_is_empty(self) -> None:
+        messages = [
+            AssistantMessage(
+                content=[
+                    ToolUseBlock(
+                        id="1",
+                        name="Agent",
+                        input={
+                            "subagent_type": "src-agent",
+                            "description": "d",
+                            "prompt": "p",
+                        },
+                    )
+                ]
+            ),
+            UserMessage(
+                content=[ToolResultBlock(tool_use_id="1", content="done", is_error=False)],
+                toolUseResult="done",
+            ),
+        ]
+        ctx = _ctx(messages=messages)
+        result = RegisterMacroFromTraceTool.call(
+            {"name": "agent-macro", "replace": False},
+            ctx,
+        )
+        self.assertTrue(result.is_error)
+        self.assertEqual(result.output.get("error_code"), "macro_trace_empty")
+
+    def test_from_trace_mixed_skips_agent_keeps_atomic(self) -> None:
+        messages = [
+            AssistantMessage(content=[ToolUseBlock(id="1", name="echo-tool", input={"text": "hi"})]),
+            UserMessage(
+                content=[ToolResultBlock(tool_use_id="1", content="hi", is_error=False)],
+                toolUseResult="hi",
+            ),
+            AssistantMessage(
+                content=[
+                    ToolUseBlock(
+                        id="2",
+                        name="Agent",
+                        input={
+                            "subagent_type": "src-agent",
+                            "description": "d",
+                            "prompt": "p",
+                        },
+                    )
+                ]
+            ),
+            UserMessage(
+                content=[ToolResultBlock(tool_use_id="2", content="done", is_error=False)],
+                toolUseResult="done",
+            ),
+        ]
+        ctx = _ctx(messages=messages)
+        result = RegisterMacroFromTraceTool.call(
+            {"name": "mixed-macro", "replace": False},
+            ctx,
+        )
+        self.assertFalse(result.is_error, result.output)
+        snap = ctx.session_macro_overlay.read()
+        self.assertIsNotNone(snap)
+        definition = snap.definitions["mixed-macro"]
+        refs = [s["callable_ref"] for s in definition.workflow["steps"]]
+        self.assertEqual(refs, ["echo-tool"])
+
+    def test_trace_skips_discovery_tools_keeps_atomic(self) -> None:
+        # ToolSearch/Skill stay in the index allowlist (NL path may reference
+        # them explicitly) but are skipped at trace extraction.
+        index = build_session_macro_tool_index(_ctx())
+        self.assertIn("ToolSearch", index)
+        self.assertIn("Skill", index)
+
+        messages = [
+            AssistantMessage(content=[ToolUseBlock(id="1", name="ToolSearch", input={"query": "find tool"})]),
+            UserMessage(
+                content=[ToolResultBlock(tool_use_id="1", content="found", is_error=False)],
+                toolUseResult="found",
+            ),
+            AssistantMessage(content=[ToolUseBlock(id="2", name="echo-tool", input={"text": "hi"})]),
+            UserMessage(
+                content=[ToolResultBlock(tool_use_id="2", content="hi", is_error=False)],
+                toolUseResult="hi",
+            ),
+        ]
+        ctx = _ctx(messages=messages)
+        result = RegisterMacroFromTraceTool.call(
+            {"name": "clean-macro", "replace": False},
+            ctx,
+        )
+        self.assertFalse(result.is_error, result.output)
+        snap = ctx.session_macro_overlay.read()
+        self.assertIsNotNone(snap)
+        refs = [s["callable_ref"] for s in snap.definitions["clean-macro"].workflow["steps"]]
+        self.assertEqual(refs, ["echo-tool"])
+        # No spurious input from the ToolSearch step.
+        inputs = snap.definitions["clean-macro"].workflow["inputs"]
+        self.assertNotIn("query", inputs)
 
 
 class TestPromote(unittest.TestCase):

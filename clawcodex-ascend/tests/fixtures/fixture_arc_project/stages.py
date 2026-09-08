@@ -20,6 +20,11 @@ NEXT_STAGE: dict[Stage, Stage | None] = {
 
 GATE_STAGES: frozenset[Stage] = frozenset({Stage.ANALYZE})
 
+# Reject at the gate → re-run an earlier stage. Must not become a DAG edge.
+GATE_ROLLBACK: dict[Stage, Stage] = {
+    Stage.ANALYZE: Stage.PREPROCESS,
+}
+
 DECISION_ROLLBACK: dict[str, Stage] = {
     "refine": Stage.PREPROCESS,
     "proceed": Stage.GENERATE,
