@@ -96,11 +96,14 @@ class _FakeStore:
 class _IsolatedEnv:
     """Context manager: isolate ALL config persistence to a tmp dir.
 
-    ``src/config.py`` evaluates ``GLOBAL_CONFIG_FILE = Path.home() /
-    ".clawcodex/config.json"`` at import time, so patching ``HOME``
-    after import is too late — writes would land on the real user's
-    config file. We monkeypatch the module-level constant directly to
-    a fresh tmp path inside each test scope.
+    ``src/config.py`` resolves its roots on every call through the shared
+    env chain ``$CLAWCODEX_CONFIG_DIR`` → ``$CLAWCODEX_HOME`` →
+    ``~/.clawcodex`` (:func:`src.utils.clawcodex_dirs.get_user_config_dir`),
+    so the way to point persistence at a scratch root is to redirect that
+    chain. Overriding the module-level ``GLOBAL_CONFIG_*`` attributes is
+    no longer effective (they are module-``__getattr__`` views of the same
+    chain and internals never read the attributes), and restoring via
+    assignment would leave sticky attributes behind.
 
     Also resets the settings cache + default manager singleton so
     nothing stale leaks across test boundaries.
@@ -108,22 +111,17 @@ class _IsolatedEnv:
 
     def __init__(self) -> None:
         self._tmp = None
-        self._patches: list = []
-        self._saved_global_path = None
-        self._saved_history_path = None
+        self._saved_config_dir: str | None = None
+        self._saved_home_dir: str | None = None
 
     def __enter__(self):
         import src.config as cfg_mod
 
         self._tmp = Path(tempfile.mkdtemp(prefix="advisor_test_"))
-        # Save and override the module-level config-path constants.
-        # We can't use patch.object for plain Path constants reliably
-        # because the writer reads them via the module reference.
-        self._saved_global_path = cfg_mod.GLOBAL_CONFIG_FILE
-        self._saved_history_path = cfg_mod.HISTORY_FILE
-        cfg_mod.GLOBAL_CONFIG_FILE = self._tmp / ".clawcodex" / "config.json"
-        cfg_mod.HISTORY_FILE = self._tmp / ".clawcodex" / "history.jsonl"
-        cfg_mod.GLOBAL_CONFIG_DIR = self._tmp / ".clawcodex"
+        self._saved_config_dir = os.environ.get("CLAWCODEX_CONFIG_DIR")
+        self._saved_home_dir = os.environ.get("CLAWCODEX_HOME")
+        os.environ["CLAWCODEX_CONFIG_DIR"] = str(self._tmp / ".clawcodex")
+        os.environ["CLAWCODEX_HOME"] = str(self._tmp / ".clawcodex")
         cfg_mod._default_manager = None
 
         os.environ.pop("CLAUDE_CODE_DISABLE_ADVISOR_TOOL", None)
@@ -135,9 +133,14 @@ class _IsolatedEnv:
     def __exit__(self, *a):
         import src.config as cfg_mod
 
-        cfg_mod.GLOBAL_CONFIG_FILE = self._saved_global_path
-        cfg_mod.HISTORY_FILE = self._saved_history_path
-        cfg_mod.GLOBAL_CONFIG_DIR = self._saved_global_path.parent
+        for name, saved in (
+            ("CLAWCODEX_CONFIG_DIR", self._saved_config_dir),
+            ("CLAWCODEX_HOME", self._saved_home_dir),
+        ):
+            if saved is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = saved
         cfg_mod._default_manager = None
         from src.settings.settings import invalidate_settings_cache
 

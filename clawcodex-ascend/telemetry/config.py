@@ -9,7 +9,15 @@ process only:
 
 * ``CLAW_TELEMETRY_ENABLED=1``     — enable local collection
 * ``CLAW_TELEMETRY_REPORTING_ENABLED=1`` — enable reporter emission
-* ``CLAW_TELEMETRY_STORAGE_DIR``    — override the storage root
+* ``CLAW_TELEMETRY_STORAGE_DIR``    — storage root override
+
+Storage root precedence (highest first):
+
+1. ``storage_dir`` in the merged config (JSON ``telemetry`` section /
+   project TOML),
+2. ``CLAW_TELEMETRY_STORAGE_DIR``,
+3. ``$CLAWCODEX_CONFIG_DIR`` → ``$CLAWCODEX_HOME`` → ``~/.clawcodex``
+   (+ ``/telemetry``) — the shared ClawCodex state root.
 """
 
 from __future__ import annotations
@@ -57,6 +65,21 @@ class ReportingConfig:
     auto_push_errors_only: bool = True
 
 
+def _user_state_root() -> Path:
+    """Shared ClawCodex state root."""
+    try:
+        from src.utils.clawcodex_dirs import get_user_config_dir
+
+        return get_user_config_dir()
+    except Exception:  # noqa: BLE001  # partial / standalone install
+        return Path("~/.clawcodex").expanduser()
+
+
+def _default_storage_dir() -> Path:
+    """Storage root used when neither config nor env names one."""
+    return _user_state_root() / "telemetry"
+
+
 @dataclass(frozen=True)
 class TelemetryConfig:
     """Telemetry configuration.
@@ -73,7 +96,7 @@ class TelemetryConfig:
     """
 
     enabled: bool = True  # Current rollout default; restore opt-in before release.
-    storage_dir: Path = field(default_factory=lambda: Path("~/.clawcodex/telemetry"))
+    storage_dir: Path = field(default_factory=_default_storage_dir)
     retention_days: int = 30
     redaction: RedactionConfig = field(default_factory=RedactionConfig)
     reporting: ReportingConfig = field(default_factory=ReportingConfig)
@@ -82,7 +105,6 @@ class TelemetryConfig:
 _ENV_OVERRIDES: Final[tuple[tuple[str, str], ...]] = (
     ("CLAW_TELEMETRY_ENABLED", "enabled"),
     ("CLAW_TELEMETRY_REPORTING_ENABLED", "reporting_enabled"),
-    ("CLAW_TELEMETRY_STORAGE_DIR", "storage_dir"),
 )
 
 
@@ -164,8 +186,10 @@ def load_config(cwd: str | os.PathLike[str] | None = None) -> TelemetryConfig:
         on_disk_section.get("enabled", base.enabled),
         base.enabled,
     )
-    storage_raw = on_disk_section.get("storage_dir", str(base.storage_dir))
-    storage_dir = Path(os.path.expanduser(str(storage_raw or base.storage_dir)))
+    storage_raw = str(on_disk_section.get("storage_dir") or "").strip()
+    if not storage_raw:
+        storage_raw = str(os.environ.get("CLAW_TELEMETRY_STORAGE_DIR") or "").strip()
+    storage_dir = Path(os.path.expanduser(storage_raw)) if storage_raw else _default_storage_dir()
 
     retention_raw = on_disk_section.get("retention_days", base.retention_days)
     try:
@@ -287,7 +311,6 @@ def load_config(cwd: str | os.PathLike[str] | None = None) -> TelemetryConfig:
 def _apply_env_overrides(cfg: TelemetryConfig) -> TelemetryConfig:
     enabled = cfg.enabled
     reporting_enabled = cfg.reporting.reporting_enabled
-    storage_dir = cfg.storage_dir
     for env_name, field_name in _ENV_OVERRIDES:
         raw = os.environ.get(env_name)
         if raw is None or raw == "":
@@ -296,11 +319,9 @@ def _apply_env_overrides(cfg: TelemetryConfig) -> TelemetryConfig:
             enabled = _coerce_bool(raw, enabled)
         elif field_name == "reporting_enabled":
             reporting_enabled = _coerce_bool(raw, reporting_enabled)
-        elif field_name == "storage_dir":
-            storage_dir = Path(os.path.expanduser(raw))
     return TelemetryConfig(
         enabled=enabled,
-        storage_dir=storage_dir,
+        storage_dir=cfg.storage_dir,
         retention_days=cfg.retention_days,
         redaction=cfg.redaction,
         reporting=ReportingConfig(

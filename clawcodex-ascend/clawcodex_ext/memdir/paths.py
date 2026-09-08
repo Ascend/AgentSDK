@@ -134,11 +134,15 @@ def get_claude_config_home_dir() -> str:
     ``CLAWCODEX_CONFIG_DIR`` remains the explicit config-only override.  The
     shared ``CLAWCODEX_HOME`` override is the fallback used by isolated runs,
     tests, and ``--agent-debug`` so auto-memory cannot escape their state root.
+
+    Delegates to :func:`src.utils.clawcodex_dirs.get_user_config_dir` — the
+    single source of truth for the resolution chain
+    (``CLAWCODEX_CONFIG_DIR`` → ``CLAWCODEX_HOME`` → ``~/.clawcodex``) so
+    every subsystem resolves the same root.
     """
-    override = os.environ.get("CLAWCODEX_CONFIG_DIR") or os.environ.get("CLAWCODEX_HOME")
-    if override:
-        return str(Path(override).expanduser())
-    return str(Path.home() / ".clawcodex")
+    from src.utils.clawcodex_dirs import get_user_config_dir
+
+    return str(get_user_config_dir())
 
 
 def get_memory_base_dir() -> str:

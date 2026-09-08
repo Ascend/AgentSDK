@@ -558,18 +558,23 @@ class TestIntegrationREPLChat:
         return cfg_file
 
     def _redirect_global_config(self, config_file: Path):
-        """Patch ``GLOBAL_CONFIG_FILE`` and reset the cached manager.
-
-        ``HOME``-based redirection does not work — the constant is captured
-        at module-import time. Patching the constant directly + resetting
-        the singleton is the equivalent that actually takes effect.
-        """
+        """Redirect the config chain at ``config_file``'s directory."""
         import src.config as config_module
 
-        patcher = patch.object(config_module, "GLOBAL_CONFIG_FILE", config_file)
-        patcher.start()
+        saved = {name: os.environ.get(name) for name in ("CLAWCODEX_CONFIG_DIR", "CLAWCODEX_HOME")}
+        for name in saved:
+            os.environ[name] = str(config_file.parent)
         config_module._default_manager = None
-        return patcher
+
+        class _Restore:
+            def stop(self):
+                for name, value in saved.items():
+                    if value is None:
+                        os.environ.pop(name, None)
+                    else:
+                        os.environ[name] = value
+
+        return _Restore()
 
     def _make_repl(self, *, provider_name: str = "glm"):
         from src.repl.core import ClawcodexREPL

@@ -80,6 +80,13 @@ def test_resolve_repl_history_file_uses_debug_dir(tmp_path: Path) -> None:
     )
 
 
+def test_resolve_repl_history_file_follows_state_root_chain(monkeypatch, tmp_path: Path) -> None:
+    """Without an explicit base dir, the history follows the state-root chain."""
+    monkeypatch.setenv("CLAWCODEX_CONFIG_DIR", str(tmp_path / "cfg"))
+    monkeypatch.setenv("CLAWCODEX_HOME", str(tmp_path / "home-root"))
+    assert resolve_repl_history_file() == tmp_path / "cfg" / "history"
+
+
 def test_apply_agent_debug_environment_sets_state_paths(tmp_path: Path) -> None:
     env: dict[str, str] = {}
 

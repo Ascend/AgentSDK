@@ -32,9 +32,11 @@ using the flattened verb surface::
   clawcodex-dev gateway restart <name>         Rebuild a channel adapter
   clawcodex-dev gateway login <name>           WeChat iLink QR login
 
-The wizard reads/writes ``~/.clawcodex/gateway/channels.yaml``
-atomically (single-writer lock + tmp+replace). WeChat-specific QR
-login / login-state operations are wired through the same gateway state.
+The wizard reads/writes ``<state root>/gateway/channels.yaml`` atomically
+(single-writer lock + tmp+replace); the root follows the shared
+``$CLAWCODEX_CONFIG_DIR`` → ``$CLAWCODEX_HOME`` → ``~/.clawcodex`` chain
+or the verb's ``--state-dir``. WeChat-specific QR login / login-state
+operations are wired through the same gateway state.
 
 Editable fields are driven by a per-type map in P1; P2/P5 refine this
 to be descriptor-driven from ``ChannelCapabilityDescriptor``.
@@ -340,7 +342,13 @@ def build_default_channel(ctype: str) -> ChannelConfig:
 
 
 def format_status(path: str | None = None, name: str | None = None, *, state_dir: str | None = None) -> str:
-    cfg = load_config(path)
+    # An explicit --state-dir reads that dir's channels.yaml, not the default.
+    config_path = path
+    if config_path is None and state_dir is not None:
+        from extensions.im_gateway.server import DaemonPaths
+
+        config_path = DaemonPaths.for_state_dir(state_dir).state_dir / "channels.yaml"
+    cfg = load_config(config_path)
     lines: list[str] = []
     channels = [c for c in cfg.channels if name is None or c.name == name]
     if not channels:

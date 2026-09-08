@@ -61,6 +61,9 @@ class TestClearSystemPromptSections(unittest.TestCase):
         from src.context_system.prompt_assembly import get_system_prompt_cache
 
         cache = get_system_prompt_cache()
+        # Cache is process-global; drop entries left by earlier modules.
+        clear_system_prompt_sections()
+
         # Populate the cache with three sections at distinct scopes so we
         # can distinguish a partial clear from a full clear.
 

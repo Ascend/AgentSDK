@@ -42,6 +42,7 @@ from src.agent.conversation import Conversation
 from src.context_system import build_context_prompt
 from src.context_system.claude_md import clear_memory_file_caches
 from src.context_system.git_context import clear_git_caches, collect_git_context
+from src.context_system.system_prompt_cache import clear_system_prompt_sections
 from clawcodex_ext.providers.base import ChatResponse
 from clawcodex_ext.query.agent_loop_compat import (
     build_effective_system_prompt,
@@ -97,10 +98,13 @@ class TestContextSystem(unittest.TestCase):
     def setUp(self):
         clear_memory_file_caches()
         clear_git_caches()
+        clear_system_prompt_sections()
 
     def tearDown(self):
         clear_memory_file_caches()
         clear_git_caches()
+        # Prompt cache is process-global; drop entries the tests left behind.
+        clear_system_prompt_sections()
 
     def test_build_context_prompt_includes_workspace_and_clawcodex_md(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

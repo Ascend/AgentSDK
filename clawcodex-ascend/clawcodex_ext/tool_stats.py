@@ -22,8 +22,10 @@
 
 """工具/Skill 跨会话调用统计。
 
-追加写 JSONL 到 ``~/.clawcodex/tool_stats.jsonl``，统一 schema 记录每次
-工具或 Skill 调用的耗时、成功/失败状态。不依赖 audit 路径，独立运行。
+追加写 JSONL 到 ``<user config dir>/tool_stats.jsonl``（user config dir =
+``$CLAWCODEX_CONFIG_DIR`` → ``$CLAWCODEX_HOME`` → ``~/.clawcodex``），
+统一 schema 记录每次工具或 Skill 调用的耗时、成功/失败状态。不依赖
+audit 路径，独立运行。
 
 用法::
 
@@ -49,28 +51,41 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 # ── 路径 ──────────────────────────────────────────────────────────────
-_DEFAULT_STATS_PATH = Path.home() / ".clawcodex" / "tool_stats.jsonl"
+
+
+def _default_stats_path() -> Path:
+    """Resolve the default sink under the shared user-state root."""
+    from src.utils.clawcodex_dirs import get_user_config_dir
+
+    return get_user_config_dir() / "tool_stats.jsonl"
+
 
 # ── 缓冲写 ────────────────────────────────────────────────────────────
 _lock = threading.Lock()
 _buffer: list[str] = []
 _BUFFER_FLUSH_SIZE = 20  # 攒够 20 行或 5 秒后落盘
 _last_flush: float = time.monotonic()
-_stats_path: Path = _DEFAULT_STATS_PATH
+#: Explicit sink installed by :func:`configure`; ``None`` means the
+#: env-aware default (:func:`_default_stats_path`).
+_stats_path: Path | None = None
+
+
+def _sink_path() -> Path:
+    """Current write sink: ``configure()`` override, else env-aware default."""
+    return _stats_path if _stats_path is not None else _default_stats_path()
 
 
 def configure(path: str | Path | None = None) -> None:
     """Override the default output path for tests or custom storage.
 
     Reconfiguration is a sink boundary: buffered rows must be flushed to the
-    previous path instead of being redirected into the new file.
+    previous path instead of being redirected into the new file. Passing
+    ``None`` restores the env-aware default.
     """
     global _last_flush, _stats_path
-    if path is None:
-        return
-    target = Path(path)
+    target = _sink_path() if path is None else Path(path)
     with _lock:
-        if target == _stats_path:
+        if target == _sink_path():
             return
         _do_flush()
         if _buffer:
@@ -79,8 +94,8 @@ def configure(path: str | Path | None = None) -> None:
                 len(_buffer),
             )
             _buffer.clear()
-        _stats_path = target
-        _stats_path.parent.mkdir(parents=True, exist_ok=True)
+        _stats_path = None if path is None else target
+        target.parent.mkdir(parents=True, exist_ok=True)
         _last_flush = time.monotonic()
 
 
@@ -183,8 +198,9 @@ def _do_flush() -> None:
     if not _buffer:
         return
     try:
-        _stats_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(_stats_path, "a", encoding="utf-8") as f:
+        path = _sink_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "a", encoding="utf-8") as f:
             f.write("\n".join(_buffer) + "\n")
         _buffer.clear()
     except OSError as e:
@@ -220,7 +236,7 @@ def get_stats(
         解析后的 dict 列表，按时间戳降序排列。
     """
     flush()  # 先落盘确保最新数据
-    path = _stats_path
+    path = _sink_path()
     if not path.exists():
         return []
 

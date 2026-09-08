@@ -50,30 +50,23 @@ from src.types.messages import AssistantMessage, UserMessage
 
 
 class _Isolation:
-    """Override the module-level config-path constants to a tmp dir.
+    """Redirect the config-file roots to a tmp dir.
 
-    See ``tests/test_advisor_request_wiring.py`` for the rationale —
-    ``src/config.py`` freezes the path constants at import time so a
-    plain ``HOME`` patch is too late.
+    See ``tests/test_advisor_request_wiring.py`` for the rationale.
     """
 
     def __init__(self) -> None:
         self._tmp = tempfile.mkdtemp(prefix="advisor_smoke_")
-        self._saved_global = None
-        self._saved_history = None
-        self._saved_dir = None
+        self._saved_config_dir: str | None = None
+        self._saved_home_dir: str | None = None
 
     def enter(self) -> None:
-        from pathlib import Path as _P
-
         import src.config as cfg_mod
 
-        self._saved_global = cfg_mod.GLOBAL_CONFIG_FILE
-        self._saved_history = cfg_mod.HISTORY_FILE
-        self._saved_dir = cfg_mod.GLOBAL_CONFIG_DIR
-        cfg_mod.GLOBAL_CONFIG_FILE = _P(self._tmp) / ".clawcodex" / "config.json"
-        cfg_mod.HISTORY_FILE = _P(self._tmp) / ".clawcodex" / "history.jsonl"
-        cfg_mod.GLOBAL_CONFIG_DIR = _P(self._tmp) / ".clawcodex"
+        self._saved_config_dir = os.environ.get("CLAWCODEX_CONFIG_DIR")
+        self._saved_home_dir = os.environ.get("CLAWCODEX_HOME")
+        os.environ["CLAWCODEX_CONFIG_DIR"] = f"{self._tmp}/.clawcodex"
+        os.environ["CLAWCODEX_HOME"] = f"{self._tmp}/.clawcodex"
         cfg_mod._default_manager = None
         from src.settings.settings import invalidate_settings_cache
 
@@ -82,9 +75,14 @@ class _Isolation:
     def exit(self) -> None:
         import src.config as cfg_mod
 
-        cfg_mod.GLOBAL_CONFIG_FILE = self._saved_global
-        cfg_mod.HISTORY_FILE = self._saved_history
-        cfg_mod.GLOBAL_CONFIG_DIR = self._saved_dir
+        for name, saved in (
+            ("CLAWCODEX_CONFIG_DIR", self._saved_config_dir),
+            ("CLAWCODEX_HOME", self._saved_home_dir),
+        ):
+            if saved is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = saved
         cfg_mod._default_manager = None
         from src.settings.settings import invalidate_settings_cache
 
