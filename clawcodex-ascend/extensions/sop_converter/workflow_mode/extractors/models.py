@@ -46,6 +46,8 @@ class Transition:
     to_stage: int
     condition: str | None = None
     is_default: bool = True
+    # "forward" edges become DAG depends_on; "rollback" is metadata only.
+    kind: str = "forward"
 
 
 @dataclass
@@ -54,6 +56,7 @@ class GateSpec:
     approval_mode: str = "manual"
     description: str = ""
     source_name: str | None = None
+    rollback_to: int | None = None
 
 
 @dataclass

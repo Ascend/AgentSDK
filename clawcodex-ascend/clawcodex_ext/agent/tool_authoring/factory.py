@@ -302,6 +302,37 @@ def build_tool_from_spec(spec: AgentToolSpec) -> Tool:
             else:
                 output = f"Unknown call_type: {spec.call_type}"
         except BashCallError as exc:
+            if str(exc).startswith("bundle_venv_not_ready:"):
+                return ToolResult(
+                    name=spec.name,
+                    output={
+                        "error": str(exc),
+                        "error_code": "bundle_venv_not_ready",
+                        "recovery": "rerun_sop_convert",
+                    },
+                    is_error=True,
+                )
+            if str(exc).startswith("sdk_dependency_install_failed:"):
+                return ToolResult(
+                    name=spec.name,
+                    output={
+                        "error": str(exc),
+                        "error_code": "sdk_dependency_install_failed",
+                        "recovery": "pip_install_into_bundle_venv",
+                    },
+                    is_error=True,
+                )
+            if str(exc).startswith("missing_sdk_dependency:"):
+                return ToolResult(
+                    name=spec.name,
+                    output={
+                        "error": str(exc),
+                        "error_code": "missing_sdk_dependency",
+                        "recovery": "pip_install_into_bundle_venv",
+                        "next": "run the Command in the error (install only the missing package), then retry this tool with the same arguments",
+                    },
+                    is_error=True,
+                )
             parsed = None
             if "{json_args}" in spec.call_impl:
                 for raw in (exc.stderr, exc.stdout):
@@ -317,22 +348,33 @@ def build_tool_from_spec(spec: AgentToolSpec) -> Tool:
                     output=parsed,
                     is_error=True,
                 )
-            if str(exc).startswith("bundle_venv_not_ready:"):
-                return ToolResult(
-                    name=spec.name,
-                    output={
-                        "error": str(exc),
-                        "error_code": "bundle_venv_not_ready",
-                        "recovery": "rerun_sop_convert",
-                    },
-                    is_error=True,
-                )
             return ToolResult(
                 name=spec.name,
                 output={"error": str(exc)},
                 is_error=True,
             )
         except (HttpCallError, PythonCallError, SdkWrapperCallError) as exc:
+            if str(exc).startswith("sdk_dependency_install_failed:"):
+                return ToolResult(
+                    name=spec.name,
+                    output={
+                        "error": str(exc),
+                        "error_code": "sdk_dependency_install_failed",
+                        "recovery": "pip_install_into_bundle_venv",
+                    },
+                    is_error=True,
+                )
+            if str(exc).startswith("missing_sdk_dependency:"):
+                return ToolResult(
+                    name=spec.name,
+                    output={
+                        "error": str(exc),
+                        "error_code": "missing_sdk_dependency",
+                        "recovery": "pip_install_into_bundle_venv",
+                        "next": "run the Command in the error (install only the missing package), then retry this tool with the same arguments",
+                    },
+                    is_error=True,
+                )
             return ToolResult(
                 name=spec.name,
                 output={"error": str(exc)},

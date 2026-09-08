@@ -386,11 +386,28 @@ def _bundle_id_from_path(bundle: Path | str | None, bundle_id: str | None) -> st
     return "default"
 
 
+def _env_ref_name(value: str) -> str | None:
+    if value.startswith("env:"):
+        name = value[4:].strip()
+        return name or None
+    match = re.match(r"^<redacted:env:([A-Z0-9_]+)>$", value)
+    return match.group(1) if match else None
+
+
 def _redact_value(key: str, value: Any, *, bundle_id: str | None) -> tuple[Any, str | None]:
     if not _SENSITIVE_KEY_RE.search(key):
         return value, None
-    if isinstance(value, str) and value.startswith("env:"):
-        return value, None
+    if isinstance(value, str):
+        explicit = _env_ref_name(value)
+        if explicit:
+            return value, explicit
+        try:
+            from .sdk_serialization import _RESOLVED_ENV_REFERENCES
+        except Exception:  # pragma: no cover - catalog must stay import-safe
+            _RESOLVED_ENV_REFERENCES = {}
+        mapped = _RESOLVED_ENV_REFERENCES.get(value)
+        if isinstance(mapped, str) and mapped.startswith("env:"):
+            return mapped, _env_ref_name(mapped)
     bundle_prefix = re.sub(r"[^A-Z0-9]+", "_", (bundle_id or "BUNDLE").upper())
     field_suffix = re.sub(r"[^A-Z0-9]+", "_", key.upper())
     env_var = f"CLAWCODEX_{bundle_prefix}_{field_suffix}"
@@ -665,10 +682,7 @@ class ResourceCatalog:
         env_refs: list[str] = []
         existing = self.records.get(record.key())
         secrets = dict(record.secrets or {})
-        existing_env_refs = []
-        if existing and isinstance(existing.secrets, dict):
-            existing_env_refs = list(existing.secrets.get("env_refs") or [])
-        secrets["env_refs"] = sorted(set(existing_env_refs) | set(secrets.get("env_refs") or []) | set(env_refs))
+        secrets["env_refs"] = sorted(set(secrets.get("env_refs") or []))
 
         metadata = dict(existing.metadata) if existing else {}
         metadata.update(record.metadata or {})
@@ -1031,16 +1045,7 @@ def write_record(record: ResourceRecord, ctx: CatalogExecutionContext) -> WriteR
             def mutator(cat: ResourceCatalog, rec: ResourceRecord = layer_record) -> None:
                 existing = cat.records.get(rec.key())
                 if existing is not None:
-                    secrets = dict(rec.secrets or {})
-                    existing_refs = list((existing.secrets or {}).get("env_refs") or [])
-                    new_refs = list(secrets.get("env_refs") or [])
-                    if existing_refs or new_refs:
-                        secrets["env_refs"] = sorted(set(existing_refs) | set(new_refs))
-                    rec = replace(
-                        rec,
-                        created_at=existing.created_at,
-                        secrets=secrets,
-                    )
+                    rec = replace(rec, created_at=existing.created_at)
                 cat.put_prepared(rec)
 
             mutate_catalog(target.path, mutator, merge=True)

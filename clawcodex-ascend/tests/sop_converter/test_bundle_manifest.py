@@ -84,6 +84,7 @@ class TestBundleManifest(unittest.TestCase):
             self.assertEqual(manifest.bundle_id, "JiuwenAgent_tool_test")
             self.assertEqual(manifest.sdk_source_dir, sdk_root.resolve())
             self.assertEqual(manifest.sdk_requirements, ("openai>=1", "pydantic>=2"))
+            self.assertEqual(manifest.runtime_extra_requirements, ())
             self.assertEqual(manifest.bundle_venv_dir, str(bundle_dir / ".venv"))
 
     def test_resolve_from_workspace_clawcodex_fallback(self) -> None:

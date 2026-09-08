@@ -25,6 +25,7 @@
 from __future__ import annotations
 
 import tempfile
+import textwrap
 from pathlib import Path
 from typing import ClassVar
 
@@ -1854,3 +1855,89 @@ class HiddenUtil:
             assert "call" in agent_content or "Service" in agent_content, (
                 f"Agent should reference documented API, got:\n{agent_content[:500]}"
             )
+
+
+class TestInferReturnTypeFromBody:
+    """Unannotated create_* factories expose the constructed return type."""
+
+    def test_assignment_then_return(self) -> None:
+        source = textwrap.dedent(
+            """
+            class ModelConfig:
+                pass
+
+            class ReActAgentConfig:
+                def __init__(self, model=None):
+                    self.model = model
+
+            def create_llm_agent_config(agent_id: str, model: ModelConfig):
+                '''Create agent configuration.'''
+                config = ReActAgentConfig(model=model)
+                return config
+            """
+        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            py_file = Path(tmpdir) / "factory.py"
+            py_file.write_text(source, encoding="utf-8")
+            operations = SourceCodeParser(tmpdir).parse_file(py_file)
+
+        op = next(item for item in operations if item.name == "create_llm_agent_config")
+        assert op.return_type is None
+        assert op.inferred_return_type == "ReActAgentConfig"
+
+    def test_direct_return_constructor(self) -> None:
+        source = textwrap.dedent(
+            """
+            class LLMAgent:
+                def __init__(self, agent_config):
+                    self.agent_config = agent_config
+
+            def create_llm_agent(agent_config: object):
+                '''Create a live agent.'''
+                return LLMAgent(agent_config)
+            """
+        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            py_file = Path(tmpdir) / "agent.py"
+            py_file.write_text(source, encoding="utf-8")
+            operations = SourceCodeParser(tmpdir).parse_file(py_file)
+
+        op = next(item for item in operations if item.name == "create_llm_agent")
+        assert op.return_type is None
+        assert op.inferred_return_type == "LLMAgent"
+
+    def test_does_not_infer_dict_constructor(self) -> None:
+        source = textwrap.dedent(
+            """
+            def create_agent(name: str):
+                '''Return a mapping.'''
+                return dict(id=name)
+            """
+        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            py_file = Path(tmpdir) / "mapping.py"
+            py_file.write_text(source, encoding="utf-8")
+            operations = SourceCodeParser(tmpdir).parse_file(py_file)
+
+        op = next(item for item in operations if item.name == "create_agent")
+        assert op.inferred_return_type is None
+
+    def test_does_not_infer_non_create_functions(self) -> None:
+        source = textwrap.dedent(
+            """
+            class Helper:
+                pass
+
+            def wrap_value():
+                '''Not a create factory.'''
+                helper = Helper()
+                return helper
+            """
+        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            py_file = Path(tmpdir) / "wrap.py"
+            py_file.write_text(source, encoding="utf-8")
+            operations = SourceCodeParser(tmpdir).parse_file(py_file)
+
+        op = next(item for item in operations if item.name == "wrap_value")
+        assert op.inferred_return_type is None

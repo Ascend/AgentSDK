@@ -212,6 +212,19 @@ class TestSopPromptsPhase0(unittest.TestCase):
         self.assertIn("示例参数时直接使用", body)
         self.assertIn("不要向用户重复确认", body)
 
+    def test_domain_body_missing_module_installs_bundle_venv_deps(self) -> None:
+        body = domain_agent_sop_body(
+            agent_type="openjiuwen_merged-agent",
+            description="test",
+            skill_name="openjiuwen_merged-skill",
+        )
+        self.assertIn("No module named", body)
+        self.assertIn("missing_sdk_dependency", body)
+        self.assertIn("pip_install_into_bundle_venv", body)
+        self.assertIn("Command", body)
+        self.assertIn("禁止 ls/find/grep", body)
+        self.assertNotIn("requirements.txt", body)
+
     def test_domain_body_includes_interactive_terminal_stop_loss(self) -> None:
         body = domain_agent_sop_body(
             agent_type="openjiuwen_merged-agent",

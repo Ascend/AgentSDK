@@ -23,8 +23,9 @@
 """register-macro-workflow — interactive session-macro registration tool.
 
 Calls :func:`register_session_macro` with a capability-gated confirm path.
-``tool_index`` is the active bundle allowlist ∪ base tools ∪ non-session
-names already on ``options.tools`` — never the full global registry.
+``tool_index`` is an allowlist: active bundle atomic tools ∪ macro-safe base
+tools ∪ non-orchestration names already on ``options.tools`` — never the full
+global registry, and never Agent/Task*/Bash (see ``POS_MACRO_FORBIDDEN_BUILTINS``).
 """
 
 from __future__ import annotations
@@ -102,8 +103,18 @@ def format_session_macro_plan_for_ui(plan: SessionMacroPlan) -> str:
 
 
 def build_session_macro_tool_index(context: ToolContext) -> set[str]:
-    """Bundle allowlist ∪ base tools ∪ non-session names on options.tools."""
-    names: set[str] = set(AgentToolConstants.registered_proxy_base_tools())
+    """Bundle atomic tools ∪ macro-safe base ∪ non-orchestration options.tools.
+
+    Macro-safe base = SOP domain-agent allowlist (already excludes Agent) minus
+    ``POS_MACRO_FORBIDDEN_BUILTINS`` (Agent/Task*/Bash) and the macro-management
+    tools. Orchestration built-ins never enter the index, so any macro step
+    referencing them fails validation with ``macro_callable_unresolved``.
+    """
+    names: set[str] = (
+        set(AgentToolConstants.registered_domain_agent_tools())
+        - set(AgentToolConstants.POS_MACRO_FORBIDDEN_BUILTINS)
+        - set(_FORBIDDEN_STEP_TOOLS)
+    )
 
     bundle = getattr(context, "bundle_context", None)
     if bundle is None:
@@ -118,11 +129,12 @@ def build_session_macro_tool_index(context: ToolContext) -> set[str]:
         names.update(str(n) for n in tool_names)
 
     options = getattr(context, "options", None)
+    forbidden = AgentToolConstants.POS_MACRO_FORBIDDEN_BUILTINS
     for tool in list(getattr(options, "tools", None) or []):
         if is_session_macro_tool(tool):
             continue
         name = getattr(tool, "name", None)
-        if name:
+        if name and name not in forbidden:
             names.add(str(name))
     return names
 

@@ -35,6 +35,8 @@ from pathlib import Path
 
 from ...ast_helpers import (
     class_annotation_names,
+    classify_stage_mapping_name,
+    collect_stage_rollback_map,
     extract_docstring_first_para,
     find_dataclass_defs,
     find_dict_mapping_assignments,
@@ -43,10 +45,12 @@ from ...ast_helpers import (
     find_gate_assigns,
     get_enum_members,
     get_enum_members_ordered,
+    is_forward_stage_edge,
     is_stage_like_enum,
     parse_ast,
     parse_contracts_dict,
     parse_enum_dict_mapping_from_expr,
+    parse_enum_to_name_dict,
     parse_frozenset_members,
     parse_stage_sequence_from_expr,
     parse_string_to_stage_dict,
@@ -72,6 +76,94 @@ _STAGE_DIR_NAMES = ("stage_impls", "stages", "pipeline")
 # per branch, while outcomes inferred from return statements default to 3.
 _ROLLBACK_MAX_TIMES = 2
 _INFERRED_DECISION_MAX_TIMES = 3
+
+# Stage-label → handler name prefixes. Project-agnostic; dispatch tables win.
+_ENTRY_FUNC_PREFIXES = ("_execute_", "execute_", "run_")
+
+
+def _rel_source_path(source_dir: Path, py_file: Path) -> str:
+    root = source_dir.resolve()
+    try:
+        return py_file.resolve().relative_to(root).as_posix()
+    except ValueError:
+        return py_file.as_posix()
+
+
+def _prefer_impl_file(candidate: Path, current: Path | None) -> bool:
+    """Prefer ``stage_impls/`` over a catch-all ``executor.py``."""
+    if current is None:
+        return True
+    cand = candidate.as_posix().replace("\\", "/").lower()
+    cur = current.as_posix().replace("\\", "/").lower()
+    if "stage_impls" in cand and "stage_impls" not in cur:
+        return True
+    if candidate.name == "executor.py" and current.name != "executor.py":
+        return False
+    return False
+
+
+def _function_def_files(ctx) -> dict[str, Path]:
+    found: dict[str, Path] = {}
+    for py_file, tree in ctx.trees.items():
+        for node in tree.body:
+            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            current = found.get(node.name)
+            if _prefer_impl_file(py_file, current):
+                found[node.name] = py_file
+    return found
+
+
+def _executor_table_by_stage(ctx) -> dict[int, str]:
+    """Largest ``{Stage.X: handler_fn, ...}`` dict that is not a stage→stage map."""
+    enum_names = ctx.enum_class_names
+    members = ctx.member_to_value
+    if not enum_names or not members:
+        return {}
+    member_names = set(members)
+    best: dict[int, str] = {}
+    for tree in ctx.trees.values():
+        for _var_name, dict_expr in find_dict_mapping_assignments(tree):
+            if not isinstance(dict_expr, ast.Dict):
+                continue
+            parsed = parse_enum_to_name_dict(dict_expr, enum_names, members)
+            handlers = {stage_id: fn for stage_id, fn in parsed.items() if fn and fn not in member_names}
+            # Ignore 0–1 entry maps (NEXT/ROLLBACK leftovers or a lone alias).
+            if len(handlers) >= 2 and len(handlers) > len(best):
+                best = handlers
+    return best
+
+
+def _entry_name_candidates(stage: ExtractedStage) -> list[str]:
+    snake = (stage.name or "").replace("-", "_")
+    if not snake and stage.label:
+        snake = stage.label.lower()
+    names: list[str] = []
+    for prefix in _ENTRY_FUNC_PREFIXES:
+        if snake:
+            names.append(f"{prefix}{snake}")
+    return names
+
+
+def attach_stage_entry_bindings(stages: list[ExtractedStage], ctx, source_dir: Path) -> None:
+    """Fill ``entry_function`` / ``file_path`` from a dispatch table or name match."""
+    if not stages or ctx is None:
+        return
+    defs = _function_def_files(ctx)
+    by_stage = _executor_table_by_stage(ctx)
+    for stage in stages:
+        entry = by_stage.get(stage.id)
+        if not entry:
+            for candidate in _entry_name_candidates(stage):
+                if candidate in defs:
+                    entry = candidate
+                    break
+        if not entry:
+            continue
+        stage.entry_function = entry
+        impl = defs.get(entry)
+        if impl is not None:
+            stage.file_path = _rel_source_path(source_dir, impl)
 
 
 class GenericPipelineExtractor(WorkflowExtractorBase):
@@ -115,14 +207,19 @@ class GenericPipelineExtractor(WorkflowExtractorBase):
                 break
 
         if stages:
+            attach_stage_entry_bindings(stages, ctx, source_dir)
             return stages
 
         stages = _stages_from_directory(source_dir)
         if stages:
+            attach_stage_entry_bindings(stages, ctx, source_dir)
             return stages
 
         if self._allow_coarse:
-            return _stages_from_files_coarse(source_dir)
+            stages = _stages_from_files_coarse(source_dir)
+            if stages:
+                attach_stage_entry_bindings(stages, ctx, source_dir)
+            return stages
         return []
 
     def extract_transitions(self, source_dir: Path) -> list[Transition]:
@@ -154,6 +251,9 @@ class GenericPipelineExtractor(WorkflowExtractorBase):
                 stage_sequence = [v for _, v in enum_members_ordered]
 
             for var_name, dict_expr in find_dict_mapping_assignments(tree):
+                kind = classify_stage_mapping_name(var_name)
+                if kind in {"rollback", "decision", "skip"}:
+                    continue
                 pairs = parse_enum_dict_mapping_from_expr(
                     dict_expr,
                     ctx.enum_class_names,
@@ -161,6 +261,8 @@ class GenericPipelineExtractor(WorkflowExtractorBase):
                     stage_sequence=stage_sequence,
                 )
                 for from_id, to_id in pairs:
+                    if not is_forward_stage_edge(from_id, to_id, stage_sequence):
+                        continue
                     key = (from_id, to_id)
                     if key not in seen:
                         seen.add(key)
@@ -170,6 +272,7 @@ class GenericPipelineExtractor(WorkflowExtractorBase):
                                 to_stage=to_id,
                                 condition=var_name,
                                 is_default=True,
+                                kind="forward",
                             )
                         )
         return transitions
@@ -195,6 +298,15 @@ class GenericPipelineExtractor(WorkflowExtractorBase):
                         description=f"Gate from {var_name}",
                         source_name=var_name,
                     )
+        rollbacks = collect_stage_rollback_map(
+            list(ctx.trees.values()),
+            ctx.enum_class_names,
+            ctx.member_to_value,
+        )
+        for sid, target in rollbacks.items():
+            gate = gates.get(sid)
+            if gate is not None:
+                gate.rollback_to = target
         return gates
 
     def extract_decisions(self, source_dir: Path) -> dict[int, DecisionSpec]:
@@ -206,7 +318,7 @@ class GenericPipelineExtractor(WorkflowExtractorBase):
         decisions: dict[int, DecisionSpec] = {}
         for tree in ctx.trees.values():
             for var_name, dict_expr in find_dict_mapping_assignments(tree):
-                if isinstance(dict_expr, ast.Dict) and "DECISION_ROLLBACK" in var_name.upper():
+                if isinstance(dict_expr, ast.Dict) and classify_stage_mapping_name(var_name) == "decision":
                     rollback = parse_string_to_stage_dict(
                         dict_expr,
                         ctx.enum_class_names,
@@ -231,27 +343,27 @@ class GenericPipelineExtractor(WorkflowExtractorBase):
                         )
             for func in find_func_by_prefix(tree):
                 spec = _parse_decision_func(func, ctx.member_to_value, ctx.enum_class_names)
+                if not spec["outcomes"]:
+                    continue
                 stage_id = _guess_decision_stage(func.name, ctx.member_to_value)
-                if stage_id is None and ctx.member_to_value:
-                    stage_id = max(ctx.member_to_value.values())
-                if stage_id is not None:
-                    if stage_id in decisions:
-                        # ponytail: merge — multiple decision funcs may map to same stage
-                        existing = decisions[stage_id]
-                        existing.outcomes.update(spec["outcomes"])
-                        if not spec["inferred"]:
-                            existing.inferred = False
-                        if existing.source_func:
-                            existing.source_func = f"{existing.source_func}, {func.name}"
-                        else:
-                            existing.source_func = func.name
+                if stage_id is None:
+                    continue
+                if stage_id in decisions:
+                    existing = decisions[stage_id]
+                    existing.outcomes.update(spec["outcomes"])
+                    if not spec["inferred"]:
+                        existing.inferred = False
+                    if existing.source_func:
+                        existing.source_func = f"{existing.source_func}, {func.name}"
                     else:
-                        decisions[stage_id] = DecisionSpec(
-                            stage_id=stage_id,
-                            outcomes=spec["outcomes"],
-                            source_func=func.name,
-                            inferred=spec["inferred"],
-                        )
+                        existing.source_func = func.name
+                else:
+                    decisions[stage_id] = DecisionSpec(
+                        stage_id=stage_id,
+                        outcomes=spec["outcomes"],
+                        source_func=func.name,
+                        inferred=spec["inferred"],
+                    )
         return decisions
 
     def extract_contracts(self, source_dir: Path) -> dict[int, StageContract]:
@@ -364,21 +476,35 @@ def _parse_decision_func(
 ) -> dict:
     outcomes: dict[str, OutcomeSpec] = {}
     inferred = True
-    for node in ast.walk(func):
-        if isinstance(node, ast.Return) and node.value is not None:
-            outcome_name, next_stage = _parse_return_outcome(
-                node.value,
-                member_to_value,
-                enum_class_names,
+    for node in _iter_own_returns(func):
+        if node.value is None:
+            continue
+        outcome_name, next_stage = _parse_return_outcome(
+            node.value,
+            member_to_value,
+            enum_class_names,
+        )
+        if outcome_name:
+            outcomes[outcome_name] = OutcomeSpec(
+                next_stage=next_stage,
+                max_times=_INFERRED_DECISION_MAX_TIMES,
             )
-            if outcome_name:
-                outcomes[outcome_name] = OutcomeSpec(
-                    next_stage=next_stage,
-                    max_times=_INFERRED_DECISION_MAX_TIMES,
-                )
-                if next_stage is not None:
-                    inferred = False
+            if next_stage is not None:
+                inferred = False
     return {"outcomes": outcomes, "inferred": inferred}
+
+
+def _iter_own_returns(func: ast.FunctionDef | ast.AsyncFunctionDef):
+    """Yield ``return`` nodes in ``func``, skipping nested functions/classes."""
+    stack: list[ast.AST] = list(func.body)
+    while stack:
+        node = stack.pop()
+        if isinstance(node, ast.Return):
+            yield node
+            continue
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            continue
+        stack.extend(ast.iter_child_nodes(node))
 
 
 def _parse_return_outcome(
@@ -386,6 +512,8 @@ def _parse_return_outcome(
     member_to_value: dict[str, int],
     enum_class_names: set[str],
 ) -> tuple[str | None, int | None]:
+    if isinstance(node, ast.Constant) and isinstance(node.value, bool):
+        return None, None
     if isinstance(node, ast.Constant) and isinstance(node.value, str):
         return node.value, None
     ref = resolve_enum_member(node, enum_class_names, member_to_value)

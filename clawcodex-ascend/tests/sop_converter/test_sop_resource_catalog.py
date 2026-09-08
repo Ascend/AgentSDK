@@ -672,7 +672,7 @@ class TestWriteRecord(unittest.TestCase):
         self.assertEqual(inline_rec.payload["kind"], "inline")
         self.assertIn("blob", inline_rec.payload["dsl"])
 
-    def test_write_record_overwrite_preserves_created_at_and_merges_env_refs(self) -> None:
+    def test_write_record_overwrite_preserves_created_at_and_replaces_env_refs(self) -> None:
         bundle = _tmp_path() / "mybundle"
         bundle.mkdir()
         home = _tmp_path()
@@ -687,17 +687,53 @@ class TestWriteRecord(unittest.TestCase):
             created = stored_first.created_at
 
             second = _make_record(resource_id="overwrite-1")
-            second.payload["dsl"] = {"name": "verify-bot", "api_key": "sk-new"}
-            second.secrets = {"env_refs": ["CLAWCODEX_CORE_OTHER"]}
+            second.payload["dsl"] = {"name": "verify-bot", "api_key": "env:DEEPSEEK_API_KEY"}
+            second.secrets = {"env_refs": []}
             write_record(second, ctx)
 
         stored = ResourceCatalog.load(catalog_path).get_stored("agentconfig", "overwrite-1")
         assert stored is not None
         self.assertEqual(stored.created_at, created)
-        self.assertEqual(
-            stored.secrets.get("env_refs"),
-            ["CLAWCODEX_CORE_API_KEY", "CLAWCODEX_CORE_OTHER", "CLAWCODEX_CORE_TOKEN"],
+        self.assertEqual(stored.payload["dsl"]["api_key"], "env:DEEPSEEK_API_KEY")
+        self.assertEqual(stored.secrets.get("env_refs"), ["DEEPSEEK_API_KEY"])
+        self.assertNotIn("CLAWCODEX_CORE_TOKEN", stored.secrets.get("env_refs") or [])
+        self.assertNotIn("sk-secret", catalog_path.read_text(encoding="utf-8"))
+
+    def test_write_record_keeps_resolved_env_api_key_name(self) -> None:
+        from extensions.sop_converter.core.sdk_serialization import (
+            _RESOLVED_ENV_REFERENCES,
+            _redact_sensitive_fields,
+            resolve_env_references,
         )
+
+        bundle = _tmp_path() / "JiuwenAgent5"
+        bundle.mkdir()
+        home = _tmp_path()
+        _RESOLVED_ENV_REFERENCES.clear()
+        try:
+            coerced = resolve_env_references(
+                {"model": {"model_info": {"api_key": "env:DEEPSEEK_API_KEY"}}},
+                environ={"DEEPSEEK_API_KEY": "sk-live-secret"},
+            )
+            persisted = _redact_sensitive_fields(coerced)
+            record = _make_record(resource_id="cfg-deepseek")
+            record.bundle_id = "JiuwenAgent5"
+            record.payload["dsl"] = persisted
+            record.materializer["init_kwargs"] = persisted
+            with patch.dict(os.environ, {HOME_ROOT_ENV: str(home)}):
+                ctx = context_from_env(bundle_path=bundle, bundle_id="JiuwenAgent5")
+                result = write_record(record, ctx)
+            catalog_path = Path(result.catalog_paths["bundle"])
+            stored = ResourceCatalog.load(catalog_path).get_stored("agentconfig", "cfg-deepseek")
+            raw = catalog_path.read_text(encoding="utf-8")
+        finally:
+            _RESOLVED_ENV_REFERENCES.clear()
+
+        assert stored is not None
+        self.assertEqual(stored.payload["dsl"]["model"]["model_info"]["api_key"], "env:DEEPSEEK_API_KEY")
+        self.assertEqual(stored.secrets.get("env_refs"), ["DEEPSEEK_API_KEY"])
+        self.assertNotIn("sk-live-secret", raw)
+        self.assertNotIn("CLAWCODEX_JIUWENAGENT5_API_KEY", raw)
 
 
 if __name__ == "__main__":

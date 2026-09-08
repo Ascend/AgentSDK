@@ -77,8 +77,7 @@ def _collect_env_refs(value: Any) -> set[str]:
 
 
 def _validate_record_secrets(record: ResourceRecord) -> None:
-    refs = {str(item) for item in (record.secrets or {}).get("env_refs", []) if item}
-    refs.update(_collect_env_refs(record.payload))
+    refs = _collect_env_refs(record.payload)
     refs.update(_collect_env_refs(record.materializer))
     missing = sorted(name for name in refs if os.environ.get(name) is None)
     if missing:

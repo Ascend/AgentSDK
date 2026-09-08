@@ -247,6 +247,23 @@ def _extract_container_inner_type(type_hint: str) -> str:
     return ""
 
 
+def _sequence_item_hint(type_hint: str) -> str:
+    """Inner item type for list/tuple/set hints, stripping a trailing ``...``.
+
+    ``tuple[str, ...]`` and ``tuple[str, Ellipsis]`` (runtime stringify) both
+    become ``str``. Heterogeneous ``tuple[str, int]`` uses the first member so
+    the JSON Schema stays an array rather than collapsing to a string.
+    """
+    inner = _extract_container_inner_type(type_hint)
+    if not inner:
+        return ""
+    parts = [part.strip() for part in _split_top_level_commas(inner)]
+    parts = [part for part in parts if part not in ("...", "Ellipsis", "ellipsis")]
+    if not parts:
+        return "Any"
+    return parts[0]
+
+
 def _extract_dict_value_type(type_hint: str) -> str:
     """Extract the value type from a Dict/Mapping type hint, handling nested brackets.
 
@@ -893,6 +910,22 @@ def _extract_via_ast(source_dir, module_path, class_name):
     return None
 
 
+def _split_top_level_commas(s):
+    """Split a type expression by commas at bracket depth 0."""
+    parts = []
+    depth = 0
+    start = 0
+    for i, ch in enumerate(s):
+        if ch in "[(":
+            depth += 1
+        elif ch in "])":
+            depth -= 1
+        elif ch == "," and depth == 0:
+            parts.append(s[start:i])
+            start = i + 1
+    parts.append(s[start:])
+    return parts
+
 
 def _hint_to_json_type(hint):
     """Convert a type hint string to a basic JSON Schema type definition."""
@@ -1437,6 +1470,9 @@ def _annotation_to_hint(annotation: Any) -> str:
         arg_hints = ", ".join(_annotation_to_hint(arg) for arg in args)
         return f"{origin_name}[{arg_hints}]"
 
+    if annotation is Ellipsis:
+        return "..."
+
     name = getattr(annotation, "__name__", None)
     if name:
         return name
@@ -1692,6 +1728,15 @@ def _hint_to_json_type_recursive(
             "type": "array",
             "items": _hint_to_json_type_recursive(
                 inner.strip(), source_dir=source_dir, module_path=module_path, _visited=_visited
+            ),
+        }
+
+    if hint.startswith("tuple[") or hint.startswith("Tuple["):
+        item = _sequence_item_hint(hint) or "Any"
+        return {
+            "type": "array",
+            "items": _hint_to_json_type_recursive(
+                item, source_dir=source_dir, module_path=module_path, _visited=_visited
             ),
         }
 
@@ -2133,6 +2178,117 @@ def pydantic_schema_for_type(
     return _ast_dataclass_schema(source_dir, root, _visited=visited)
 
 
+def _hint_to_json_type(hint: str) -> dict[str, Any]:
+    """Convert a type hint string to a basic JSON Schema type definition.
+
+    Module-level counterpart of the helper inlined in ``_BATCH_PROBE_SCRIPT``.
+    Unknown names become ``{"type": "object"}``; callers that want a string
+    fallback should use ``_json_schema_for_builtin_hint``.
+    """
+    hint = hint.strip()
+
+    if hint.startswith("Union[") or hint.startswith("Optional["):
+        inner = hint[6:-1] if hint.startswith("Union") else hint[9:-1]
+        parts = _split_top_level_commas(inner)
+        has_none = any(part.strip() == "None" for part in parts)
+        non_none_parts = [part for part in parts if part.strip() != "None"]
+        if len(non_none_parts) == 1:
+            base = _hint_to_json_type(non_none_parts[0].strip())
+            if has_none:
+                base["nullable"] = True
+            return base
+        return {"anyOf": [_hint_to_json_type(part.strip()) for part in non_none_parts]}
+
+    if hint.startswith("Literal["):
+        inner = hint[8:-1]
+        parts = _split_top_level_commas(inner)
+        enum_values: list[Any] = []
+        for part in parts:
+            part = part.strip()
+            if part.startswith('"') and part.endswith('"'):
+                enum_values.append(part[1:-1])
+            elif part.startswith("'") and part.endswith("'"):
+                enum_values.append(part[1:-1])
+            elif part in ("True", "False"):
+                enum_values.append(part == "True")
+            elif part == "None":
+                continue
+            else:
+                try:
+                    enum_values.append(int(part))
+                except ValueError:
+                    try:
+                        enum_values.append(float(part))
+                    except ValueError:
+                        enum_values.append(part)
+        if enum_values:
+            first_val = enum_values[0]
+            if isinstance(first_val, str):
+                return {"type": "string", "enum": enum_values}
+            if isinstance(first_val, bool):
+                return {"type": "boolean", "enum": enum_values}
+            if isinstance(first_val, int):
+                return {"type": "integer", "enum": enum_values}
+            if isinstance(first_val, float):
+                return {"type": "number", "enum": enum_values}
+        return {"type": "string", "enum": enum_values} if enum_values else {"type": "object"}
+
+    if hint.startswith("list[") or hint.startswith("List["):
+        inner = hint[5:-1] if hint.startswith("list") else hint[6:-1]
+        return {"type": "array", "items": _hint_to_json_type(inner.strip())}
+
+    if hint.startswith("tuple[") or hint.startswith("Tuple["):
+        item = _sequence_item_hint(hint) or "Any"
+        return {"type": "array", "items": _hint_to_json_type(item)}
+
+    if hint.startswith("dict[") or hint.startswith("Dict["):
+        inner = hint[5:-1] if hint.startswith("dict") else hint[6:-1]
+        parts = _split_top_level_commas(inner)
+        if len(parts) >= 2:
+            return {
+                "type": "object",
+                "additionalProperties": _hint_to_json_type(parts[1].strip()),
+            }
+        return {"type": "object"}
+
+    basic_mapping = {
+        "str": "string",
+        "int": "integer",
+        "float": "number",
+        "bool": "boolean",
+        "bytes": "string",
+        "Any": "object",
+        "None": "null",
+    }
+    if hint in basic_mapping:
+        return {"type": basic_mapping[hint]}
+
+    return {"type": "object"}
+
+
+def _json_schema_for_builtin_hint(hint: str) -> dict[str, Any] | None:
+    """Return JSON Schema for Python builtins/containers, else None.
+
+    ``_hint_to_json_type`` maps unknown names to ``{"type": "object"}``. That
+    catch-all must not replace the caller's fallback (usually string) when
+    class extraction failed or the hint is an alias such as ``Path``.
+    """
+    cleaned = hint.strip()
+    if not cleaned:
+        return None
+    if cleaned in {"Path", "PurePath", "UUID", "UUID4"}:
+        return {"type": "string"}
+    mapped = _hint_to_json_type(cleaned)
+    json_type = mapped.get("type")
+    if json_type in {"integer", "number", "boolean", "null", "array"}:
+        return mapped
+    if json_type == "string" and (cleaned in {"str", "bytes"} or cleaned.startswith("Literal[")):
+        return mapped
+    if cleaned in {"Any", "dict", "Dict"} or cleaned.startswith(("dict[", "Dict[", "Mapping[", "mapping[")):
+        return mapped
+    return None
+
+
 def param_to_json_schema_property(
     *,
     type_hint: str | None,
@@ -2209,8 +2365,11 @@ def param_to_json_schema_property(
             prop["description"] = description
         return prop
 
-    if cleaned.startswith(("List[", "list[", "Sequence[", "Iterable[", "Set[", "set[")) and source_dir:
-        inner = _extract_container_inner_type(cleaned)
+    if (
+        cleaned.startswith(("List[", "list[", "Sequence[", "Iterable[", "Set[", "set[", "Tuple[", "tuple["))
+        and source_dir
+    ):
+        inner = _sequence_item_hint(cleaned) or _extract_container_inner_type(cleaned)
         inner_schema = pydantic_schema_for_type(source_dir, inner, module_path=module_path, _visited=_visited)
         prop: dict[str, Any] = {"type": "array"}
         if inner_schema is not None:
@@ -2227,7 +2386,8 @@ def param_to_json_schema_property(
             prop["description"] = description
         return prop
 
-    prop = {"type": fallback_json_type}
+    builtin = _json_schema_for_builtin_hint(cleaned)
+    prop = dict(builtin) if builtin is not None else {"type": fallback_json_type}
     if description:
         prop["description"] = description
     return prop

@@ -36,6 +36,15 @@ import time
 from pathlib import Path
 from typing import Any
 
+from extensions.sop_converter.missing_dependency import (
+    MissingDependencyRepair,
+    command_python_for_bundle,
+    missing_sdk_dependency_message,
+    parse_missing_module,
+    wrapper_bundle_dir,
+    wrapper_source_file,
+)
+
 _DEFAULT_TIMEOUT_SEC = 300.0
 
 # Match ``bash_tool._ABORT_POLL_INTERVAL_S`` for roughly 50 ms ESC latency.
@@ -76,15 +85,83 @@ class BashCallError(Exception):
         self.returncode = returncode
 
 
-def resolve_bundle_venv_environment(context: Any | None) -> dict[str, str]:
-    """Return environment overrides exposing ready bundle dependencies.
+def _tool_bundle_path(context: Any | None) -> Any:
+    """Return the active bundle path from tool context or process-wide state."""
 
-    Runtime execution never creates or repairs the environment.  ``sop
-    convert`` owns dependency installation; a missing or stale marker is a
-    conversion/deployment error and must not be recovered with an ad-hoc pip
-    install from an Agent turn. The host interpreter remains in use so
-    ClawCodex runtime dependencies stay available; bundle site-packages are
-    prepended through ``PYTHONPATH`` to mirror in-process activation.
+    if context is not None:
+        bundle = getattr(context, "bundle_context", None)
+        if bundle is not None:
+            path = getattr(bundle, "bundle_path", None)
+            if path is not None:
+                return path
+    try:
+        from extensions.sop_converter.bundle_context import get_active_bundle
+
+        bundle = get_active_bundle()
+    except ImportError:
+        return None
+    if bundle is None:
+        return None
+    return getattr(bundle, "bundle_path", None)
+
+
+def _bundle_site_packages_env(bundle_path: Any) -> dict[str, str]:
+    """Expose bundle venv site-packages to the conversation interpreter via PYTHONPATH."""
+
+    if bundle_path is None:
+        return {}
+    try:
+        from extensions.sop_converter.bundle_venv import (
+            bundle_venv_python,
+            bundle_venv_site_packages,
+        )
+
+        python_path = bundle_venv_python(bundle_path)
+    except (ImportError, OSError, TypeError):
+        return {}
+    if not python_path.is_file():
+        return {}
+    pythonpath_entries = [str(path) for path in bundle_venv_site_packages(bundle_path) if path.is_dir()]
+    env: dict[str, str] = {
+        "CLAWCODEX_BUNDLE_VENV": str(python_path.parent.parent),
+        "VIRTUAL_ENV": str(python_path.parent.parent),
+    }
+    existing_path = os.environ.get("PATH", "")
+    executable_dir = str(python_path.parent)
+    env["PATH"] = executable_dir if not existing_path else executable_dir + os.pathsep + existing_path
+    existing_pythonpath = os.environ.get("PYTHONPATH", "")
+    if existing_pythonpath:
+        pythonpath_entries.append(existing_pythonpath)
+    if pythonpath_entries:
+        env["PYTHONPATH"] = os.pathsep.join(pythonpath_entries)
+    return env
+
+
+def _missing_sdk_dependency_error(
+    missing: str,
+    *,
+    argv: list[str] | None,
+    stdout: str,
+    stderr: str,
+    returncode: int | None,
+) -> BashCallError:
+    script_path = argv[1] if argv and len(argv) >= 2 else None
+    python_exe = command_python_for_bundle(script_path=script_path)
+    return BashCallError(
+        missing_sdk_dependency_message(missing, python_exe=python_exe),
+        stdout=stdout,
+        stderr=stderr,
+        returncode=returncode,
+    )
+
+
+def resolve_bundle_venv_environment(context: Any | None) -> dict[str, str]:
+    """Return environment overrides exposing bundle venv site-packages.
+
+    Declared ``sdk_requirements`` still require a ready bundle venv marker.
+    Empty requirements no longer skip injection: an existing bundle venv is
+    still prepended so convert-time-empty bundles can receive runtime pip
+    installs.
     """
     if context is None:
         return {}
@@ -114,44 +191,57 @@ def resolve_bundle_venv_environment(context: Any | None) -> dict[str, str]:
         manifest = read_bundle_manifest(Path(bundle_path))
     except (ImportError, OSError):
         return {}
-    if manifest is None or not manifest.sdk_requirements:
+    if manifest is None:
         return {}
 
     requirements = tuple(manifest.sdk_requirements)
-    if not is_venv_ready(bundle_path, requirements):
-        raise BashCallError(
-            "bundle_venv_not_ready: converted bundle dependencies are missing or "
-            f"stale for {bundle_path}. Re-run sop convert to rebuild the bundle "
-            "venv; runtime tool execution will not install packages."
-        )
-
     python_path = bundle_venv_python(bundle_path)
-    if not python_path.is_file():
-        raise BashCallError(
-            "bundle_venv_not_ready: bundle Python is missing at "
-            f"{python_path}. Re-run sop convert; runtime tool execution will not "
-            "install packages."
-        )
-    site_packages = tuple(path for path in bundle_venv_site_packages(bundle_path) if path.is_dir())
-    if not site_packages:
-        raise BashCallError(
-            "bundle_venv_not_ready: bundle site-packages are missing for "
-            f"{bundle_path}. Re-run sop convert; runtime tool execution will "
-            "not install packages."
-        )
+    pythonpath_entries: list[str] = []
+    env: dict[str, str] = {}
 
-    python_path_entries = [str(path) for path in site_packages]
+    if requirements:
+        if not is_venv_ready(bundle_path, requirements):
+            raise BashCallError(
+                "bundle_venv_not_ready: converted bundle dependencies are missing or "
+                f"stale for {bundle_path}. Re-run sop convert to rebuild the bundle "
+                "venv; runtime tool execution will not install packages."
+            )
+        if not python_path.is_file():
+            raise BashCallError(
+                "bundle_venv_not_ready: bundle Python is missing at "
+                f"{python_path}. Re-run sop convert; runtime tool execution will not "
+                "install packages."
+            )
+        site_packages = tuple(path for path in bundle_venv_site_packages(bundle_path) if path.is_dir())
+        if not site_packages:
+            raise BashCallError(
+                "bundle_venv_not_ready: bundle site-packages are missing for "
+                f"{bundle_path}. Re-run sop convert; runtime tool execution will "
+                "not install packages."
+            )
+        pythonpath_entries.extend(str(path) for path in site_packages)
+        env["CLAWCODEX_BUNDLE_VENV"] = str(python_path.parent.parent)
+        env["VIRTUAL_ENV"] = str(python_path.parent.parent)
+        existing_path = os.environ.get("PATH", "")
+        executable_dir = str(python_path.parent)
+        env["PATH"] = executable_dir if not existing_path else executable_dir + os.pathsep + existing_path
+    elif python_path.is_file():
+        pythonpath_entries.extend(str(path) for path in bundle_venv_site_packages(bundle_path) if path.is_dir())
+        env["CLAWCODEX_BUNDLE_VENV"] = str(python_path.parent.parent)
+        env["VIRTUAL_ENV"] = str(python_path.parent.parent)
+        existing_path = os.environ.get("PATH", "")
+        executable_dir = str(python_path.parent)
+        env["PATH"] = executable_dir if not existing_path else executable_dir + os.pathsep + existing_path
+
+    if not pythonpath_entries and not env:
+        return {}
+
     existing_pythonpath = os.environ.get("PYTHONPATH", "")
     if existing_pythonpath:
-        python_path_entries.append(existing_pythonpath)
-    existing_path = os.environ.get("PATH", "")
-    executable_dir = str(python_path.parent)
-    return {
-        "CLAWCODEX_BUNDLE_VENV": str(python_path.parent.parent),
-        "PYTHONPATH": os.pathsep.join(python_path_entries),
-        "PATH": (executable_dir if not existing_path else executable_dir + os.pathsep + existing_path),
-        "VIRTUAL_ENV": str(python_path.parent.parent),
-    }
+        pythonpath_entries.append(existing_pythonpath)
+    if pythonpath_entries:
+        env["PYTHONPATH"] = os.pathsep.join(pythonpath_entries)
+    return env
 
 
 def resolve_agent_tool_bash_timeout_sec() -> float:
@@ -189,7 +279,7 @@ def _kill_process_tree(pid: int) -> None:
             pass  # Cleanup is best-effort and must not replace the primary operation result.
     else:
         try:
-            os.killpg(os.getpgid(pid), signal.SIGKILL)
+            os.killpg(os.getpgid(pid), signal.SIGKILL)  # pylint: disable=no-member
         except (ProcessLookupError, PermissionError, OSError):
             pass  # Cleanup is best-effort and must not replace the primary operation result.
 
@@ -316,13 +406,10 @@ def execute_bash(
         timeout_sec = resolve_agent_tool_bash_timeout_sec()
 
     env: dict[str, str] | None = None
-    if context is not None:
-        bundle = getattr(context, "bundle_context", None)
-        if bundle is not None:
-            bundle_path = getattr(bundle, "bundle_path", None)
-            if bundle_path is not None:
-                env = dict(os.environ)
-                env["CLAWCODEX_BUNDLE_PATH"] = str(bundle_path)
+    bundle_path = _tool_bundle_path(context)
+    if bundle_path is not None:
+        env = dict(os.environ)
+        env["CLAWCODEX_BUNDLE_PATH"] = str(bundle_path)
 
     for key in ("CLAWCODEX_SESSION_ID", "CLAWCODEX_CATALOG_DUAL_WRITE"):
         value = os.environ.get(key)
@@ -352,15 +439,22 @@ def execute_bash(
     # routing through the shell.
     argv: list[str] | None = None
     if use_argv:
-        if re.match(r"^\s*python3?\s", command_template):
-            bundle_env = resolve_bundle_venv_environment(context)
-            if bundle_env:
-                env = dict(env or os.environ)
-                env.update(bundle_env)
         argv = _argv_for_json_args_template(
             command_template,
             str(params["json_args"]),
         )
+        if bundle_path is None and argv and len(argv) >= 2:
+            bundle_path = wrapper_bundle_dir(argv[1])
+            if bundle_path is not None:
+                env = dict(env or os.environ)
+                env["CLAWCODEX_BUNDLE_PATH"] = str(bundle_path)
+        if re.match(r"^\s*python3?\s", command_template):
+            bundle_env = resolve_bundle_venv_environment(context)
+            if not bundle_env:
+                bundle_env = _bundle_site_packages_env(bundle_path)
+            if bundle_env:
+                env = dict(env or os.environ)
+                env.update(bundle_env)
     try:
         returncode, stdout, stderr, interrupted, timed_out = _run_subprocess_with_abort(
             argv if use_argv else command,
@@ -388,6 +482,22 @@ def execute_bash(
             returncode=returncode,
         )
     if returncode != 0:
+        retried = _retry_after_missing_dependency(
+            command_template=command_template,
+            command=command,
+            argv=argv,
+            use_argv=use_argv,
+            timeout_sec=timeout_sec,
+            abort_signal=abort_signal,
+            env=env,
+            stdin_input=stdin_input,
+            context=context,
+            bundle_path=bundle_path,
+            stderr=stderr,
+            stdout=stdout,
+        )
+        if retried is not None:
+            return retried
         raise BashCallError(
             f"Command exited with {returncode}: {stderr.strip() or stdout.strip()}",
             stdout=stdout,
@@ -396,6 +506,92 @@ def execute_bash(
         )
 
     return stdout
+
+
+def _retry_after_missing_dependency(
+    *,
+    command_template: str,
+    command: str,
+    argv: list[str] | None,
+    use_argv: bool,
+    timeout_sec: float,
+    abort_signal: Any | None,
+    env: dict[str, str] | None,
+    stdin_input: str | None,
+    context: Any | None,
+    bundle_path: Any,
+    stderr: str,
+    stdout: str,
+) -> str | None:
+    """Pip-install a missing import into the bundle venv and retry once."""
+
+    if bundle_path is None and argv and len(argv) >= 2:
+        bundle_path = wrapper_bundle_dir(argv[1])
+    missing = parse_missing_module(f"{stderr}\n{stdout}")
+    if not missing:
+        return None
+    if bundle_path is None:
+        raise _missing_sdk_dependency_error(
+            missing,
+            argv=argv,
+            stdout=stdout,
+            stderr=stderr,
+            returncode=1,
+        )
+    source = None
+    if argv and len(argv) >= 2:
+        source = wrapper_source_file(argv[1])
+    outcome = MissingDependencyRepair(bundle_path).repair(missing, source_file=source)
+    if outcome.error_code == "sdk_dependency_install_failed":
+        raise BashCallError(
+            f"sdk_dependency_install_failed: {outcome.message}",
+            stdout=stdout,
+            stderr=stderr,
+        )
+    if not outcome.installed:
+        raise _missing_sdk_dependency_error(
+            missing,
+            argv=argv,
+            stdout=stdout,
+            stderr=stderr,
+            returncode=1,
+        )
+    retry_env = dict(env or os.environ)
+    if use_argv and re.match(r"^\s*python3?\s", command_template):
+        bundle_env = resolve_bundle_venv_environment(context)
+        if not bundle_env:
+            bundle_env = _bundle_site_packages_env(bundle_path)
+        if bundle_env:
+            retry_env.update(bundle_env)
+        retry_env["CLAWCODEX_BUNDLE_PATH"] = str(bundle_path)
+    try:
+        returncode, retry_stdout, retry_stderr, interrupted, timed_out = _run_subprocess_with_abort(
+            argv if use_argv else command,
+            use_argv=use_argv,
+            timeout_sec=timeout_sec,
+            abort_signal=abort_signal,
+            env=retry_env,
+            stdin_input=stdin_input,
+        )
+    except OSError:
+        return None
+    if interrupted or timed_out or returncode != 0:
+        still_missing = parse_missing_module(f"{retry_stderr}\n{retry_stdout}")
+        if still_missing:
+            raise _missing_sdk_dependency_error(
+                still_missing,
+                argv=argv,
+                stdout=retry_stdout,
+                stderr=retry_stderr,
+                returncode=returncode,
+            )
+        raise BashCallError(
+            f"Command exited with {returncode} after installing {missing}: {(retry_stderr or retry_stdout).strip()}",
+            stdout=retry_stdout,
+            stderr=retry_stderr,
+            returncode=returncode,
+        )
+    return retry_stdout
 
 
 def parse_sop_wrapper_stdout(raw: str) -> Any:

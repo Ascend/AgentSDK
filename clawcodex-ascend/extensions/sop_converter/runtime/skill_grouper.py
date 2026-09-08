@@ -1259,9 +1259,11 @@ class SkillGrouper:
         if not rules:
             return None
 
-        # Sort by specificity: longer patterns first so they match before
-        # shorter / broader patterns (first-match-wins).
-        rules.sort(key=lambda r: len(r.method_pattern), reverse=True)
+        # Sort by specificity for first-match-wins: fewer path hits first
+        # (narrower), then deeper paths, then longer strings.  Sorting by
+        # string length alone lets a superset like ``pkg/foo`` steal files
+        # from ``pkg/foo/bar``.
+        rules.sort(key=lambda r: self._llm_pattern_sort_key(r.method_pattern, dir_file_paths))
         return rules
 
     def _parse_llm_skill(
@@ -1337,6 +1339,16 @@ class SkillGrouper:
             )
             return None
         return method_pat
+
+    @staticmethod
+    def _llm_pattern_sort_key(pattern: str, dir_file_paths: list[str]) -> tuple[int, int, int]:
+        """Lower tuple = more specific (first-match-wins).
+
+        Prefer patterns that hit fewer source paths, then deeper paths
+        (more ``/``), then longer strings.
+        """
+        hits = sum(1 for fp in dir_file_paths if pattern in fp)
+        return (hits, -pattern.count("/"), -len(pattern))
 
     @staticmethod
     def _extract_json_from_raw(raw: str) -> str | None:

@@ -227,14 +227,57 @@ def _operation_complex_param_types(op: SourceOperation) -> list[str]:
     return out
 
 
+_PATH_TYPE_TOKENS = frozenset({"path", "filepath", "pathname", "purepath"})
+_PATH_PARAM_NAMES = frozenset(
+    {
+        "path",
+        "file",
+        "filename",
+        "filepath",
+        "config_path",
+        "src",
+        "source",
+    }
+)
+
+
+def _param_is_path_like(param) -> bool:
+    name = (getattr(param, "name", None) or "").lower()
+    if name in _PATH_PARAM_NAMES or name.endswith("_path") or name.endswith("_file"):
+        return True
+    hint = _normalize_type_hint(getattr(param, "type_hint", None))
+    if hint in _PATH_TYPE_TOKENS or hint.endswith("path"):
+        return True
+    raw = getattr(param, "type_hint", None) or ""
+    return "Path" in raw
+
+
+def _is_filesystem_loader(op: SourceOperation) -> bool:
+    """``load_*(path)`` reads settings from disk; not a catalog identity factory.
+
+    Catalog ``resource_ref`` is for objects created in-process and later
+    hydrated (``create_agent_config`` → ``create_agent``). A YAML/JSON loader
+    returning ``RCConfig`` must not put that type into ``known_create_types``,
+    or pipeline runners like ``execute_stage(config: RCConfig)`` get mislabeled
+    as invoke and require a handle that no create tool can produce.
+    """
+    name = op.name or ""
+    if not name.startswith("load_"):
+        return False
+    required = [p for p in op.parameters if p.required and not (p.name or "").startswith("*")]
+    return bool(required) and _param_is_path_like(required[0])
+
+
 def _looks_like_resource_factory(op: SourceOperation) -> bool:
     """True when a create/build op appears to materialize a reusable resource."""
     name = op.name or ""
     if not any(name.startswith(p) for p in _CREATE_PREFIXES):
         return False
-    if _looks_like_dict_return(op.return_type):
+    if _is_filesystem_loader(op):
+        return False
+    if _looks_like_dict_return(_operation_return_hint(op)):
         return True
-    rt = _normalize_type_hint(op.return_type)
+    rt = _normalize_type_hint(_operation_return_hint(op))
     if rt and rt not in _PRIMITIVE_TYPE_TOKENS and rt not in _DICT_RETURN_HINTS and rt not in _GENERIC_RESOURCE_TOKENS:
         return True
     return bool(_operation_complex_param_types(op))
@@ -260,10 +303,17 @@ def _split_top_level(text: str, sep: str) -> list[str]:
     return parts
 
 
+def _operation_return_hint(op: SourceOperation) -> str | None:
+    """Annotated return type, else constructor inferred from the function body."""
+    return op.return_type or getattr(op, "inferred_return_type", None)
+
+
 def derive_resource_type(op: SourceOperation) -> str:
     """Return the resource type this op produces (create-kind) or consumes (invoke-kind).
 
-    For create-kind ops, derived from ``op.return_type``.
+    For create-kind ops, derived from ``op.return_type`` (or an inferred
+    constructor return). Input parameter types are never treated as the
+    produced resource.
     For invoke-kind ops, derived from the first required parameter whose
     ``type_hint`` is non-primitive.
     Returns the empty string if no resource type can be derived.
@@ -273,19 +323,14 @@ def derive_resource_type(op: SourceOperation) -> str:
     """
     # Create-kind: take the return type, but skip bare dict/mapping (too generic).
     if any((op.name or "").startswith(p) for p in _CREATE_PREFIXES):
-        rt = _normalize_type_hint(op.return_type)
+        hint = _operation_return_hint(op)
+        rt = _normalize_type_hint(hint)
         if rt and rt not in _PRIMITIVE_TYPE_TOKENS and rt not in _GENERIC_CONTAINER_RETURN_TOKENS:
             return rt
         # Fallback: dict-like return that still carries a resource name in
         # the unnormalized hint (e.g. ``Dict[str, AgentConfig]``).
-        for token in _candidate_type_tokens(op.return_type):
+        for token in _candidate_type_tokens(hint):
             return token
-        # §8.6: when return type is a bare dict, fall back to the first
-        # non-primitive parameter type — this covers the common SDK pattern
-        # ``create_agent(config: AgentConfig) -> Dict[str, Any]`` where the
-        # resource type is carried by the input config, not the return value.
-        for pt in _operation_complex_param_types(op):
-            return pt
         return ""
     # Invoke-kind: first non-primitive required param type.
     for param in op.parameters:
@@ -338,10 +383,12 @@ def inject_resource_ref_schema(
     create_tool_name: str = "",
     consume_param: str | None = None,
 ) -> dict:
-    """Add the stable resource handle contract to an invoke schema.
+    """Add the stable resource handle contract to a consume schema.
 
-    The SDK-specific consume parameter remains in ``properties`` for legacy
-    callers, but ``resource_ref`` replaces it in ``required`` when supplied.
+    Used by invoke tools and by create tools that consume another create's
+    resource type. The SDK-specific consume parameter remains in
+    ``properties`` for legacy callers, but ``resource_ref`` replaces it in
+    ``required`` when supplied.
     A fresh schema is returned so callers do not mutate a shared ToolSpec.
     """
     if not resource_type or not isinstance(input_schema, dict):

@@ -71,3 +71,55 @@ class TestGenericPipelineExtractor:
         ext = GenericPipelineExtractor(scan=scan, mode="fwa")
         stages = ext.extract_stages(path)
         assert all(s.source_class == "Stage" for s in stages)
+
+    def test_nested_bool_returns_are_not_decision_outcomes(self, tmp_path: Path):
+        (tmp_path / "stages.py").write_text(
+            "from enum import IntEnum\n"
+            "class Stage(IntEnum):\n"
+            "    START = 1\n"
+            "    REFINE = 2\n"
+            "    DONE = 3\n"
+            "STAGE_SEQUENCE = tuple(Stage)\n"
+            "NEXT_STAGE = {\n"
+            "    stage: STAGE_SEQUENCE[i + 1] if i + 1 < len(STAGE_SEQUENCE) else None\n"
+            "    for i, stage in enumerate(STAGE_SEQUENCE)\n"
+            "}\n"
+            "def _execute_refine():\n"
+            "    def _is_better(candidate, current):\n"
+            "        if candidate is None:\n"
+            "            return False\n"
+            "        return True\n"
+            "    return Stage.DONE\n"
+            "def should_pause():\n"
+            "    return False\n",
+            encoding="utf-8",
+        )
+        scan = SourceScanContext.build(tmp_path)
+        ext = GenericPipelineExtractor(scan=scan, mode="fwa")
+        decisions = ext.extract_decisions(tmp_path)
+        assert 3 not in decisions
+        refine = decisions.get(2)
+        assert refine is not None
+        assert "False" not in refine.outcomes
+        assert "True" not in refine.outcomes
+        assert "DONE" in refine.outcomes
+
+    def test_entry_function_from_name_fallback(self, tmp_path: Path):
+        (tmp_path / "pipeline.py").write_text(
+            "from enum import IntEnum\n"
+            "class Stage(IntEnum):\n"
+            "    START = 1\n"
+            "    DONE = 2\n"
+            "def _execute_start():\n"
+            "    return Stage.DONE\n"
+            "def _execute_done():\n"
+            "    return None\n",
+            encoding="utf-8",
+        )
+        scan = SourceScanContext.build(tmp_path)
+        ext = GenericPipelineExtractor(scan=scan, mode="fwa")
+        stages = ext.extract_stages(tmp_path)
+        by_label = {s.label: s for s in stages}
+        assert by_label["START"].entry_function == "_execute_start"
+        assert by_label["DONE"].entry_function == "_execute_done"
+        assert by_label["START"].file_path == "pipeline.py"

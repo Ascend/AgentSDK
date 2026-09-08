@@ -23,8 +23,13 @@
 from __future__ import annotations
 
 import json
+import os
 import shlex
+import subprocess
+import sys
 import tempfile
+import uuid
+import textwrap
 import unittest
 from pathlib import Path
 
@@ -332,6 +337,300 @@ class TestSidecarResourcesOverride(unittest.TestCase):
             "string",
         )
         self.assertIn("resource_ref", invoke_spec["input_schema"]["required"])
+
+
+class TestCreateResourceTypeFromReturnOnly(unittest.TestCase):
+    def test_unannotated_create_does_not_use_input_param_type(self) -> None:
+        create = _op(
+            name="create_llm_agent_config",
+            parameters=[
+                ParamSpec(name="agent_id", type_hint="str", required=True),
+                ParamSpec(name="model", type_hint="ModelConfig", required=True),
+            ],
+            return_type=None,
+        )
+        self.assertEqual(derive_resource_type(create), "")
+
+    def test_dict_any_return_does_not_fall_back_to_param(self) -> None:
+        create = _op(
+            name="create_agent",
+            return_type="Dict[str, Any]",
+            parameters=[ParamSpec(name="config", type_hint="AgentConfig", required=True)],
+        )
+        self.assertEqual(derive_resource_type(create), "")
+
+    def test_inferred_return_wins_over_model_param(self) -> None:
+        create = _op(
+            name="create_llm_agent_config",
+            parameters=[ParamSpec(name="model", type_hint="ModelConfig", required=True)],
+            inferred_return_type="ReActAgentConfig",
+        )
+        self.assertEqual(derive_resource_type(create), "reactagentconfig")
+
+    def test_convert_wires_config_factory_to_agent_factory(self) -> None:
+        from extensions.sop_converter.source_parser import SourceCodeParser
+        from extensions.sop_converter.tool_registry_bridge import register_component_tools
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / "sdk"
+            source.mkdir()
+            (source / "factory.py").write_text(
+                textwrap.dedent(
+                    """
+                    from dataclasses import dataclass, field
+
+                    from pydantic import BaseModel, Field
+
+
+                    class EndpointInfo(BaseModel):
+                        model: str = ""
+                        api_base: str = Field(default="https://example.invalid")
+
+
+                    @dataclass
+                    class ModelConfig:
+                        model_provider: str
+                        model_info: EndpointInfo = field(default_factory=EndpointInfo)
+
+
+                    class AgentConfig(BaseModel):
+                        id: str = ""
+                        model: ModelConfig | None = None
+
+
+                    class LiveAgent:
+                        def __init__(self, agent_config: AgentConfig):
+                            self.agent_config = agent_config
+
+                        def invoke(self, query: str) -> dict:
+                            return {"echo": query, "id": self.agent_config.id}
+
+
+                    def create_agent_config(agent_id: str, model: ModelConfig):
+                        '''Create the serializable agent configuration.'''
+                        config = AgentConfig(id=agent_id, model=model)
+                        return config
+
+
+                    def create_agent(agent_config: AgentConfig):
+                        '''Create a live agent from its configuration.'''
+                        agent = LiveAgent(agent_config)
+                        return agent
+                    """
+                ).strip(),
+                encoding="utf-8",
+            )
+            bundle = root / "bundle"
+            bundle.mkdir()
+            name_map = register_component_tools(
+                SourceCodeParser(str(source)).parse(),
+                str(source),
+                persist=True,
+                bundle_dir=bundle,
+                bundle_id="return-type-test",
+            )
+            config_name = name_map["factory.create_agent_config"]
+            agent_name = name_map["factory.create_agent"]
+            config_spec = json.loads((bundle / "agent-tools" / f"{config_name}.json").read_text(encoding="utf-8"))
+            agent_spec = json.loads((bundle / "agent-tools" / f"{agent_name}.json").read_text(encoding="utf-8"))
+
+            config_tokens = shlex.split(config_spec["call_impl"])
+            agent_tokens = shlex.split(agent_spec["call_impl"])
+            config_meta = json.loads(config_tokens[config_tokens.index("--catalog-metadata") + 1])
+            agent_meta = json.loads(agent_tokens[agent_tokens.index("--catalog-metadata") + 1])
+            self.assertTrue(str(config_meta["resource_type"]).endswith("agentconfig"))
+            self.assertFalse(str(config_meta["resource_type"]).endswith("modelconfig"))
+            self.assertTrue(str(agent_meta["resource_type"]).endswith("agent"))
+            self.assertFalse(str(agent_meta["resource_type"]).endswith("agentconfig"))
+            requires = [
+                item["tool"] for item in agent_spec["input_schema"].get("x-sop-dependencies", {}).get("requires", [])
+            ]
+            self.assertIn(config_name, requires)
+
+            # Create tools that consume another create's type take resource_ref
+            # the same way invoke tools do. Inline agent_config stays in
+            # properties for legacy callers but is no longer required.
+            agent_required = agent_spec["input_schema"].get("required", [])
+            self.assertIn("resource_ref", agent_required)
+            self.assertNotIn("agent_config", agent_required)
+            self.assertIn("agent_config", agent_spec["input_schema"]["properties"])
+            self.assertIn(
+                config_name,
+                agent_spec["input_schema"]["properties"]["resource_ref"]["description"],
+            )
+            self.assertEqual(agent_meta.get("consume_param"), "agent_config")
+            self.assertTrue(str(agent_meta.get("consume_resource_type") or "").endswith("agentconfig"))
+            self.assertEqual(config_meta.get("persist_resource_id"), "generated")
+            self.assertNotEqual(agent_meta.get("persist_resource_id"), "generated")
+            self.assertNotIn("resource_ref", config_spec["input_schema"].get("required", []))
+
+            from extensions.sop_converter.resource_catalog import ResourceCatalog, get_agent_record
+
+            payload = json.dumps(
+                {
+                    "agent_id": "verify-bot",
+                    "model": {
+                        "model_provider": "deepseek",
+                        "model_info": {"model": "deepseek-chat"},
+                    },
+                }
+            )
+            create_proc = subprocess.run(
+                [
+                    sys.executable,
+                    config_tokens[1],
+                    "create_agent_config",
+                    payload,
+                    "--catalog-metadata",
+                    json.dumps(config_meta),
+                ],
+                capture_output=True,
+                text=True,
+                env={**os.environ, "CLAWCODEX_BUNDLE_PATH": str(bundle)},
+                timeout=30,
+            )
+            self.assertEqual(create_proc.returncode, 0, create_proc.stderr)
+            create_result = json.loads(create_proc.stdout.strip().splitlines()[-1])
+            self.assertTrue(create_result.get("created_persisted"))
+            config_ref = str(create_result.get("resource_ref") or "")
+            uuid.UUID(config_ref)
+            self.assertNotEqual(config_ref, "verify-bot")
+            catalog = ResourceCatalog.load(bundle / ".clawcodex" / "resource-catalog.json")
+            self.assertEqual(catalog.find_by_resource_id("verify-bot"), [])
+            record = catalog.find_by_resource_id(config_ref)[0]
+            self.assertTrue(str(record.resource_type).endswith("agentconfig"))
+            self.assertEqual((record.payload.get("dsl") or {}).get("id"), "verify-bot")
+            persisted_model = record.payload["init_kwargs"]["model"]
+            self.assertEqual(persisted_model["model_provider"], "deepseek")
+            self.assertEqual(persisted_model["model_info"]["model"], "deepseek-chat")
+            self.assertEqual(persisted_model["model_info"]["api_base"], "https://example.invalid")
+
+            empty_ref_proc = subprocess.run(
+                [
+                    sys.executable,
+                    agent_tokens[1],
+                    "create_agent",
+                    json.dumps(
+                        {
+                            "resource_ref": "",
+                            "agent_config": {"id": "verify-bot", "model": None},
+                        }
+                    ),
+                    "--catalog-metadata",
+                    json.dumps(agent_meta),
+                ],
+                capture_output=True,
+                text=True,
+                env={**os.environ, "CLAWCODEX_BUNDLE_PATH": str(bundle)},
+                timeout=30,
+            )
+            self.assertNotEqual(empty_ref_proc.returncode, 0, empty_ref_proc.stdout)
+            self.assertIn("resource_ref", empty_ref_proc.stderr)
+
+            agent_proc = subprocess.run(
+                [
+                    sys.executable,
+                    agent_tokens[1],
+                    "create_agent",
+                    json.dumps({"resource_ref": config_ref}),
+                    "--catalog-metadata",
+                    json.dumps(agent_meta),
+                ],
+                capture_output=True,
+                text=True,
+                env={**os.environ, "CLAWCODEX_BUNDLE_PATH": str(bundle)},
+                timeout=30,
+            )
+            self.assertEqual(agent_proc.returncode, 0, agent_proc.stderr)
+            agent_result = json.loads(agent_proc.stdout.strip().splitlines()[-1])
+            self.assertTrue(agent_result.get("created_persisted"))
+            self.assertEqual(agent_result.get("resource_ref"), "verify-bot")
+            catalog = ResourceCatalog.load(bundle / ".clawcodex" / "resource-catalog.json")
+            named = catalog.find_by_resource_id("verify-bot")
+            self.assertEqual(len(named), 1)
+            live = named[0]
+            self.assertTrue(str(live.resource_type).endswith("agent"))
+            self.assertFalse(str(live.resource_type).endswith("agentconfig"))
+            live_config = live.payload["init_kwargs"].get("agent_config") or {}
+            self.assertEqual(live_config.get("id"), "verify-bot")
+            self.assertEqual(live_config["model"]["model_provider"], "deepseek")
+            self.assertEqual(live_config["model"]["model_info"]["model"], "deepseek-chat")
+
+            invoked = get_agent_record(agent_ref="verify-bot", bundle_path=bundle)
+            self.assertEqual(invoked.resource_id, "verify-bot")
+            self.assertEqual(invoked.resource_type, live.resource_type)
+
+
+class TestFilesystemLoaderIsNotCatalogCreate(unittest.TestCase):
+    def test_load_config_from_path_is_not_create(self) -> None:
+        op = _op(
+            name="load_config",
+            parameters=[ParamSpec(name="path", type_hint="Path", required=True)],
+            return_type="RCConfig",
+        )
+        self.assertEqual(infer_lifecycle_kind(op), "none")
+
+    def test_load_agent_by_id_is_still_create(self) -> None:
+        op = _op(
+            name="load_agent",
+            parameters=[ParamSpec(name="agent_id", type_hint="str", required=True)],
+            return_type="LLMAgent",
+        )
+        self.assertEqual(infer_lifecycle_kind(op), "create")
+
+    def test_execute_stage_does_not_require_resource_ref(self) -> None:
+        from extensions.sop_converter.source_parser import SourceCodeParser
+        from extensions.sop_converter.tool_registry_bridge import register_component_tools
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / "sdk"
+            source.mkdir()
+            (source / "pipeline.py").write_text(
+                textwrap.dedent(
+                    """
+                    from enum import IntEnum
+                    from pathlib import Path
+
+
+                    class Stage(IntEnum):
+                        INIT = 1
+
+
+                    class RCConfig:
+                        def __init__(self, topic: str = ""):
+                            self.topic = topic
+
+
+                    def load_config(path: Path) -> RCConfig:
+                        '''Load pipeline settings from a yaml file.'''
+                        return RCConfig()
+
+
+                    def execute_stage(stage: Stage, *, run_dir: Path, config: RCConfig):
+                        '''Run one pipeline stage.'''
+                        return {"stage": int(stage), "run_dir": str(run_dir)}
+                    """
+                ).strip(),
+                encoding="utf-8",
+            )
+            bundle = root / "bundle"
+            bundle.mkdir()
+            name_map = register_component_tools(
+                SourceCodeParser(str(source)).parse(),
+                str(source),
+                persist=True,
+                bundle_dir=bundle,
+                bundle_id="pipeline-test",
+            )
+            execute_name = name_map["pipeline.execute_stage"]
+            spec = json.loads((bundle / "agent-tools" / f"{execute_name}.json").read_text(encoding="utf-8"))
+            required = spec["input_schema"].get("required", [])
+            self.assertIn("run_dir", required)
+            self.assertIn("config", required)
+            self.assertNotIn("resource_ref", required)
+            self.assertNotIn("resource_ref", spec["input_schema"].get("properties", {}))
 
 
 if __name__ == "__main__":

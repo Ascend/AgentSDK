@@ -61,6 +61,23 @@ NEXT = {Stage.PREPROCESS: Stage.ANALYZE}
         pairs = parse_enum_dict_mapping(dict_node, {"Stage"}, members)
         assert pairs == [(1, 2)]
 
+    def test_resolve_enum_member_ignores_bool(self):
+        true_node = ast.parse("True", mode="eval").body
+        false_node = ast.parse("False", mode="eval").body
+        zero_node = ast.parse("0", mode="eval").body
+        assert resolve_enum_member(true_node, set(), {}) is None
+        assert resolve_enum_member(false_node, set(), {}) is None
+        assert resolve_enum_member(zero_node, set(), {}) == ("0", 0)
+
+    def test_classify_stage_mapping_name(self):
+        from extensions.sop_converter.workflow_mode.ast_helpers import classify_stage_mapping_name
+
+        assert classify_stage_mapping_name("NEXT_STAGE") == "forward"
+        assert classify_stage_mapping_name("GATE_ROLLBACK") == "rollback"
+        assert classify_stage_mapping_name("PREVIOUS_STAGE") == "rollback"
+        assert classify_stage_mapping_name("DECISION_ROLLBACK") == "decision"
+        assert classify_stage_mapping_name("CONTRACTS") == "skip"
+
     def test_parse_linear_next_stage_dictcomp_enumerate(self):
         from extensions.sop_converter.workflow_mode.ast_helpers import (
             parse_linear_next_stage_dictcomp,
@@ -118,6 +135,7 @@ class TestWorkflowDiscriminator:
         assert disc.mode == "fwa"
         assert disc.total_score >= 0.7
         assert disc.fwa_qualified
+        assert any(m.name == "gate_definition" and m.matched for m in disc.matches)
 
     def test_force_mode_sdk(self):
         path = FIXTURES / "fixture_fwa_project"

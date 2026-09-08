@@ -233,6 +233,64 @@ class TestSdkWrapperBundleVenvBootstrap(unittest.TestCase):
             self.assertEqual(first, 1)
             self.assertEqual(second, 22)
 
+    def test_in_process_repairs_modulenotfound_during_load(self) -> None:
+        from types import SimpleNamespace
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            scripts_dir = tmp / "agent-tools" / "scripts"
+            scripts_dir.mkdir(parents=True)
+            bundle_dir = tmp / "bundle"
+            bundle_dir.mkdir()
+            script_path = scripts_dir / "load_fail_wrapper.py"
+            script_path.write_text("def value():\n    return 7\n", encoding="utf-8")
+
+            calls = {"n": 0}
+            repaired: list[str] = []
+            real_exec = sdk_wrapper._exec_wrapper_module_in_process
+
+            def fake_exec(spec, module, path):
+                calls["n"] += 1
+                module._BUNDLE_DIR = str(bundle_dir)
+                if calls["n"] == 1:
+                    raise ModuleNotFoundError(
+                        "No module named 'opentelemetry.sdk'",
+                        name="opentelemetry.sdk",
+                    )
+                return real_exec(spec, module, path)
+
+            class _FakeRepair:
+                def __init__(self, _bundle):
+                    pass
+
+                def repair(self, missing, source_file=None):
+                    repaired.append(missing)
+                    return SimpleNamespace(installed=True, error_code=None, message="")
+
+            with (
+                patch.object(sdk_wrapper, "is_allowed_wrapper_script", return_value=True),
+                patch.object(sdk_wrapper, "_exec_wrapper_module_in_process", fake_exec),
+                patch(
+                    "extensions.sop_converter.missing_dependency.MissingDependencyRepair",
+                    _FakeRepair,
+                ),
+                patch(
+                    "extensions.sop_converter.bundle_venv.activate_bundle_venv_imports",
+                    lambda *_args, **_kwargs: (),
+                ),
+            ):
+                result = sdk_wrapper.execute_sdk_wrapper_in_process(
+                    script_path=script_path,
+                    method_name="value",
+                    kwargs={},
+                    session_id="sess-a",
+                    agent_id=None,
+                )
+
+            self.assertEqual(result, 7)
+            self.assertEqual(calls["n"], 2)
+            self.assertEqual(repaired, ["opentelemetry.sdk"])
+
 
 class TestSdkInstanceRegistryCrossCall(unittest.TestCase):
     def setUp(self) -> None:
@@ -405,6 +463,66 @@ class TestSdkContextRegistryCrossCall(unittest.TestCase):
 
             self.assertEqual(result_a.output, "verify-session-001")
             self.assertEqual(result_b.output, "")
+
+
+class TestSdkWrapperSystemExitGuard(unittest.TestCase):
+    """SystemExit raised by an in-process SDK wrapper must not kill the host.
+
+    SDK-generated wrappers sometimes call ``sys.exit(1)`` on import or import
+    failure (e.g. ``run_full_pipeline.py``). When such a wrapper is executed
+    in-process, that ``SystemExit`` used to propagate out of
+    ``execute_sdk_wrapper_in_process`` and terminate the whole REPL. It must be
+    converted to ``SdkWrapperCallError`` so the tool dispatch layer turns it
+    into a normal ``ToolResult(error)``.
+    """
+
+    def setUp(self) -> None:
+        sdk_wrapper._MODULE_CACHE.clear()
+        sdk_wrapper._MODULE_CACHE_FINGERPRINT.clear()
+        sdk_wrapper._SCRIPT_USES_INSTANCE_CACHE.clear()
+        sdk_wrapper._SCRIPT_BUNDLE_BOOTSTRAP_CACHE.clear()
+
+    def test_module_level_system_exit_becomes_call_error(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            scripts_dir = tmp / "agent-tools" / "scripts"
+            scripts_dir.mkdir(parents=True)
+            script_path = scripts_dir / "exits_on_import.py"
+            script_path.write_text(
+                "import sys\nsys.exit(1)\ndef value():\n    return 42\n",
+                encoding="utf-8",
+            )
+
+            with patch.object(sdk_wrapper, "is_allowed_wrapper_script", return_value=True):
+                with self.assertRaises(sdk_wrapper.SdkWrapperCallError):
+                    sdk_wrapper.execute_sdk_wrapper_in_process(
+                        script_path=script_path,
+                        method_name="value",
+                        kwargs={},
+                        session_id="sess-a",
+                        agent_id=None,
+                    )
+
+    def test_method_body_system_exit_becomes_call_error(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            scripts_dir = tmp / "agent-tools" / "scripts"
+            scripts_dir.mkdir(parents=True)
+            script_path = scripts_dir / "exits_in_call.py"
+            script_path.write_text(
+                "import sys\ndef value():\n    sys.exit(1)\n",
+                encoding="utf-8",
+            )
+
+            with patch.object(sdk_wrapper, "is_allowed_wrapper_script", return_value=True):
+                with self.assertRaises(sdk_wrapper.SdkWrapperCallError):
+                    sdk_wrapper.execute_sdk_wrapper_in_process(
+                        script_path=script_path,
+                        method_name="value",
+                        kwargs={},
+                        session_id="sess-a",
+                        agent_id=None,
+                    )
 
 
 if __name__ == "__main__":

@@ -20,6 +20,8 @@
 # by Huawei Technologies Co.,Ltd.
 # -------------------------------------------------------------------------
 
+# pylint: disable=too-many-lines
+
 """SourceCodeParser — Python source AST parser that extracts ``SourceComponent[]``.
 
 Recursively scans ``.py`` files under a Python source directory to extract
@@ -143,6 +145,23 @@ class ParamSpec:
 
 
 _FACTORY_PREFIXES = frozenset({"create_", "build_", "make_", "new_"})
+_INFER_RETURN_PREFIXES = tuple(_FACTORY_PREFIXES) + ("init_", "register_", "ensure_", "load_")
+_SKIP_INFERRED_CTORS = frozenset(
+    {
+        "dict",
+        "list",
+        "tuple",
+        "set",
+        "frozenset",
+        "str",
+        "int",
+        "float",
+        "bool",
+        "bytes",
+        "object",
+        "type",
+    }
+)
 
 
 _SIMPLE_RETURN_TYPES = frozenset(
@@ -224,6 +243,9 @@ class SourceOperation:
     is_factory: bool = False  # factory function (create_xxx, build_xxx, make_xxx)
     requires_interactive_input: bool = False  # needs interactive input (input()/getpass.getpass()/sys.stdin.readline())
     interactive_prompts: list[str] = field(default_factory=list)  # detected interactive prompt texts
+    is_classmethod: bool = False  # method decorated with ``@classmethod``
+    is_staticmethod: bool = False  # method decorated with ``@staticmethod``
+    inferred_return_type: str | None = None  # constructor name when the annotation is missing
 
 
 @dataclass
@@ -244,6 +266,48 @@ class SourceComponent:
 # ---------------------------------------------------------------------------
 # SourceCodeParser
 # ---------------------------------------------------------------------------
+
+
+def _constructor_name(call: ast.Call) -> str | None:
+    func = call.func
+    if isinstance(func, ast.Name):
+        name = func.id
+    elif isinstance(func, ast.Attribute):
+        name = func.attr
+    else:
+        return None
+    if name in _SKIP_INFERRED_CTORS:
+        return None
+    return name
+
+
+def _infer_return_type_from_body(node: ast.FunctionDef | ast.AsyncFunctionDef) -> str | None:
+    """Best-effort constructor name for unannotated create/build factories."""
+    assigned: dict[str, str] = {}
+    for stmt in node.body:
+        if isinstance(stmt, ast.Assign) and isinstance(stmt.value, ast.Call):
+            ctor = _constructor_name(stmt.value)
+            if ctor:
+                for target in stmt.targets:
+                    if isinstance(target, ast.Name):
+                        assigned[target.id] = ctor
+        elif isinstance(stmt, ast.AnnAssign) and isinstance(stmt.value, ast.Call) and isinstance(stmt.target, ast.Name):
+            ctor = _constructor_name(stmt.value)
+            if ctor:
+                assigned[stmt.target.id] = ctor
+    found: list[str] = []
+    for stmt in node.body:
+        if not isinstance(stmt, ast.Return) or stmt.value is None:
+            continue
+        value = stmt.value
+        if isinstance(value, ast.Call):
+            ctor = _constructor_name(value)
+            if ctor:
+                found.append(ctor)
+        elif isinstance(value, ast.Name) and value.id in assigned:
+            found.append(assigned[value.id])
+    unique = list(dict.fromkeys(found))
+    return unique[0] if len(unique) == 1 else None
 
 
 class SourceCodeParser:
@@ -573,6 +637,9 @@ class SourceCodeParser:
 
         # Return type
         return_type = self._resolve_type_hint(node.returns)
+        inferred_return_type = None
+        if return_type is None and node.name.startswith(_INFER_RETURN_PREFIXES):
+            inferred_return_type = _infer_return_type_from_body(node)
 
         # Source code snippet
         source_code = self._get_source_code(lines, node)
@@ -581,6 +648,16 @@ class SourceCodeParser:
 
         is_property = any(
             (isinstance(d, ast.Name) and d.id == "property") or (isinstance(d, ast.Attribute) and d.attr == "property")
+            for d in node.decorator_list
+        )
+        is_classmethod = any(
+            (isinstance(d, ast.Name) and d.id == "classmethod")
+            or (isinstance(d, ast.Attribute) and d.attr == "classmethod")
+            for d in node.decorator_list
+        )
+        is_staticmethod = any(
+            (isinstance(d, ast.Name) and d.id == "staticmethod")
+            or (isinstance(d, ast.Attribute) and d.attr == "staticmethod")
             for d in node.decorator_list
         )
         if is_property:
@@ -610,6 +687,9 @@ class SourceCodeParser:
             is_factory=is_factory,
             requires_interactive_input=requires_interactive_input,
             interactive_prompts=interactive_prompts,
+            is_classmethod=is_classmethod,
+            is_staticmethod=is_staticmethod,
+            inferred_return_type=inferred_return_type,
         )
 
     # ---- docstring parsing ------------------------------------------------

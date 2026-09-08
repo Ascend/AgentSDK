@@ -110,6 +110,19 @@ class TestGroupStrategy:
             f"Expected type anchor in name, got: {[s.name for s in result.skills]}"
         )
 
+    def test_llm_pattern_sort_prefers_fewer_hits(self) -> None:
+        """Superset paths must not sort ahead of more specific subpaths."""
+        paths = [
+            "AutoResearchClaw/researchclaw/pipeline/runner.py",
+            "AutoResearchClaw/researchclaw/literature/arxiv.py",
+            "AutoResearchClaw/experiments/arc_bench/run.py",
+        ]
+        broad = SkillGrouper._llm_pattern_sort_key("AutoResearchClaw/researchclaw", paths)
+        narrow = SkillGrouper._llm_pattern_sort_key("researchclaw/literature", paths)
+        bench = SkillGrouper._llm_pattern_sort_key("arc_bench", paths)
+        assert narrow < broad
+        assert bench < broad
+
     def test_io_relation_naming_with_types(self) -> None:
         """IO_RELATION group names include dominant type anchors."""
         ops_a = [

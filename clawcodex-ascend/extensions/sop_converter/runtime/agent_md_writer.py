@@ -267,8 +267,8 @@ when_to_use: '{{ description | replace("'", "''") }}'
 
 3. **子代理内部顺序固定**: ``Skill → ToolSearch → SDK 工具``
    - 工具调用权限确认 ≠ 失败，等待用户批准即可，**不要**进入诊断
-   - 工具真正失败后才可有限诊断（``Read tool spec`` → ``Read wrapper`` 取 ``_SOURCE_DIR``）
-   - **禁止** 用 ``Bash`` / ``Grep`` 诊断；**禁止** Grep SDK 源码树
+   - ``No module named 'X'``：缺的就是包 X；runtime 只装 X 进 bundle venv 并重试同一工具。禁止 ls/find ``agent-tools``
+   - 其他失败可有限诊断（``Read tool spec`` → ``Read wrapper`` 取 ``_SOURCE_DIR``）
 
 ---
 

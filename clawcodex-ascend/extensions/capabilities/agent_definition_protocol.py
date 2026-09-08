@@ -132,6 +132,24 @@ class AgentToolConstants:
         )
     )
 
+    # Built-ins a session macro may never orchestrate. Agent/Task* delegate
+    # work to subprocesses/other agents (their effects never appear as a
+    # parent-session tool trace); Bash is a raw shell escape hatch outside the
+    # SOP atomic toolset. Kept as an explicit exclusion so the macro tool_index
+    # is a true allowlist: bundle atomic tools ∪ SOP-domain base minus these.
+    POS_MACRO_FORBIDDEN_BUILTINS: frozenset[str] = frozenset(
+        (
+            "Agent",
+            "Bash",
+            "Task",
+            "TaskCreate",
+            "TaskGet",
+            "TaskList",
+            "TaskUpdate",
+            "TaskStop",
+        )
+    )
+
     @classmethod
     def registered_proxy_base_tools(cls) -> list[str]:
         """Sorted proxy allowlist excluding unregistered special tools."""

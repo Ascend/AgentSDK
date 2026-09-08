@@ -243,11 +243,12 @@ def _first_resource_type_for_op(
     prefer_return: bool,
 ) -> str:
     hints: list[str | None] = []
+    return_hint = op.return_type or getattr(op, "inferred_return_type", None)
     if prefer_return:
-        hints.append(op.return_type)
-    hints.extend(param.type_hint for param in op.parameters if param.required and not param.name.startswith("*"))
-    if not prefer_return:
-        hints.append(op.return_type)
+        hints.append(return_hint)
+    else:
+        hints.extend(param.type_hint for param in op.parameters if param.required and not param.name.startswith("*"))
+        hints.append(return_hint)
     for hint in hints:
         token = _resource_type_from_hint(
             resolver=resolver,
@@ -257,6 +258,30 @@ def _first_resource_type_for_op(
         if token and token.rsplit("_", 1)[-1] not in _PRIMITIVE_TYPES:
             return token
     return ""
+
+
+def _create_consume_resource(
+    op: SourceOperation,
+    *,
+    resolver: ModuleImportIndex | None,
+    module_path: str,
+    canonical_create_types: set[str],
+    produced_type: str,
+) -> tuple[str, str] | None:
+    """Return ``(param, resource_type)`` when this create consumes another create."""
+    if not canonical_create_types:
+        return None
+    for param in op.parameters:
+        if not param.required or param.name.startswith("*"):
+            continue
+        token = _resource_type_from_hint(
+            resolver=resolver,
+            module_path=module_path,
+            type_hint=param.type_hint,
+        )
+        if token and token in canonical_create_types and token != produced_type:
+            return param.name, token
+    return None
 
 
 _TYPE_MAP: dict[str, str] = {
@@ -404,34 +429,15 @@ def _normalize_schema_default(default: Any, *, json_type: str) -> Any:
 def _adjust_pipeline_execute_stage_schema(
     op: SourceOperation,
     properties: dict[str, Any],
-    required: list[str],
 ) -> None:
-    """Relax workflow executor schemas without assuming a specific SDK.
+    """Clarify workflow executor field descriptions. Do not change required.
 
-    A workflow executor is identified by its context-shaped parameters rather
-    than by a module path or a vendor-specific type name. The same rule is
-    used by wrapper generation below so schema and execution stay aligned.
+    JSON required must match the SDK signature. Path/Enum values are still
+    coerced at runtime from strings; other objects are coerced from JSON
+    dicts via the parameter annotation. Omitted required fields stay invalid.
     """
     if not _is_workflow_execute_operation(op):
         return
-
-    for key in ("config", "adapters", "run_id", "context"):
-        if key in properties:
-            properties[key]["description"] = properties[key].get("description") or (
-                "Optional SDK runtime configuration"
-                if key == "config"
-                else (
-                    "Optional SDK runtime adapters"
-                    if key == "adapters"
-                    else (
-                        "Optional workflow context mapping"
-                        if key == "context"
-                        else "Optional; defaults to run_dir directory name"
-                    )
-                )
-            )
-            if key in required:
-                required.remove(key)
 
     for key in ("stage", "stage_id", "step", "step_id"):
         if key in properties:
@@ -605,6 +611,10 @@ def _merge_init_and_method_params(
 
     merged = [by_name[name] for name in order]
     return _sort_params_for_python_signature(merged)
+
+
+def _operation_uses_instance(op: SourceOperation) -> bool:
+    return bool(op.class_name and not (op.is_classmethod or op.is_staticmethod))
 
 
 def _param_signature_parts(params: list[ParamSpec]) -> list[str]:
@@ -1226,6 +1236,7 @@ import traceback
 import importlib
 import asyncio
 import dataclasses
+import uuid
 from pathlib import Path
 {serialization_helpers}
 {coercion_helpers}
@@ -1578,6 +1589,55 @@ if __name__ == "__main__":
         if recovered is not None:
             print(_dumps_sdk_result(recovered))
             sys.exit(0)
+    if catalog_meta is not None:
+        _consume_param = catalog_meta.get("consume_param")
+        _consume_type = catalog_meta.get("consume_resource_type")
+        if _consume_param and _consume_type:
+            if not str(resource_ref or "").strip():
+                print(
+                    json.dumps(
+                        {{
+                            "error": (
+                                f"resource_ref is required to hydrate {{_consume_param}} "
+                                f"(resource_type={{_consume_type}}); empty resource_ref cannot "
+                                f"substitute an inline {{_consume_param}}"
+                            ),
+                            "error_code": "resource_ref_required",
+                        }},
+                        ensure_ascii=False,
+                    ),
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+            try:
+                from extensions.sop_converter.resource_catalog import get_resource_record
+
+                _bundle_path = (
+                    catalog_meta.get("_bundle_path")
+                    or os.environ.get("CLAWCODEX_BUNDLE_PATH", "").strip()
+                    or None
+                )
+                _record = get_resource_record(
+                    str(resource_ref),
+                    resource_type=str(_consume_type),
+                    bundle_path=_bundle_path,
+                )
+                _payload = _record.payload if isinstance(_record.payload, dict) else {{}}
+                _hydrated = _payload.get("dsl")
+                if isinstance(_hydrated, dict):
+                    _hydrated = {{k: v for k, v in _hydrated.items() if not str(k).startswith("_")}}
+                if not _hydrated:
+                    raise RuntimeError(f"catalog record {{resource_ref!r}} has no object snapshot to hydrate")
+                args[_consume_param] = _hydrated
+            except Exception as exc:
+                print(
+                    json.dumps(
+                        {{"error": f"resource_ref_hydrate_failed: {{exc}}", "error_code": "resource_ref_hydrate_failed"}},
+                        ensure_ascii=False,
+                    ),
+                    file=sys.stderr,
+                )
+                sys.exit(1)
 
     interactive_inputs = args.pop("__interactive_inputs", None)
     if interactive_inputs is not None and callable(globals().get("_set_interactive_inputs")):
@@ -1683,16 +1743,26 @@ if __name__ == "__main__":
                 return _stable_resource_handle(_meta.get("agent_id") or _meta.get("resource_id"))
 
             _catalog_snapshot = _serialize_factory_result(result)
-            _agent_id = _extract_resource_handle(_catalog_snapshot, catalog_meta)
-            # A factory may return an opaque runtime object whose serialized
-            # representation omits its identity. For create-LLM-agent style
-            # APIs, the stable handle is explicitly supplied in the persisted
-            # JSON configuration, so use that as the deterministic fallback.
-            if not _agent_id:
-                _agent_id = _extract_resource_handle(
-                    args.get("agent_config") or args.get("config"),
-                    catalog_meta,
-                )
+            _source_kwargs = globals().get("_SOP_COERCED_KWARGS")
+            if not isinstance(_source_kwargs, dict):
+                _source_kwargs = args
+            # Coercion expands env:NAME to the live secret. Re-emit the original
+            # env:NAME before catalog redaction so persist does not invent a
+            # CLAWCODEX_<bundle>_API_KEY that is never set in the environment.
+            _catalog_snapshot = _redact_sensitive_fields(_catalog_snapshot)
+            _source_kwargs = _redact_sensitive_fields(_source_kwargs)
+            if str(catalog_meta.get("persist_resource_id") or "") == "generated":
+                _agent_id = str(uuid.uuid4())
+            else:
+                _agent_id = _extract_resource_handle(_catalog_snapshot, catalog_meta)
+                # A factory may return an opaque runtime object whose serialized
+                # representation omits its identity. Fall back to the consumed
+                # object snapshot when the return value has no handle of its own.
+                if not _agent_id:
+                    _agent_id = _extract_resource_handle(
+                        _source_kwargs.get("agent_config") or _source_kwargs.get("config"),
+                        catalog_meta,
+                    )
 
             if _agent_id:
                 _jsonable_result = _to_jsonable(_catalog_snapshot)
@@ -1706,13 +1776,17 @@ if __name__ == "__main__":
                     if isinstance(_jsonable_result, dict)
                     else {{}}
                 )
-                _agent_config = args.get("agent_config") or args.get("config")
+                _agent_config = _source_kwargs.get("agent_config") or _source_kwargs.get("config")
                 if not isinstance(_agent_config, dict) and isinstance(_jsonable_result, dict):
                     _agent_config = (
                         _jsonable_result.get("agent_config")
                         or _jsonable_result.get("config")
                     )
                 _model_spec = _agent_config.get("model", {{}}) if isinstance(_agent_config, dict) else {{}}
+                if not isinstance(_model_spec, dict):
+                    _model_spec = {{}}
+                if not _model_spec and isinstance(_source_kwargs.get("model"), dict):
+                    _model_spec = _source_kwargs.get("model") or {{}}
                 _model_info = _model_spec.get("model_info", {{}}) if isinstance(_model_spec, dict) else {{}}
                 _catalog_model = (
                     catalog_meta.get("model")
@@ -1735,9 +1809,9 @@ if __name__ == "__main__":
                 # on ``build_agent``) must not leak into the re-materialization path.
                 _init_param_allowlist = catalog_meta.get("init_param_names")
                 if _init_param_allowlist is not None:
-                    _init_kwargs = {{k: v for k, v in args.items() if k in _init_param_allowlist}}
+                    _init_kwargs = {{k: v for k, v in _source_kwargs.items() if k in _init_param_allowlist}}
                 else:
-                    _init_kwargs = {{k: v for k, v in args.items() if k not in {{"agent_id", "id"}}}}
+                    _init_kwargs = {{k: v for k, v in _source_kwargs.items() if k not in {{"agent_id", "id"}}}}
                 _entry = AgentCatalogEntry(
                     agent_id=str(_agent_id),
                     sdk_source_dir=str(catalog_meta.get("sdk_source_dir") or _SOURCE_DIR),
@@ -1906,7 +1980,13 @@ if __name__ == "__main__":
 
 
 def _generate_pipeline_execute_stage_stub(op: SourceOperation, *, module_name: str) -> str:
-    """Generate a vendor-neutral workflow executor wrapper."""
+    """Generate a vendor-neutral workflow executor wrapper.
+
+    JSON required, wrapper signature, and SDK signature stay aligned.
+    Runtime conversion is type-driven: strings become Path/Enum when the
+    annotation says so; JSON objects are coerced with ``_coerce_sdk_type``.
+    Required parameters are not invented from filenames or vendor factories.
+    """
     params = [p for p in op.parameters if not p.name.startswith("*")]
     signature: list[str] = []
     for param in params:
@@ -1921,23 +2001,48 @@ def _generate_pipeline_execute_stage_stub(op: SourceOperation, *, module_name: s
     return (
         f"def {op.name}({params_str}){return_type}:\n"
         f'    """{docstring}"""\n'
-        "    from pathlib import Path\n"
         "    import asyncio\n"
         "    import inspect\n"
-        f'    module = importlib.import_module({module_name!r})\n'
-        f'    function = getattr(module, {op.name!r})\n'
+        "    from typing import Union, get_args, get_origin, get_type_hints\n"
+        f"    module = importlib.import_module({module_name!r})\n"
+        f"    function = getattr(module, {op.name!r})\n"
         f"    values = {{{values}}}\n"
         "    parameters = inspect.signature(function).parameters\n"
+        "    try:\n"
+        "        hints = get_type_hints(function)\n"
+        "    except Exception:\n"
+        "        hints = {}\n"
         "    for name, value in list(values.items()):\n"
-        "        if name in {'run_dir', 'project_dir', 'workspace', 'work_dir', 'stage_dir'} and isinstance(value, str):\n"
-        "            values[name] = Path(value)\n"
-        "    for name in {'stage', 'stage_id', 'step', 'step_id', 'phase', 'phase_id'}:\n"
-        "        value = values.get(name)\n"
-        "        annotation = parameters.get(name).annotation if name in parameters else None\n"
-        "        members = getattr(annotation, '__members__', None)\n"
+        "        if value is None:\n"
+        "            continue\n"
+        "        hint = hints.get(name)\n"
+        "        if hint is None:\n"
+        "            param = parameters.get(name)\n"
+        "            hint = None if param is None else param.annotation\n"
+        "            if hint is inspect.Parameter.empty:\n"
+        "                hint = None\n"
+        "        if hint is None:\n"
+        "            continue\n"
+        "        origin = get_origin(hint)\n"
+        "        if origin is Union:\n"
+        "            union_args = [item for item in get_args(hint) if item is not type(None)]\n"
+        "            if len(union_args) == 1:\n"
+        "                hint = union_args[0]\n"
+        "        try:\n"
+        "            if isinstance(value, hint):\n"
+        "                continue\n"
+        "        except TypeError:\n"
+        "            pass\n"
+        "        members = getattr(hint, '__members__', None)\n"
         "        if isinstance(value, str) and members:\n"
         "            key = value.upper().replace('-', '_').replace(' ', '_')\n"
-        "            values[name] = members.get(key, value)\n"
+        "            if key in members:\n"
+        "                values[name] = members[key]\n"
+        "                continue\n"
+        "        try:\n"
+        "            values[name] = _coerce_sdk_type(hint, value)\n"
+        "        except Exception:\n"
+        "            pass\n"
         "    selected = {name: value for name, value in values.items() if name in parameters}\n"
         "    _original_argv = sys.argv\n"
         "    sys.argv = [sys.argv[0]]\n"
@@ -2110,6 +2215,26 @@ def _build_coerced_kwargs(
     return "".join(lines), imports
 
 
+def _coerced_dict_entries(
+    params: list[ParamSpec],
+    source_dir: str,
+    module_path: str | None = None,
+    *,
+    indent: str = "            ",
+) -> tuple[str, set[tuple[str, str]]]:
+    """Build dict entries ``"name": coerced_value,`` for catalog persist capture."""
+    lines: list[str] = []
+    imports: set[tuple[str, str]] = set()
+    for p in params:
+        if p.name.startswith("*"):
+            continue
+        expr, param_imports = _coerce_param_expression(p.name, p.type_hint, source_dir, module_path=module_path)
+        value = expr if expr else p.name
+        lines.append(f'{indent}"{p.name}": {value},\n')
+        imports.update(param_imports)
+    return "".join(lines), imports
+
+
 def _build_coerced_pass_list(
     params: list[ParamSpec],
     source_dir: str,
@@ -2144,7 +2269,8 @@ def _generate_method_stub(
 
     Args:
         op: The parsed source operation.
-        is_class_method: True if this is a class method (needs _get_instance).
+        is_class_method: True if this operation belongs to a class. Instance
+            methods need ``_get_instance``; class/static methods do not.
         module_name: Dotted Python module path.
         init_params: Required ``__init__`` parameters for the owning class.
         source_dir: Absolute source root used to resolve Pydantic/dataclass
@@ -2154,6 +2280,8 @@ def _generate_method_stub(
         (body_lines, required_model_imports)
     """
     imports: set[tuple[str, str]] = set()
+    uses_instance = is_class_method and _operation_uses_instance(op)
+    owning_class = f'getattr(importlib.import_module("{module_name}"), "{op.class_name}")'
 
     argv_guard = "    _original_argv = sys.argv\n    sys.argv = [sys.argv[0]]\n    try:\n"
     argv_restore = "    finally:\n        sys.argv = _original_argv"
@@ -2161,7 +2289,7 @@ def _generate_method_stub(
     if op.is_property:
         return_type = f" -> {op.return_type}" if op.return_type else ""
         docstring = op.description.replace('"', '\\"') if op.description else op.name
-        if is_class_method:
+        if uses_instance:
             init_pass, init_imports = _build_coerced_pass_list(init_params or [], source_dir, module_path=module_name)
             imports.update(init_imports)
             init_kw_names = [p.name for p in _skip_variadic_params(init_params or [])]
@@ -2181,7 +2309,11 @@ def _generate_method_stub(
                 f"        return {inner_call}\n"
                 f"{argv_restore}"
             ), imports
-        inner_call = f'getattr(importlib.import_module("{module_name}"), "{op.name}")'
+        inner_call = (
+            f"{owning_class}.{op.name}"
+            if is_class_method
+            else f'getattr(importlib.import_module("{module_name}"), "{op.name}")'
+        )
         return (
             f"def {op.name}(){return_type}:\n"
             f'    """{docstring}"""\n'
@@ -2192,7 +2324,7 @@ def _generate_method_stub(
 
     effective_params = (
         _merge_init_and_method_params(init_params or [], op.parameters)
-        if is_class_method
+        if uses_instance
         else _sort_params_for_python_signature(op.parameters)
     )
     param_parts = _param_signature_parts(effective_params)
@@ -2202,27 +2334,34 @@ def _generate_method_stub(
 
     docstring = op.description.replace('"', '\\"') if op.description else op.name
 
-    call_kwargs, call_imports = _build_coerced_kwargs(op.parameters, source_dir, module_path=module_name)
+    call_entries, call_imports = _coerced_dict_entries(op.parameters, source_dir, module_path=module_name)
     imports.update(call_imports)
-
-    if is_class_method:
-        init_pass, init_imports = _build_coerced_pass_list(init_params or [], source_dir, module_path=module_name)
+    init_entries = ""
+    if uses_instance:
+        init_entries, init_imports = _coerced_dict_entries(init_params or [], source_dir, module_path=module_name)
         imports.update(init_imports)
-        get_instance_call = f'_get_instance("{op.class_name}", "{module_name}"'
-        if init_pass:
-            get_instance_call += f", {init_pass}"
-        get_instance_call += ")"
-        inner_call = f"{get_instance_call}.{op.name}(\n{call_kwargs}    )"
-    elif op.is_factory:
-        factory_params, factory_imports = _build_coerced_pass_list(op.parameters, source_dir, module_path=module_name)
-        imports.update(factory_imports)
-        get_instance_call = f'_get_instance("{op.name}", "{module_name}"'
-        if factory_params:
-            get_instance_call += f", {factory_params}"
-        get_instance_call += ")"
-        inner_call = get_instance_call
+
+    capture_lines = ""
+    if uses_instance:
+        capture_lines = (
+            f"        _init_kwargs = {{\n{init_entries}        }}\n"
+            f"        _call_kwargs = {{\n{call_entries}        }}\n"
+            '        globals()["_SOP_COERCED_KWARGS"] = '
+            "{k: _to_jsonable(v) for k, v in {**_init_kwargs, **_call_kwargs}.items()}\n"
+        )
+        invoke = f'_get_instance("{op.class_name}", "{module_name}", **_init_kwargs).{op.name}(**_call_kwargs)'
     else:
-        inner_call = f"module.{op.name}(\n{call_kwargs}    )"
+        capture_lines = (
+            f"        _call_kwargs = {{\n{call_entries}        }}\n"
+            '        globals()["_SOP_COERCED_KWARGS"] = '
+            "{k: _to_jsonable(v) for k, v in _call_kwargs.items()}\n"
+        )
+        if is_class_method:
+            invoke = f"{owning_class}.{op.name}(**_call_kwargs)"
+        elif op.is_factory:
+            invoke = f'_get_instance("{op.name}", "{module_name}", **_call_kwargs)'
+        else:
+            invoke = f"module.{op.name}(**_call_kwargs)"
 
     if op.is_async_generator:
         if is_class_method or op.is_factory:
@@ -2230,7 +2369,8 @@ def _generate_method_stub(
                 f"def {op.name}({params_str}){return_type}:\n"
                 f'    """{docstring}"""\n'
                 f"{argv_guard}"
-                f"        return _run_async_iter(lambda: {inner_call})\n"
+                f"{capture_lines}"
+                f"        return _run_async_iter(lambda: {invoke})\n"
                 f"{argv_restore}"
             )
         else:
@@ -2239,7 +2379,8 @@ def _generate_method_stub(
                 f'    """{docstring}"""\n'
                 f'    module = importlib.import_module("{module_name}")\n'
                 f"{argv_guard}"
-                f"        return _run_async_iter(lambda: {inner_call})\n"
+                f"{capture_lines}"
+                f"        return _run_async_iter(lambda: {invoke})\n"
                 f"{argv_restore}"
             )
         return body_lines, imports
@@ -2252,7 +2393,8 @@ def _generate_method_stub(
             f"def {op.name}({params_str}){return_type}:\n"
             f'    """{docstring}"""\n'
             f"{argv_guard}"
-            f"        return {async_prefix}{inner_call}{async_suffix}\n"
+            f"{capture_lines}"
+            f"        return {async_prefix}{invoke}{async_suffix}\n"
             f"{argv_restore}"
         )
     elif op.is_factory:
@@ -2260,7 +2402,8 @@ def _generate_method_stub(
             f"def {op.name}({params_str}){return_type}:\n"
             f'    """{docstring}"""\n'
             f"{argv_guard}"
-            f"        instance = {async_prefix}{inner_call}{async_suffix}\n"
+            f"{capture_lines}"
+            f"        instance = {async_prefix}{invoke}{async_suffix}\n"
             f"        return _serialize_factory_result(instance)\n"
             f"{argv_restore}"
         )
@@ -2270,7 +2413,8 @@ def _generate_method_stub(
             f'    """{docstring}"""\n'
             f'    module = importlib.import_module("{module_name}")\n'
             f"{argv_guard}"
-            f"        return {async_prefix}{inner_call}{async_suffix}\n"
+            f"{capture_lines}"
+            f"        return {async_prefix}{invoke}{async_suffix}\n"
             f"{argv_restore}"
         )
     return body_lines, imports
@@ -2295,8 +2439,8 @@ def _generate_wrapper_script(
     """Generate a wrapper script for a group of related operations.
 
     All operations sharing the same *class_name* (or *file_stem* for standalone
-    functions) are written into one script so that the class is instantiated
-    only once per process.
+    functions) are written into one script so that classes needed by instance
+    methods are instantiated only once per process.
 
     Args:
         ops: Operations to include in this script.
@@ -2340,8 +2484,9 @@ def _generate_wrapper_script(
     body_parts: list[str] = []
     model_imports: set[tuple[str, str]] = set()
 
+    has_instance_ops = any(_operation_uses_instance(op) for op in ops)
     has_factory_ops = any(op.is_factory for op in ops)
-    if class_name or has_factory_ops:
+    if has_instance_ops or (has_factory_ops and not class_name):
         if has_factory_ops and not class_name:
             factory_op = next(op for op in ops if op.is_factory)
             factory_params = _skip_variadic_params(factory_op.parameters)
@@ -2370,7 +2515,7 @@ def _generate_wrapper_script(
             body_parts.append(stub_body)
             model_imports.update(stub_imports)
 
-    runtime_symbols = _collect_runtime_symbols(ops, init_params)
+    runtime_symbols = _collect_runtime_symbols(ops, init_params if has_instance_ops else None)
     import_map = _parse_import_map(source_file, module_name)
     extra_imports = _format_wrapper_imports(runtime_symbols, import_map, module_name)
 
@@ -2553,7 +2698,9 @@ def operation_to_spec(
         # params themselves but MUST expose the owning class's __init__ params
         # (e.g. ``card``) so the agent knows to supply them at call time.
         schema_params = (
-            _merge_init_and_method_params(init_params or [], op.parameters) if op.class_name else op.parameters
+            _merge_init_and_method_params(init_params or [], op.parameters)
+            if _operation_uses_instance(op)
+            else op.parameters
         )
         properties = {}
         required = []
@@ -2582,7 +2729,7 @@ def operation_to_spec(
             if param.required and param.default is None:
                 required.append(param.name)
 
-        _adjust_pipeline_execute_stage_schema(op, properties, required)
+        _adjust_pipeline_execute_stage_schema(op, properties)
 
     # ponytail: always include __interactive_inputs for CLI entrypoints
     # (cli_main=True / cli_subcommand not None) because they run as subprocesses
@@ -2992,6 +3139,23 @@ def register_component_tools(
                 if _resolved and _resolved in _canonical_create_types:
                     _known_create_types.update(_resource_type_hint_tokens(_hint))
     _known_create_types_frozen = frozenset(_known_create_types)
+    _consumed_by_create_types: set[str] = set()
+    for _comp in components:
+        for _op in _comp.operations:
+            _binding_role = binding_roles.get(id(_op))
+            if _binding_role and _binding_role[0] == "invoke":
+                continue
+            if not ((_binding_role and _binding_role[0] == "create") or _ilk(_op) == "create"):
+                continue
+            _consume = _create_consume_resource(
+                _op,
+                resolver=_type_resolver,
+                module_path=op_module_map.get(id(_op), ""),
+                canonical_create_types=_canonical_create_types,
+                produced_type=_op_resource_types.get(id(_op), ""),
+            )
+            if _consume:
+                _consumed_by_create_types.add(_consume[1])
     for _comp in components:
         for _op in _comp.operations:
             if id(_op) in _op_resource_types:
@@ -3026,7 +3190,7 @@ def register_component_tools(
             script_path = script_paths[key]
 
             try:
-                init_params = comp.class_init_params.get(op.class_name, []) if op.class_name else None
+                init_params = comp.class_init_params.get(op.class_name, []) if _operation_uses_instance(op) else None
                 dispatch_map = cli_dispatch_by_module.get(module_path, {})
                 cli_subcommand = dispatch_map.get(op.name) if _is_cli_handler_op(op, dispatch_map) else None
                 is_cli_main = _is_cli_main_op(op, source_dir_abs, module_path)
@@ -3066,27 +3230,57 @@ def register_component_tools(
                     lifecycle_extra["handle_field"] = binding_role[1].handle_field
 
                 if lifecycle_kind == "invoke" and op_resource_type:
-                    consume_param = invoke_lifecycle_id_param(op)
-                    if (
-                        not consume_param
-                        and binding_role
-                        and binding_role[1].handle_field in spec.input_schema.get("properties", {})
-                    ):
-                        consume_param = binding_role[1].handle_field
-                    spec = DEFAULTS.tool_authoring.create_spec(
-                        **{
-                            **spec.__dict__,
-                            "input_schema": inject_resource_ref_schema(
-                                spec.input_schema,
-                                resource_type=op_resource_type,
-                                create_tool_name=_create_tool_names_by_type.get(
-                                    op_resource_type,
-                                    "",
+                    create_tool_name = _create_tool_names_by_type.get(op_resource_type, "")
+                    # resource_ref is a catalog handle. Skip when nothing
+                    # produces this type (enums, Path) or the op is a
+                    # workflow runner (stage + run_dir), not resume-by-id.
+                    if create_tool_name and not _is_workflow_execute_operation(op):
+                        consume_param = invoke_lifecycle_id_param(op)
+                        if (
+                            not consume_param
+                            and binding_role
+                            and binding_role[1].handle_field in spec.input_schema.get("properties", {})
+                        ):
+                            consume_param = binding_role[1].handle_field
+                        spec = DEFAULTS.tool_authoring.create_spec(
+                            **{
+                                **spec.__dict__,
+                                "input_schema": inject_resource_ref_schema(
+                                    spec.input_schema,
+                                    resource_type=op_resource_type,
+                                    create_tool_name=create_tool_name,
+                                    consume_param=consume_param,
                                 ),
-                                consume_param=consume_param,
-                            ),
-                        }
+                            }
+                        )
+                elif lifecycle_kind == "create":
+                    consume = _create_consume_resource(
+                        op,
+                        resolver=_type_resolver,
+                        module_path=module_path,
+                        canonical_create_types=_canonical_create_types,
+                        produced_type=op_resource_type,
                     )
+                    if consume:
+                        consume_param, consume_type = consume
+                        lifecycle_extra["consume_param"] = consume_param
+                        lifecycle_extra["consume_resource_type"] = consume_type
+                        spec = DEFAULTS.tool_authoring.create_spec(
+                            **{
+                                **spec.__dict__,
+                                "input_schema": inject_resource_ref_schema(
+                                    spec.input_schema,
+                                    resource_type=consume_type,
+                                    create_tool_name=_create_tool_names_by_type.get(
+                                        consume_type,
+                                        "",
+                                    ),
+                                    consume_param=consume_param,
+                                ),
+                            }
+                        )
+                    if op_resource_type and op_resource_type in _consumed_by_create_types:
+                        lifecycle_extra["persist_resource_id"] = "generated"
 
                 DEFAULTS.tool_authoring.validate_spec(spec)
 

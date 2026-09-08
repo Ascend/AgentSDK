@@ -219,7 +219,7 @@ def to_jsonable(obj: Any) -> Any:
             return obj.model_dump()
 
     if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
-        return dataclasses.asdict(obj)
+        return {field.name: to_jsonable(getattr(obj, field.name)) for field in dataclasses.fields(obj)}
 
     return str(obj)
 
@@ -229,18 +229,26 @@ def to_jsonable(obj: Any) -> Any:
 _RESOLVED_ENV_REFERENCES: dict[str, str] = {}
 
 
+def _is_env_reference(value: Any) -> bool:
+    return isinstance(value, str) and (
+        value.startswith("env:") or value.startswith("<redacted:env:") or value == "<redacted>"
+    )
+
+
 def _redact_sensitive_fields(value: Any) -> Any:
     """Keep factory output and catalog DSL safe for agent-facing transport."""
     sensitive_tokens = ("api_key", "apikey", "access_token", "secret", "password")
     if isinstance(value, dict):
-        return {
-            str(key): (
-                _RESOLVED_ENV_REFERENCES.get(str(item), "<redacted>")
-                if any(token in str(key).lower() for token in sensitive_tokens)
-                else _redact_sensitive_fields(item)
-            )
-            for key, item in value.items()
-        }
+        out: dict[str, Any] = {}
+        for key, item in value.items():
+            if any(token in str(key).lower() for token in sensitive_tokens):
+                if _is_env_reference(item) or isinstance(item, (dict, list, tuple)):
+                    out[str(key)] = _redact_sensitive_fields(item) if not isinstance(item, str) else item
+                else:
+                    out[str(key)] = _RESOLVED_ENV_REFERENCES.get(str(item), "<redacted>")
+            else:
+                out[str(key)] = _redact_sensitive_fields(item)
+        return out
     if isinstance(value, list):
         return [_redact_sensitive_fields(item) for item in value]
     if isinstance(value, tuple):
@@ -296,7 +304,7 @@ def _serialize_factory_result(instance: Any) -> Any:
                 pass
             info["_repr"] = result
             return info
-    return result
+    return _redact_sensitive_fields(result)
 
 
 def dumps_sdk_result(result: Any) -> str:
@@ -377,6 +385,7 @@ _HELPER_IMPORTS = (
 #: functions whose inline name differs from the canonical one are rendered
 #: under their canonical name plus an alias line.
 _WRAPPER_SERIALIZATION_HELPERS_SPEC: list[tuple[str, object]] = [
+    ("_is_env_reference", _is_env_reference),
     ("_redact_sensitive_fields", _redact_sensitive_fields),
     ("_to_jsonable", to_jsonable),
     ("_serialize_factory_result", _serialize_factory_result),

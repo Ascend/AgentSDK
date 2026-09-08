@@ -203,7 +203,7 @@ class TestAgentCatalogRedaction(unittest.TestCase):
         """An env:... reference (from a previous round) must not be re-wrapped."""
         value, env = _redact_value("api_key", "env:CLAWCODEX_BUNDLE_API_KEY", bundle_id="b")
         self.assertEqual(value, "env:CLAWCODEX_BUNDLE_API_KEY")
-        self.assertIsNone(env)
+        self.assertEqual(env, "CLAWCODEX_BUNDLE_API_KEY")
 
     def test_redact_dsl_walks_nested(self) -> None:
         env_vars: list[str] = []

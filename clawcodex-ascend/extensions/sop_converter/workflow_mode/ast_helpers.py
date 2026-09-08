@@ -120,7 +120,7 @@ def get_enum_members_ordered(cls: ast.ClassDef) -> list[tuple[str, int]]:
 def _const_int(node: ast.expr | None) -> int | None:
     if node is None:
         return None
-    if isinstance(node, ast.Constant) and isinstance(node.value, int):
+    if isinstance(node, ast.Constant) and isinstance(node.value, int) and not isinstance(node.value, bool):
         return node.value
     return None
 
@@ -470,9 +470,83 @@ def resolve_enum_member(
             attr = node.attr
             if attr in member_to_value:
                 return attr, member_to_value[attr]
-    if isinstance(node, ast.Constant) and isinstance(node.value, int):
+    # bool is a subclass of int — do not treat True/False as stage ids.
+    if isinstance(node, ast.Constant) and isinstance(node.value, int) and not isinstance(node.value, bool):
         return str(node.value), node.value
     return None
+
+
+_MAPPING_KIND_ROLLBACK = re.compile(
+    r"ROLLBACK|PREVIOUS|PREV_STAGE|BACKWARD|REJECT_TO",
+    re.IGNORECASE,
+)
+_MAPPING_KIND_FORWARD = re.compile(
+    r"NEXT_STAGE|NEXT_|STAGE_SEQUENCE|FORWARD|ADVANCE",
+    re.IGNORECASE,
+)
+_MAPPING_KIND_SKIP = re.compile(
+    r"CONTRACT|STATUS|PHASE_MAP|TRANSITION_MAP|HANDLER",
+    re.IGNORECASE,
+)
+
+
+def classify_stage_mapping_name(var_name: str) -> str:
+    """Classify a module-level mapping as forward / rollback / decision / skip.
+
+    Name heuristics only — no project-specific identifiers.  ``DECISION_ROLLBACK``
+    is a string→stage table, not a stage→stage DAG edge.
+    """
+    if not var_name:
+        return "unknown"
+    if re.search(r"DECISION", var_name, re.I) and re.search(r"ROLLBACK", var_name, re.I):
+        return "decision"
+    if _MAPPING_KIND_SKIP.search(var_name):
+        return "skip"
+    if _MAPPING_KIND_ROLLBACK.search(var_name):
+        return "rollback"
+    if _MAPPING_KIND_FORWARD.search(var_name):
+        return "forward"
+    return "unknown"
+
+
+def is_forward_stage_edge(
+    from_id: int,
+    to_id: int,
+    stage_sequence: list[int] | None = None,
+) -> bool:
+    """True when ``from_id`` precedes ``to_id`` in the stage sequence."""
+    if from_id == to_id:
+        return False
+    seq = stage_sequence or []
+    if from_id in seq and to_id in seq:
+        return seq.index(from_id) < seq.index(to_id)
+    return to_id > from_id
+
+
+def collect_stage_rollback_map(
+    trees: list[ast.Module] | tuple[ast.Module, ...],
+    enum_class_names: set[str],
+    member_to_value: dict[str, int],
+) -> dict[int, int]:
+    """Parse literal ``*ROLLBACK*`` enum dicts into ``{stage_id: rollback_to}``.
+
+    Dict-comprehensions (e.g. ``PREVIOUS_STAGE``) are skipped: the linear
+    dictcomp helper always emits forward pairs and would invert the meaning.
+    """
+    mapping: dict[int, int] = {}
+    for tree in trees:
+        for var_name, dict_expr in find_dict_mapping_assignments(tree):
+            if classify_stage_mapping_name(var_name) != "rollback":
+                continue
+            if not isinstance(dict_expr, ast.Dict):
+                continue
+            for from_id, to_id in parse_enum_dict_mapping(
+                dict_expr,
+                enum_class_names,
+                member_to_value,
+            ):
+                mapping[from_id] = to_id
+    return mapping
 
 
 def parse_enum_dict_mapping(
