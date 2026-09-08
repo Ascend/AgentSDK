@@ -183,6 +183,22 @@ class CompactContext:
     memory_paths: set[str] | None = None
 
 
+def assemble_post_compact_messages(
+    current_messages: list[Message],
+    result: CompactionResult,
+) -> list[Message]:
+    """Assemble the persisted post-compaction message list."""
+    boundary_indices = [i for i, m in enumerate(current_messages) if is_compact_boundary_message(m)]
+    insert_pos = max(boundary_indices) + 1 if boundary_indices else 0
+
+    new_messages = list(current_messages[:insert_pos])
+    new_messages.append(result.boundary_marker)
+    new_messages.extend(result.summary_messages)
+    new_messages.extend(result.messages_to_keep)
+    new_messages.extend(result.attachments)
+    return new_messages
+
+
 def _is_prompt_too_long_error(error_str: str) -> bool:
     """Check if an error string indicates a prompt-too-long condition."""
     lower = error_str.lower()

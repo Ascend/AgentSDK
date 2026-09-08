@@ -732,5 +732,159 @@ class TestEngineProducesCacheableSystemBlocks(unittest.TestCase):
         )
 
 
+class TestQueryEngineAutoCompactWriteBack(unittest.TestCase):
+    """Autocompact firing mid-submit resets the engine feed and notifies the surface callback."""
+
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.workspace = Path(self.temp_dir.name)
+        self.registry = build_default_registry()
+        self.context = ToolContext(workspace_root=self.workspace)
+
+    def tearDown(self):
+        self.temp_dir.cleanup()
+
+    @staticmethod
+    def _filler_messages(pairs: int = 8) -> list[UserMessage | AssistantMessage]:
+        """A conversation big enough to cross the (test-lowered) thresholds."""
+        messages: list[UserMessage | AssistantMessage] = []
+        for i in range(pairs):
+            messages.append(
+                UserMessage(content=f"filler-EARLY-{i:03d} " + "lorem ipsum dolor sit amet consectetur " * 20)
+            )
+            messages.append(
+                AssistantMessage(
+                    content=[TextBlock(text=f"filler-EARLY-{i:03d}-resp " + "lorem ipsum " * 40)],
+                )
+            )
+        return messages
+
+    @staticmethod
+    def _text_of(message) -> str:
+        content = message.content
+        if isinstance(content, str):
+            return content
+        if isinstance(content, list):
+            return " ".join(str(b.text) for b in content if isinstance(b, TextBlock))
+        return str(content)
+
+    @staticmethod
+    def _env():
+        # Tune autocompact thresholds and the pipeline gate so the small fixture triggers.
+        return {
+            "CLAUDE_CODE_MIN_INPUT_TOKENS_FOR_AUTOCOMPACT": "1",
+            "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "5000",
+            "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "1",
+            "CLAWCODEX_COMPRESSION_GATE_SKIP_RATIO": "0.001",
+        }
+
+    def _make_provider(self):
+        from unittest.mock import AsyncMock
+
+        provider = MagicMock()
+        provider.model = "test-model"
+        provider.context_window = 200_000
+        provider.chat_stream_response.side_effect = NotImplementedError()
+        provider.chat.return_value = ChatResponse(
+            content="Continuing answer",
+            model="test",
+            usage={"input_tokens": 10, "output_tokens": 5},
+            finish_reason="end_turn",
+            tool_uses=None,
+        )
+        provider.chat_async = AsyncMock(
+            return_value=ChatResponse(
+                content="Summary of the old conversation",
+                model="test",
+                usage={"input_tokens": 100, "output_tokens": 50},
+                finish_reason="stop",
+            )
+        )
+        return provider
+
+    def test_autocompact_resets_feed_and_notifies_surface(self):
+        import os
+
+        from unittest.mock import patch
+
+        provider = self._make_provider()
+        captured = []
+        config = QueryEngineConfig(
+            cwd=self.workspace,
+            provider=provider,
+            tool_registry=self.registry,
+            tools=self.registry.list_tools(),
+            tool_context=self.context,
+            system_prompt="You are helpful.",
+            max_turns=10,
+            initial_messages=self._filler_messages(),
+            on_auto_compact=captured.append,
+        )
+        engine = QueryEngine(config)
+
+        with patch.dict(os.environ, self._env()):
+
+            async def run():
+                async for _msg in engine.submit_message("Continue the task"):
+                    pass
+
+            _run(run())
+
+        self.assertEqual(len(captured), 1)
+        result = captured[0]
+        self.assertEqual(result.trigger, "auto")
+        self.assertGreater(result.tokens_saved, 0)
+        meta = getattr(result.boundary_marker, "_compact_boundary_meta", None)
+        self.assertIsNotNone(meta)
+        self.assertEqual(meta.trigger, "auto")
+        # chat_async is used only by the autocompact summarizer call.
+        self.assertEqual(provider.chat_async.await_count, 1)
+
+        feed = engine.get_messages()
+        self.assertFalse(any("filler-EARLY-000" in self._text_of(m) for m in feed))
+        self.assertTrue(any("Summary of the old conversation" in self._text_of(m) for m in feed))
+        # The boundary marker is bookkeeping for the transcript; it never lands in the working set.
+        from clawcodex_ext.compact_service.messages import is_compact_boundary_message
+
+        self.assertFalse(any(is_compact_boundary_message(m) for m in feed))
+        self.assertTrue(any("Continuing answer" in self._text_of(m) for m in feed))
+
+    def test_feed_stays_compacted_on_next_submit(self):
+        import os
+
+        from unittest.mock import patch
+
+        provider = self._make_provider()
+        config = QueryEngineConfig(
+            cwd=self.workspace,
+            provider=provider,
+            tool_registry=self.registry,
+            tools=self.registry.list_tools(),
+            tool_context=self.context,
+            system_prompt="You are helpful.",
+            max_turns=10,
+            initial_messages=self._filler_messages(),
+        )
+        engine = QueryEngine(config)
+
+        with patch.dict(os.environ, self._env()):
+
+            async def run():
+                async for _msg in engine.submit_message("Continue the task"):
+                    pass
+
+            _run(run())
+
+            async def run_again():
+                async for _msg in engine.submit_message("One more step"):
+                    pass
+
+            _run(run_again())
+
+        feed = engine.get_messages()
+        self.assertFalse(any("filler-EARLY-000" in self._text_of(m) for m in feed))
+        self.assertEqual(provider.chat_async.await_count, 1)
+
+
 if __name__ == "__main__":
     unittest.main()

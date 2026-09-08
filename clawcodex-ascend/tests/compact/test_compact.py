@@ -33,12 +33,16 @@ from unittest.mock import AsyncMock, MagicMock
 from clawcodex_ext.types.content_blocks import TextBlock, ToolUseBlock
 from src.types.messages import Message, UserMessage, AssistantMessage
 from clawcodex_ext.providers.base import ChatResponse
-from clawcodex_ext.compact_service.messages import is_compact_boundary_message
+from clawcodex_ext.compact_service.messages import (
+    create_compact_boundary_message,
+    is_compact_boundary_message,
+)
 
 from clawcodex_ext.services.compact.compact import (
     CompactContext,
     CompactionResult,
     COMPACT_SYSTEM_PROMPT,
+    assemble_post_compact_messages,
     compact_conversation,
     partial_compact_conversation,
 )
@@ -360,6 +364,94 @@ class TestCompactionParityFixes(unittest.TestCase):
         meta = getattr(result.boundary_marker, "_compact_boundary_meta", None)
         self.assertIsNotNone(meta)
         self.assertEqual(meta.pre_compact_discovered_tools, ["Glob", "Read"])
+
+
+class TestAssemblePostCompactMessages(unittest.TestCase):
+    """Tests for assemble_post_compact_messages()."""
+
+    def _result(self, trigger: str = "auto", **overrides) -> CompactionResult:
+        kwargs: dict = {
+            "boundary_marker": create_compact_boundary_message(trigger=trigger),
+            "summary_messages": [
+                UserMessage(content="Summary line one"),
+                UserMessage(content="Summary line two"),
+            ],
+            "tokens_saved": 123,
+            "trigger": trigger,
+        }
+        kwargs.update(overrides)
+        return CompactionResult(**kwargs)
+
+    def test_no_existing_boundary_inserts_at_head(self):
+        """Without a prior boundary the marker leads, then summary + kept."""
+        u1 = UserMessage(content="user one")
+        a1 = AssistantMessage(content=[TextBlock(text="assistant one")])
+        result = self._result(messages_to_keep=[u1, a1])
+        new_messages = assemble_post_compact_messages([u1, a1], result)
+
+        self.assertEqual(len(new_messages), 5)
+        boundary = new_messages[0]
+        self.assertTrue(is_compact_boundary_message(boundary))
+        self.assertEqual(boundary._compact_boundary_meta.trigger, "auto")
+        self.assertEqual(new_messages[1].content, "Summary line one")
+        self.assertEqual(new_messages[2].content, "Summary line two")
+        self.assertIs(new_messages[3], u1)
+        self.assertIs(new_messages[4], a1)
+
+    def test_existing_boundary_triggers_append_after_it(self):
+        """A prior boundary keeps its prefix and the new marker lands after it."""
+        u0 = UserMessage(content="user zero")
+        a0 = AssistantMessage(content=[TextBlock(text="assistant zero")])
+        old_boundary = create_compact_boundary_message(trigger="manual")
+        u1 = UserMessage(content="user one")
+        new_messages = assemble_post_compact_messages(
+            [u0, a0, old_boundary, u1],
+            self._result(),
+        )
+
+        self.assertIs(new_messages[0], u0)
+        self.assertIs(new_messages[1], a0)
+        self.assertIs(new_messages[2], old_boundary)
+        self.assertTrue(is_compact_boundary_message(new_messages[2]))
+        self.assertTrue(is_compact_boundary_message(new_messages[3]))
+        self.assertEqual(new_messages[3]._compact_boundary_meta.trigger, "auto")
+        self.assertEqual(new_messages[4].content, "Summary line one")
+        self.assertEqual(new_messages[5].content, "Summary line two")
+
+    def test_attachments_appended_last(self):
+        """Post-compact file attachments trail the kept messages."""
+        kept = UserMessage(content="kept message")
+        attachment = UserMessage(content="<read_file>...")
+        result = self._result(messages_to_keep=[kept], attachments=[attachment])
+        new_messages = assemble_post_compact_messages([], result)
+
+        self.assertEqual(len(new_messages), 5)
+        self.assertTrue(is_compact_boundary_message(new_messages[0]))
+        self.assertEqual(new_messages[1].content, "Summary line one")
+        self.assertEqual(new_messages[2].content, "Summary line two")
+        self.assertIs(new_messages[3], kept)
+        self.assertIs(new_messages[4], attachment)
+
+    def test_last_of_multiple_boundaries_wins(self):
+        """Insertion happens after the LAST existing boundary only."""
+        u0 = UserMessage(content="user zero")
+        boundary_1 = create_compact_boundary_message(trigger="manual")
+        summary_1 = UserMessage(content="first summary")
+        boundary_2 = create_compact_boundary_message(trigger="auto")
+        new_messages = assemble_post_compact_messages(
+            [u0, boundary_1, summary_1, boundary_2],
+            self._result(),
+        )
+
+        self.assertIs(new_messages[0], u0)
+        self.assertIs(new_messages[1], boundary_1)
+        self.assertIs(new_messages[2], summary_1)
+        self.assertIs(new_messages[3], boundary_2)
+        self.assertTrue(is_compact_boundary_message(new_messages[4]))
+        self.assertEqual(new_messages[4]._compact_boundary_meta.trigger, "auto")
+        self.assertEqual(new_messages[5].content, "Summary line one")
+        self.assertEqual(new_messages[6].content, "Summary line two")
+        self.assertEqual(len(new_messages), 7)
 
 
 if __name__ == "__main__":

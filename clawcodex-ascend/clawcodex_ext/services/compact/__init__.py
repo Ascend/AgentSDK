@@ -45,7 +45,12 @@ from .autocompact import (
     is_auto_compact_enabled,
     should_auto_compact,
 )
-from .compact import CompactionResult, compact_conversation, truncate_head_for_ptl_retry
+from .compact import (
+    CompactionResult,
+    assemble_post_compact_messages,
+    compact_conversation,
+    truncate_head_for_ptl_retry,
+)
 from .compact_warning import (
     clear_compact_warning_suppression,
     is_compact_warning_suppressed,
@@ -87,6 +92,7 @@ __all__ = [
     "CompressionResult",
     "ContextCollapseStore",
     "apply_tool_result_budget",
+    "assemble_post_compact_messages",
     "auto_compact_if_needed",
     "calculate_token_warning_state",
     "clear_compact_warning_suppression",

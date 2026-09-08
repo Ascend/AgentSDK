@@ -302,5 +302,66 @@ class TestAutoCompactIfNeeded(unittest.TestCase):
             os.unlink(tmp_path)
 
 
+class TestMinInputTokensFloor(unittest.TestCase):
+    """Tests for the MIN_INPUT_TOKENS_FOR_AUTOCOMPACT floor and its env override."""
+
+    @patch.dict(
+        os.environ,
+        {
+            # 1% of the effective window is ~1.8k — below the default 10k floor.
+            "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "1",
+        },
+    )
+    def test_default_floor_blocks_below_10k(self):
+        """Without an override the 10k floor suppresses autocompact."""
+        self.assertFalse(should_auto_compact(5_000, 200_000))
+
+    @patch.dict(
+        os.environ,
+        {
+            "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "1",
+            "CLAUDE_CODE_MIN_INPUT_TOKENS_FOR_AUTOCOMPACT": "1",
+        },
+    )
+    def test_env_override_lowers_floor(self):
+        """A floor override below the threshold lets autocompact fire."""
+        self.assertTrue(should_auto_compact(5_000, 200_000))
+
+    @patch.dict(
+        os.environ,
+        {
+            "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "1",
+            "CLAUDE_CODE_MIN_INPUT_TOKENS_FOR_AUTOCOMPACT": "25000",
+        },
+    )
+    def test_env_override_raises_floor(self):
+        """A floor override above the threshold suppresses autocompact."""
+        self.assertFalse(should_auto_compact(5_000, 200_000))
+        self.assertFalse(should_auto_compact(20_000, 200_000))
+        self.assertTrue(should_auto_compact(30_000, 200_000))
+
+    @patch.dict(
+        os.environ,
+        {
+            "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "1",
+            "CLAUDE_CODE_MIN_INPUT_TOKENS_FOR_AUTOCOMPACT": "0",
+        },
+    )
+    def test_invalid_override_falls_back_to_default(self):
+        """Non-positive overrides are rejected; the default floor applies."""
+        self.assertFalse(should_auto_compact(5_000, 200_000))
+
+    @patch.dict(
+        os.environ,
+        {
+            "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "1",
+            "CLAUDE_CODE_MIN_INPUT_TOKENS_FOR_AUTOCOMPACT": "not-a-number",
+        },
+    )
+    def test_unparseable_override_falls_back_to_default(self):
+        """Unparseable overrides are rejected; the default floor applies."""
+        self.assertFalse(should_auto_compact(5_000, 200_000))
+
+
 if __name__ == "__main__":
     unittest.main()
