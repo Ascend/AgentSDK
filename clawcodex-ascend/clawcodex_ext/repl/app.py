@@ -447,6 +447,10 @@ class ClawCodexExtREPL(ClawcodexREPL):
         _cron_sched = getattr(self.tool_context, "cron_scheduler", None)
         if _cron_sched is not None:
             _cron_sched.is_loading = lambda: self._active_live_status is not None
+        # Busy-gate the proactive emitter created by RuntimeContext.build.
+        _proactive_emitter = getattr(self.tool_context, "proactive_emitter", None)
+        if _proactive_emitter is not None:
+            _proactive_emitter.should_skip = lambda: self._active_live_status is not None
         self._expandable_blocks: deque[tuple[str, str]] = deque(maxlen=20)
 
         # ---- Downstream-only state ----
@@ -510,6 +514,7 @@ class ClawCodexExtREPL(ClawcodexREPL):
         from prompt_toolkit.history import FileHistory
         from clawcodex_ext.repl.core import (
             _HintedAutoSuggest,
+            _live_completion_while_typing_filter,
             _patch_accept_suggestion_bindings,
         )
         from prompt_toolkit.styles import Style
@@ -636,6 +641,9 @@ class ClawCodexExtREPL(ClawcodexREPL):
             _accept_tab_alias = True
 
         self._file_history = FileHistory(str(history_file))
+        # Gate per-keystroke completion on the live draft's length.
+        from prompt_toolkit.filters import Condition as _LiveCompletionCondition
+
         self.prompt_session = PromptSession(
             history=self._file_history,
             auto_suggest=_HintedAutoSuggest(
@@ -645,7 +653,7 @@ class ClawCodexExtREPL(ClawcodexREPL):
             completer=self.completer,
             style=Style.from_dict(self._repl_ptk_style),
             key_bindings=self.bindings,
-            complete_while_typing=True,
+            complete_while_typing=_LiveCompletionCondition(_live_completion_while_typing_filter),
             multiline=True,
             prompt_continuation=self._prompt_continuation,
             bottom_toolbar=self._bottom_toolbar,
