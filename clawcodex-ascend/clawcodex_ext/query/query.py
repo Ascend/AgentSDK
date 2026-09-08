@@ -266,6 +266,8 @@ class QueryParams:
     # False for notification/goal maintenance turns that do not represent a
     # fresh user interaction. Such turns must not consume reminder cadence.
     task_reminder_enabled: bool = True
+    # Notified with (CompactionResult, post-compact working messages) when layer 5 fires.
+    on_auto_compact: Callable[[Any, list[Message]], None] | None = None
 
 
 @dataclass
@@ -2315,6 +2317,7 @@ async def _query_impl(  # pylint: disable=too-many-nested-blocks
 
         # --- Phase 0: Compression Pipeline ---
         # Mirrors TS query loop Phase 0: toolResultBudget → snip → microcompact → collapse → autocompact
+        pipeline_result = None
         if params.pipeline_config is not None:
             try:
                 # Estimate input tokens so layer 5 (autocompact) can decide
@@ -2336,6 +2339,20 @@ async def _query_impl(  # pylint: disable=too-many-nested-blocks
                         )
             except Exception:
                 logger.warning("Compression pipeline failed, continuing with original messages", exc_info=True)
+
+            # Notify the surface only when autocompact actually fired, not the lighter layers.
+            if (
+                params.on_auto_compact is not None
+                and pipeline_result is not None
+                and pipeline_result.autocompact_result is not None
+            ):
+                try:
+                    params.on_auto_compact(
+                        pipeline_result.autocompact_result,
+                        pipeline_result.messages,
+                    )
+                except Exception:
+                    logger.warning("on_auto_compact callback failed", exc_info=True)
 
         # The general pre-LLM hook lets external policies, such as Budget Mode,
         # modify messages or the system prompt before ``_call_model_sync``.

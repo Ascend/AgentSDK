@@ -28,6 +28,31 @@ Port of ``typescript/src/services/compact/autoCompact.ts``.
 Determines when automatic compaction should trigger based on token usage
 and context window size, then delegates to ``compact_conversation()``.
 Includes a circuit breaker to prevent infinite retry loops.
+
+Environment variables consumed by this module (all read at call time, so
+tests may patch ``os.environ`` freely between calls):
+
+- ``CLAUDE_CODE_MIN_INPUT_TOKENS_FOR_AUTOCOMPACT`` — overrides the
+  :data:`MIN_INPUT_TOKENS_FOR_AUTOCOMPACT` floor, read by
+  :func:`_get_min_input_tokens_for_autocompact`.  Kept under the
+  ``CLAUDE_CODE_*`` prefix to stay consistent with its sibling knobs
+  below; surfaces that must auto-compact smaller conversations (e.g. the
+  REPL direct-stream path) or tests can lower the floor.
+- ``CLAUDE_CODE_AUTO_COMPACT_WINDOW`` — caps the effective context
+  window used by :func:`get_effective_context_window_size` (shrinks the
+  window without touching the model's own max-output reservation).
+- ``CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`` — triggers auto-compact at pct% of
+  the effective window in :func:`get_auto_compact_threshold` (mainly for
+  tests).
+- ``CLAUDE_CODE_BLOCKING_LIMIT_OVERRIDE`` — replaces the hard blocking
+  limit computed in :func:`calculate_token_warning_state`.
+- ``DISABLE_COMPACT`` / ``DISABLE_AUTO_COMPACT`` — a truthy value turns
+  auto-compact off in :func:`is_auto_compact_enabled`;
+  ``DISABLE_COMPACT`` wins when both are set.
+
+The names follow the ``CLAUDE_CODE_*`` / ``CLAUDE_*`` env convention
+used across this port and are pinned by ``tests/compact/`` and
+``tests/repl/`` — rename only together with an upstream change.
 """
 
 from __future__ import annotations
@@ -77,8 +102,19 @@ MANUAL_COMPACT_BUFFER_TOKENS = 3_000
 # in a single session, wasting ~250K API calls/day globally.
 MAX_CONSECUTIVE_AUTOCOMPACT_FAILURES = 3
 
-# Minimum input tokens before autocompact can trigger (legacy fallback)
+# Minimum input tokens before autocompact can trigger (legacy fallback).
+# Overridable via CLAUDE_CODE_MIN_INPUT_TOKENS_FOR_AUTOCOMPACT so surfaces
+# that need to trigger auto-compact on smaller conversations (e.g. the REPL
+# direct-stream path, or tests) can lower/raise the floor.
 MIN_INPUT_TOKENS_FOR_AUTOCOMPACT = 10_000
+
+
+def _get_min_input_tokens_for_autocompact() -> int:
+    """Effective autocompact token floor (env override wins when valid)."""
+    override = _get_env_int("CLAUDE_CODE_MIN_INPUT_TOKENS_FOR_AUTOCOMPACT")
+    if override is not None:
+        return override
+    return MIN_INPUT_TOKENS_FOR_AUTOCOMPACT
 
 
 @dataclass
@@ -259,7 +295,7 @@ def should_auto_compact(
     if not is_auto_compact_enabled():
         return False
 
-    if input_token_count < MIN_INPUT_TOKENS_FOR_AUTOCOMPACT:
+    if input_token_count < _get_min_input_tokens_for_autocompact():
         return False
 
     # Circuit breaker

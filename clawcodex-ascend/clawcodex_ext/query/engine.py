@@ -79,6 +79,9 @@ class QueryEngineConfig:
     # when MCP schemas are present (per chapter line 91, MCP schemas are
     # per-user and must NOT land in the cross-user global cache tier).
     mcp_servers: list[Any] | None = None
+    # Called with the CompactionResult on the query loop's task whenever
+    # Phase-0 autocompact fires inside a submit_message() run.
+    on_auto_compact: Callable[[Any], None] | None = None
 
 
 def _skill_tool_is_available(config: QueryEngineConfig) -> bool:
@@ -337,6 +340,7 @@ class QueryEngine:
             pipeline_config=pipeline_config,
             on_text_chunk=on_text_chunk,
             on_thinking_chunk=on_thinking_chunk,
+            on_auto_compact=self._handle_auto_compact,
         )
 
         async for message in query(params):
@@ -389,6 +393,16 @@ class QueryEngine:
                 self._mutable_messages = strip_images_from_typed_messages(self._mutable_messages)
 
             yield message
+
+    def _handle_auto_compact(self, result: Any, compacted_messages: list[Message]) -> None:
+        """Reset the engine feed to the post-compact working set and notify the surface."""
+        self._mutable_messages = list(compacted_messages)
+        surface_callback = self._config.on_auto_compact
+        if surface_callback is not None:
+            try:
+                surface_callback(result)
+            except Exception:
+                logger.warning("on_auto_compact surface callback failed", exc_info=True)
 
     def interrupt(self) -> None:
         self._abort_controller.abort("user_interrupt")
