@@ -49,6 +49,23 @@ from clawcodex_ext.providers.base import ChatResponse
 from clawcodex_ext.utils.resume_hint import reset_resume_hint_for_test_only
 
 
+def _redirect_state_root_to(config_dir: Path) -> tuple[str | None, str | None]:
+    """Point the shared state-root chain at *config_dir* for the test."""
+    saved = (os.environ.get("CLAWCODEX_CONFIG_DIR"), os.environ.get("CLAWCODEX_HOME"))
+    os.environ["CLAWCODEX_CONFIG_DIR"] = str(config_dir)
+    os.environ["CLAWCODEX_HOME"] = str(config_dir)
+    return saved
+
+
+def _restore_state_root(saved: tuple[str | None, str | None]) -> None:
+    """Restore env values captured by :func:`_redirect_state_root_to`."""
+    for name, value in zip(("CLAWCODEX_CONFIG_DIR", "CLAWCODEX_HOME"), saved):
+        if value is None:
+            os.environ.pop(name, None)
+        else:
+            os.environ[name] = value
+
+
 class TestREPL(unittest.TestCase):
     """Test REPL functionality."""
 
@@ -80,15 +97,12 @@ class TestREPL(unittest.TestCase):
         with open(config_file, "w", encoding="utf-8") as f:
             json.dump(test_config, f)
 
-        # Redirect ConfigManager to the test config and drop any cached
-        # singleton state. Patching ``get_config_path`` alone is a no-op
-        # because the manager reads ``GLOBAL_CONFIG_FILE`` directly.
-        self._global_config_patcher = patch.object(config_module, "GLOBAL_CONFIG_FILE", config_file)
-        self._global_config_patcher.start()
+        # Redirect the state-root chain at the seeded config dir.
+        self._saved_state_root = _redirect_state_root_to(self.config_dir)
         config_module._default_manager = None
 
     def tearDown(self):
-        self._global_config_patcher.stop()
+        _restore_state_root(self._saved_state_root)
         config_module._default_manager = None
 
     def test_repl_initialization(self):
@@ -2327,12 +2341,11 @@ class TestREPLConversationSanitization(unittest.TestCase):
         }
         with open(self.config_file, "w", encoding="utf-8") as f:
             json.dump(test_config, f)
-        self._global_config_patcher = patch.object(config_module, "GLOBAL_CONFIG_FILE", self.config_file)
-        self._global_config_patcher.start()
+        self._saved_state_root = _redirect_state_root_to(self.config_dir)
         config_module._default_manager = None
 
     def tearDown(self):
-        self._global_config_patcher.stop()
+        _restore_state_root(self._saved_state_root)
         config_module._default_manager = None
 
     def _make_repl(self):
@@ -3038,6 +3051,123 @@ class TestEchoUserInput(unittest.TestCase):
         plain = texts[0].plain.rstrip("\n")
         # The plain text should not be padded to 80+ chars.
         self.assertLess(len(plain), 10)
+
+
+class TestAutoCompactWriteBack(unittest.TestCase):
+    """Auto-compact persistence in the REPL."""
+
+    @staticmethod
+    def _env():
+        # Floor to 1 token, effective window at its 33k floor, 1% threshold.
+        return {
+            "CLAUDE_CODE_MIN_INPUT_TOKENS_FOR_AUTOCOMPACT": "1",
+            "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "5000",
+            "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "1",
+        }
+
+    @staticmethod
+    def _big_conversation(pairs: int = 8) -> list:
+        from clawcodex_ext.types.messages import AssistantMessage, UserMessage
+        from src.types.content_blocks import TextBlock
+
+        messages = []
+        for i in range(pairs):
+            messages.append(UserMessage(content=f"bulk-msg-{i:03d} " + "lorem ipsum dolor sit amet consectetur " * 20))
+            messages.append(AssistantMessage(content=[TextBlock(text=f"bulk-msg-{i:03d}-resp " + "lorem ipsum " * 40)]))
+        return messages
+
+    @staticmethod
+    def _make_provider():
+        provider = Mock()
+        provider.model = "test-model"
+        provider.context_window = 200_000
+        provider.chat_async = AsyncMock(
+            return_value=ChatResponse(
+                content="Summary of the old conversation",
+                model="test",
+                usage={"input_tokens": 100, "output_tokens": 50},
+                finish_reason="stop",
+            )
+        )
+        return provider
+
+    def _make_repl(self, conversation_messages, provider):
+        import asyncio
+
+        repl = ClawcodexREPL.__new__(ClawcodexREPL)
+        repl.session = SimpleNamespace(conversation=SimpleNamespace(messages=conversation_messages))
+        repl.provider = provider
+        repl.tool_context = SimpleNamespace(read_file_fingerprints={})
+        repl._engine_messages = []
+        loop = asyncio.new_event_loop()
+        repl._get_chat_loop = lambda: loop
+        self.addCleanup(loop.close)
+        return repl
+
+    def test_direct_stream_gate_open_above_threshold(self):
+        """An over-threshold conversation must not direct-stream."""
+        with patch.dict(os.environ, self._env()):
+            provider = self._make_provider()
+            repl = self._make_repl(self._big_conversation(), provider)
+
+            self.assertTrue(repl._direct_stream_over_compact_threshold())
+
+        provider.chat_async.assert_not_called()
+        self.assertEqual(len(repl.session.conversation.messages), 16)
+
+    def test_direct_stream_gate_closed_below_threshold(self):
+        """A short conversation keeps the low-latency direct path."""
+        from clawcodex_ext.types.messages import AssistantMessage, UserMessage
+        from src.types.content_blocks import TextBlock
+
+        provider = self._make_provider()
+        messages = [
+            UserMessage(content="short user message"),
+            AssistantMessage(content=[TextBlock(text="short assistant message")]),
+        ]
+        repl = self._make_repl(messages, provider)
+
+        self.assertFalse(repl._direct_stream_over_compact_threshold())
+        self.assertIs(repl.session.conversation.messages, messages)
+        self.assertEqual(len(messages), 2)
+        provider.chat_async.assert_not_called()
+
+    def test_apply_auto_compact_transcript_write_back(self):
+        """Engine-path surface callback appends after the last boundary."""
+        from clawcodex_ext.compact_service.messages import (
+            create_compact_boundary_message,
+            is_compact_boundary_message,
+        )
+        from clawcodex_ext.services.compact.compact import CompactionResult
+        from clawcodex_ext.types.messages import AssistantMessage, UserMessage
+        from src.types.content_blocks import TextBlock
+
+        m0 = UserMessage(content="older user")
+        m1 = AssistantMessage(content=[TextBlock(text="older assistant")])
+        old_boundary = create_compact_boundary_message(trigger="manual")
+        m2 = UserMessage(content="recent user")
+        conversation_messages = [m0, m1, old_boundary, m2]
+
+        repl = ClawcodexREPL.__new__(ClawcodexREPL)
+        repl.session = SimpleNamespace(conversation=SimpleNamespace(messages=conversation_messages))
+
+        result = CompactionResult(
+            boundary_marker=create_compact_boundary_message(trigger="auto"),
+            summary_messages=[UserMessage(content="This session is being continued from a previous conversation.")],
+            trigger="auto",
+            tokens_saved=42,
+        )
+        repl._apply_auto_compact_transcript_write_back(result)
+
+        conversation = repl.session.conversation.messages
+        self.assertIs(conversation[0], m0)
+        self.assertIs(conversation[1], m1)
+        self.assertIs(conversation[2], old_boundary)
+        self.assertEqual(len(conversation), 5)
+        self.assertTrue(is_compact_boundary_message(conversation[3]))
+        self.assertEqual(conversation[3]._compact_boundary_meta.trigger, "auto")
+        self.assertIn("This session is being continued", conversation[4].content)
+        self.assertTrue(all(getattr(m, "uuid", None) for m in conversation))
 
 
 if __name__ == "__main__":

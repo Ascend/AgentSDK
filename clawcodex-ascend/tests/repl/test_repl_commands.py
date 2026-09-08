@@ -31,6 +31,7 @@ but are NOT registered in the command system's ``get_builtin_commands()``:
 from __future__ import annotations
 
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -38,6 +39,23 @@ from unittest.mock import Mock, patch
 
 import src.config as config_module
 from src.repl import ClawcodexREPL
+
+
+def _redirect_state_root_to(config_dir: Path) -> tuple[str | None, str | None]:
+    """Point the shared state-root chain at *config_dir* for the test."""
+    saved = (os.environ.get("CLAWCODEX_CONFIG_DIR"), os.environ.get("CLAWCODEX_HOME"))
+    os.environ["CLAWCODEX_CONFIG_DIR"] = str(config_dir)
+    os.environ["CLAWCODEX_HOME"] = str(config_dir)
+    return saved
+
+
+def _restore_state_root(saved: tuple[str | None, str | None]) -> None:
+    """Restore env values captured by :func:`_redirect_state_root_to`."""
+    for name, value in zip(("CLAWCODEX_CONFIG_DIR", "CLAWCODEX_HOME"), saved):
+        if value is None:
+            os.environ.pop(name, None)
+        else:
+            os.environ[name] = value
 
 
 class TestREPLNativeSlashCommands(unittest.TestCase):
@@ -63,12 +81,12 @@ class TestREPLNativeSlashCommands(unittest.TestCase):
         with open(config_file, "w", encoding="utf-8") as f:
             json.dump(test_config, f)
 
-        self._global_config_patcher = patch.object(config_module, "GLOBAL_CONFIG_FILE", config_file)
-        self._global_config_patcher.start()
+        self._saved_state_root = _redirect_state_root_to(self.config_dir)
         config_module._default_manager = None
 
     def tearDown(self):
-        self._global_config_patcher.stop()
+        _restore_state_root(self._saved_state_root)
+        config_module._default_manager = None
 
     def _make_repl(self, **kwargs) -> ClawcodexREPL:
         """Create a ClawcodexREPL instance with minimal mocking.

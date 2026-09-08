@@ -365,6 +365,9 @@ attach_cron_runtime = None  # type: ignore[assignment,misc]
 replace_cron_tools = None  # type: ignore[assignment,misc]
 claim_cron_run = None  # type: ignore[assignment,misc]
 finalize_cron_run = None  # type: ignore[assignment,misc]
+_proactive_runtime_loaded = False
+_HAS_PROACTIVE = False
+attach_proactive_runtime = None  # type: ignore[assignment,misc]
 
 
 # Lazy runtime placeholders — ``get_provider_config`` / ``get_provider_class``
@@ -469,6 +472,24 @@ def _load_cron_runtime() -> None:
     _cron_runtime_loaded = True
 
 
+def _load_proactive_runtime() -> None:
+    """Import the proactive runtime helper without the full REPL stack."""
+    global _proactive_runtime_loaded, _HAS_PROACTIVE, attach_proactive_runtime
+
+    if _proactive_runtime_loaded:
+        return
+
+    try:
+        from clawcodex_ext.services.proactive.runtime import attach_proactive_runtime
+
+        _HAS_PROACTIVE = True
+    except ImportError:
+        _HAS_PROACTIVE = False
+        attach_proactive_runtime = None  # type: ignore[assignment]
+
+    _proactive_runtime_loaded = True
+
+
 def _load_heavy_runtime() -> None:
     """Import agent/provider/tool/command deps on first REPL use."""
     global _heavy_runtime_loaded
@@ -482,6 +503,7 @@ def _load_heavy_runtime() -> None:
     global CostTracker, HistoryLog, AgentMentionCompleter, AtFileCompleter
     global LiveStatus, _HAS_CRON, attach_cron_runtime, replace_cron_tools
     global claim_cron_run, finalize_cron_run
+    global _HAS_PROACTIVE, attach_proactive_runtime
     global format_advisor_status, permission_mode_short_title
     global compute_session_cost, format_cost_usd
     # Note: QueryEngine / QueryEngineConfig are NOT imported here. They are
@@ -547,6 +569,7 @@ def _load_heavy_runtime() -> None:
         Session = _Session
 
     _load_cron_runtime()
+    _load_proactive_runtime()
 
     _heavy_runtime_loaded = True
 
@@ -639,6 +662,27 @@ def _ghost_hint_for(key: str, *, has_tab_alias: bool = True) -> str:
 # exist upstream) would need to thread per-buffer state through the
 # filter — out of scope for plan 3.
 _ghost_state: dict[str, object] = {"suggestion": None, "complete_active": False}
+
+
+# Live per-keystroke completion walks the whole draft on each edit, so
+# pasted mega-lines are capped; Tab/Enter completion stays available.
+_LIVE_COMPLETION_MAX_DRAFT_CHARS = 8192
+
+
+def _live_completion_allowed(text_length: int) -> bool:
+    """True while a draft is short enough for per-keystroke completion."""
+    return text_length < _LIVE_COMPLETION_MAX_DRAFT_CHARS
+
+
+def _live_completion_while_typing_filter() -> bool:
+    """``Condition`` body: allow live completion only for short drafts."""
+    try:
+        from prompt_toolkit.application import get_app
+
+        buffer = get_app().current_buffer
+    except Exception:
+        return True
+    return _live_completion_allowed(len(buffer.text))
 
 
 class _HintedAutoSuggest(AutoSuggestFromHistory):
@@ -823,6 +867,14 @@ class ClawcodexREPL:
                 self.tool_context,
                 autostart=True,
                 is_loading=lambda: self._active_live_status is not None,
+            )
+        if _HAS_PROACTIVE and attach_proactive_runtime is not None:
+            # Feature-gated tick emitter on the same outbox; ticks are
+            # dropped while the agent loop is busy.
+            attach_proactive_runtime(
+                self.tool_context,
+                autostart=True,
+                should_skip=lambda: self._active_live_status is not None,
             )
         self._cron_active_tasks: dict[str, str] = {}
         from clawcodex_ext.runtime.tool_context_binding import bind_tool_context_runtime
@@ -1166,6 +1218,9 @@ class ClawcodexREPL:
             _accept_key = "c-e"
             _accept_tab_alias = True
 
+        # Gate per-keystroke completion on the live draft's length.
+        from prompt_toolkit.filters import Condition as _LiveCompletionCondition
+
         self.prompt_session = PromptSession(
             history=file_history,
             auto_suggest=_HintedAutoSuggest(
@@ -1175,7 +1230,7 @@ class ClawcodexREPL:
             completer=self.completer,
             style=Style.from_dict(self._repl_ptk_style),
             key_bindings=self.bindings,
-            complete_while_typing=True,
+            complete_while_typing=_LiveCompletionCondition(_live_completion_while_typing_filter),
             multiline=True,
             prompt_continuation=self._prompt_continuation,
             bottom_toolbar=self._bottom_toolbar,
@@ -3859,6 +3914,27 @@ class ClawcodexREPL:
         for text in drained:
             self._enqueue_cron_prompt(text)
 
+    def _drain_proactive_outbox(self) -> None:
+        """Drain ``proactive_prompt`` events and inject them as prompts."""
+        _load_proactive_runtime()
+        if not _HAS_PROACTIVE:
+            return
+        outbox = getattr(self.tool_context, "outbox", None)
+        if not outbox:
+            return
+        from clawcodex_ext.services.proactive.runtime import (
+            drain_proactive_prompts,
+            is_proactive_feature_enabled,
+        )
+
+        drained = drain_proactive_prompts(outbox)
+        if not drained:
+            return
+        if not is_proactive_feature_enabled():
+            return
+        for text in drained:
+            self._enqueue_cron_prompt(text)
+
     def _extract_cron_task_id(self, user_input: str) -> str | None:
         first_line = user_input.split("\n", 1)[0]
         if not first_line.startswith("✻ Running scheduled task"):
@@ -4771,6 +4847,7 @@ class ClawcodexREPL:
                 user_input = None
                 self._refresh_completer()
                 self._drain_cron_outbox()
+                self._drain_proactive_outbox()
                 self._drain_background_outputs()
                 result = self._pop_queued_prompt()
                 if result is not None:
@@ -4828,6 +4905,7 @@ class ClawcodexREPL:
                     # app.exit(_CRON_WAKE) returned normally.
                     # Drain the outbox and re-prompt.
                     self._drain_cron_outbox()
+                    self._drain_proactive_outbox()
                     continue
 
                 if not user_input.strip():
@@ -4930,6 +5008,7 @@ class ClawcodexREPL:
                 # should rarely be hit. Kept for edge cases (e.g. external
                 # cancellation, prompt_toolkit internals).
                 self._drain_cron_outbox()
+                self._drain_proactive_outbox()
                 continue
             except KeyboardInterrupt:
                 try:
@@ -5903,6 +5982,59 @@ class ClawcodexREPL:
             messages = [{"role": "system", "content": style_prompt}, *messages]
         return messages, {}
 
+    def _apply_auto_compact_transcript_write_back(self, result: Any) -> None:
+        """Persist an in-query auto-compaction into ``session.conversation``."""
+        try:
+            from clawcodex_ext.services.compact.compact import (
+                assemble_post_compact_messages,
+            )
+
+            self.session.conversation.messages = assemble_post_compact_messages(
+                self.session.conversation.messages,
+                result,
+            )
+        except Exception:
+            logger.warning("auto-compact transcript write-back failed", exc_info=True)
+
+    def _direct_stream_over_compact_threshold(self) -> bool:
+        """True when a direct-streamed turn would exceed the autocompact cap."""
+        try:
+            messages = self.session.conversation.messages
+            if not messages:
+                return False
+            from clawcodex_ext.services.compact.autocompact import (
+                AutoCompactTracking,
+                should_auto_compact,
+            )
+            from clawcodex_ext.utils.token_estimation import (
+                rough_token_count_estimation_for_messages,
+            )
+
+            est_input_tokens = rough_token_count_estimation_for_messages(messages)
+            context_window = getattr(self.provider, "context_window", None)
+            if not (isinstance(context_window, int) and context_window > 0):
+                model_name = getattr(self.provider, "model", None)
+                context_window = 200_000
+                if isinstance(model_name, str) and model_name:
+                    try:
+                        from src.models.context import get_context_window_for_model
+
+                        context_window = get_context_window_for_model(
+                            model_name,
+                            base_url=getattr(self.provider, "base_url", None),
+                        )
+                    except Exception:
+                        logger.debug("model context-window resolution failed", exc_info=True)
+
+            return should_auto_compact(
+                est_input_tokens,
+                context_window,
+                tracking=AutoCompactTracking(),
+            )
+        except Exception:
+            logger.debug("direct-stream compact-threshold check failed", exc_info=True)
+            return False
+
     def _should_try_direct_stream(self, user_input: str) -> bool:
         if not self.stream:
             return False
@@ -6281,7 +6413,12 @@ class ClawcodexREPL:
             # Direct-stream skips the tool loop; it can only carry plain
             # text. If the user attached an image, fall through to the
             # full engine path so the image content block survives.
-            if not image_blocks and self._should_try_direct_stream(user_input):
+            # Over-threshold sessions fall through too — the engine compacts.
+            if (
+                not image_blocks
+                and self._should_try_direct_stream(user_input)
+                and not self._direct_stream_over_compact_threshold()
+            ):
 
                 def on_text_chunk_direct(chunk: str) -> None:
                     if not chunk:
@@ -6446,6 +6583,7 @@ class ClawcodexREPL:
                 append_system_prompt=append_prompt,
                 max_turns=max_turns,
                 initial_messages=prior_messages,
+                on_auto_compact=self._apply_auto_compact_transcript_write_back,
             )
             engine = QueryEngine(engine_config)
 
