@@ -22,7 +22,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from pathlib import Path
+
+import pytest
 
 from clawcodex_ext.command_system.builtins import execute_command_sync
 from clawcodex_ext.command_system.engine import create_command_context
@@ -36,6 +39,17 @@ from clawcodex_ext.services.proactive import (
     reset_default_controller_for_tests,
 )
 from clawcodex_ext.tool_system.context import ToolContext
+
+
+@pytest.fixture(autouse=True)
+def _restore_proactive_feature_override() -> Iterator[None]:
+    """Keep the PROACTIVE override from leaking out of this module."""
+    reg = get_registry()
+    reg.clear_override("PROACTIVE")
+    try:
+        yield
+    finally:
+        reg.clear_override("PROACTIVE")
 
 
 def test_proactive_section_is_goal_aware(tmp_path: Path, monkeypatch) -> None:

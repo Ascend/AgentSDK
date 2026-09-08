@@ -245,6 +245,9 @@ class ToolContext:
     # (subagents, SDK, bare tests) CronCreate falls back to the inert
     # legacy ``crons`` dict above.
     cron_scheduler: Any | None = None
+    # Proactive tick emitter; set via attach_proactive_runtime() on
+    # context build. ``slots=True`` requires the explicit declaration.
+    proactive_emitter: Any | None = None
     team: dict[str, Any] | None = None
     output_style_name: str | None = None
     output_style_dir: Path | None = None

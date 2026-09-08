@@ -27,6 +27,7 @@ from __future__ import annotations
 import asyncio
 import os
 import shlex
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from clawcodex_ext.command_system.engine import CommandContext
@@ -298,20 +299,37 @@ def _template(parts: list[str], context: CommandContext) -> str:
     raise ValueError(f"unknown template action: {action}")
 
 
+def _ultraplan_aliases() -> list[str]:
+    """Shorthand aliases for the /ultraplan command."""
+    from clawcodex_ext.services.ultraplan.keyword_detector import TRIGGER_KEYWORDS
+
+    return [keyword[1:] for keyword in TRIGGER_KEYWORDS if keyword != "/ultraplan"]
+
+
+def run_ultraplan_command_sync(args: str, context: CommandContext) -> LocalCommandResult:
+    """Execute the async ultraplan body from a synchronous dispatch slot."""
+
+    def _run() -> LocalCommandResult:
+        return asyncio.run(ULTRAPLAN_COMMAND.call(args, context))
+
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return _run()
+    with ThreadPoolExecutor(max_workers=1, thread_name_prefix="ultraplan-sync") as pool:
+        return pool.submit(_run).result()
+
+
 ULTRAPLAN_COMMAND = UltraplanCommand(
     name="ultraplan",
     description="LLM-driven planning and multi-step execution",
     argument_hint="[create|run|pause|resume|status|ls|show|rm|template] ...",
     supports_non_interactive=True,
+    aliases=_ultraplan_aliases(),
 )
-# LocalCommand consumers inspect this implementation slot when validating the
-# registry. Ultraplan overrides ``call`` for its richer error handling, but it
-# still publishes the same executable contract as every other local command.
-ULTRAPLAN_COMMAND.set_call(ULTRAPLAN_COMMAND.call)
-
-
-def run_ultraplan_command_sync(args: str, context: CommandContext) -> LocalCommandResult:
-    return asyncio.run(ULTRAPLAN_COMMAND.call(args, context))
+# Registry validation and sync dispatch consume this implementation slot; it
+# must hold the sync adapter, never the un-awaited async ``call``.
+ULTRAPLAN_COMMAND.set_call(run_ultraplan_command_sync)
 
 
 def register_ultraplan_command(registry: CommandRegistry) -> None:

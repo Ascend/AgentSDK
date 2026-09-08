@@ -168,7 +168,7 @@ def _is_provider_free_goal_summary_print(args: object) -> bool:
 
 def _has_multimodel_selection(args: Any) -> bool:
     """Return True when a multimodel group would activate for this run."""
-    if getattr(args, "multimodel", None) or getattr(args, "runtime_multimodel", None):
+    if getattr(args, "multimodel", None):
         return True
     from clawcodex_ext.multimodel.config import MultiModelConfigError, load_config
 
@@ -586,7 +586,6 @@ def _build_runtime_options(args: Any, *, worktree_session: Any) -> Any:
         workspace_root=(Path(worktree_session.worktree_path) if worktree_session is not None else None),
         worktree_session=worktree_session,
         multimodel_cli_group=getattr(args, "multimodel", None),
-        multimodel_runtime_group=getattr(args, "runtime_multimodel", None),
     )
 
 
