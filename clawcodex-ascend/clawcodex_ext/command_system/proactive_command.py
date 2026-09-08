@@ -30,13 +30,9 @@ _EMITTERS_BY_CONTEXT_ID: dict[int, TickEmitter] = {}
 
 
 def is_proactive_feature_enabled() -> bool:
-    try:
-        from clawcodex_ext.feature_gate import get_registry  # pylint: disable=no-name-in-module
+    from clawcodex_ext.services.proactive.runtime import is_proactive_feature_enabled as _gate
 
-        reg = get_registry()
-        return reg.is_enabled("PROACTIVE") or reg.is_enabled("KAIROS")
-    except Exception:
-        return False
+    return _gate()
 
 
 def _parse_focus(parts: list[str]) -> str | None:
@@ -66,6 +62,11 @@ def _get_or_create_emitter(context: CommandContext) -> TickEmitter | None:
     emitter = _EMITTERS_BY_CONTEXT_ID.get(context_id)
     if emitter is not None:
         return emitter
+    # Runtime-attached emitters (attach_proactive_runtime) are mounted on the
+    # tool context — not recorded in the module dict above.
+    emitter = getattr(tool_context, "proactive_emitter", None)
+    if emitter is not None:
+        return emitter
     emitter = TickEmitter(controller=get_default_controller(), outbox=outbox)
     _EMITTERS_BY_CONTEXT_ID[context_id] = emitter
     return emitter
@@ -75,7 +76,11 @@ def _pop_emitter(context: CommandContext) -> TickEmitter | None:
     tool_context = getattr(context, "tool_context", None)
     if tool_context is None:
         return None
-    return _EMITTERS_BY_CONTEXT_ID.pop(id(tool_context), None)
+    emitter = _EMITTERS_BY_CONTEXT_ID.pop(id(tool_context), None)
+    if emitter is None:
+        # Fall back to the runtime-attached instance, which the dict never holds.
+        emitter = getattr(tool_context, "proactive_emitter", None)
+    return emitter
 
 
 def proactive_command_call(args: str, context: CommandContext) -> LocalCommandResult:

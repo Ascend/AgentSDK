@@ -77,6 +77,14 @@ class TickEmitter:
     def scheduler(self) -> TickScheduler:
         return self._scheduler
 
+    @property
+    def should_skip(self) -> SkipPredicate | None:
+        return self._should_skip
+
+    @should_skip.setter
+    def should_skip(self, predicate: SkipPredicate | None) -> None:
+        self._should_skip = predicate
+
     def start(self) -> bool:
         started = self._scheduler.start()
         self._ctrl.set_next_tick_at((time.time() * 1000) + self._scheduler.config.interval_seconds * 1000)

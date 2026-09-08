@@ -34,6 +34,7 @@ Tests cover:
 
 from __future__ import annotations
 
+import json
 import os
 import tempfile
 import unittest
@@ -75,6 +76,44 @@ class MockConversation:
 
     def clear(self):
         self.messages.clear()
+
+
+def _redirect_state_root(tmp_root: str) -> tuple[str | None, str | None]:
+    """Redirect the state-root chain at a per-test dir with a fake key; returns
+    the previous env values for :func:`_restore_state_root`.
+    """
+    config_root = Path(tmp_root) / "state_root"
+    config_root.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "default_provider": "anthropic",
+        "providers": {
+            "anthropic": {
+                "api_key": "fake-command-system-key",
+                "base_url": "https://api.anthropic.com/v1",
+                "default_model": "claude-sonnet-4-20250514",
+            }
+        },
+    }
+    (config_root / "config.json").write_text(json.dumps(payload), encoding="utf-8")
+    saved = (os.environ.get("CLAWCODEX_CONFIG_DIR"), os.environ.get("CLAWCODEX_HOME"))
+    os.environ["CLAWCODEX_CONFIG_DIR"] = str(config_root)
+    os.environ["CLAWCODEX_HOME"] = str(config_root)
+    import src.config as config_module
+
+    config_module._default_manager = None
+    return saved
+
+
+def _restore_state_root(saved: tuple[str | None, str | None]) -> None:
+    """Restore env values captured by :func:`_redirect_state_root`."""
+    for name, value in zip(("CLAWCODEX_CONFIG_DIR", "CLAWCODEX_HOME"), saved):
+        if value is None:
+            os.environ.pop(name, None)
+        else:
+            os.environ[name] = value
+    import src.config as config_module
+
+    config_module._default_manager = None
 
 
 class TestArgumentSubstitution(unittest.TestCase):
@@ -232,6 +271,7 @@ class TestBuiltinCommands(unittest.TestCase):
         self.cost_tracker = CostTracker()
         self.history = HistoryLog()
         self.runtimes = []
+        self._saved_state_root = _redirect_state_root(self.tmpdir.name)
 
         self.context = create_command_context(
             workspace_root=self.workspace_root,
@@ -242,6 +282,7 @@ class TestBuiltinCommands(unittest.TestCase):
 
     def tearDown(self):
         """Clean up test fixtures."""
+        _restore_state_root(self._saved_state_root)
         for runtime in self.runtimes:
             scheduler = getattr(runtime.tool_context, "cron_scheduler", None)
             if scheduler is not None:

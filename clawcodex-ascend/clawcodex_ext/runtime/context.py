@@ -33,6 +33,7 @@ from typing import Any
 
 from clawcodex_ext.cli.model_cmd.resolver import resolve
 from clawcodex_ext.cron_system.runtime import attach_cron_runtime, replace_cron_tools
+from clawcodex_ext.services.proactive.runtime import attach_proactive_runtime
 from clawcodex_ext.runtime.observer import (
     notify_observers,
 )
@@ -76,7 +77,6 @@ class RuntimeOptions:
     record_height: int | None = None
     multimodel_group: str = ""
     multimodel_cli_group: str | None = None
-    multimodel_runtime_group: str | None = None
     worktree_session: Any | None = None
 
 
@@ -141,12 +141,7 @@ class RuntimeContext:
             multimodel_config = load_config()
         except MultiModelConfigError as exc:
             raise RuntimeError(str(exc)) from exc
-        multimodel_group = (
-            options.multimodel_cli_group
-            or options.multimodel_runtime_group
-            or options.multimodel_group
-            or multimodel_config.default_group
-        )
+        multimodel_group = options.multimodel_cli_group or options.multimodel_group or multimodel_config.default_group
         if multimodel_group and multimodel_group not in multimodel_config.groups:
             raise RuntimeError(f"unknown model group '{multimodel_group}'")
         if multimodel_group:
@@ -209,6 +204,11 @@ class RuntimeContext:
         # Runs a background daemon thread that checks for due tasks
         # every second and pushes cron_prompt events to the outbox.
         attach_cron_runtime(tool_context, autostart=True)
+
+        # Wire the proactive tick emitter: feature-gated, no-op when off;
+        # with the feature on, a 30s tick daemon pushes proactive_prompt
+        # events to the outbox.
+        attach_proactive_runtime(tool_context, autostart=True)
 
         # Wire the dreaming system (background memory consolidation).
         try:
@@ -290,6 +290,8 @@ class RuntimeContext:
         runtime._single_model = resolution.model
         runtime.multimodel_group = options.multimodel_group
         attach_cron_runtime(runtime)
+        # Expose ``runtime.proactive_emitter`` for ctx-level consumers.
+        attach_proactive_runtime(runtime)
         return runtime
 
     def close_tail_follower(self) -> None:
