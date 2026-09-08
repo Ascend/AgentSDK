@@ -66,7 +66,8 @@ function start_infer_instances()
 
 function qwen35_moe_model_handle()
 {
-  if [[ "${SERVED_MODEL_NAME}" == "Qwen3.5-35B-A3B" ||
+  if [[ "${SERVED_MODEL_NAME}" == "Qwen3.6-35B-A3B" ||
+    "${SERVED_MODEL_NAME}" == "Qwen3.5-35B-A3B" ||
     "${SERVED_MODEL_NAME}" == "Qwen3.5-122B-A10B" ||
     "${SERVED_MODEL_NAME}" == "Qwen3.5-397B-A17B" ]]; then
     export TRANSPOSE_EXPERT_SHAPE="true"

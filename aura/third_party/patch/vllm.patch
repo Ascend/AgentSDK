@@ -1,37 +1,135 @@
-diff --git a/vllm_ascend/patch/worker/__init__.py b/vllm_ascend/patch/worker/__init__.py
-index 1746dc8a4..be59171e6 100644
---- a/vllm_ascend/patch/worker/__init__.py
-+++ b/vllm_ascend/patch/worker/__init__.py
-@@ -36,8 +36,8 @@ if HAS_TRITON:
+diff --git a/vllm/model_executor/models/qwen3_moe.py b/vllm/model_executor/models/qwen3_moe.py
+index 4ec1be3..a2fecbd 100644
+--- a/vllm/model_executor/models/qwen3_moe.py
++++ b/vllm/model_executor/models/qwen3_moe.py
+@@ -528,6 +528,32 @@ class Qwen3MoeModel(nn.Module, EagleModelMixin):
+             num_redundant_experts=self.num_redundant_experts,
+         )
 
- import vllm_ascend.patch.worker.patch_weight_utils  # noqa
- import vllm_ascend.patch.worker.patch_distributed  # noqa
--import vllm_ascend.patch.worker.patch_minimax_m2  # noqa
--import vllm_ascend.patch.worker.patch_minimax_m2_linear_attn  # noqa
-+#import vllm_ascend.patch.worker.patch_minimax_m2  # noqa
-+#import vllm_ascend.patch.worker.patch_minimax_m2_linear_attn  # noqa
- import vllm_ascend.patch.worker.patch_mamba_utils  # noqa
- import vllm_ascend.patch.worker.patch_qwen3_next_mtp  # noqa
++    def load_fused_expert_weights(
++        self,
++        name: str,
++        params_dict: dict[str, nn.Parameter],
++        loaded_weight: torch.Tensor,
++        shard_id: str,
++        num_experts: int,
++    ) -> bool:
++        """Load a packed checkpoint tensor through the native expert loader."""
++        param = params_dict[name]
++        weight_loader = typing.cast(Callable[..., bool], param.weight_loader)
++        loaded_local_expert = False
++        for expert_id in range(num_experts):
++            success = weight_loader(
++                param,
++                loaded_weight[expert_id],
++                name,
++                shard_id=shard_id,
++                expert_id=expert_id,
++                return_success=True,
++            )
++            if success:
++                loaded_local_expert = True
++
++        return loaded_local_expert
++
+     def load_weights(self, weights: Iterable[tuple[str, torch.Tensor]]) -> set[str]:
+         stacked_params_mapping = [
+             # (param_name, shard_name, shard_id)
+@@ -551,6 +577,16 @@ class Qwen3MoeModel(nn.Module, EagleModelMixin):
+         params_dict = dict(self.named_parameters())
+         loaded_params: set[str] = set()
+         expert_params_mapping = self.get_expert_mapping()
++        base_layer = (
++            "base_layer."
++            if any(".base_layer." in name for name in params_dict)
++            else ""
++        )
++        fused_expert_params_mapping = [
++            (f"experts.{base_layer}w13_weight", "experts.gate_up_proj", 0, "w1"),
++            (f"experts.{base_layer}w2_weight", "experts.down_proj", 0, "w2"),
++        ]
++        num_experts = self.config.num_experts
+         for name, loaded_weight in weights:
+             if self.quant_config is not None and (
+                 scale_name := self.quant_config.get_cache_scale(name)
+@@ -607,7 +643,15 @@ class Qwen3MoeModel(nn.Module, EagleModelMixin):
+                 break
+             else:
+                 is_expert_weight = False
+-                for mapping in expert_params_mapping:
++                is_fused_expert = (
++                    "experts.gate_up_proj" in name or "experts.down_proj" in name
++                )
++                current_expert_params_mapping = (
++                    fused_expert_params_mapping
++                    if is_fused_expert
++                    else expert_params_mapping
++                )
++                for mapping in current_expert_params_mapping:
+                     param_name, weight_name, expert_id, shard_id = mapping
+                     if weight_name not in name:
+                         continue
+@@ -630,21 +674,48 @@ class Qwen3MoeModel(nn.Module, EagleModelMixin):
+                     ):
+                         continue
 
-diff --git a/vllm_ascend/utils.py b/vllm_ascend/utils.py
-index f0ef65006..628042c6a 100644
---- a/vllm_ascend/utils.py
-+++ b/vllm_ascend/utils.py
-@@ -651,7 +651,7 @@ def register_ascend_customop(vllm_config: VllmConfig | None = None):
-         AscendSiluAndMul,
-         AscendSiluAndMulWithClamp,
-     )
--    from vllm_ascend.ops.bailing_moe_linear_attn import AscendBailingMoELinearAttention
-+    #from vllm_ascend.ops.bailing_moe_linear_attn import AscendBailingMoELinearAttention
-     from vllm_ascend.ops.conv import AscendConv3dLayer
-     from vllm_ascend.ops.fused_moe.fused_moe import AscendFusedMoE
-     from vllm_ascend.ops.gdn import AscendGatedDeltaNetAttention
-@@ -708,7 +708,7 @@ def register_ascend_customop(vllm_config: VllmConfig | None = None):
-         "RelPosAttention": AscendRelPosAttention,
-         "CustomQwen2Decoder": AscendCustomQwen2Decoder,
-         "GatedDeltaNetAttention": AscendGatedDeltaNetAttention,
--        "BailingMoELinearAttention": AscendBailingMoELinearAttention,
-+        #"BailingMoELinearAttention": AscendBailingMoELinearAttention,
-     }
-
-     if vllm_config is None:
+-                    param = params_dict[name_mapped]
+-                    # We should ask the weight loader to return success or not
+-                    # here since otherwise we may skip experts with other
+-                    # available replicas.
+-                    weight_loader = typing.cast(
+-                        Callable[..., bool], param.weight_loader
+-                    )
+-                    success = weight_loader(
+-                        param,
+-                        loaded_weight,
+-                        name_mapped,
+-                        shard_id=shard_id,
+-                        expert_id=expert_id,
+-                        return_success=True,
+-                    )
++                    if is_fused_expert:
++                        if "experts.gate_up_proj" in name:
++                            gate_weight, up_weight = loaded_weight.chunk(2, dim=-2)
++                            success_w1 = self.load_fused_expert_weights(
++                                name_mapped,
++                                params_dict,
++                                gate_weight,
++                                "w1",
++                                num_experts,
++                            )
++                            success_w3 = self.load_fused_expert_weights(
++                                name_mapped,
++                                params_dict,
++                                up_weight,
++                                "w3",
++                                num_experts,
++                            )
++                            success = success_w1 and success_w3
++                        else:
++                            success = self.load_fused_expert_weights(
++                                name_mapped,
++                                params_dict,
++                                loaded_weight,
++                                shard_id,
++                                num_experts,
++                            )
++                    else:
++                        param = params_dict[name_mapped]
++                        # We should ask the weight loader to return success or not
++                        # here since otherwise we may skip experts with other
++                        # available replicas.
++                        weight_loader = typing.cast(
++                            Callable[..., bool], param.weight_loader
++                        )
++                        success = weight_loader(
++                            param,
++                            loaded_weight,
++                            name_mapped,
++                            shard_id=shard_id,
++                            expert_id=expert_id,
++                            return_success=True,
++                        )
+                     if success:
+                         name = name_mapped
+                         break

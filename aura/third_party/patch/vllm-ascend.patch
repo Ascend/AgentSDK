@@ -1,46 +1,110 @@
-diff --git a/patch/worker/patch_v2_eagle.py b/patch/worker/patch_v2_eagle.py
-index 3b83f937..45f6592f 100644
---- a/patch/worker/patch_v2_eagle.py
-+++ b/patch/worker/patch_v2_eagle.py
-@@ -24,10 +24,11 @@ from vllm.v1.worker.gpu.sample.gumbel import gumbel_sample
+diff --git a/vllm_ascend/patch/worker/__init__.py b/vllm_ascend/patch/worker/__init__.py
+index 1746dc8a4..be59171e6 100644
+--- a/vllm_ascend/patch/worker/__init__.py
++++ b/vllm_ascend/patch/worker/__init__.py
+@@ -36,8 +36,8 @@ if HAS_TRITON:
 
- from vllm_ascend.utils import vllm_version_is
+ import vllm_ascend.patch.worker.patch_weight_utils  # noqa
+ import vllm_ascend.patch.worker.patch_distributed  # noqa
+-import vllm_ascend.patch.worker.patch_minimax_m2  # noqa
+-import vllm_ascend.patch.worker.patch_minimax_m2_linear_attn  # noqa
++#import vllm_ascend.patch.worker.patch_minimax_m2  # noqa
++#import vllm_ascend.patch.worker.patch_minimax_m2_linear_attn  # noqa
+ import vllm_ascend.patch.worker.patch_mamba_utils  # noqa
+ import vllm_ascend.patch.worker.patch_qwen3_next_mtp  # noqa
 
--if vllm_version_is("v0.16.0"):
--    from vllm.v1.worker.gpu.spec_decode.eagle import prepare_eagle_decode, prepare_eagle_inputs
--else:
--    from vllm.v1.worker.gpu.spec_decode.eagle.speculator import prepare_eagle_decode, prepare_eagle_inputs
-+#if vllm_version_is("v0.16.0"):
-+#    from vllm.v1.worker.gpu.spec_decode.eagle import prepare_eagle_decode, prepare_eagle_inputs
-+#else:
-+#    from vllm.v1.worker.gpu.spec_decode.eagle.speculator import prepare_eagle_decode, prepare_eagle_inputs
-+from vllm.v1.worker.gpu.spec_decode.eagle.speculator import prepare_eagle_decode, prepare_eagle_inputs
+diff --git a/vllm_ascend/utils.py b/vllm_ascend/utils.py
+index f0ef65006..628042c6a 100644
+--- a/vllm_ascend/utils.py
++++ b/vllm_ascend/utils.py
+@@ -651,7 +651,7 @@ def register_ascend_customop(vllm_config: VllmConfig | None = None):
+         AscendSiluAndMul,
+         AscendSiluAndMulWithClamp,
+     )
+-    from vllm_ascend.ops.bailing_moe_linear_attn import AscendBailingMoELinearAttention
++    #from vllm_ascend.ops.bailing_moe_linear_attn import AscendBailingMoELinearAttention
+     from vllm_ascend.ops.conv import AscendConv3dLayer
+     from vllm_ascend.ops.fused_moe.fused_moe import AscendFusedMoE
+     from vllm_ascend.ops.gdn import AscendGatedDeltaNetAttention
+@@ -708,7 +708,7 @@ def register_ascend_customop(vllm_config: VllmConfig | None = None):
+         "RelPosAttention": AscendRelPosAttention,
+         "CustomQwen2Decoder": AscendCustomQwen2Decoder,
+         "GatedDeltaNetAttention": AscendGatedDeltaNetAttention,
+-        "BailingMoELinearAttention": AscendBailingMoELinearAttention,
++        #"BailingMoELinearAttention": AscendBailingMoELinearAttention,
+     }
+
+     if vllm_config is None:
+
+diff --git a/vllm_ascend/worker/model_runner_v1.py b/vllm_ascend/worker/model_runner_v1.py
+--- a/vllm_ascend/worker/model_runner_v1.py
++++ b/vllm_ascend/worker/model_runner_v1.py
+@@ -158,7 +158,7 @@
+ )
+ from vllm_ascend.worker.npu_input_batch import NPUInputBatch
+ from vllm_ascend.worker.pcp_utils import PCPManager
+-from vllm_ascend.worker.utils import AscendKVBlockZeroer
++from vllm_ascend.worker.utils import AscendKVBlockZeroer, copy_snapshot_to_gpu
+
+ from vllm_ascend.ascend_forward_context import (  # isort: skip
+     MoECommType,
+@@ -738,7 +738,7 @@
+                 self.query_start_loc.np[num_reqs_padded + 1] = num_tokens_padded
+                 num_reqs_padded = num_reqs_padded + 1
+
+-        self.query_start_loc.copy_to_gpu()
++        copy_snapshot_to_gpu(self.query_start_loc)
+
+         return num_reqs_padded
+
+@@ -925,7 +925,7 @@
+
+         self.query_start_loc.np[0] = 0
+         self.query_start_loc.np[1 : num_reqs + 1] = cu_num_tokens
+-        self.query_start_loc.copy_to_gpu()
++        copy_snapshot_to_gpu(self.query_start_loc)
+
+         # Now, query_start_loc is padded.
+         # But gdn needs an unpadded one.
+@@ -935,7 +935,7 @@
+             self.gdn_query_start_loc.np[0] = 0
+             self.gdn_query_start_loc.np[1 : num_reqs + 1] = cu_num_tokens
+             self.gdn_query_start_loc.np[num_reqs + 1 :].fill(cu_num_tokens[-1])
+-            self.gdn_query_start_loc.copy_to_gpu()
++            copy_snapshot_to_gpu(self.gdn_query_start_loc)
 
 
- from vllm_ascend.worker.v2.attn_utils import build_attn_metadata
-@@ -175,7 +176,8 @@ def propose(
-     return self.draft_tokens[:num_reqs]
+         # Compute optimistic seq_lens (assumes all draft tokens from previous
+@@ -3404,10 +3404,10 @@
+             cum_num_tokens = self._get_cumsum_and_arange(
+             num_scheduled_tokens, self.query_pos.np)
+             self.query_start_loc.np[1 : num_reqs_padded + 1] = cum_num_tokens
+-            self.query_start_loc.copy_to_gpu()
++            copy_snapshot_to_gpu(self.query_start_loc)
+             if self._has_gdn:
+                 self.gdn_query_start_loc.np[1 : num_reqs_padded + 1] = cum_num_tokens
+-                self.gdn_query_start_loc.copy_to_gpu()
++                copy_snapshot_to_gpu(self.gdn_query_start_loc)
+
+             if not profile_cpp:
+                 num_reqs_padded = self._pad_query_start_loc_for_fia(
+diff --git a/vllm_ascend/worker/utils.py b/vllm_ascend/worker/utils.py
+--- a/vllm_ascend/worker/utils.py
++++ b/vllm_ascend/worker/utils.py
+@@ -6,9 +6,16 @@
+ from vllm.triton_utils import tl, triton
+ from vllm.utils.math_utils import largest_power_of_2_divisor
+ from vllm.v1.kv_cache_interface import FullAttentionSpec
++from vllm.v1.utils import CpuGpuBuffer
+ from vllm.v1.worker.utils import AttentionGroup, KVBlockZeroer
+
+ from vllm_ascend.ops.triton.triton_utils import get_vectorcore_num
++
++
++def copy_snapshot_to_gpu(buffer: CpuGpuBuffer) -> torch.Tensor:
++    """Copy an immutable pinned snapshot into a reusable GPU buffer."""
++    cpu_snapshot = buffer.cpu.clone().pin_memory()
++    return buffer.gpu.copy_(cpu_snapshot, non_blocking=True)
 
 
--if vllm_version_is("v0.16.0"):
--    vllm.v1.worker.gpu.spec_decode.eagle.EagleSpeculator.propose = propose
--else:
--    vllm.v1.worker.gpu.spec_decode.eagle.speculator.EagleSpeculator.propose = propose
-+#if vllm_version_is("v0.16.0"):
-+#    vllm.v1.worker.gpu.spec_decode.eagle.EagleSpeculator.propose = propose
-+#else:
-+#    vllm.v1.worker.gpu.spec_decode.eagle.speculator.EagleSpeculator.propose = propose
-+vllm.v1.worker.gpu.spec_decode.eagle.speculator.EagleSpeculator.propose = propose
-diff --git a/worker/model_runner_v1.py b/worker/model_runner_v1.py
-index cee31250..1a618022 100644
---- a/worker/model_runner_v1.py
-+++ b/worker/model_runner_v1.py
-@@ -1894,7 +1894,7 @@ class NPUModelRunner(GPUModelRunner):
-                     num_tokens=num_tokens,
-                     has_lora=has_lora,
-                     uniform_decode=uniform_decode,
--                    disable_full=disable_full,
-+                    #disable_full=disable_full,
-                     num_active_loras=num_active_loras,
-                 )
-             else:
+ @triton.jit

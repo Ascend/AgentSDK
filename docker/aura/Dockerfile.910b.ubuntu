@@ -6,7 +6,9 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt update && \
     apt install -y net-tools dos2unix ca-certificates curl wget && \
-    update-ca-certificates || true
+    update-ca-certificates || true && \
+    apt clean && \
+    rm -rf /var/lib/apt/lists/*
 
 RUN mkdir -p /home/work
 
@@ -17,53 +19,37 @@ RUN git clone -b ${GIT_BRANCH} https://gitcode.com/Ascend/AgentSDK.git && \
     bash /home/work/AgentSDK/docker/aura/env/build_repos.sh
 
 RUN pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/ && \
-    pip config set global.trusted-host mirrors.aliyun.com && \
-    pip config set global.extra-index-url "https://download.pytorch.org/whl/cpu/" && \
-    pip config set global.trusted-host download.pytorch.org
+    pip config set global.trusted-host "mirrors.aliyun.com mirrors.huaweicloud.com" && \
+    pip install torch==2.10.0+cpu --index-url https://download.pytorch.org/whl/cpu && \
+    cd /verl && \
+    git checkout e9972368aa6a6078eacd7f0678bdfdd0196ce7b5 && \
+    pip install -r requirements-npu.txt && \
+    pip install -v -e . && \
+    pip cache purge || true
 
-RUN pip install torch==2.9.0+cpu --index-url https://download.pytorch.org/whl/cpu
-
-RUN cd /home/work/vllm && \
-    git checkout 4034c3d32 && \
-    VLLM_TARGET_DEVICE=empty pip install -v -e .
-
-RUN cd /home/work/vllm-ascend && \
-    git checkout fe4cad24e && \
-    export COMPILE_CUSTOM_KERNELS=1 && \
+RUN PYTHONUNBUFFERED=1 VLLM_TARGET_DEVICE="empty" pip install -v -e /home/work/vllm/[audio] && \
+    pip uninstall -y triton && \
+    export PIP_EXTRA_INDEX_URL="https://mirrors.huaweicloud.com/ascend/repos/pypi" && \
     source /usr/local/Ascend/ascend-toolkit/set_env.sh && \
     source /usr/local/Ascend/cann-9.0.0/share/info/ascendnpu-ir/bin/set_env.sh && \
     source /usr/local/Ascend/nnal/atb/set_env.sh && \
-    pip install -v -e .
+    PYTHONUNBUFFERED=1 pip install -v -e /home/work/vllm-ascend/ && \
+    pip uninstall -y triton triton-ascend && \
+    pip install triton-ascend==3.2.1 --extra-index-url https://mirrors.huaweicloud.com/ascend/repos/pypi && \
+    pip cache purge || true
 
 RUN pip install -e /home/work/MindSpeed && \
     pip install -e /home/work/Megatron-LM && \
-    pip uninstall -y triton && \
-    pip install mbridge
+    pip install mbridge && \
+    bash /home/work/AgentSDK/docker/aura/env/build_common.sh && \
+    pip cache purge || true
 
 RUN cd /verl && \
-    git checkout e9972368aa6a6078eacd7f0678bdfdd0196ce7b5 && \
-    pip install -r requirements-npu.txt && \
-    pip install -v -e .
-
-RUN cd /home/work/transformers && \
-    git checkout cc7ab9be508ce6ed3637bba9e50367b29b742dc6 && \
-    pip install -v -e .
-
-RUN bash /home/work/AgentSDK/docker/aura/env/build_common.sh
-RUN bash /home/work/AgentSDK/docker/aura/patch/patch_triton_ascend.sh
-RUN bash /home/work/AgentSDK/docker/aura/patch/patch_vllm_ascend.sh
-
-RUN pip install uv && \
-    mkdir -p /home/work/model_env && \
-    uv venv /home/work/model_env/qwen3_moe && \
-    cd /home/work/model_env/qwen3_moe && \
-    source bin/activate && \
-    hash -r && \
-    python -m ensurepip --upgrade || true && \
-    python -m pip install -U pip setuptools wheel && \
-    hash -r && \
-    bash /home/work/AgentSDK/docker/aura/env/build_qwen3_moe_env.sh && \
-    deactivate
+    git apply /home/work/AgentSDK/aura/third_party/patch/verl.patch && \
+    cd /home/work/vllm && \
+    git apply /home/work/AgentSDK/aura/third_party/patch/vllm.patch && \
+    cd /home/work/vllm-ascend && \
+    git apply /home/work/AgentSDK/aura/third_party/patch/vllm-ascend.patch
 
 ENV http_proxy="" \
     https_proxy="" \
