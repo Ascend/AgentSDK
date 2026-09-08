@@ -20,9 +20,10 @@
 
 """Config persistence for feature flags.
 
-Stores and loads feature states to/from ``~/.clawcodex/features.json``
-(or ``features.yaml`` when PyYAML is available).  Supports both JSON
-and YAML formats for maximum flexibility.
+Stores and loads feature states to/from ``<user state root>/features.json``
+(or ``features.yaml`` when PyYAML is available) — the state root follows the
+shared ``$CLAWCODEX_CONFIG_DIR`` → ``$CLAWCODEX_HOME`` → ``~/.clawcodex``
+chain.  Supports both JSON and YAML formats for maximum flexibility.
 """
 
 from __future__ import annotations
@@ -34,10 +35,17 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-# Default location for the feature-gate config file.
-_DEFAULT_CONFIG_DIR = Path.home() / ".clawcodex"
-_DEFAULT_CONFIG_FILE_JSON = _DEFAULT_CONFIG_DIR / "features.json"
-_DEFAULT_CONFIG_FILE_YAML = _DEFAULT_CONFIG_DIR / "features.yaml"
+
+def _default_config_dir() -> Path:
+    """Default state directory through the shared env chain.
+
+    Resolved per :class:`ConfigStore` construction (not at import time)
+    so ``$CLAWCODEX_CONFIG_DIR`` / ``$CLAWCODEX_HOME`` redirects are
+    honored.
+    """
+    from clawcodex_ext.memdir.paths import get_claude_config_home_dir
+
+    return Path(get_claude_config_home_dir())
 
 
 class ConfigStore:
@@ -52,7 +60,7 @@ class ConfigStore:
         config_dir: Path | None = None,
         config_file: Path | None = None,
     ) -> None:
-        self._config_dir = config_dir or _DEFAULT_CONFIG_DIR
+        self._config_dir = config_dir or _default_config_dir()
         # Allow caller to override the file path entirely.
         if config_file is not None:
             self._config_file = config_file
@@ -84,9 +92,8 @@ class ConfigStore:
         """Pick the best config file: JSON preferred, then YAML.
 
         When *config_dir* already contains a features file (JSON or YAML),
-        that file is used.  Otherwise the default is ``{config_dir}/features.json``
-        — the hardcoded ``~/.clawcodex/features.json`` fallback is only used
-        when the caller did *not* provide an explicit ``config_dir``.
+        that file is used.  Otherwise the default is
+        ``{config_dir}/features.json``.
         """
         json_path = self._config_dir / "features.json"
         yaml_path = self._config_dir / "features.yaml"
@@ -95,10 +102,6 @@ class ConfigStore:
                 return json_path
             if yaml_path.exists():
                 return yaml_path
-        # Prefer the caller's config_dir; fall back to the global default
-        # only when the caller used the implicit default directory.
-        if self._config_dir == _DEFAULT_CONFIG_DIR:
-            return _DEFAULT_CONFIG_FILE_JSON
         return json_path
 
     # ------------------------------------------------------------------

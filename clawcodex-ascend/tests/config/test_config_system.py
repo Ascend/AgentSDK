@@ -178,31 +178,28 @@ class TestConfigManager:
 
 
 class TestHistory:
-    def test_append_and_read(self, tmp_path):
-        history_path = tmp_path / "history.jsonl"
-        with patch("src.config.HISTORY_FILE", history_path):
-            append_history_entry("first entry", source="test")
-            append_history_entry("second entry", source="test")
+    """History is appended to ``<state root>/history.jsonl``."""
 
-            entries = read_history_entries()
-            assert len(entries) == 2
-            assert entries[0]["content"] == "first entry"
-            assert entries[1]["content"] == "second entry"
-            assert entries[0]["source"] == "test"
+    def test_append_and_read(self, tmp_path):
+        append_history_entry("first entry", source="test")
+        append_history_entry("second entry", source="test")
+        assert (tmp_path / "history.jsonl").exists()
+
+        entries = read_history_entries()
+        assert len(entries) == 2
+        assert entries[0]["content"] == "first entry"
+        assert entries[1]["content"] == "second entry"
+        assert entries[0]["source"] == "test"
 
     def test_read_empty_returns_empty(self, tmp_path):
-        history_path = tmp_path / "nonexistent.jsonl"
-        with patch("src.config.HISTORY_FILE", history_path):
-            assert read_history_entries() == []
+        assert read_history_entries() == []
 
     def test_read_limit(self, tmp_path):
-        history_path = tmp_path / "history.jsonl"
-        with patch("src.config.HISTORY_FILE", history_path):
-            for i in range(10):
-                append_history_entry(f"entry {i}")
-            entries = read_history_entries(limit=3)
-            assert len(entries) == 3
-            assert entries[0]["content"] == "entry 7"
+        for i in range(10):
+            append_history_entry(f"entry {i}")
+        entries = read_history_entries(limit=3)
+        assert len(entries) == 3
+        assert entries[0]["content"] == "entry 7"
 
     def test_malformed_lines_skipped(self, tmp_path):
         history_path = tmp_path / "history.jsonl"
@@ -212,6 +209,5 @@ class TestHistory:
             f.write("bad json line\n")
             f.write('{"content": "also good"}\n')
 
-        with patch("src.config.HISTORY_FILE", history_path):
-            entries = read_history_entries()
-            assert len(entries) == 2
+        entries = read_history_entries()
+        assert len(entries) == 2

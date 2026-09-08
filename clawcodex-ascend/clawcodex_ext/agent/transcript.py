@@ -75,7 +75,7 @@ from dataclasses import asdict, is_dataclass
 from pathlib import Path
 from typing import Any, Callable, Iterator, Optional
 
-from src.utils.clawcodex_dirs import get_transcripts_dir
+from src.utils.clawcodex_dirs import get_sessions_dir, get_transcripts_dir
 
 logger = logging.getLogger(__name__)
 
@@ -135,9 +135,10 @@ def _warn_flat_fallback(parent_session_id: Optional[str]) -> None:
     """Emit a single warning when no nested resolver is registered.
 
     Tells the operator that a sub-agent transcript is about to land in
-    the flat ``~/.clawcodex/transcripts/`` fallback rather than the
-    designed
-    ``~/.clawcodex/sessions/<parent_session_id>/subagents/`` tree.
+    the flat fallback under the transcripts root (``<user state
+    root>/transcripts/`` — the state root follows ``$CLAWCODEX_CONFIG_DIR``
+    → ``$CLAWCODEX_HOME`` → ``~/.clawcodex``) rather than the designed
+    ``<user state root>/sessions/<parent_session_id>/subagents/`` tree.
     In practice this means the entry point skipped
     ``src.init.init()`` — every documented entry point (REPL,
     headless, bridge, TUI, SDK) is supposed to call ``init()`` first
@@ -153,11 +154,12 @@ def _warn_flat_fallback(parent_session_id: Optional[str]) -> None:
         return
     _flat_fallback_warned = True
     logger.warning(
-        "sub-agent transcript fell back to flat path "
-        "~/.clawcodex/transcripts/<id>.jsonl; no nested resolver "
-        "registered. This usually means the entry point skipped "
-        "src.init.init() — confirm init() runs before the agent "
-        "loop. parent_session_id=%r",
+        "sub-agent transcript fell back to the flat transcripts root "
+        "(<user state root>/transcripts/<id>.jsonl; state root follows "
+        "$CLAWCODEX_CONFIG_DIR -> $CLAWCODEX_HOME -> ~/.clawcodex); no "
+        "nested resolver registered. This usually means the entry "
+        "point skipped src.init.init() — confirm init() runs before "
+        "the agent loop. parent_session_id=%r",
         parent_session_id,
     )
 
@@ -170,9 +172,10 @@ def get_agent_transcript_path(
 
     Delegates to a registered extension resolver first; when none is
     registered (or the resolver returns ``None``), falls back to the
-    default flat path ``~/.clawcodex/transcripts/<safe_id>.jsonl``
-    and emits a one-shot warning so the operator can spot entry
-    points that bypassed ``src.init.init()``.
+    default flat path ``<user state root>/transcripts/<safe_id>.jsonl``
+    (state root = ``$CLAWCODEX_CONFIG_DIR`` → ``$CLAWCODEX_HOME`` →
+    ``~/.clawcodex``) and emits a one-shot warning so the operator can
+    spot entry points that bypassed ``src.init.init()``.
 
     Returns a string (not a ``Path``) because ``LocalAgentTaskState.output_file``
     is typed as ``str`` for serializability. Callers that prefer
@@ -196,7 +199,8 @@ def get_main_transcript_path(session_id: str) -> str:
     ``clawcodex_sessions_analysis/lib/adapters/clawcodex.ts``.
 
     Path: ``$CLAWCODEX_SESSIONS_DIR/<session_id>/transcript.jsonl`` when the
-    override is set, otherwise ``~/.clawcodex/sessions/<session_id>/transcript.jsonl``.
+    override is set, otherwise ``<user config dir>/sessions/<session_id>/transcript.jsonl``
+    (user config dir = ``$CLAWCODEX_CONFIG_DIR`` → ``$CLAWCODEX_HOME`` → ``~/.clawcodex``).
 
     The directory is created on demand by ``TranscriptWriter``'s
     constructor (parents=True). No resolver hook is consulted — the
@@ -210,15 +214,18 @@ def get_main_transcript_path(session_id: str) -> str:
 def _sessions_root() -> Path:
     """Return the configured session root shared by main and child transcripts."""
     override = os.environ.get("CLAWCODEX_SESSIONS_DIR", "").strip()
-    return Path(override).expanduser() if override else Path.home() / ".clawcodex" / "sessions"
+    if override:
+        return Path(override).expanduser()
+    return get_sessions_dir()
 
 
 def get_workflow_run_path(run_id: str) -> str:
     """Absolute path to a workflow run's journal file.
 
-    Layout: ``~/.clawcodex/transcripts/workflows/<run_id>.json``. The
-    Workflow tool persists per-run journals here so that resumed runs
-    can replay completed ``agent()`` calls from disk.
+    Layout: ``<user state root>/transcripts/workflows/<run_id>.json``
+    (state root = ``$CLAWCODEX_CONFIG_DIR`` → ``$CLAWCODEX_HOME`` →
+    ``~/.clawcodex``). The Workflow tool persists per-run journals here
+    so that resumed runs can replay completed ``agent()`` calls from disk.
     """
     safe_id = _sanitize_agent_id(run_id)
     root = _transcripts_root() / "workflows"

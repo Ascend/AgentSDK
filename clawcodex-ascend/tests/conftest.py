@@ -212,12 +212,6 @@ def _isolate_clawcodex_state_root(tmp_path, monkeypatch):
     show up in tests that enumerate the directory's entries and assert
     an exact listing (e.g. ``tests/input/test_at_file_completer.py``
     asserts the completion set of an empty dir).
-
-    NOTE: ``clawcodex_ext/feature_gate/config.py`` hardcodes
-    ``Path.home() / ".clawcodex"`` (module-level constant, no env hook),
-    so feature-flag state files are NOT covered here — tests that write
-    feature state must construct their own ``ConfigStore`` on ``tmp_path``
-    (see ``tests/services/feature_gate/test_facade.py``).
     """
     monkeypatch.setenv("CLAWCODEX_CONFIG_DIR", str(tmp_path))
     monkeypatch.setenv("CLAWCODEX_HOME", str(tmp_path))

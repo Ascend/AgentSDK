@@ -34,6 +34,7 @@ from __future__ import annotations
 import json
 import os
 import tempfile
+from pathlib import Path
 
 import pytest
 
@@ -45,6 +46,7 @@ from clawcodex_ext.tool_stats import (
     record_skill,
     record_tool,
 )
+from src.utils.clawcodex_dirs import get_user_config_dir
 
 
 # ── Fixtures ──────────────────────────────────────────────────────────
@@ -61,6 +63,17 @@ def stats_path():
         os.unlink(tmp)
     except OSError:
         pass  # Fixture cleanup tolerates a file removed by the test.
+
+
+def test_default_sink_stays_inside_redirected_state_root() -> None:
+    """The unconfigured sink resolves inside the active state root."""
+    from clawcodex_ext.tool_stats import _default_stats_path, _sink_path
+
+    configure(None)  # drop any explicit sink left by earlier tests
+    expected = get_user_config_dir() / "tool_stats.jsonl"
+    assert _sink_path() == expected
+    assert _default_stats_path() == expected
+    assert not str(expected).startswith(str(Path.home() / ".clawcodex"))
 
 
 # ── Core recording tests ──────────────────────────────────────────────

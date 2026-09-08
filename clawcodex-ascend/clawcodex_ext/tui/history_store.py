@@ -39,15 +39,20 @@ since each record is a full line that ends in ``\\n``.
 from __future__ import annotations
 
 import json
-import os
 import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
 
 
-_DEFAULT_PATH = Path(os.path.expanduser("~/.clawcodex/history.jsonl"))
 _MAX_ENTRIES = 1000
+
+
+def _default_history_path() -> Path:
+    """Resolve the history file under the shared state-root chain."""
+    from clawcodex_ext.memdir.paths import get_claude_config_home_dir
+
+    return Path(get_claude_config_home_dir()) / "history.jsonl"
 
 
 @dataclass
@@ -60,7 +65,7 @@ class HistoryStore:
     """Append-only history of user prompts, bounded to ``max_entries``."""
 
     def __init__(self, path: Path | None = None, *, max_entries: int = _MAX_ENTRIES) -> None:
-        self._path = Path(path) if path is not None else _DEFAULT_PATH
+        self._path = Path(path) if path is not None else _default_history_path()
         self._max = max_entries
 
     @property

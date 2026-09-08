@@ -86,12 +86,10 @@ def _stub_provider_class(provider_cls, captured: _Capture) -> Any:
 
 
 class _Isolation:
-    """Helper that monkeypatches the config-file paths to a tmp dir.
+    """Helper that redirects the config-file roots to a tmp dir.
 
-    ``src/config.py`` evaluates ``GLOBAL_CONFIG_FILE = Path.home() /
-    ".clawcodex/config.json"`` at import time, so patching ``HOME``
-    after import is too late — writes would land on the real user's
-    config file. We override the module-level constant directly.
+    Redirects the shared env chain (``$CLAWCODEX_CONFIG_DIR`` →
+    ``$CLAWCODEX_HOME``) into a scratch root.
 
     The helper is used as a class with ``enter()`` / ``exit()`` from
     test setUp / tearDown rather than via ``with`` so existing
@@ -100,21 +98,16 @@ class _Isolation:
 
     def __init__(self) -> None:
         self._tmp = tempfile.mkdtemp(prefix="advisor_wire_")
-        self._saved_global = None
-        self._saved_history = None
-        self._saved_dir = None
+        self._saved_config_dir: str | None = None
+        self._saved_home_dir: str | None = None
 
     def enter(self) -> None:
         import src.config as cfg_mod
 
-        self._saved_global = cfg_mod.GLOBAL_CONFIG_FILE
-        self._saved_history = cfg_mod.HISTORY_FILE
-        self._saved_dir = cfg_mod.GLOBAL_CONFIG_DIR
-        from pathlib import Path as _P
-
-        cfg_mod.GLOBAL_CONFIG_FILE = _P(self._tmp) / ".clawcodex" / "config.json"
-        cfg_mod.HISTORY_FILE = _P(self._tmp) / ".clawcodex" / "history.jsonl"
-        cfg_mod.GLOBAL_CONFIG_DIR = _P(self._tmp) / ".clawcodex"
+        self._saved_config_dir = os.environ.get("CLAWCODEX_CONFIG_DIR")
+        self._saved_home_dir = os.environ.get("CLAWCODEX_HOME")
+        os.environ["CLAWCODEX_CONFIG_DIR"] = f"{self._tmp}/.clawcodex"
+        os.environ["CLAWCODEX_HOME"] = f"{self._tmp}/.clawcodex"
         cfg_mod._default_manager = None
         from src.settings.settings import invalidate_settings_cache
 
@@ -123,9 +116,14 @@ class _Isolation:
     def exit(self) -> None:
         import src.config as cfg_mod
 
-        cfg_mod.GLOBAL_CONFIG_FILE = self._saved_global
-        cfg_mod.HISTORY_FILE = self._saved_history
-        cfg_mod.GLOBAL_CONFIG_DIR = self._saved_dir
+        for name, saved in (
+            ("CLAWCODEX_CONFIG_DIR", self._saved_config_dir),
+            ("CLAWCODEX_HOME", self._saved_home_dir),
+        ):
+            if saved is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = saved
         cfg_mod._default_manager = None
         from src.settings.settings import invalidate_settings_cache
 

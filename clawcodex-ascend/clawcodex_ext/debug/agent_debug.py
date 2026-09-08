@@ -58,7 +58,14 @@ def resolve_repl_history_file(
 
     home_path = Path.home() if home is None else home
     if not agent_debug_enabled(env):
-        return home_path / ".clawcodex" / "history"
+        if home is not None:
+            # Explicit base dir (test seam / embedding callers): honor as-is.
+            return home_path / ".clawcodex" / "history"
+        # Default location follows the shared state-root chain
+        # ($CLAWCODEX_CONFIG_DIR → $CLAWCODEX_HOME → ~/.clawcodex).
+        from clawcodex_ext.memdir.paths import get_claude_config_home_dir
+
+        return Path(get_claude_config_home_dir()) / "history"
 
     debug_dir = str(env.get("CLAWCODEX_AGENT_DEBUG_DIR", "")).strip()
     base = Path(debug_dir).expanduser() if debug_dir else Path(tempfile.gettempdir()) / "clawcodex-agent-debug"

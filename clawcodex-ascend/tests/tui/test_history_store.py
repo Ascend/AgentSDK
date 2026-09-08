@@ -75,3 +75,11 @@ def test_corrupt_lines_are_skipped(tmp_path):
     )
     store = HistoryStore(path)
     assert [r.prompt for r in store.load()] == ["ok", "ok2"]
+
+
+def test_default_path_follows_state_root_chain(monkeypatch, tmp_path):
+    """No explicit path: the store follows the shared state-root chain."""
+    monkeypatch.setenv("CLAWCODEX_CONFIG_DIR", str(tmp_path))
+    monkeypatch.setenv("CLAWCODEX_HOME", str(tmp_path))
+    store = HistoryStore()
+    assert store.path == tmp_path / "history.jsonl"

@@ -40,6 +40,24 @@ def _patch_permission_state_stash(monkeypatch) -> None:
     )
 
 
+def _seed_fake_provider_config(tmp_path) -> None:
+    """Write a fake-key config into the state-root chain."""
+    payload = {
+        "default_provider": "anthropic",
+        "providers": {
+            "anthropic": {
+                "api_key": "fake-cli-dispatch-key",
+                "base_url": "https://api.anthropic.com/v1",
+                "default_model": "claude-sonnet-4-20250514",
+            }
+        },
+    }
+    (tmp_path / "config.json").write_text(json.dumps(payload), encoding="utf-8")
+    import src.config as config_module
+
+    config_module._default_manager = None
+
+
 def test_run_cli_version_short_circuit(monkeypatch):
     """--version short-circuits without loading TUI/REPL."""
     from clawcodex_ext.cli.dispatch import run_cli
@@ -85,11 +103,12 @@ def test_run_cli_with_args_config_skips_run_pre_action(monkeypatch):
     assert rc == 0
 
 
-def test_run_cli_default_invocation_calls_downstream_repl(monkeypatch):
+def test_run_cli_default_invocation_calls_downstream_repl(monkeypatch, tmp_path):
     """Default invocation reaches REPLFrontend and creates the downstream REPL."""
     import src.entrypoints.tui as tui_module
     from clawcodex_ext.cli.dispatch import run_cli
 
+    _seed_fake_provider_config(tmp_path)
     init_calls = []
     repl_calls = []
 
@@ -119,12 +138,13 @@ def test_run_cli_default_invocation_calls_downstream_repl(monkeypatch):
     assert repl_calls[0]["permission_mode"] == "default"
 
 
-def test_run_cli_permission_flags_resolved(monkeypatch):
+def test_run_cli_permission_flags_resolved(monkeypatch, tmp_path):
     """With --dangerously-skip-permissions, RuntimeContext is built with bypass_available=True."""
     # Ensure src.entrypoints.tui is imported before patching.
     import src.entrypoints.tui as tui_ref
     from clawcodex_ext.cli.dispatch import run_cli
 
+    _seed_fake_provider_config(tmp_path)
     repl_calls = []
     built_options = []
 
@@ -498,10 +518,11 @@ def test_build_parser_accepts_agent_debug_flag():
     assert args.agent_debug is True
 
 
-def test_run_cli_agent_debug_sets_debug_environment(monkeypatch):
+def test_run_cli_agent_debug_sets_debug_environment(monkeypatch, tmp_path):
     import src.entrypoints.tui as tui_module
     from clawcodex_ext.cli.dispatch import run_cli
 
+    _seed_fake_provider_config(tmp_path)
     for name in (
         "CLAWCODEX_AGENT_DEBUG",
         "CLAWCODEX_AGENT_DEBUG_DIR",

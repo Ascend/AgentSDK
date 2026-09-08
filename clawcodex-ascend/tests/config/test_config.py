@@ -28,10 +28,10 @@ Updated to work with the new ConfigManager-based config system (WS-6 rewrite).
 from __future__ import annotations
 
 import unittest
-from unittest.mock import patch
 from pathlib import Path
 import tempfile
 import os
+import contextlib
 
 import src.config as config_module
 from src.config import (
@@ -44,12 +44,33 @@ from src.config import (
     set_default_provider,
     get_default_provider,
 )
+from src.utils.clawcodex_dirs import CONFIG_DIR_ENV, HOME_DIR_ENV
+
+
+@contextlib.contextmanager
+def _env_redirect(changes: dict[str, str | None]):
+    """Set env entries for the block, restoring previous values afterwards."""
+    saved: dict[str, str | None] = {}
+    for name, value in changes.items():
+        saved[name] = os.environ.get(name)
+        if value is None:
+            os.environ.pop(name, None)
+        else:
+            os.environ[name] = value
+    try:
+        yield
+    finally:
+        for name, value in saved.items():
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value
 
 
 def _patch_global_config(temp_dir):
-    """Helper: patch GLOBAL_CONFIG_FILE and reset the default manager."""
-    new_path = Path(temp_dir) / ".clawcodex" / "config.json"
-    return patch.object(config_module, "GLOBAL_CONFIG_FILE", new_path)
+    """Isolate the global config tier under ``temp_dir/.clawcodex``."""
+    root = Path(temp_dir) / ".clawcodex"
+    return _env_redirect({CONFIG_DIR_ENV: str(root)})
 
 
 def _reset_manager():
@@ -66,9 +87,19 @@ class TestConfigPath(unittest.TestCase):
         self.assertTrue(str(path).endswith("config.json"))
 
     def test_config_path_is_in_home(self):
-        """Test that config path is under home directory."""
-        path = get_config_path()
+        """Default chain (no env overrides) resolves under ``~/.clawcodex``."""
+        with _env_redirect({CONFIG_DIR_ENV: None, HOME_DIR_ENV: None}):
+            path = get_config_path()
         self.assertIn(".clawcodex", str(path))
+        self.assertTrue(str(path).startswith(str(Path.home())))
+
+    def test_config_path_follows_env_chain(self):
+        """``CLAWCODEX_CONFIG_DIR`` wins; ``CLAWCODEX_HOME`` is the fallback."""
+        with tempfile.TemporaryDirectory() as config_dir, tempfile.TemporaryDirectory() as home_dir:
+            with _env_redirect({CONFIG_DIR_ENV: config_dir, HOME_DIR_ENV: home_dir}):
+                self.assertEqual(Path(get_config_path()), Path(config_dir) / "config.json")
+            with _env_redirect({CONFIG_DIR_ENV: None, HOME_DIR_ENV: home_dir}):
+                self.assertEqual(Path(get_config_path()), Path(home_dir) / "config.json")
 
 
 class TestDefaultConfig(unittest.TestCase):

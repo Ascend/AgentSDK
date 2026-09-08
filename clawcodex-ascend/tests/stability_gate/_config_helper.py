@@ -20,13 +20,13 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-"""Tests for config helper."""
+"""Config helper for stability-gate tests."""
 
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
-from unittest.mock import patch
 
 
 def make_config(home_path: Path, provider: str = "anthropic") -> Path:
@@ -52,16 +52,26 @@ def make_config(home_path: Path, provider: str = "anthropic") -> Path:
 
 
 def redirect_global_config(config_file: Path):
-    """Point ``ConfigManager`` at *config_file* and drop cached state.
+    """Redirect the shared config chain at *config_file*'s directory.
 
-    Returns the patcher (call ``.stop()`` in teardown).
+    Returns an object with ``.stop()`` restoring the previous env values.
     """
     import src.config as config_module
 
-    patcher = patch.object(config_module, "GLOBAL_CONFIG_FILE", config_file)
-    patcher.start()
+    saved = {name: os.environ.get(name) for name in ("CLAWCODEX_CONFIG_DIR", "CLAWCODEX_HOME")}
+    for name in saved:
+        os.environ[name] = str(config_file.parent)
     config_module._default_manager = None
-    return patcher
+
+    class _Restore:
+        def stop(self):
+            for name, value in saved.items():
+                if value is None:
+                    os.environ.pop(name, None)
+                else:
+                    os.environ[name] = value
+
+    return _Restore()
 
 
 def cleanup_config():

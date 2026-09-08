@@ -101,11 +101,17 @@ class TestWheelMetadata:
         )
 
     def test_metadata_requires_python(self, wheel_metadata: dict[str, str]) -> None:
-        """Requires-Python is ``>=3.10`` (matches pyproject [project])."""
+        """Requires-Python in the wheel matches pyproject [project] exactly."""
+        expected = _pyproject_requires_python()
         req = wheel_metadata.get("Requires-Python", "")
-        # Accept ``>=3.10``, ``>=3.10,<4``, etc.
-        assert re.search(r">=\s*3\.10", req), (
-            f"Requires-Python {req!r} does not declare >=3.10; check pyproject.toml [project] requires-python"
+
+        # Clause order is not preserved in built METADATA, and RFC 5322
+        # folding can spread whitespace; compare sorted clauses.
+        def _clauses(spec: str) -> list[str]:
+            return sorted(c.strip() for c in spec.split(",") if c.strip())
+
+        assert _clauses(req) == _clauses(expected), (
+            f"Requires-Python {req!r} does not match pyproject.toml requires-python {expected!r}"
         )
 
 
@@ -240,6 +246,14 @@ class TestReleaseTagFreeze:
 
 
 # ── helpers ────────────────────────────────────────────────────────
+
+
+def _pyproject_requires_python() -> str:
+    """Read ``[project] requires-python`` from pyproject.toml."""
+    import tomllib
+
+    with open(REPO_ROOT / "pyproject.toml", "rb") as fh:
+        return tomllib.load(fh)["project"]["requires-python"]
 
 
 def tempfile_venv() -> "subprocess.Popen | any":

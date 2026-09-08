@@ -166,18 +166,27 @@ def _make_config(home_path: Path, provider: str = "glm") -> Path:
 
 
 def _redirect_global_config(config_file: Path):
-    """Point ``ConfigManager`` at ``config_file`` and drop cached state.
+    """Point the global config tier at ``config_file``'s directory.
 
-    Patching ``HOME`` does not work because ``GLOBAL_CONFIG_FILE`` is
-    captured at module import time. We patch the module-level constant
-    directly and reset the singleton.
+    Returns an object with ``.stop()`` that restores the previous env.
     """
     import src.config as config_module
 
-    patcher = patch.object(config_module, "GLOBAL_CONFIG_FILE", config_file)
-    patcher.start()
+    _ENV_NAMES = ("CLAWCODEX_CONFIG_DIR", "CLAWCODEX_HOME")
+    saved = {name: os.environ.get(name) for name in _ENV_NAMES}
+    for name in _ENV_NAMES:
+        os.environ[name] = str(config_file.parent)
     config_module._default_manager = None
-    return patcher
+
+    class _Restore:
+        def stop(self):
+            for name, value in saved.items():
+                if value is None:
+                    os.environ.pop(name, None)
+                else:
+                    os.environ[name] = value
+
+    return _Restore()
 
 
 # ---------------------------------------------------------------------------
