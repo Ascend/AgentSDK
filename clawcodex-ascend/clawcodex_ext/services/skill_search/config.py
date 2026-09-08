@@ -47,6 +47,7 @@ class SkillSearchConfig:
             "project": 1.3,
             "local": 1.1,
             "template": 1.0,
+            "bundled": 1.0,
             "mcp": 0.9,
         }
     )

@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 # Source type
 # ---------------------------------------------------------------------------
 
-SourceType = Literal["local", "project", "mcp", "template"]
+SourceType = Literal["local", "project", "mcp", "template", "bundled"]
 
 # Mapping from Skill.loaded_from to SourceType.
 # Skills from MCP builders and template generators are identified
@@ -46,6 +46,7 @@ _LOADED_FROM_TO_SOURCE: dict[str, SourceType] = {
     "plugin": "local",
     "mcp": "mcp",
     "template": "template",
+    "bundled": "bundled",
 }
 
 # ---------------------------------------------------------------------------
@@ -131,7 +132,8 @@ def extract_search_document(
         source_type: Explicit source type.  When ``None``, inferred from
             ``skill.loaded_from``.
         source_weights: Per-source weight map.  Defaults to the built-in
-            weights: project=1.3, local=1.1, template=1.0, mcp=0.9.
+            weights: project=1.3, local=1.1, template=1.0, mcp=0.9,
+            bundled=1.0.
 
     Returns:
         A ``SkillSearchDocument``, or ``None`` if the skill should be
@@ -219,6 +221,7 @@ def _infer_source_type(skill: Skill) -> SourceType:
         "plugin"    → "local"    (plugin skills are local)
         "mcp"       → "mcp"
         "template"  → "template"
+        "bundled"   → "bundled"  (product-shipped skills)
         other       → "local"    (safe fallback)
     """
     loaded_from = getattr(skill, "loaded_from", "")
@@ -290,5 +293,6 @@ def _default_source_weights() -> dict[str, float]:
         "project": 1.3,
         "local": 1.1,
         "template": 1.0,
+        "bundled": 1.0,
         "mcp": 0.9,
     }

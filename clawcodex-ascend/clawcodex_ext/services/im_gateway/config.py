@@ -68,8 +68,22 @@ DEFAULT_PUSH_TIMEOUT_SECONDS = 5.0
 LEGACY_STATE_DIR = "~/.clawcodex/im-gateway"
 
 
+def _default_state_root() -> Path:
+    """Default gateway state root: the ``$CLAWCODEX_CONFIG_DIR`` →
+    ``$CLAWCODEX_HOME`` → ``~/.clawcodex`` chain plus ``/gateway``.
+    """
+    from src.utils.clawcodex_dirs import get_user_config_dir
+
+    return get_user_config_dir() / "gateway"
+
+
+def _default_channels_yaml() -> Path:
+    """Env-aware default ``channels.yaml`` (:func:`_default_state_root` + file)."""
+    return _default_state_root() / "channels.yaml"
+
+
 def migrate_legacy_state_dir(target: str | Path | None = None) -> Path:
-    """One-way migration ``~/.clawcodex/im-gateway`` → ``~/.clawcodex/gateway``.
+    """One-way migration of the pre-rename state dir → the gateway state dir.
 
     Idempotent and safe to call from any entry point that resolves the state
     directory. If ``target`` already exists, it is returned unchanged. If the
@@ -78,11 +92,19 @@ def migrate_legacy_state_dir(target: str | Path | None = None) -> Path:
     platforms where ``rename`` refuses). If neither exists, ``target`` is
     returned without being created — the caller owns ``mkdir``.
 
-    Only the *default* location is migrated; an explicit ``target`` override is
-    honored as-is. Returns the resolved target :class:`~pathlib.Path`.
+    Without ``target`` both sides resolve inside the active state root
+    (``<root>/im-gateway`` → ``<root>/gateway``), never a real-home install;
+    with an explicit ``target`` the legacy side is the
+    :data:`LEGACY_STATE_DIR` literal and the override is honored as-is.
+
+    Returns the resolved target :class:`~pathlib.Path`.
     """
-    new = Path(target or DEFAULT_STATE_DIR).expanduser()
-    legacy = Path(LEGACY_STATE_DIR).expanduser()
+    if target is not None:
+        new = Path(target).expanduser()
+        legacy = Path(LEGACY_STATE_DIR).expanduser()
+    else:
+        new = _default_state_root()
+        legacy = new.parent / "im-gateway"
     new.parent.mkdir(parents=True, exist_ok=True)
     migration_lock = new.parent / ".gateway-state-migration.lock"
     with exclusive_file_lock(migration_lock):
@@ -198,7 +220,9 @@ class ReliabilityConfig:
 class GatewayConfig:
     enabled: bool = True
     default_targets: list[str] = field(default_factory=list)
-    state_dir: str = DEFAULT_STATE_DIR
+    #: Resolved at construction so ``$CLAWCODEX_CONFIG_DIR`` / ``$CLAWCODEX_HOME``
+    #: redirection is honored (``~/.clawcodex/gateway`` without env).
+    state_dir: str = field(default_factory=lambda: str(_default_state_root()))
     storage_backend: str = "files"
     push_timeout_seconds: float = DEFAULT_PUSH_TIMEOUT_SECONDS
     command_allowlists: CommandAllowlistConfig = field(default_factory=CommandAllowlistConfig)
@@ -229,7 +253,7 @@ class GatewayConfig:
         cfg = cls(
             enabled=bool(data.get("enabled", True)),
             default_targets=list(data.get("default_targets") or []),
-            state_dir=str(data.get("state_dir", DEFAULT_STATE_DIR)),
+            state_dir=str(data.get("state_dir") or _default_state_root()),
             storage_backend=str(data.get("storage_backend", "files")),
             push_timeout_seconds=float(data.get("push_timeout_seconds", DEFAULT_PUSH_TIMEOUT_SECONDS)),
             command_allowlists=CommandAllowlistConfig.from_dict(data.get("command_allowlists")),
@@ -312,12 +336,12 @@ def _file_lock(lock_path: Path):
 
 
 def load_config(path: str | Path | None = None) -> GatewayConfig:
-    """Load :class:`GatewayConfig` from ``path`` (default ``channels.yaml``)."""
+    """Load :class:`GatewayConfig` from ``path`` (default: ``<state root>/channels.yaml``)."""
     if path is None:
-        # Move a pre-rename ~/.clawcodex/im-gateway install forward the first
-        # time the default path is resolved, so existing channels.yaml survives.
+        # Move a pre-rename <root>/im-gateway install forward the first
+        # time the default path is resolved, so an existing channels.yaml survives.
         migrate_legacy_state_dir()
-    p = Path(path or DEFAULT_CHANNELS_YAML).expanduser()
+    p = Path(path).expanduser() if path is not None else _default_channels_yaml()
     if not p.exists():
         logger.warning("gateway config not found at %s; using defaults", p)
         return GatewayConfig()
@@ -335,7 +359,7 @@ def save_config(config: GatewayConfig, path: str | Path | None = None) -> Path:
     """Atomically save ``config`` to ``path`` under a single-writer lock."""
     if path is None:
         migrate_legacy_state_dir()
-    p = Path(path or DEFAULT_CHANNELS_YAML).expanduser()
+    p = Path(path).expanduser() if path is not None else _default_channels_yaml()
     p.parent.mkdir(parents=True, exist_ok=True)
     payload = yaml.safe_dump(config.to_dict(), allow_unicode=True, sort_keys=False)
     with _file_lock(_lock_path(p)):

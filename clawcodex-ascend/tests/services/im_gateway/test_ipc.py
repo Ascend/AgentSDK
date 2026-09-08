@@ -835,6 +835,34 @@ async def test_ipc_status_and_unbind_report_and_remove_wechat_conversation(
 
 
 @pytest.mark.asyncio
+async def test_ipc_unbind_ack_reaches_bound_requester_before_disconnect(tmp_path) -> None:
+    """The unbind ACK must reach the requester before its own disconnect."""
+    gw = _FakeGateway()
+    server = GatewayIpcServer(tmp_path / "gw.sock", gw)
+    await server.start()
+    repl = GatewayIpcClient(tmp_path / "gw.sock", instance_id="repl-main")
+    try:
+        await repl.connect()
+        registered = await repl.register(
+            session_id="repl-main",
+            origin=WECHAT_DIRECT_ALL_ORIGIN,
+            capabilities=["outbound_text"],
+        )
+        assert registered is not None and registered.ack_layer == "accepted"
+
+        resp = await repl.unbind_origin(WECHAT_DIRECT_ALL_ORIGIN)
+        assert resp is not None
+        assert resp.ack_layer == "accepted"
+        assert "unbound" in (resp.reason or "")
+
+        assert gw.binding.get("wechat:direct:acct:user") is None
+        assert server.is_online("repl-main") is False
+    finally:
+        await repl.close()
+        await server.close()
+
+
+@pytest.mark.asyncio
 async def test_ipc_peer_online_after_register_then_offline(tmp_path) -> None:
     clock = [1000.0]
     gw = _FakeGateway()

@@ -363,7 +363,7 @@ class GatewayIpcServer:
         if frame.type is FrameType.OUTBOUND:
             return await self._handle_outbound(frame, peer_session)
         if frame.type is FrameType.EVENT:
-            return await self._handle_event(frame, peer_session)
+            return await self._handle_event(frame, peer_session, writer)
         if frame.type is FrameType.UNREGISTER:
             if peer_session is not None:
                 info = self._peers.pop(peer_session, None)
@@ -576,6 +576,7 @@ class GatewayIpcServer:
         self,
         frame: GatewayFrame,
         peer_session: str | None = None,
+        writer: asyncio.StreamWriter | None = None,
     ) -> GatewayFrame | None:
         etype = frame.event_type or ""
         if etype == "processing.complete":
@@ -667,12 +668,19 @@ class GatewayIpcServer:
                 else:
                     entry = self.gateway.binding.unbind(origin)
                     removed = [entry] if entry is not None else []
-            await self._disconnect_matching_peers(origin)
-            return GatewayFrame.ack(
+            ack = GatewayFrame.ack(
                 delivery_id=frame.message_id,
                 layer="accepted",
                 message=f"unbound {len(removed)} binding(s)",
             )
+            if writer is None:
+                await self._disconnect_matching_peers(origin)
+                return ack
+            # Send the ACK before the disconnect — the requester may itself be
+            # the bound peer torn down below.
+            await self._send(writer, ack)
+            await self._disconnect_matching_peers(origin)
+            return None
         return None
 
     async def _finish_processing(
