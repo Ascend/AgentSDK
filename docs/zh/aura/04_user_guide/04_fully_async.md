@@ -2,7 +2,7 @@
 
 ## 简介
 
-训推全异步是 Agent SDK 提供的一种资源部署模式，在训推单步异步分离模式基础上进一步演进，通过 rollout 与 training 的完全解耦、流式数据传输、多步异步权重同步与新鲜度控制，实现 rollout 生成与 trainer 训练的时间重叠，显著缓解长尾样本带来的 NPU 空闲问题，提升整体训练吞吐。
+训推全异步是 Agent SDK 提供的一种资源部署模式，在训推单步异步分离模式基础上进一步演进，通过 rollout 与 trainer 的完全解耦、流式数据传输、多步异步权重同步与新鲜度控制，实现 rollout 生成与 trainer 训练的时间重叠，显著缓解长尾样本带来的 NPU 空闲问题，提升整体训练吞吐。
 
 ### 模式与策略
 
@@ -240,11 +240,11 @@ infer_instances:
       engine_kwargs:
         chat_server: "http://0.0.0.0:8080"           # 默认即可，启动脚本会自动修改
         prefill_server_list: ["http://0.0.0.0:20012"]  # 默认即可，启动脚本会自动修改
-        decode_server_list: []                          # 默认即可，启动脚本会自动修改
+        decode_server_list: []
         model_name: Qwen3-32B
-        tensor_parallel_size: 4                         # 默认即可，启动脚本会自动修改
-        data_parallel_size: 4                           # 默认即可，启动脚本会自动修改
-        enable_expert_parallel: false                   # 默认即可，启动脚本会自动修改
+        tensor_parallel_size: 4
+        data_parallel_size: 4
+        enable_expert_parallel: false
 ```
 
 ### 步骤 4：修改推理 YAML 配置文件
@@ -379,7 +379,7 @@ bash scripts/start_rl_with_verl_vllm.sh
 
 ### Q4：如何确认反压与权重同步在生效
 
-推理端日志会打印 staleness 与队列状态。当反压触发时出现：
+推理端日志会打印 staleness 与队列状态。以 `max_required_samples` 为 96 为例，当反压触发时出现：
 
 ```text
 [async-rollout] backpressure triggered: staleness=.../96, queue_size=.../96, current_weight_version=...

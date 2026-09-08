@@ -18,8 +18,9 @@ Agent SDK aura能用来帮助用户快速训练AI智能体，支持多种轨迹�
 | 04_user_guide | 使用指导       | 02_hybrid.md             | 介绍Agent SDK aura的共卡模式特性。            | [使用指导](04_user_guide/02_hybrid.md)         |
 | 04_user_guide | 使用指导       | 03_one_step_off.md       | 介绍Agent SDK aura的One Step Off特性。    | [使用指导](04_user_guide/03_one_step_off.md)   |
 | 04_user_guide | 使用指导       | 04_fully_async.md        | 介绍Agent SDK aura的Fully Async特性。     | [使用指导](04_user_guide/04_fully_async.md)    |
-| 04_user_guide | 使用指导       | 05_custom_agent.md       | 介绍Agent SDK aura的自定义agent方法。        | [使用指导](04_user_guide/05_custom_agent.md)   |
-| 04_user_guide | 使用指导       | 06_blackbox_agent.md     | 介绍Agent SDK aura的黑盒agent接入指南。       | [使用指导](04_user_guide/06_blackbox_agent.md) |
+| 04_user_guide | 使用指导       | 05_mixed_batch.md        | 介绍Agent SDK aura的混合批次调度策略。          | [使用指导](04_user_guide/05_mixed_batch.md)    |
+| 04_user_guide | 使用指导       | 06_custom_agent.md       | 介绍Agent SDK aura的自定义agent方法。        | [使用指导](04_user_guide/06_custom_agent.md)   |
+| 04_user_guide | 使用指导       | 07_blackbox_agent.md     | 介绍Agent SDK aura的黑盒agent接入指南。       | [使用指导](04_user_guide/07_blackbox_agent.md) |
 | -             | Python接口说明 | 05_api_python.md         | 介绍Agent SDK aura的Python接口。          | [Python接口说明](05_api_python.md)             |
 | -             | 安全加固       | 06_security_hardening.md | 介绍Agent SDK aura的操作系统安全加固、防火墙配置等内容。 | [安全加固](06_security_hardening.md)           |
 | -             | FAQ        | 07_faq.md                | 介绍Agent SDK aura的常见问题。              | [FAQ](07_faq.md)                           |

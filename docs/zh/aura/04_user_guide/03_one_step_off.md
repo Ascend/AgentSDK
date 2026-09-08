@@ -177,24 +177,11 @@ infer_instances:
       engine_kwargs:
         chat_server: "http://0.0.0.0:8080"           # 默认即可，启动脚本会自动修改
         prefill_server_list: ["http://0.0.0.0:20012"]  # 默认即可，启动脚本会自动修改
-        decode_server_list: []                          # 默认即可，启动脚本会自动修改
+        decode_server_list: []
         model_name: Qwen3-8B
-        tensor_parallel_size: 8                         # 默认即可，启动脚本会自动修改
-        data_parallel_size: 2                           # 默认即可，启动脚本会自动修改
-        enable_expert_parallel: false                   # 默认即可，启动脚本会自动修改
-```
-
-**异步训练配置：**
-
-分离模式支持训练和推理异步执行，通过以下参数控制权重同步策略：
-
-```yaml
-verl_conf:
-  async_training:
-    use_rollout_log_probs: False
-    staleness_threshold: 0.5              # 新鲜度阈值
-    trigger_parameter_sync_step: 1        # 每隔多少 iter 同步一次权重
-    partial_rollout: False
+        tensor_parallel_size: 8
+        data_parallel_size: 2
+        enable_expert_parallel: false
 ```
 
 ### 步骤 4：修改推理 YAML 配置文件

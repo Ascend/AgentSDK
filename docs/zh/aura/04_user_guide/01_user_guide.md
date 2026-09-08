@@ -86,7 +86,7 @@ curl -X POST http://localhost:8030/v1/chat/completions \
 
 ## 自定义 Agent 开发
 
-详见 [自定义 Agent 接入指南](05_custom_agent.md)。
+详见 [自定义 Agent 接入指南](06_custom_agent.md)。
 
 ---
 
@@ -314,7 +314,8 @@ AGENTS_MAPPING.append({
 - 训推共卡模式（On-Policy 策略）：[02_hybrid.md](02_hybrid.md)
 - 训推单步异步分离模式（One Step Off 策略）：[03_one_step_off.md](03_one_step_off.md)
 - 训推全异步分离模式（Fully Async 策略）：[04_fully_async.md](04_fully_async.md)
-- 自定义 Agent 接入指南：[05_custom_agent.md](05_custom_agent.md)
+- 混合批次调度（Mixed Batch Scheduling）：[05_mixed_batch.md](05_mixed_batch.md)
+- 自定义 Agent 接入指南：[06_custom_agent.md](06_custom_agent.md)
 
 ---
 

@@ -25,6 +25,11 @@
 1. [单步异步分离配置文件](../../../../aura/configs/train/verl_train_async_A3_t16_qwen36_27b_math_fsdp.yaml)
 2. [单步异步分离推理配置](../../../../aura/configs/infer/vllm_infer_i16_qwen36_27b.yaml)
 
+混合批次调度请修改：
+
+1. [混合批次调度配置文件](../../../../aura/configs/train/verl_train_mixed_A3_t16_qwen36_27b_math_fsdp.yaml)
+2. [混合批次调度推理配置](../../../../aura/configs/infer/vllm_infer_i16_qwen36_27b.yaml)
+
 > [!NOTE]
 >
 >- 共卡模式使用verl后端默认使用parquet数据集
