@@ -1,4 +1,4 @@
-# Qwen3-30B-A3B快速入门指南
+# Qwen3.6-35B-A3B快速入门指南
 
 ## **前置**
 
@@ -6,7 +6,7 @@
 
 ## **模型获取**
 
-本实验使用Qwen3-30B-A3B模型，相关模型可以通过[ModelScope 模型页面](https://www.modelscope.cn/models/Qwen/Qwen3-30B-A3B)获取。
+本实验使用Qwen3.6-35B-A3B模型，相关模型可以通过[ModelScope 模型页面](https://www.modelscope.cn/models/Qwen/Qwen3.6-35B-A3B)获取。
 
 ## **数据集获取**
 
@@ -14,16 +14,16 @@
 
 ## **文件修改**
 
-在快速入门Qwen3-30B-A3B math场景前，需修改以下文件，需要进行修改的参数可以参照文件头的注释。
+在快速入门Qwen3.6-35B-A3B Math场景前，需修改以下文件，需要修改的参数可以参照文件头的注释。
 
 共卡模式请修改：
 
-1. [共卡配置文件](../../../../aura/configs/train/verl_train_hybrid_A3_t16_qwen3_30b_a3b_math_fsdp.yaml)
+1. [共卡配置文件](../../../../aura/configs/train/verl_train_hybrid_A3_t16_qwen36_35b_a3b_math_fsdp.yaml)
 
 单步异步分离模式请修改：
 
-1. [单步异步分离配置文件](../../../../aura/configs/train/verl_train_async_A3_t16_qwen3_30b_a3b_math_fsdp.yaml)
-2. [单步异步分离推理配置](../../../../aura/configs/infer/vllm_infer_i16_qwen3_30b_a3b.yaml)
+1. [单步异步分离配置文件](../../../../aura/configs/train/verl_train_async_A3_t16_qwen36_35b_a3b_math_fsdp.yaml)
+2. [单步异步分离推理配置](../../../../aura/configs/infer/vllm_infer_i16_qwen36_35b_a3b.yaml)
 
 > [!NOTE]
 >

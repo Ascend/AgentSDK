@@ -44,6 +44,9 @@ max_num_seqs: 24
 # 图模式的capture size
 cudagraph_capture_sizes: [4, 8, 12, 16, 24]
 
+# 图模式，未配置时默认为 FULL_AND_PIECEWISE
+cudagraph_mode: FULL_DECODE_ONLY
+
 # kv cache PD之间同步传输后端: mooncake 或 llmdatadist
 kv_backend: mooncake
 

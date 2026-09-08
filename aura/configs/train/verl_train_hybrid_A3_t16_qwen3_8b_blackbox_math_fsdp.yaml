@@ -4,15 +4,13 @@
 # 2. verl_conf.data.train_files
 # 3. verl_conf.data.val_files
 # 4. verl_conf.actor_rollout_ref.model.path
-# 5. train_instances.rollout_config.llm_tokenizer_path
-# 6. agent_instances.0.executor_kwargs.agent_engine_kwargs.agent_proxy_args.agent_addr
 #
 # 如果使用16卡以外的配置，需修改以下参数：
-# 7. n_gpus_per_node：修改为指定的卡数
-# 8. verl_conf.actor_rollout_conf.rollout：修改tensor_model_parallel_size和data_parallel_size，
-#    保证为2的幂（如2、4、8、16），且相乘的结果=指定卡数
-# 9. infer_instances：修改tensor_parallel_size和data_parallel_size，
-#    保证为2的幂（如2、4、8、16），且相乘的结果=指定卡数
+# 5. n_gpus_per_node：修改为指定的卡数
+# 6. verl_conf.actor_rollout_ref.rollout：修改tensor_model_parallel_size和data_parallel_size，
+#    保证为2的幂（如1、2、4、8、16），且相乘的结果=指定卡数
+# 7. infer_instances：修改tensor_parallel_size和data_parallel_size，
+#    保证为2的幂（如1、2、4、8、16），且相乘的结果=指定卡数
 # =============================================================
 agentic_ai:
   mode: direct # 模式选择：serve | direct
@@ -92,6 +90,9 @@ verl_conf:
       n: 16
       name: vllm
       mode: async
+      n_gpus_per_node: 16
+      prompt_length: 4096
+      response_length: 8192
       calculate_log_probs: True
       log_prob_use_dynamic_bsz: False
       log_prob_micro_batch_size_per_gpu: 1
@@ -194,7 +195,7 @@ train_instances:
         data_optimized: false
         hybrid_batch_num: 1
         wait_available_weight_timeout: -1
-        llm_tokenizer_path: /path/to/models/Qwen3-8B # 需要修改为模型路径
+        llm_tokenizer_path: ${verl_conf.actor_rollout_ref.model.path} # 需要修改为模型路径
       agent_service: ${agent_instances.0.name}  # 依赖的 AGENT 服务名称（默认为 `agent_instances` 的第一个）
       infer_service: ${infer_instances.0.name}  # 依赖的 INFER 服务名称（默认为 `infer_instances` 的第一个）
     resource_info: [ ]  # MSRL 训练采用 RAY 实现资源分配，在 Executor 层不做资源限制
