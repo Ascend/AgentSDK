@@ -9,6 +9,8 @@ echo "[build_env] apt update & install"
 apt-get update
 apt-get install -y net-tools dos2unix ca-certificates curl wget
 update-ca-certificates || true
+apt clean
+rm -rf /var/lib/apt/lists/*
 
 echo "[build_env] mkdir -p /home/work"
 mkdir -p /home/work
@@ -18,19 +20,21 @@ bash /home/work/AgentSDK/docker/aura/env/build_repos.sh
 
 echo "[build_env] pip 源"
 pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/
-pip config set global.trusted-host mirrors.aliyun.com
+pip config set global.trusted-host "mirrors.aliyun.com mirrors.huaweicloud.com"
+
+echo "[build_env] 安装 verl"
+pip install torch==2.10.0+cpu --index-url https://download.pytorch.org/whl/cpu
+cd /verl
+git checkout e9972368aa6a6078eacd7f0678bdfdd0196ce7b5
+pip install -r requirements-npu.txt
+pip install -v -e .
 
 echo "[build_env] 安装 vllm"
-cd /home/work/vllm
-git checkout 4034c3d32
-VLLM_TARGET_DEVICE=empty pip install -v -e .
-
-export CPLUS_INCLUDE_PATH=/usr/local/Ascend/cann-9.0.0/opp/built-in/op_impl/ai_core/tbe/impl/ops_transformer/ascendc/common/inc/kernel:${CPLUS_INCLUDE_PATH:-}
+PYTHONUNBUFFERED=1 VLLM_TARGET_DEVICE="empty" pip install -v -e /home/work/vllm/[audio]
+pip uninstall -y triton
 
 echo "[build_env] 安装 vllm-ascend"
-cd /home/work/vllm-ascend
-git checkout fe4cad24e
-export COMPILE_CUSTOM_KERNELS=1
+export PIP_EXTRA_INDEX_URL="https://mirrors.huaweicloud.com/ascend/repos/pypi"
 if [ -f /usr/local/Ascend/ascend-toolkit/set_env.sh ]; then
     source /usr/local/Ascend/ascend-toolkit/set_env.sh
 fi
@@ -40,47 +44,26 @@ fi
 if [ -f /usr/local/Ascend/nnal/atb/set_env.sh ]; then
     source /usr/local/Ascend/nnal/atb/set_env.sh
 fi
-pip install -v -e .
+PYTHONUNBUFFERED=1 pip install -v -e /home/work/vllm-ascend/
+pip uninstall -y triton triton-ascend
+pip install triton-ascend==3.2.1 --extra-index-url https://mirrors.huaweicloud.com/ascend/repos/pypi
 
 echo "[build_env] 安装 MindSpeed + Megatron-LM + mbridge"
 pip install -e /home/work/MindSpeed
 pip install -e /home/work/Megatron-LM
-pip uninstall -y triton || true
 pip install mbridge
-
-echo "[build_env] 安装 verl"
-cd /verl
-git checkout e9972368aa6a6078eacd7f0678bdfdd0196ce7b5
-pip install -r requirements-npu.txt
-pip install -v -e .
-
-echo "[build_env] 安装 transformers"
-cd /home/work/transformers
-git checkout cc7ab9be508ce6ed3637bba9e50367b29b742dc6
-pip install -v -e .
 
 echo "[build_env] 安装 AgentSDK + third_party"
 bash /home/work/AgentSDK/docker/aura/env/build_common.sh
+pip cache purge || true
 
-echo "[build_env] patch triton-ascend for CANN 9.0.0"
-bash /home/work/AgentSDK/docker/aura/patch/patch_triton_ascend.sh
-
-echo "[build_env] 安装 uv"
-pip install uv
-
-echo "[build_env] 创建 qwen3_moe 虚拟环境"
-mkdir -p /home/work/model_env
-uv venv /home/work/model_env/qwen3_moe
-
-echo "[build_env] 在虚拟环境中执行 build_qwen3_moe_env.sh"
-cd /home/work/model_env/qwen3_moe
-source bin/activate
-hash -r
-python -m ensurepip --upgrade || true
-python -m pip install -U pip setuptools wheel
-hash -r
-bash /home/work/AgentSDK/docker/aura/env/build_qwen3_moe_env.sh
-deactivate
+echo "[build_env] 应用环境相关patch"
+cd /verl
+git apply /home/work/AgentSDK/aura/third_party/patch/verl.patch
+cd /home/work/vllm
+git apply /home/work/AgentSDK/aura/third_party/patch/vllm.patch
+cd /home/work/vllm-ascend
+git apply /home/work/AgentSDK/aura/third_party/patch/vllm-ascend.patch
 
 cd /home/work/AgentSDK/aura
 

@@ -6,5 +6,5 @@ rllm @ git+https://github.com/rllm-org/rllm.git@v0.1
 transformers>=5.3.0
 ray>=2.55.1
 verl==0.8.0
-vllm==0.16.0
-vllm-ascend==0.16.0
+vllm==0.22.1
+vllm-ascend==0.22.1rc1

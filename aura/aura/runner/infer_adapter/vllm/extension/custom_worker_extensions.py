@@ -433,13 +433,17 @@ class CustomWorkerExtensions:
             logger.warning(">>>> no weights to update")
             return 0
 
-        from verl.utils.device import get_device_name, get_device_id
+        is_moe = self.model_config.is_moe
+        logger.info("Disk weight reload mode: is_moe=%s", is_moe)
 
-        device_str = f"{get_device_name()}:{get_device_id()}"
-        logger.info(f" >>> {device_str=}")
+        if not is_moe:
+            from verl.utils.device import get_device_name, get_device_id
 
-        transpose_shape = os.getenv("TRANSPOSE_EXPERT_SHAPE", "false")
-        logger.info(f" >>> transpose_shape={transpose_shape}")
+            device_str = f"{get_device_name()}:{get_device_id()}"
+            logger.info(f" >>> {device_str=}")
+
+            transpose_shape = os.getenv("TRANSPOSE_EXPERT_SHAPE", "false")
+            logger.info(f" >>> transpose_shape={transpose_shape}")
 
         def iter_weights():
             for fp in files:
@@ -449,12 +453,17 @@ class CustomWorkerExtensions:
                         cpu_tensor = f.get_tensor(k)
                         _vocab_size_check(k, cpu_tensor)
 
-                        device_tensor = cpu_tensor.to(device_str, non_blocking=False)
-                        if "experts" in k and len(device_tensor.shape) == 3 and transpose_shape == "true":
-                            if "down_proj" in k or "up_proj" in k or "gate_proj" in k:
-                                device_tensor = device_tensor.transpose(1, 2).contiguous()
-
-                        yield k, device_tensor
+                        if is_moe:
+                            # Keep MoE tensors in checkpoint layout. vLLM owns
+                            # expert mapping, TP sharding, and Ascend repacking.
+                            yield k, cpu_tensor
+                        else:
+                            # Preserve the legacy direct reload path for Dense models.
+                            device_tensor = cpu_tensor.to(device_str, non_blocking=False)
+                            if "experts" in k and len(device_tensor.shape) == 3 and transpose_shape == "true":
+                                if "down_proj" in k or "up_proj" in k or "gate_proj" in k:
+                                    device_tensor = device_tensor.transpose(1, 2).contiguous()
+                            yield k, device_tensor
 
                         del cpu_tensor
             import gc
@@ -462,10 +471,39 @@ class CustomWorkerExtensions:
             gc.collect()
 
         inference_model = self.model_runner.model
-        from verl.utils.vllm.patch import patch_vllm_moe_model_weight_loader
+        if is_moe:
+            from vllm.model_executor.model_loader.reload import (
+                finalize_layerwise_reload,
+                initialize_layerwise_reload,
+            )
 
-        patch_vllm_moe_model_weight_loader(inference_model)
-        inference_model.load_weights(iter_weights())
+            with torch.device(self.device):
+                initialize_layerwise_reload(inference_model)
+                loaded_weights = inference_model.load_weights(iter_weights())
+                finalize_layerwise_reload(inference_model, self.model_config)
+
+            torch.npu.synchronize()
+
+            if isinstance(loaded_weights, set) and not loaded_weights:
+                raise RuntimeError(
+                    "vLLM did not report any loaded weights after disk reload"
+                )
+
+            loaded_count = (
+                len(loaded_weights)
+                if loaded_weights is not None
+                else None
+            )
+            logger.info(
+                "Disk weights loaded on vLLM rank %s: loaded_count=%s",
+                self.rank,
+                loaded_count,
+            )
+        else:
+            from verl.utils.vllm.patch import patch_vllm_moe_model_weight_loader
+
+            patch_vllm_moe_model_weight_loader(inference_model)
+            inference_model.load_weights(iter_weights())
 
         cost = time.perf_counter() - start
         logger.info(f"|perf-stat|train| weight update completed: {self.rank=}, cost={cost:.2f}s")

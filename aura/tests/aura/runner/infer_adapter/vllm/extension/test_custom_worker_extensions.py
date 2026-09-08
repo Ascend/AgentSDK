@@ -64,6 +64,12 @@ class FakeDevice:
             return f"torch.device('{self.type}')"
         return f"torch.device('{self.type}:{self.index}')"
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
 
 class FakeStorage:
     """Fake tensor storage with size tracking."""
@@ -104,8 +110,14 @@ class FakeTensor:
             return 4
         return 4
 
-    def to(self, dtype, copy=False):
-        return FakeTensor(self.shape, dtype=dtype, device=self.device.type, contiguous=True)
+    def to(self, target, copy=False, non_blocking=False):
+        if isinstance(target, FakeDType):
+            dtype = target
+            device = self.device.type
+        else:
+            dtype = self.dtype
+            device = FakeDevice(target).type
+        return FakeTensor(self.shape, dtype=dtype, device=device, contiguous=True)
 
     def is_contiguous(self):
         return self._contiguous
@@ -118,6 +130,11 @@ class FakeTensor:
 
     def permute(self, *dims):
         new_shape = [self.shape[d] for d in dims]
+        return FakeTensor(new_shape, dtype=self.dtype, device=self.device.type, contiguous=False)
+
+    def transpose(self, dim0, dim1):
+        new_shape = list(self.shape)
+        new_shape[dim0], new_shape[dim1] = new_shape[dim1], new_shape[dim0]
         return FakeTensor(new_shape, dtype=self.dtype, device=self.device.type, contiguous=False)
 
     def copy_(self, other, non_blocking=False):
@@ -277,6 +294,11 @@ def _build_fake_modules():
     fake_vllm = types.ModuleType("vllm")
     fake_vllm_distributed = types.ModuleType("vllm.distributed")
     fake_vllm_distributed.get_world_group = MagicMock(name="get_world_group", return_value=MagicMock(cpu_group="mock_cpu_group"))
+    fake_vllm_model_executor = types.ModuleType("vllm.model_executor")
+    fake_vllm_model_loader = types.ModuleType("vllm.model_executor.model_loader")
+    fake_vllm_reload = types.ModuleType("vllm.model_executor.model_loader.reload")
+    fake_vllm_reload.initialize_layerwise_reload = MagicMock(name="initialize_layerwise_reload")
+    fake_vllm_reload.finalize_layerwise_reload = MagicMock(name="finalize_layerwise_reload")
 
     fake_verl = types.ModuleType("verl")
     fake_verl_utils = types.ModuleType("verl.utils")
@@ -299,6 +321,9 @@ def _build_fake_modules():
         "aura.runner.infer_adapter.vllm.patch.comm.vllm_execute_stat": fake_stat_mod,
         "vllm": fake_vllm,
         "vllm.distributed": fake_vllm_distributed,
+        "vllm.model_executor": fake_vllm_model_executor,
+        "vllm.model_executor.model_loader": fake_vllm_model_loader,
+        "vllm.model_executor.model_loader.reload": fake_vllm_reload,
         "verl": fake_verl,
         "verl.utils": fake_verl_utils,
         "verl.utils.device": fake_verl_utils_device,
@@ -633,15 +658,17 @@ class TestCustomWorkerExtensions(unittest.TestCase):
 
         self.assertEqual(moved, 0)
 
-    def test_custom_worker_extensions_update_weights_with_disk_use_hf_true(self):
-        """Update weights using HuggingFace format (load_weights on model)."""
+    def test_custom_worker_extensions_update_weights_with_disk_dense_model(self):
+        """Dense reload should preserve the legacy device-loading path."""
         torch = sys.modules["torch"]
 
         obj = self.target_mod.CustomWorkerExtensions()
         obj.rank = 0
+        obj.model_config = types.SimpleNamespace(is_moe=False)
 
         fake_model = MagicMock()
-        fake_model.load_weights.return_value = {"ok": True}
+        loaded_weights = []
+        fake_model.load_weights.side_effect = lambda weights: loaded_weights.extend(weights)
         obj.model_runner = MagicMock(model=fake_model)
 
         entry = MagicMock()
@@ -656,16 +683,96 @@ class TestCustomWorkerExtensions(unittest.TestCase):
                 fake_safe_open = sys.modules["safetensors.torch"].safe_open
                 fake_safe_open.return_value = FakeSafeOpenCtx({"w": torch.ones((2, 2))})
 
-                fake_get_dev = sys.modules["verl.utils.device"].get_torch_device
-                fake_get_dev.return_value.current_device.return_value = "cpu"
-
                 patch_loader = sys.modules["verl.utils.vllm.patch"].patch_vllm_moe_model_weight_loader
+                reload_mod = sys.modules["vllm.model_executor.model_loader.reload"]
 
                 moved = obj.update_weights_with_disk("tmp", "dir")
                 self.assertEqual(moved, 0)
 
                 patch_loader.assert_called_once_with(fake_model)
                 fake_model.load_weights.assert_called_once()
+                self.assertEqual(loaded_weights[0][0], "w")
+                self.assertEqual(loaded_weights[0][1].device.type, "cpu")
+                reload_mod.initialize_layerwise_reload.assert_not_called()
+                reload_mod.finalize_layerwise_reload.assert_not_called()
+
+    def test_custom_worker_extensions_update_weights_with_disk_moe_model(self):
+        """MoE reload should let vLLM consume CPU tensors in checkpoint layout."""
+        torch = sys.modules["torch"]
+
+        obj = self.target_mod.CustomWorkerExtensions()
+        obj.rank = 0
+        obj.device = "npu:0"
+        obj.model_config = types.SimpleNamespace(is_moe=True)
+
+        fake_model = MagicMock()
+        obj.model_runner = MagicMock(model=fake_model)
+
+        entry = MagicMock()
+        entry.is_file.return_value = True
+        entry.name = "x.safetensors"
+        entry.path = "/tmp/x.safetensors"
+
+        cpu_tensor = torch.ones((2, 2), device="cpu")
+        loaded_weights = []
+        call_order = []
+
+        def load_weights(weights):
+            call_order.append("load")
+            loaded_weights.extend(weights)
+            return {"w"}
+
+        fake_model.load_weights.side_effect = load_weights
+        reload_mod = sys.modules["vllm.model_executor.model_loader.reload"]
+        reload_mod.initialize_layerwise_reload.side_effect = lambda model: call_order.append("initialize")
+        reload_mod.finalize_layerwise_reload.side_effect = lambda model, config: call_order.append("finalize")
+
+        with patch.dict("os.environ", {"RL_TRAIN_BACKEND": "verl"}):
+            with patch("os.scandir") as mock_scandir:
+                mock_scandir.return_value.__enter__.return_value = [entry]
+                sys.modules["safetensors.torch"].safe_open.return_value = FakeSafeOpenCtx({"w": cpu_tensor})
+
+                with patch.object(torch.npu, "synchronize") as mock_synchronize:
+                    moved = obj.update_weights_with_disk("tmp", "dir")
+
+        self.assertEqual(moved, 0)
+        self.assertEqual(call_order, ["initialize", "load", "finalize"])
+        self.assertEqual(loaded_weights, [("w", cpu_tensor)])
+        reload_mod.initialize_layerwise_reload.assert_called_once_with(fake_model)
+        reload_mod.finalize_layerwise_reload.assert_called_once_with(fake_model, obj.model_config)
+        mock_synchronize.assert_called_once_with()
+        sys.modules["verl.utils.vllm.patch"].patch_vllm_moe_model_weight_loader.assert_not_called()
+        sys.modules["verl.utils.device"].get_device_name.assert_not_called()
+
+    def test_custom_worker_extensions_update_weights_with_disk_moe_rejects_empty_loaded_set(self):
+        """MoE reload should fail if vLLM reports that no weights were loaded."""
+        torch = sys.modules["torch"]
+
+        obj = self.target_mod.CustomWorkerExtensions()
+        obj.rank = 0
+        obj.device = "npu:0"
+        obj.model_config = types.SimpleNamespace(is_moe=True)
+
+        fake_model = MagicMock()
+        fake_model.load_weights.return_value = set()
+        obj.model_runner = MagicMock(model=fake_model)
+
+        entry = MagicMock()
+        entry.is_file.return_value = True
+        entry.name = "x.safetensors"
+        entry.path = "/tmp/x.safetensors"
+
+        reload_mod = sys.modules["vllm.model_executor.model_loader.reload"]
+        with patch.dict("os.environ", {"RL_TRAIN_BACKEND": "verl"}):
+            with patch("os.scandir") as mock_scandir:
+                mock_scandir.return_value.__enter__.return_value = [entry]
+                with patch.object(torch.npu, "synchronize") as mock_synchronize:
+                    with self.assertRaisesRegex(RuntimeError, "did not report any loaded weights"):
+                        obj.update_weights_with_disk("tmp", "dir")
+
+        reload_mod.initialize_layerwise_reload.assert_called_once_with(fake_model)
+        reload_mod.finalize_layerwise_reload.assert_called_once_with(fake_model, obj.model_config)
+        mock_synchronize.assert_called_once_with()
 
     def test_custom_worker_extensions_update_weights_with_disk_use_hf_false(self):
         """Update weights using threaded NPU loading."""
