@@ -78,11 +78,12 @@ Aura 支持以下Agent后端：
 
 Aura 支持以下模型：
 
-| 模型名称          | 参数规模 | 描述                                                                          |
-|---------------|------|-----------------------------------------------------------------------------|
-| Qwen3-4B      | 4B   | Qwen3系列Dense模型，采用Transformer架构，具备推理、代码与多语言能力。                               |
-| Qwen3-8B      | 8B   | Qwen3系列Dense模型，采用Transformer架构，具备较强的推理、代码与多语言能力。                            |
-| Qwen3-14B     | 14B  | Qwen3系列Dense模型，采用Transformer架构，具备较强的数学、代码与逻辑推理能力。                           |
-| Qwen3-32B     | 32B  | Qwen3系列通用大模型，采用Transformer架构，具备较强的复杂推理、代码与Agent能力。                          |
-| Qwen3-30B-A3B | 30B  | Qwen3系列MoE模型，采用稀疏专家混合架构，每Token激活约3B参数，兼顾复杂推理能力与计算效率。                        |
-| Qwen3.6-27B   | 27B  | Qwen3.6系列Dense多模态模型，采用Gated DeltaNet与Gated Attention混合架构，具备较强的复杂推理与长文本理解能力。 |
+| 模型名称            | 参数规模 | 描述                                                                          |
+|-----------------|------|-----------------------------------------------------------------------------|
+| Qwen3-4B        | 4B   | Qwen3系列Dense模型，采用Transformer架构，具备推理、代码与多语言能力。                               |
+| Qwen3-8B        | 8B   | Qwen3系列Dense模型，采用Transformer架构，具备较强的推理、代码与多语言能力。                            |
+| Qwen3-14B       | 14B  | Qwen3系列Dense模型，采用Transformer架构，具备较强的数学、代码与逻辑推理能力。                           |
+| Qwen3-32B       | 32B  | Qwen3系列通用大模型，采用Transformer架构，具备较强的复杂推理、代码与Agent能力。                          |
+| Qwen3-30B-A3B   | 30B  | Qwen3系列MoE模型，采用稀疏专家混合架构，每Token激活约3B参数，兼顾复杂推理能力与计算效率。                        |
+| Qwen3.6-27B     | 27B  | Qwen3.6系列Dense多模态模型，采用Gated DeltaNet与Gated Attention混合架构，具备较强的复杂推理与长文本理解能力。 |
+| Qwen3.6-35B-A3B | 35B  | Qwen3.6系列MoE模型，采用稀疏专家混合及混合注意力架构，每Token激活约3B参数，兼顾复杂推理能力与计算效率。                |

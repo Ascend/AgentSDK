@@ -3,14 +3,13 @@
 # 1. hydra.searchpath
 # 2. verl_conf.extras.data_loader.train_data_path
 # 3. verl_conf.actor_rollout_ref.model.path
-# 4. train_instances.executor_kwargs.rollout_config.llm_tokenizer_path
 #
 # 如果使用16卡以外的配置，需修改以下参数：
-# 5. n_gpus_per_node：修改为指定的卡数
-# 6. verl_conf.actor_rollout_conf.rollout：修改tensor_model_parallel_size和data_parallel_size，
-#    保证为2的幂（如2、4、8、16），且相乘的结果=指定卡数
-# 7. infer_instances：修改tensor_parallel_size和data_parallel_size，
-#    保证为2的幂（如2、4、8、16），且相乘的结果=指定卡数
+# 4. n_gpus_per_node：修改为指定的卡数
+# 5. verl_conf.actor_rollout_ref.rollout：修改tensor_model_parallel_size和data_parallel_size，
+#    保证为2的幂（如1、2、4、8、16），且相乘的结果=指定卡数
+# 6. infer_instances：修改tensor_parallel_size和data_parallel_size，
+#    保证为2的幂（如1、2、4、8、16），且相乘的结果=指定卡数
 # =============================================================
 agentic_ai:
   mode: direct # 模式选择：serve | direct
@@ -71,6 +70,9 @@ verl_conf:
     gen_batch_size: 1  # Number of samples generated, currently only support 1, 当前不生效
     return_raw_chat: True
     train_batch_size: 16
+    max_prompt_length: 4096
+    max_response_length: 32768
+    filter_overlong_prompts: True
   actor_rollout_ref:
     model:
       path: /path/to/models/Qwen3-30B-A3B # 需要修改为模型权重路径
@@ -82,13 +84,15 @@ verl_conf:
       n: 8
       name: vllm
       mode: async
+      n_gpus_per_node: 16
+      prompt_length: 4096
+      response_length: 8192
       calculate_log_probs: True
       log_prob_use_dynamic_bsz: False
       log_prob_micro_batch_size_per_gpu: 1
-      expert_parallel_size: 16
-      tensor_model_parallel_size: 8
-      data_parallel_size: 2
-      gpu_memory_utilization: 0.2
+      tensor_model_parallel_size: 4
+      data_parallel_size: 4
+      gpu_memory_utilization: 0.7
       free_cache_engine: true
     actor:
       ppo_micro_batch_size_per_gpu: 1
@@ -102,19 +106,13 @@ verl_conf:
       calculate_entropy: False
       kl_loss_coef: 0.001
       kl_loss_type: low_var_kl
-      clip_ratio_high: 0.28
-      loss_agg_mode: seq-mean-token-sum
-      ulysses_sequence_parallel_size: 8
+      ulysses_sequence_parallel_size: 1
       fsdp_config:
         strategy: fsdp2
         param_offload: true
         optimizer_offload: true
         model_dtype: bfloat16
-        fsdp_size: -1
         entropy_from_logits_with_chunking: true
-        entropy_checkpointing: true
-        ulysses_sequence_parallel_size: ${verl_conf.actor_rollout_ref.actor.ulysses_sequence_parallel_size}
-        reshard_after_forward: True
     ref:
       strategy: fsdp2
       log_prob_micro_batch_size_per_gpu: 1
@@ -123,14 +121,6 @@ verl_conf:
       fsdp_config:
         model_dtype: bfloat16
         param_offload: true
-        ulysses_sequence_parallel_size: ${verl_conf.actor_rollout_ref.actor.ulysses_sequence_parallel_size}
-  critic:
-    strategy: fsdp2
-    ulysses_sequence_parallel_size: ${verl_conf.actor_rollout_ref.actor.ulysses_sequence_parallel_size}
-    model:
-      ulysses_sequence_parallel_size: ${verl_conf.actor_rollout_ref.actor.ulysses_sequence_parallel_size}
-    fsdp_config:
-      model_dtype: bfloat16
   trainer:
     val_before_train: False
     device: npu
@@ -155,14 +145,14 @@ verl_conf:
     test_freq: 100
   async_training:
     use_rollout_log_probs: False
-    staleness_threshold: 0.25
+    staleness_threshold: 0.5
     trigger_parameter_sync_step: 1 # 多久 iter 同步一次权重
     partial_rollout: False
   algorithm:
     adv_estimator: grpo
 
 train_instances:
-  - name: RL-QWEN3-32B-WITH-MATH
+  - name: RL-QWEN3-30B-WITH-MATH
     executor_num: 1
     executor_kwargs:
       # 以下参数为 TrainExecutor 初始化参数
@@ -191,7 +181,7 @@ train_instances:
         data_optimized: false
         hybrid_batch_num: 1
         wait_available_weight_timeout: -1
-        llm_tokenizer_path: /path/to/models/Qwen3-30B-A3B # 需要修改为模型权重路径
+        llm_tokenizer_path: ${verl_conf.actor_rollout_ref.model.path} # 需要修改为模型权重路径
       agent_service: ${agent_instances.0.name}  # 依赖的 AGENT 服务名称（默认为 `agent_instances` 的第一个）
       infer_service: ${infer_instances.0.name}  # 依赖的 INFER 服务名称（默认为 `infer_instances` 的第一个）
     resource_info: [ ]  # MSRL 训练采用 RAY 实现资源分配，在 Executor 层不做资源限制
@@ -248,8 +238,7 @@ infer_instances:
         prefill_server_list: ["http://0.0.0.0:20012"]
         decode_server_list: []
         model_name: Qwen3-30B-A3B
-        tensor_parallel_size: 8
-        expert_parallel_size: 16
-        data_parallel_size: 2
-        enable_expert_parallel: true
+        tensor_parallel_size: 4
+        data_parallel_size: 4
+        enable_expert_parallel: false
     resource_info: []

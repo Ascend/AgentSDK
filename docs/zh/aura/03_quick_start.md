@@ -143,14 +143,15 @@ bash scripts/start_rl_with_verl_vllm.sh
 
 **Aura 各模型支持的场景模式及一键拉起样例：**
 
-| 模型            | 共卡模式                                                     | 单步异步分离模式                                                       | 混合批次调度                                                       | 全异步分离模式                     |
-|---------------|----------------------------------------------------------|----------------------------------------------------------------|----------------------------------------------------------------|-----------------------------|
-| Qwen3-4B      | [✓ 支持](models/qwen3-4b_quick_start/qwen3-4b-hybrid.md)   | [✓ 支持](models/qwen3-4b_quick_start/qwen3-4b-one-step-off.md)   | —                                                              | —                           |
-| Qwen3-8B      | [✓ 支持](models/qwen3_8b.md)                               | [✓ 支持](models/qwen3_8b.md)                                     | —                                                              | —                           |
-| Qwen3-14B     | [✓ 支持](models/qwen3-14b_quick_start/qwen3-14b-hybrid.md) | [✓ 支持](models/qwen3-14b_quick_start/qwen3-14b-one-step-off.md) | —                                                              | —                           |
-| Qwen3-30B-A3B | [✓ 支持](models/qwen3-30b-a3b.md)                          | [✓ 支持](models/qwen3-30b-a3b.md)                                | —                                                              | —                           |
-| Qwen3-32B     | [✓ 支持](models/qwen3_32b.md)                              | [✓ 支持](models/qwen3_32b.md)                                    | —                                                              | [✓ 支持](models/qwen3_32b.md) |
-| Qwen3.6-27B   | [✓ 支持](models/qwen3.6-27b.md)                            | [✓ 支持](models/qwen3.6-27b.md)                                  | [✓ 支持](models/qwen3.6-27b.md)                                 | —                           |
+| 模型              | 共卡模式                                                     | 单步异步分离模式                                                       | 混合批次调度                        | 全异步分离模式                     |
+|-----------------|----------------------------------------------------------|----------------------------------------------------------------|-------------------------------|-----------------------------|
+| Qwen3-4B        | [✓ 支持](models/qwen3-4b_quick_start/qwen3-4b-hybrid.md)   | [✓ 支持](models/qwen3-4b_quick_start/qwen3-4b-one-step-off.md)   | —                             | —                           |
+| Qwen3-8B        | [✓ 支持](models/qwen3_8b.md)                               | [✓ 支持](models/qwen3_8b.md)                                     | —                             | —                           |
+| Qwen3-14B       | [✓ 支持](models/qwen3-14b_quick_start/qwen3-14b-hybrid.md) | [✓ 支持](models/qwen3-14b_quick_start/qwen3-14b-one-step-off.md) | —                             | —                           |
+| Qwen3-30B-A3B   | [✓ 支持](models/qwen3-30b-a3b.md)                          | [✓ 支持](models/qwen3-30b-a3b.md)                                | —                             | —                           |
+| Qwen3-32B       | [✓ 支持](models/qwen3_32b.md)                              | [✓ 支持](models/qwen3_32b.md)                                    | —                             | [✓ 支持](models/qwen3_32b.md) |
+| Qwen3.6-27B     | [✓ 支持](models/qwen3.6-27b.md)                            | [✓ 支持](models/qwen3.6-27b.md)                                  | [✓ 支持](models/qwen3.6-27b.md) | —                           |
+| Qwen3.6-35B-A3B | [✓ 支持](models/qwen3.6-35b-a3b.md)                        | [✓ 支持](models/qwen3.6-35b-a3b.md)                              | —                             | —                           |
 
 > [!NOTE]
 > 「—」表示该模型当前未提供对应模式的一键拉起样例；「✓ 支持」为对应场景样例的链接。

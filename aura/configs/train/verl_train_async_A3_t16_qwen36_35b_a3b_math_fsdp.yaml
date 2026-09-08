@@ -75,21 +75,24 @@ verl_conf:
     filter_overlong_prompts: True
   actor_rollout_ref:
     model:
-      path: /path/to/models/Qwen3-8B # 需要修改为模型权重路径
+      path: /path/to/models/Qwen3.6-35B-A3B # 需要修改为模型权重路径
       use_remove_padding: True
       enable_gradient_checkpointing: True
-      enable_activation_offload: False
+      enable_activation_offload: True
     hybrid_engine: False
     rollout:
       n: 8
       name: vllm
       mode: async
+      n_gpus_per_node: 16
+      prompt_length: 4096
+      response_length: 8192
       calculate_log_probs: True
       log_prob_use_dynamic_bsz: False
       log_prob_micro_batch_size_per_gpu: 1
-      tensor_model_parallel_size: 8
-      data_parallel_size: 2
-      gpu_memory_utilization: 0.6
+      tensor_model_parallel_size: 4
+      data_parallel_size: 4
+      gpu_memory_utilization: 0.7
       free_cache_engine: true
     actor:
       ppo_micro_batch_size_per_gpu: 1
@@ -103,30 +106,31 @@ verl_conf:
       calculate_entropy: False
       kl_loss_coef: 0.001
       kl_loss_type: low_var_kl
-      ulysses_sequence_parallel_size: 4
+      ulysses_sequence_parallel_size: 1
       use_rollout_log_probs: False
       fsdp_config:
         strategy: fsdp2
         param_offload: true
         optimizer_offload: true
+        model_dtype: bfloat16
+        entropy_from_logits_with_chunking: true
       checkpoint:
-        # 在保存的 checkpoint 中包含什么
-        # 'hf_model' 可以将整个模型保存为 hf 格式
-        save_contents: ['model', 'optimizer', 'extra', 'hf_model']
+        save_contents: ['model', 'optimizer', 'extra']
     ref:
       strategy: fsdp2
       log_prob_micro_batch_size_per_gpu: 1
       log_prob_max_token_len_per_gpu: 16384
       ulysses_sequence_parallel_size: ${verl_conf.actor_rollout_ref.actor.ulysses_sequence_parallel_size}
       fsdp_config:
+        model_dtype: bfloat16
         param_offload: true
         optimizer_offload: true
   trainer:
     val_before_train: False
     device: npu
     critic_warmup: 0
-    project_name: 'qwen3_8b_math_code_one_step'
-    experiment_name: 'qwen3_8b_math_code_one_step'
+    project_name: 'qwen36_35b_a3b_math_code_one_step'
+    experiment_name: 'qwen36_35b_a3b_math_code_one_step'
     n_gpus_per_node: 16
     nnodes: 1
     save_freq: 100 # 保存ckpt的per iter
@@ -152,11 +156,11 @@ verl_conf:
     adv_estimator: grpo
 
 train_instances:
-  - name: RL-QWEN3-8B-WITH-MATH
+  - name: RL-QWEN36-35B-A3B-WITH-MATH
     executor_num: 1
     executor_kwargs:
       # 以下参数为 TrainExecutor 初始化参数
-      # hybrid(共卡) | one_step_off(分离)
+      # hybrid(共卡) | one_step_off(分离) | dummy_train (训练只启动controller, 适配纯rollout验证)
       work_mode: one_step_off
       train_engine: verl
       train_config: ${verl_conf}
@@ -176,7 +180,7 @@ train_instances:
         train_tensor_parallel_size: ${verl_conf.actor_rollout_ref.rollout.tensor_model_parallel_size}
         infer_expert_parallel_size: ${infer_instances.0.executor_kwargs.engine_kwargs.data_parallel_size}
         enable_version_control: false
-        use_on_policy: false
+        use_on_policy: false  # 分离模式更新延迟1步
         train_iters: ${verl_conf.extras.data_loader.train_iters}
         data_optimized: false
         hybrid_batch_num: 1
@@ -201,7 +205,7 @@ agent_instances:
         # 以下参数为 rLLMEngineWrapper 初始化参数
         agent_name: math # RLLMEngineWrapper内置Agent，修改参见：agents/agents_mapping.py
         simplify_think_content: false
-        max_prompt_length: 4096
+        max_prompt_length: 8192
         max_model_len: 32768
         n_parallel_agents: 512
         token_in_token_out: true
@@ -226,7 +230,7 @@ agent_instances:
 # 2. 提供 OpenAI Chat 推理接口
 # =============================================================
 infer_instances:
-  - name: Qwen3-8B
+  - name: Qwen3.6-35B-A3B
     executor_num: 1
     executor_kwargs:
       # 以下参数为 InferExecutor 初始化参数
@@ -237,8 +241,8 @@ infer_instances:
         chat_server: "http://0.0.0.0:8080"
         prefill_server_list: ["http://0.0.0.0:20012"]
         decode_server_list: []
-        model_name: Qwen3-8B
-        tensor_parallel_size: 8
-        data_parallel_size: 2
+        model_name: Qwen3.6-35B-A3B
+        tensor_parallel_size: 4
+        data_parallel_size: 4
         enable_expert_parallel: false
     resource_info: []
