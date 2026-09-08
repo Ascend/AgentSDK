@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 # -------------------------------------------------------------------------
 #  This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
@@ -24,8 +23,7 @@ import logging
 import os
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
-
+from typing import Any
 
 from .agent_runner import AgentSession, RetryItem
 from .events import EventLevel
@@ -38,76 +36,20 @@ from .tracker import (
     supports,
 )
 
-if TYPE_CHECKING:
-    pass
-
 logger = logging.getLogger(__name__)
 
 _CONTINUATION_RETRY_DELAY_MS = 1_000
 _FAILURE_RETRY_BASE_MS = 10_000
 
-
-def _operator_failure_detail(exc: BaseException) -> str:
-    """Return a concise failure detail suitable for IM and registry records."""
-
-    raw = " ".join(str(exc).split())
-    body_detail = _extract_error_message_from_body(raw)
-    if body_detail:
-        status_code = _extract_status_code(raw)
-        if raw.startswith("request_failed") and status_code:
-            return f"request_failed status={status_code}: {body_detail}"
-        return body_detail
-    return raw or exc.__class__.__name__
-
-
-def _extract_status_code(text: str) -> str | None:
-    for part in text.split():
-        if part.startswith("status="):
-            status = part.removeprefix("status=").strip()
-            if status:
-                return status
-    return None
-
-
-def _extract_error_message_from_body(text: str) -> str | None:
-    marker = "body="
-    marker_index = text.find(marker)
-    if marker_index < 0:
-        return None
-    body = text[marker_index + len(marker) :].strip()
-    if not body:
-        return None
-    try:
-        payload, _ = json.JSONDecoder().raw_decode(body)
-    except ValueError:
-        return None
-    return _extract_error_message(payload)
-
-
-def _extract_error_message(payload: Any) -> str | None:
-    if isinstance(payload, dict):
-        for key in (
-            "error_message",
-            "message",
-            "error_description",
-            "detail",
-        ):
-            value = payload.get(key)
-            if isinstance(value, str) and value.strip():
-                return " ".join(value.split())
-        error = payload.get("error")
-        if isinstance(error, str) and error.strip():
-            return " ".join(error.split())
-        nested = _extract_error_message(error)
-        if nested:
-            return nested
-        errors = payload.get("errors")
-        if isinstance(errors, list):
-            for item in errors:
-                nested = _extract_error_message(item)
-                if nested:
-                    return nested
-    return None
+# Escalation policy -> (registry transition, tracker state, logger level,
+# optional log format, IM event level). ``notify`` differs from
+# ``mark_failed`` only in surfacing a WARN log + ERROR IM event; unknown
+# policy values fall back to ``skip`` (abandon) below.
+_ESCALATION_ACTIONS = {
+    "mark_failed": ("mark_failed", "failed", "", "", EventLevel.WARN),
+    "notify": ("mark_failed", "failed", "warning", "Escalation notify for issue %s", EventLevel.ERROR),
+    "skip": ("mark_abandoned", "abandoned", "info", "Escalation skip for issue %s", EventLevel.WARN),
+}
 
 
 class OrchestratorOpsMixin:
@@ -276,7 +218,7 @@ class OrchestratorOpsMixin:
                 )
         self.status_dashboard.on_clarification_update(entries)
 
-    def _compute_workspace_focus_for_clarifier(self, issue: "Issue") -> list[dict]:
+    def _compute_workspace_focus_for_clarifier(self, issue: Issue) -> list[dict]:
         """Compute workspace focus as clarification context enrichment.
 
         Only called when a follow-up branch exists. For new issues
@@ -326,38 +268,21 @@ class OrchestratorOpsMixin:
                 continue
 
             policy = self._clarification_resolver._config.escalation
-            if policy == "mark_failed":
-                self._registry.mark_failed(issue_id)
-                await self._sync_tracker_issue_state(issue_id, "failed")
-                self._state.completed.add(issue_id)
-                self._emit_im_event(
-                    issue_id,
-                    "clarification.exhausted",
-                    EventLevel.WARN,
-                    "clarification exhausted",
-                )
-            elif policy == "notify":
-                self._registry.mark_failed(issue_id)
-                await self._sync_tracker_issue_state(issue_id, "failed")
-                self._state.completed.add(issue_id)
-                logger.warning("Escalation notify for issue %s", issue_id)
-                self._emit_im_event(
-                    issue_id,
-                    "clarification.exhausted",
-                    EventLevel.ERROR,
-                    "clarification exhausted",
-                )
-            else:  # skip → mark as abandoned
-                self._registry.mark_abandoned(issue_id)
-                await self._sync_tracker_issue_state(issue_id, "abandoned")
-                self._state.completed.add(issue_id)
-                logger.info("Escalation skip for issue %s", issue_id)
-                self._emit_im_event(
-                    issue_id,
-                    "clarification.exhausted",
-                    EventLevel.WARN,
-                    "clarification exhausted",
-                )
+            mark_name, tracker_state, log_level, log_fmt, event_level = _ESCALATION_ACTIONS.get(
+                policy,
+                _ESCALATION_ACTIONS["skip"],
+            )
+            getattr(self._registry, mark_name)(issue_id)
+            await self._sync_tracker_issue_state(issue_id, tracker_state)
+            self._state.completed.add(issue_id)
+            if log_fmt:
+                getattr(logger, log_level)(log_fmt, issue_id)
+            self._emit_im_event(
+                issue_id,
+                "clarification.exhausted",
+                event_level,
+                "clarification exhausted",
+            )
 
             to_remove.append(issue_id)
 
@@ -503,7 +428,7 @@ class OrchestratorOpsMixin:
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(json.dumps(result, ensure_ascii=False), encoding="utf-8")
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.debug("gateway control: failed to write result %s", path, exc_info=True)
 
     async def _connect_gateway_runtime(self, *, origin: str, sock: str) -> dict[str, Any]:
@@ -520,6 +445,7 @@ class OrchestratorOpsMixin:
             return {"ok": True, "message": "already connected"}
 
         from clawcodex_ext.services.im_gateway.ipc_client import GatewayIpcClient
+
         from extensions.orchestrator.im_gateway_client import (
             OrchestratorGatewayClient,
             OrchestratorHandlers,
@@ -563,7 +489,7 @@ class OrchestratorOpsMixin:
         except FileNotFoundError:
             await ipc.close()
             return {"ok": False, "message": "IM gateway daemon is not running"}
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             await ipc.close()
             logger.warning("gateway control connect failed", exc_info=True)
             return {"ok": False, "message": str(exc)}
@@ -620,7 +546,7 @@ class OrchestratorOpsMixin:
         while True:
             try:
                 await ipc.heartbeat()
-            except Exception:  # noqa: BLE001
+            except Exception:
                 logger.debug("orchestrator IM runtime heartbeat failed", exc_info=True)
             await asyncio.sleep(30.0)
 

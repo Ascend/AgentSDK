@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 # -------------------------------------------------------------------------
 #  This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
@@ -19,15 +18,17 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import time
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
+from extensions.orchestrator_runtime.adapters.clawcodex_compat import (
+    get_default_branch,
+)
 
+from . import modes as _modes
 from .agent_runner import AgentSession
 from .issue import Issue
-from . import modes as _modes
 from .modes.base import DEFAULT_MODE, ModeDecision
 from .repro_gate import (
     ReproGateResult,
@@ -36,86 +37,16 @@ from .repro_gate import (
     evaluate_repro_gate,
     format_repro_gate_comment,
 )
-from .status_dashboard import SessionStatus
-from extensions.orchestrator_runtime.adapters.clawcodex_compat import (
-    get_default_branch,
-)
 from .tracker import (
     Intent,
     PullRequestCapability,
     supports,
 )
 
-if TYPE_CHECKING:
-    pass
-
 logger = logging.getLogger(__name__)
 
 _CONTINUATION_RETRY_DELAY_MS = 1_000
 _FAILURE_RETRY_BASE_MS = 10_000
-
-
-def _operator_failure_detail(exc: BaseException) -> str:
-    """Return a concise failure detail suitable for IM and registry records."""
-
-    raw = " ".join(str(exc).split())
-    body_detail = _extract_error_message_from_body(raw)
-    if body_detail:
-        status_code = _extract_status_code(raw)
-        if raw.startswith("request_failed") and status_code:
-            return f"request_failed status={status_code}: {body_detail}"
-        return body_detail
-    return raw or exc.__class__.__name__
-
-
-def _extract_status_code(text: str) -> str | None:
-    for part in text.split():
-        if part.startswith("status="):
-            status = part.removeprefix("status=").strip()
-            if status:
-                return status
-    return None
-
-
-def _extract_error_message_from_body(text: str) -> str | None:
-    marker = "body="
-    marker_index = text.find(marker)
-    if marker_index < 0:
-        return None
-    body = text[marker_index + len(marker) :].strip()
-    if not body:
-        return None
-    try:
-        payload, _ = json.JSONDecoder().raw_decode(body)
-    except ValueError:
-        return None
-    return _extract_error_message(payload)
-
-
-def _extract_error_message(payload: Any) -> str | None:
-    if isinstance(payload, dict):
-        for key in (
-            "error_message",
-            "message",
-            "error_description",
-            "detail",
-        ):
-            value = payload.get(key)
-            if isinstance(value, str) and value.strip():
-                return " ".join(value.split())
-        error = payload.get("error")
-        if isinstance(error, str) and error.strip():
-            return " ".join(error.split())
-        nested = _extract_error_message(error)
-        if nested:
-            return nested
-        errors = payload.get("errors")
-        if isinstance(errors, list):
-            for item in errors:
-                nested = _extract_error_message(item)
-                if nested:
-                    return nested
-    return None
 
 
 class OrchestratorIssueMixin:
@@ -380,30 +311,7 @@ class OrchestratorIssueMixin:
         # Update persistent registry so `issue list` reflects running state
         self._registry.mark_running(issue.id or "")
 
-        # Sync .gitignore to workspace so unwanted files are excluded from commit
-        self._sync_gitignore_to_workspace(session.workspace)
-
-        self.status_dashboard.on_session_start(
-            SessionStatus(
-                issue_id=issue.id or "",
-                issue_identifier=issue.identifier or "",
-                max_turns=self.agent_runner.max_turns,
-                workspace_path=str(workspace.path),
-            )
-        )
-
-        task = asyncio.create_task(self._run_issue(session))
-        self._tasks.add(task)
-        task.add_done_callback(self._tasks.discard)
-        # Register issue_id → task mapping so the stop command
-        # can cancel a specific running issue via task.cancel().
-        issue_id_task = issue.id or ""
-        self._issue_tasks[issue_id_task] = task
-
-        def _unregister_issue_task(t: asyncio.Task) -> None:
-            self._issue_tasks.pop(issue_id_task, None)
-
-        task.add_done_callback(_unregister_issue_task)
+        self._start_issue_run(session)
 
     async def _sync_tracker_issue_state(self, issue_id: str, state: str) -> bool:
         if not issue_id:

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 # -------------------------------------------------------------------------
 #  This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
@@ -24,19 +23,19 @@ Port of Symphony's Orchestrator.
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from extensions.orchestrator_runtime.adapters.clawcodex_compat import (
     CardUpdateCapability,
     ChannelCapability,
+    ToolContext,
 )
-from extensions.orchestrator_runtime.adapters.clawcodex_compat import ToolContext
 
+from . import modes as _modes
 from .agent_runner import AgentRunner, AgentSession, RetryItem
 from .config.schema import WorkflowConfig
 from .events import EventLevel
@@ -47,88 +46,27 @@ from .issue import Issue
 from .issue_registry import IssueRegistry
 from .mode_router import HeuristicRouter, LLMRouter, Router
 from .mode_selector import ModeSelector
-from . import modes as _modes
 from .modes.coordinator import CoordinatorModeRunner
 from .modes.debate import DebateModeRunner
 from .modes.pipeline import PipelineModeRunner
 from .modes.single import SingleModeRunner
 from .modes.swarm import SwarmModeRunner
+from .orchestrator_control import OrchestratorControlMixin
+from .orchestrator_issue import OrchestratorIssueMixin
+from .orchestrator_ops import OrchestratorOpsMixin
+from .orchestrator_rebase import OrchestratorRebaseMixin
+from .orchestrator_run import OrchestratorRunMixin
+from .orchestrator_session import OrchestratorSessionMixin
 from .status_dashboard import StatusDashboard
 from .tracker import (
     TrackerAdapter,
 )
 from .workspace import WorkspaceManager
 
-if TYPE_CHECKING:
-    pass
-
 logger = logging.getLogger(__name__)
 
 _CONTINUATION_RETRY_DELAY_MS = 1_000
 _FAILURE_RETRY_BASE_MS = 10_000
-
-
-def _operator_failure_detail(exc: BaseException) -> str:
-    """Return a concise failure detail suitable for IM and registry records."""
-
-    raw = " ".join(str(exc).split())
-    body_detail = _extract_error_message_from_body(raw)
-    if body_detail:
-        status_code = _extract_status_code(raw)
-        if raw.startswith("request_failed") and status_code:
-            return f"request_failed status={status_code}: {body_detail}"
-        return body_detail
-    return raw or exc.__class__.__name__
-
-
-def _extract_status_code(text: str) -> str | None:
-    for part in text.split():
-        if part.startswith("status="):
-            status = part.removeprefix("status=").strip()
-            if status:
-                return status
-    return None
-
-
-def _extract_error_message_from_body(text: str) -> str | None:
-    marker = "body="
-    marker_index = text.find(marker)
-    if marker_index < 0:
-        return None
-    body = text[marker_index + len(marker) :].strip()
-    if not body:
-        return None
-    try:
-        payload, _ = json.JSONDecoder().raw_decode(body)
-    except ValueError:
-        return None
-    return _extract_error_message(payload)
-
-
-def _extract_error_message(payload: Any) -> str | None:
-    if isinstance(payload, dict):
-        for key in (
-            "error_message",
-            "message",
-            "error_description",
-            "detail",
-        ):
-            value = payload.get(key)
-            if isinstance(value, str) and value.strip():
-                return " ".join(value.split())
-        error = payload.get("error")
-        if isinstance(error, str) and error.strip():
-            return " ".join(error.split())
-        nested = _extract_error_message(error)
-        if nested:
-            return nested
-        errors = payload.get("errors")
-        if isinstance(errors, list):
-            for item in errors:
-                nested = _extract_error_message(item)
-                if nested:
-                    return nested
-    return None
 
 
 @dataclass
@@ -160,14 +98,6 @@ class OrchestratorState:
     )
 
 
-from .orchestrator_control import OrchestratorControlMixin  # noqa: E402
-from .orchestrator_issue import OrchestratorIssueMixin  # noqa: E402
-from .orchestrator_ops import OrchestratorOpsMixin  # noqa: E402
-from .orchestrator_rebase import OrchestratorRebaseMixin  # noqa: E402
-from .orchestrator_run import OrchestratorRunMixin  # noqa: E402
-from .orchestrator_session import OrchestratorSessionMixin  # noqa: E402
-
-
 class Orchestrator(
     OrchestratorSessionMixin,
     OrchestratorRebaseMixin,
@@ -186,7 +116,7 @@ class Orchestrator(
         agent_runner: AgentRunner,
         status_dashboard: StatusDashboard | None = None,
         *,
-        stage_runners: dict[str, "AgentRunner"] | None = None,
+        stage_runners: dict[str, AgentRunner] | None = None,
         workflow_yaml_path: str | None = None,
         asciicast_capture: Any = None,
     ) -> None:
@@ -318,12 +248,12 @@ class Orchestrator(
         self._clarification_queue = ClarificationQueue(clarification_queue_path)
 
         from .clarification import (
-            ClarificationConfig,
-            ClarificationResolver,
             _DEFAULT_MAX_QUESTIONS_PER_ISSUE,
             _DEFAULT_SIMULTANEOUS_GRACE_MS,
             _DEFAULT_TIMEOUT_AUTHOR_SECONDS,
             _DEFAULT_TIMEOUT_LOCAL_SECONDS,
+            ClarificationConfig,
+            ClarificationResolver,
         )
 
         self._clarification_resolver = ClarificationResolver(
@@ -389,7 +319,7 @@ class Orchestrator(
         # P3 IM event bridge: if set (by the daemon wiring a gateway deliver),
         # :meth:`_build_session_sink` attaches an :class:`OrchestratorEventEmitter`
         # so key orchestrator events push to IM. None → IM events disabled.
-        self.im_event_deliver: "object | None" = None
+        self.im_event_deliver: object | None = None
         self.im_event_channel: str = ""
         self._im_emitters: dict = {}
         # Do NOT keep a single :class:`ProgressReporter` here.
@@ -462,7 +392,6 @@ class Orchestrator(
             activity_sink = FeishuActivitySink(
                 task_id=task_id,
                 feishu_adapter=im_adapter,
-                clock=time.time,
                 status_dashboard=self.status_dashboard,
                 phases_total=phases_total,
             )

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 # -------------------------------------------------------------------------
 #  This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
@@ -25,8 +24,7 @@ import logging
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
-
+from typing import TYPE_CHECKING
 
 from .events import EventLevel
 from .issue import Issue
@@ -47,69 +45,6 @@ logger = logging.getLogger(__name__)
 
 _CONTINUATION_RETRY_DELAY_MS = 1_000
 _FAILURE_RETRY_BASE_MS = 10_000
-
-
-def _operator_failure_detail(exc: BaseException) -> str:
-    """Return a concise failure detail suitable for IM and registry records."""
-
-    raw = " ".join(str(exc).split())
-    body_detail = _extract_error_message_from_body(raw)
-    if body_detail:
-        status_code = _extract_status_code(raw)
-        if raw.startswith("request_failed") and status_code:
-            return f"request_failed status={status_code}: {body_detail}"
-        return body_detail
-    return raw or exc.__class__.__name__
-
-
-def _extract_status_code(text: str) -> str | None:
-    for part in text.split():
-        if part.startswith("status="):
-            status = part.removeprefix("status=").strip()
-            if status:
-                return status
-    return None
-
-
-def _extract_error_message_from_body(text: str) -> str | None:
-    marker = "body="
-    marker_index = text.find(marker)
-    if marker_index < 0:
-        return None
-    body = text[marker_index + len(marker) :].strip()
-    if not body:
-        return None
-    try:
-        payload, _ = json.JSONDecoder().raw_decode(body)
-    except ValueError:
-        return None
-    return _extract_error_message(payload)
-
-
-def _extract_error_message(payload: Any) -> str | None:
-    if isinstance(payload, dict):
-        for key in (
-            "error_message",
-            "message",
-            "error_description",
-            "detail",
-        ):
-            value = payload.get(key)
-            if isinstance(value, str) and value.strip():
-                return " ".join(value.split())
-        error = payload.get("error")
-        if isinstance(error, str) and error.strip():
-            return " ".join(error.split())
-        nested = _extract_error_message(error)
-        if nested:
-            return nested
-        errors = payload.get("errors")
-        if isinstance(errors, list):
-            for item in errors:
-                nested = _extract_error_message(item)
-                if nested:
-                    return nested
-    return None
 
 
 class OrchestratorSessionMixin:
@@ -223,6 +158,21 @@ class OrchestratorSessionMixin:
             "reloaded title-prefix filter: mode=%s prefixes=%s",
             refreshed.tracker.title_prefix_match,
             refreshed.tracker.title_prefixes,
+        )
+
+    def _mark_issue_intent(self, issue: Issue, intent: Intent, intent_source, command) -> None:
+        """Persist a resolved intent on the registry record.
+
+        ``intent_source`` / ``command`` come from ``_resolve_intent`` so the
+        origin (CLI / comment / label) is recorded on the record. The
+        fallback only fires if intent_source is somehow None (defensive —
+        should not be reachable when intent is RETRY/FOLLOWUP/BLOCKED).
+        """
+        self._registry.mark_intent(
+            issue.id or "",
+            intent,
+            source=(intent_source or ("command" if command is not None else "label")),
+            command=(f"/agent {command.value}" if command is not None else None),
         )
 
     async def _poll_and_dispatch(self) -> None:
@@ -385,19 +335,7 @@ class OrchestratorSessionMixin:
                             issue_identifier=issue.identifier or "",
                             branch_name=getattr(issue, "branch_name", None) or "main",
                         )
-                    self._registry.mark_intent(
-                        issue.id or "",
-                        intent,
-                        # Preserve the source from
-                        # _resolve_intent so CLI / comment / label
-                        # origin is recorded on the record. The
-                        # fallback only fires if intent_source is
-                        # somehow None (defensive — should not be
-                        # reachable when intent is RETRY/FOLLOWUP/
-                        # BLOCKED).
-                        source=(intent_source or ("command" if command is not None else "label")),
-                        command=(f"/agent {command.value}" if command is not None else None),
-                    )
+                    self._mark_issue_intent(issue, intent, intent_source, command)
                     self._registry.mark_abandoned(issue.id or "")
                     await self._sync_tracker_issue_state(issue.id or "", "abandoned")
                     self._state.completed.add(issue.id or "")
@@ -408,38 +346,14 @@ class OrchestratorSessionMixin:
                         "Issue %s retry intent detected, will reset on launch",
                         issue.id,
                     )
-                    self._registry.mark_intent(
-                        issue.id or "",
-                        intent,
-                        # Preserve the source from
-                        # _resolve_intent so CLI / comment / label
-                        # origin is recorded on the record. The
-                        # fallback only fires if intent_source is
-                        # somehow None (defensive — should not be
-                        # reachable when intent is RETRY/FOLLOWUP/
-                        # BLOCKED).
-                        source=(intent_source or ("command" if command is not None else "label")),
-                        command=(f"/agent {command.value}" if command is not None else None),
-                    )
+                    self._mark_issue_intent(issue, intent, intent_source, command)
                     # The reset+close path performs the actual reset.
                 elif intent is Intent.FOLLOWUP:
                     logger.info(
                         "Issue %s follow-up intent detected, will reuse branch",
                         issue.id,
                     )
-                    self._registry.mark_intent(
-                        issue.id or "",
-                        intent,
-                        # Preserve the source from
-                        # _resolve_intent so CLI / comment / label
-                        # origin is recorded on the record. The
-                        # fallback only fires if intent_source is
-                        # somehow None (defensive — should not be
-                        # reachable when intent is RETRY/FOLLOWUP/
-                        # BLOCKED).
-                        source=(intent_source or ("command" if command is not None else "label")),
-                        command=(f"/agent {command.value}" if command is not None else None),
-                    )
+                    self._mark_issue_intent(issue, intent, intent_source, command)
                     # The follow-up path performs the actual follow-up.
 
                 if intent is Intent.REBASE:
@@ -452,12 +366,7 @@ class OrchestratorSessionMixin:
                         "Issue %s rebase intent detected, running built-in rebase",
                         issue.id,
                     )
-                    self._registry.mark_intent(
-                        issue.id or "",
-                        intent,
-                        source=(intent_source or ("command" if command is not None else "label")),
-                        command=(f"/agent {command.value}" if command is not None else None),
-                    )
+                    self._mark_issue_intent(issue, intent, intent_source, command)
                     if not self._check_rebase_rate_limit(issue, force=False):
                         continue
                     await self._process_rebase_intent(issue)
@@ -537,7 +446,7 @@ class OrchestratorSessionMixin:
     async def _resolve_intent(
         self,
         issue: Issue,
-    ) -> tuple[Intent, "CommandIntent | None", str | None]:
+    ) -> tuple[Intent, CommandIntent | None, str | None]:
         """Resolve the current operator intent for an issue.
 
         Merges three intent sources:
@@ -625,7 +534,7 @@ class OrchestratorSessionMixin:
 
         return merged, command_intent_obj, intent_source
 
-    async def _resolve_command_intent(self, issue: Issue) -> "CommandIntent | None":
+    async def _resolve_command_intent(self, issue: Issue) -> CommandIntent | None:
         """Fetch and parse the most recent /agent command.
 
         The returned `CommandIntent` carries the comment
@@ -654,7 +563,7 @@ class OrchestratorSessionMixin:
     async def _post_command_acknowledgement(
         self,
         issue: Issue,
-        command: "Command",
+        command: Command,
     ) -> str | None:
         """Post a bot confirmation comment and update cursor.
 
@@ -733,7 +642,7 @@ class OrchestratorSessionMixin:
     async def _reject_unauthorized_command(
         self,
         issue: Issue,
-        command_intent: "CommandIntent",
+        command_intent: CommandIntent,
     ) -> None:
         """Post a comment rejecting an unauthorized command.
 

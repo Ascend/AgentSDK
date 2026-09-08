@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 # -------------------------------------------------------------------------
 #  This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
@@ -19,12 +18,14 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
 
+from extensions.orchestrator_runtime.adapters.clawcodex_compat import (
+    _run_git,
+    get_repo_root,
+)
 
 from .agent_runner import AgentSession
 from .events import EventLevel
@@ -35,11 +36,6 @@ from .git_sync_rebase import (
 from .issue import Issue
 from .prompt_builder import PromptBuilder
 from .review_feedback import ReviewFeedbackService, ReviewFollowup
-from .status_dashboard import SessionStatus
-from extensions.orchestrator_runtime.adapters.clawcodex_compat import (
-    _run_git,
-    get_repo_root,
-)
 from .tracker import (
     Intent,
     PullRequestMaintenanceCapability,
@@ -47,76 +43,10 @@ from .tracker import (
     supports,
 )
 
-if TYPE_CHECKING:
-    pass
-
 logger = logging.getLogger(__name__)
 
 _CONTINUATION_RETRY_DELAY_MS = 1_000
 _FAILURE_RETRY_BASE_MS = 10_000
-
-
-def _operator_failure_detail(exc: BaseException) -> str:
-    """Return a concise failure detail suitable for IM and registry records."""
-
-    raw = " ".join(str(exc).split())
-    body_detail = _extract_error_message_from_body(raw)
-    if body_detail:
-        status_code = _extract_status_code(raw)
-        if raw.startswith("request_failed") and status_code:
-            return f"request_failed status={status_code}: {body_detail}"
-        return body_detail
-    return raw or exc.__class__.__name__
-
-
-def _extract_status_code(text: str) -> str | None:
-    for part in text.split():
-        if part.startswith("status="):
-            status = part.removeprefix("status=").strip()
-            if status:
-                return status
-    return None
-
-
-def _extract_error_message_from_body(text: str) -> str | None:
-    marker = "body="
-    marker_index = text.find(marker)
-    if marker_index < 0:
-        return None
-    body = text[marker_index + len(marker) :].strip()
-    if not body:
-        return None
-    try:
-        payload, _ = json.JSONDecoder().raw_decode(body)
-    except ValueError:
-        return None
-    return _extract_error_message(payload)
-
-
-def _extract_error_message(payload: Any) -> str | None:
-    if isinstance(payload, dict):
-        for key in (
-            "error_message",
-            "message",
-            "error_description",
-            "detail",
-        ):
-            value = payload.get(key)
-            if isinstance(value, str) and value.strip():
-                return " ".join(value.split())
-        error = payload.get("error")
-        if isinstance(error, str) and error.strip():
-            return " ".join(error.split())
-        nested = _extract_error_message(error)
-        if nested:
-            return nested
-        errors = payload.get("errors")
-        if isinstance(errors, list):
-            for item in errors:
-                nested = _extract_error_message(item)
-                if nested:
-                    return nested
-    return None
 
 
 class OrchestratorRebaseMixin:
@@ -319,6 +249,26 @@ class OrchestratorRebaseMixin:
             )
         return result
 
+    async def _fetch_rebase_issue(self, issue_id: str, record) -> Issue:
+        """Fetch the tracker Issue for ``issue_id``; synthesize a minimal
+        record-backed one when the tracker has no state for it.
+
+        The poll / PR-conflict-scan / control paths all need an ``Issue``
+        to launch or dispatch a rebase, and the tracker may not know the
+        issue yet (offline, or created locally only). Falling back to a
+        record-backed placeholder keeps those paths uniform.
+        """
+        issue = await self.tracker.fetch_issue_states_by_ids([issue_id])
+        issue_obj = issue.get(issue_id) if issue else None
+        if issue_obj is None:
+            issue_obj = Issue(
+                id=issue_id,
+                identifier=record.issue_identifier,
+                title="(unknown)",
+                branch_name=record.branch_name,
+            )
+        return issue_obj
+
     async def _process_pending_rebase_conflicts(self) -> None:
         """Launch ``agent_rebase`` for records with content conflicts.
 
@@ -344,15 +294,7 @@ class OrchestratorRebaseMixin:
                 continue
             if not self._check_rebase_rate_limit(Issue(id=issue_id, identifier=record.issue_identifier)):
                 continue
-            issue = await self.tracker.fetch_issue_states_by_ids([issue_id])
-            issue_obj = issue.get(issue_id) if issue else None
-            if issue_obj is None:
-                issue_obj = Issue(
-                    id=issue_id,
-                    identifier=record.issue_identifier,
-                    title="(unknown)",
-                    branch_name=record.branch_name,
-                )
+            issue_obj = await self._fetch_rebase_issue(issue_id, record)
             try:
                 ws = await self.workspace.create_for_issue(issue_obj)
                 ws_path = getattr(ws, "path", None) or record.workspace_path
@@ -414,15 +356,7 @@ class OrchestratorRebaseMixin:
                 continue
             if status is None or not status.has_conflicts:
                 continue
-            issue = await self.tracker.fetch_issue_states_by_ids([issue_id])
-            issue_obj = issue.get(issue_id) if issue else None
-            if issue_obj is None:
-                issue_obj = Issue(
-                    id=issue_id,
-                    identifier=record.issue_identifier,
-                    title="(unknown)",
-                    branch_name=record.branch_name,
-                )
+            issue_obj = await self._fetch_rebase_issue(issue_id, record)
             await self._process_rebase_intent(issue_obj)
 
     async def _launch_rebase_resolution(self, issue: Issue) -> None:
@@ -765,15 +699,7 @@ class OrchestratorRebaseMixin:
             force,
             reason,
         )
-        issue = await self.tracker.fetch_issue_states_by_ids([issue_id])
-        issue_obj = issue.get(issue_id) if issue else None
-        if issue_obj is None:
-            issue_obj = Issue(
-                id=issue_id,
-                identifier=record.issue_identifier,
-                title="(unknown)",
-                branch_name=record.branch_name,
-            )
+        issue_obj = await self._fetch_rebase_issue(issue_id, record)
         # The CLI already enforced the rate-limit preview; honor the
         # operator's explicit --force when set.
         await self._process_rebase_intent(issue_obj, force=force)
@@ -929,24 +855,4 @@ class OrchestratorRebaseMixin:
         followup_record = self._registry.increment_followup_attempt(issue.id or "")
         session.issue_attempt = max(1, getattr(followup.record, "attempt_count", 0) + 1)
         session.followup_attempt = followup_record.followup_attempt_count if followup_record is not None else 1
-        self._sync_gitignore_to_workspace(session.workspace)
-        self.status_dashboard.on_session_start(
-            SessionStatus(
-                issue_id=issue.id or "",
-                issue_identifier=issue.identifier or "",
-                max_turns=self.agent_runner.max_turns,
-                workspace_path=str(workspace.path),
-            )
-        )
-        task = asyncio.create_task(self._run_issue(session))
-        self._tasks.add(task)
-        task.add_done_callback(self._tasks.discard)
-        # Root-cause fix: register issue_id → task mapping so the
-        # stop command can cancel a specific running issue.
-        issue_id = issue.id or ""
-        self._issue_tasks[issue_id] = task
-
-        def _unregister_issue_task(t: asyncio.Task) -> None:
-            self._issue_tasks.pop(issue_id, None)
-
-        task.add_done_callback(_unregister_issue_task)
+        self._start_issue_run(session)
