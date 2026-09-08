@@ -22,9 +22,28 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 
 from clawcodex_ext.frontend.headless import HeadlessFrontend  # pylint: disable=no-name-in-module
+
+
+def _seed_fake_provider_config(tmp_path) -> None:
+    """Write a fake-key config into the state-root chain."""
+    payload = {
+        "default_provider": "anthropic",
+        "providers": {
+            "anthropic": {
+                "api_key": "fake-frontend-wiring-key",
+                "base_url": "https://api.anthropic.com/v1",
+                "default_model": "claude-sonnet-4-20250514",
+            }
+        },
+    }
+    (tmp_path / "config.json").write_text(json.dumps(payload), encoding="utf-8")
+    import src.config as config_module
+
+    config_module._default_manager = None
 
 
 @dataclass
@@ -60,6 +79,7 @@ class _Runtime:
 def test_headless_keeps_injected_cron_tool(monkeypatch, tmp_path) -> None:
     from clawcodex_ext.runtime.context import RuntimeContext, RuntimeOptions  # pylint: disable=no-name-in-module
 
+    _seed_fake_provider_config(tmp_path)
     runtime = RuntimeContext.build(RuntimeOptions(workspace_root=tmp_path))
     captured = {}
 

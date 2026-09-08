@@ -556,6 +556,8 @@ async def _run_query_as_agent_loop_impl(
     # turn's working set (degraded: the cadence scan can't see them next
     # turn, so the full reminder repeats — both live surfaces wire this).
     on_attachment: Callable[[Message], None] | None = None,
+    # Called with the CompactionResult when in-run auto-compact fires.
+    on_auto_compact: Callable[[Any], None] | None = None,
     main_transcript: TranscriptWriter | None = None,
 ) -> AgentLoopRunResult:
     """Drive the canonical query() loop and adapt to AgentLoopResult.
@@ -580,6 +582,9 @@ async def _run_query_as_agent_loop_impl(
     Use this to persist the full conversation transcript faithfully —
     `response_text` alone loses tool_use/tool_result structure across
     multi-turn sessions.
+
+    ``on_auto_compact`` receives the :class:`CompactionResult` when in-run
+    autocompact fires, so the surface can persist its transcript write-back.
 
     ``cancel_signal`` is bridged into the loop's abort_controller so
     user-initiated cancels (Ctrl+C, /exit) propagate cleanly. When
@@ -727,6 +732,7 @@ async def _run_query_as_agent_loop_impl(
             on_text_chunk=on_text_chunk,
             on_thinking_chunk=on_thinking_chunk,
             on_attachment=on_attachment,
+            on_auto_compact=_on_adapter_auto_compact,
             task_reminder_enabled=memory_recall_enabled,
         )
 
@@ -737,6 +743,17 @@ async def _run_query_as_agent_loop_impl(
     last_api_error_text = ""
     goal_notice_seen = False
     conversation_messages: list[Message] = list(initial_messages)
+
+    def _on_adapter_auto_compact(result: Any, compacted_messages: list[Message]) -> None:
+        """Rebase the adapter feed onto the compacted working set and notify the surface."""
+        nonlocal conversation_messages
+        conversation_messages = list(compacted_messages)
+        if on_auto_compact is not None:
+            try:
+                on_auto_compact(result)
+            except Exception:
+                logging.getLogger(__name__).warning("on_auto_compact surface callback failed", exc_info=True)
+
     next_messages: list[Message] = messages_for_query
 
     while True:
@@ -1035,6 +1052,7 @@ async def run_query_as_agent_loop(
     query_source: str = "repl_main_thread",
     token_budget: int | None = None,
     on_attachment: Callable[[Message], None] | None = None,
+    on_auto_compact: Callable[[Any], None] | None = None,
 ) -> AgentLoopRunResult:
     """Drive the canonical query loop and always finalize its transcript.
 
@@ -1086,6 +1104,7 @@ async def run_query_as_agent_loop(
             query_source=query_source,
             token_budget=token_budget,
             on_attachment=on_attachment,
+            on_auto_compact=on_auto_compact,
             main_transcript=main_transcript,
         )
     finally:

@@ -317,6 +317,16 @@ def _attach_cron_to_tui(tool_context) -> None:
     registry = getattr(tool_context, "registry", None)
     if registry is not None:
         replace_cron_tools(registry)
+    # Feature-gated proactive tick emitter on the same outbox; ticks
+    # defer while an agent turn is in flight.
+    from clawcodex_ext.services.proactive.runtime import attach_proactive_runtime
+
+    should_skip = (lambda: in_agent_loop.value) if in_agent_loop is not None else None
+    attach_proactive_runtime(
+        tool_context,
+        autostart=True,
+        should_skip=should_skip,
+    )
 
 
 def _drain_cron_outbox(

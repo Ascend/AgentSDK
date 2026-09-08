@@ -93,6 +93,7 @@ from clawcodex_ext.command_system.registry import CommandRegistry, get_command_r
 from clawcodex_ext.command_system.types import LocalCommand, PromptCommand
 from clawcodex_ext.cron_system.runtime import attach_cron_runtime, replace_cron_tools
 from clawcodex_ext.cron_system.runs import claim_cron_run, finalize_cron_run
+from clawcodex_ext.services.proactive.runtime import attach_proactive_runtime
 from clawcodex_ext.query.agent_loop_compat import (
     build_effective_system_prompt,
     run_query_as_agent_loop,
@@ -159,6 +160,10 @@ class HeadlessOptions:
     # connected MCP servers without re-bootstrapping them.
     mcp_clients: dict[str, Any] = field(default_factory=dict)
     mcp_manager_loop: Any | None = None
+
+    # Pre-built RuntimeContext registry (incl. MCP tools) to work on a
+    # per-run copy of; ``None`` keeps the legacy default-only build.
+    tool_registry: Any | None = None
 
     # Environment variables merged into every Bash subprocess env.
     # Values override inherited daemon env.
@@ -412,8 +417,13 @@ def _run_headless_core(options: HeadlessOptions) -> int:
     # fresh sessions have no prior state to compare against.
     _run_resume_checks(options, session, provider_name, provider, stderr)
 
-    tool_registry = build_default_registry(provider=provider)
-    replace_cron_tools(tool_registry)
+    if options.tool_registry is not None:
+        # Work on a per-run clone so the in-place filters below never
+        # mutate the registry shared with the RuntimeContext.
+        tool_registry = _clone_tool_registry(options.tool_registry)
+    else:
+        tool_registry = build_default_registry(provider=provider)
+        replace_cron_tools(tool_registry)
     # Canonicalize BOTH sets up front (before either filter runs) so an alias
     # form (e.g. --disallowed-tools KillShell) resolves while its tool is still
     # registered.
@@ -643,6 +653,13 @@ def _run_headless_core(options: HeadlessOptions) -> int:
         autostart=True,
         is_loading=lambda: in_agent_loop.value,
     )
+    # Mount the proactive tick emitter on the same outbox: feature-gated,
+    # with ticks dropped while a query is in flight.
+    attach_proactive_runtime(
+        tool_context,
+        autostart=True,
+        should_skip=lambda: in_agent_loop.value,
+    )
 
     # seed ``read_file_fingerprints`` from the resumed
     # conversation's historical Read tool_use blocks. Without this,
@@ -763,11 +780,38 @@ def _run_headless_core(options: HeadlessOptions) -> int:
             _finalize_cron_task(workspace_root, active_tasks, task_id, "completed")
             return True
 
+        def _run_proactive_prompt(prompt: str) -> bool:
+            """Execute a single drained proactive tick/wake prompt."""
+            if options.capture is not None:
+                options.capture.emit_input(prompt)
+            session.conversation.add_user_message(prompt)
+            try:
+                result = _run_one_agent_loop(
+                    session=session,
+                    provider=provider,
+                    tool_registry=tool_registry,
+                    tool_context=tool_context,
+                    abort_controller=abort_controller,
+                    options=options,
+                    writer=writer,
+                    aggregate_tool_events=aggregate_tool_events,
+                    in_agent_loop=in_agent_loop,
+                    pipeline_config_factory=_build_turn_pipeline_config,
+                )
+            except AbortError:
+                raise
+            except Exception:
+                return False
+            if writer is not None:
+                writer.write(AssistantEvent(text=result.response_text))
+            return True
+
         try:
             for user_msg in inputs:
                 # drain any cron prompts that fired while waiting for
                 # the next input and run them before the user prompt.
                 _process_cron_outbox(tool_context, active_tasks, _run_cron_prompt)
+                _process_proactive_outbox(tool_context, _run_proactive_prompt)
 
                 # expand @agent-name mentions before sending to LLM.
                 text = user_msg.text
@@ -1074,6 +1118,7 @@ def _run_headless_core(options: HeadlessOptions) -> int:
                                 conversation=session.conversation,
                                 tool_registry=tool_registry,
                                 tool_context=tool_context,
+                                provider=provider,
                             )
                             success, result_text, error = execute_command_sync(
                                 parsed.command_name, parsed.command_args, cmd_ctx
@@ -1202,9 +1247,11 @@ def _run_headless_core(options: HeadlessOptions) -> int:
                 # drain cron prompts that fired while the agent was
                 # busy with the user turn and run them before the next input.
                 _process_cron_outbox(tool_context, active_tasks, _run_cron_prompt)
+                _process_proactive_outbox(tool_context, _run_proactive_prompt)
             # one last drain after the input stream ends so cron
             # prompts that fired during the final turn are not dropped.
             _process_cron_outbox(tool_context, active_tasks, _run_cron_prompt)
+            _process_proactive_outbox(tool_context, _run_proactive_prompt)
         except (AbortError, KeyboardInterrupt) as exc:
             # Cancellation from ANY point in the loop body lands here:
             # * ``AbortError`` from a cooperative unwind inside
@@ -1258,6 +1305,13 @@ def _run_headless_core(options: HeadlessOptions) -> int:
         if scheduler is not None:
             try:
                 scheduler.stop()
+            except Exception:  # nosec B110
+                pass  # Cleanup is best-effort and must not replace the primary operation result.
+        # Stop the proactive emitter's daemon thread (no-op when unattached).
+        proactive_emitter = getattr(tool_context, "proactive_emitter", None)
+        if proactive_emitter is not None:
+            try:
+                proactive_emitter.stop()
             except Exception:  # nosec B110
                 pass  # Cleanup is best-effort and must not replace the primary operation result.
         # persist accumulated transcript at end-of-run so
@@ -1755,6 +1809,16 @@ def _install_sigint_handler(
     return _restore
 
 
+def _clone_tool_registry(registry: Any) -> Any:
+    """Shallow-copy a shared ToolRegistry for a single headless run."""
+    from src.tool_system.registry import ToolRegistry
+
+    tools = getattr(registry, "all_tools", None)
+    clone = ToolRegistry(tools() if callable(tools) else [])
+    clone.disabled_servers = set(getattr(registry, "disabled_servers", ()) or ())
+    return clone
+
+
 def _filter_registry(registry, *, keep) -> None:
     """In-place best-effort filter of a ToolRegistry.
 
@@ -2186,6 +2250,21 @@ def _run_one_agent_loop(
             )
             raise
 
+    def _apply_auto_compact_write_back(result: Any) -> None:
+        """Persist an in-run auto-compaction into ``session.conversation``."""
+        try:
+            from clawcodex_ext.services.compact.compact import (
+                assemble_post_compact_messages,
+            )
+
+            conversation = session.conversation
+            conversation.messages = assemble_post_compact_messages(
+                conversation.messages,
+                result,
+            )
+        except Exception:
+            _LOGGER.warning("auto-compact transcript write-back failed", exc_info=True)
+
     active_evaluator_goal = _get_active_evaluator_goal(tool_context)
     effective_max_turns = options.max_turns
     if active_evaluator_goal is not None and not options.max_turns_explicit:
@@ -2229,6 +2308,7 @@ def _run_one_agent_loop(
                 on_text_chunk=on_text_chunk,
                 on_message=_persist,
                 on_attachment=lambda m: session.conversation.add_message(m.role, m.content),
+                on_auto_compact=_apply_auto_compact_write_back,
                 abort_controller=abort_controller,
             )
         )
@@ -2377,6 +2457,31 @@ def _process_cron_outbox(
             break
         for prompt, task_id, run_id in prompts:
             run_prompt(prompt, task_id, run_id)
+
+
+def _process_proactive_outbox(
+    tool_context: ToolContext,
+    run_prompt: Callable[[str], bool],
+    *,
+    max_iterations: int = 10,
+) -> None:
+    """Drain and execute proactive tick/wake prompts until the outbox is empty."""
+    from clawcodex_ext.services.proactive.runtime import (
+        drain_proactive_prompts,
+        is_proactive_feature_enabled,
+    )
+
+    outbox = getattr(tool_context, "outbox", None)
+    if not outbox:
+        return
+    for _ in range(max_iterations):
+        prompts = drain_proactive_prompts(outbox)
+        if not prompts:
+            break
+        if not is_proactive_feature_enabled():
+            return
+        for prompt in prompts:
+            run_prompt(prompt)
 
 
 def _jsonable(value):
