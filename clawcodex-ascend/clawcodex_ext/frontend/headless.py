@@ -70,6 +70,7 @@ class HeadlessFrontend(FrontendPlugin):
             bundle_context=getattr(ctx.tool_context, "bundle_context", None),
             mcp_clients=getattr(ctx.tool_context, "mcp_clients", {}),
             mcp_manager_loop=getattr(ctx.tool_context, "mcp_manager_loop", None),
+            tool_registry=getattr(ctx, "tool_registry", None),
             resume_session_id=getattr(ctx.options, "resume_session_id", None),
             fork_session_id=getattr(ctx.options, "fork_session_id", None),
             resume_session_at=getattr(ctx.options, "resume_session_at", None),

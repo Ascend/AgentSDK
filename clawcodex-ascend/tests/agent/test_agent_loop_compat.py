@@ -436,5 +436,216 @@ class TestLiveStreamingAndPersistence(unittest.TestCase):
         self.assertGreaterEqual(len(users_with_tool_result), 1)
 
 
+class TestAutoCompactWriteBack(unittest.TestCase):
+    """In-run auto-compact write-back for the agent-loop surfaces."""
+
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.workspace = Path(self.temp_dir.name)
+        self.registry = build_default_registry()
+        self.context = ToolContext(workspace_root=self.workspace)
+        self.provider = MagicMock()
+        self.provider.chat_stream_response.side_effect = NotImplementedError()
+        self.provider.chat.return_value = ChatResponse(
+            content="round output",
+            model="test",
+            usage={"input_tokens": 10, "output_tokens": 5},
+            finish_reason="end_turn",
+            tool_uses=None,
+        )
+
+    def tearDown(self):
+        self.temp_dir.cleanup()
+
+    def test_rebases_feed_and_notifies_surface_between_rounds(self):
+        """Round 2 is seeded from the compacted set and the hook fires exactly once."""
+        from types import SimpleNamespace
+        from clawcodex_ext.query.transitions import Terminal
+
+        old_history = [UserMessage(content="old turn 1"), UserMessage(content="old turn 2")]
+        kept = [UserMessage(content="recent tool result")]
+        summary = UserMessage(content="<summary>compacted history</summary>")
+        compact_result = object()
+        surface_hook_calls = []
+        submit_seeds: list[list] = []
+
+        async def _query_with_autocompact(params, *, terminal_holder):
+            submit_seeds.append(list(params.messages))
+            if len(submit_seeds) == 1:
+                self.assertIsNotNone(params.on_auto_compact)
+                params.on_auto_compact(compact_result, [summary, *kept])
+            yield AssistantMessage(
+                content="round output",
+                usage={"input_tokens": 10, "output_tokens": 5},
+            )
+            terminal_holder.value = Terminal(reason="completed")
+
+        class _FakeGoalRuntime:
+            """One goal continuation, then idle (mirrors continue_if_idle)."""
+
+            def __init__(self):
+                self._offers = 1
+
+            def continue_if_idle(self):
+                if self._offers:
+                    return SimpleNamespace(
+                        messages=[UserMessage(content="<goal-steering type=steer>keep going</goal-steering>")]
+                    )
+                return None
+
+            def claim_continuation(self, continuation) -> bool:
+                if not self._offers:
+                    return False
+                self._offers -= 1
+                return True
+
+        def _surface_write_back(result) -> None:
+            surface_hook_calls.append(result)
+
+        with (
+            patch(
+                "clawcodex_ext.query.agent_loop_compat.query",
+                _query_with_autocompact,
+            ),
+            patch(
+                "clawcodex_ext.goal.runtime.goal_runtime_for_context",
+                return_value=_FakeGoalRuntime(),
+            ),
+        ):
+            result = _run(
+                run_query_as_agent_loop(
+                    initial_messages=[UserMessage(content="Hi"), *old_history],
+                    provider=self.provider,
+                    tool_registry=self.registry,
+                    tool_context=self.context,
+                    system_prompt="You are helpful.",
+                    max_turns=5,
+                    on_auto_compact=_surface_write_back,
+                )
+            )
+
+        self.assertEqual(result.terminal.reason, "completed")
+        self.assertEqual(surface_hook_calls, [compact_result])
+        self.assertEqual(len(submit_seeds), 2)
+        seed2 = submit_seeds[1]
+        self.assertEqual(len(seed2), 4)  # summary + kept + round-1 output + steering
+        self.assertIs(seed2[0], summary)
+        self.assertIs(seed2[1], kept[0])
+        self.assertTrue(any("<goal-steering" in m.content for m in seed2))
+        for dropped in old_history:
+            self.assertNotIn(dropped, seed2)
+
+    def test_surface_hook_failure_does_not_break_the_run(self):
+        """A raising surface hook must not fail the run."""
+        from clawcodex_ext.query.transitions import Terminal
+
+        def _boom(result) -> None:
+            raise RuntimeError("transcript write-back failed")
+
+        async def _query_with_autocompact(params, *, terminal_holder):
+            if params.on_auto_compact is not None:
+                params.on_auto_compact(object(), [])
+            yield AssistantMessage(
+                content="round output",
+                usage={"input_tokens": 10, "output_tokens": 5},
+            )
+            terminal_holder.value = Terminal(reason="completed")
+
+        with patch(
+            "clawcodex_ext.query.agent_loop_compat.query",
+            _query_with_autocompact,
+        ):
+            result = _run(
+                run_query_as_agent_loop(
+                    initial_messages=[UserMessage(content="Hi")],
+                    provider=self.provider,
+                    tool_registry=self.registry,
+                    tool_context=self.context,
+                    system_prompt="You are helpful.",
+                    max_turns=5,
+                    on_auto_compact=_boom,
+                )
+            )
+
+        self.assertEqual(result.terminal.reason, "completed")
+        self.assertEqual(result.response_text, "round output")
+
+
+def test_headless_agent_loop_wires_auto_compact_write_back(tmp_path, monkeypatch):
+    """Headless's agent-loop helper wires the auto-compact transcript write-back."""
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock
+
+    import clawcodex_ext.entrypoints.headless as headless_mod
+    from clawcodex_ext.compact_service.messages import (
+        create_compact_boundary_message,
+        is_compact_boundary_message,
+    )
+    from clawcodex_ext.services.compact.compact import CompactionResult
+    from clawcodex_ext.types.messages import UserMessage
+    from src.entrypoints.headless import HeadlessOptions
+    from src.tool_system.context import ToolContext
+
+    class _Conversation:
+        def __init__(self):
+            self.messages = [UserMessage(content="old turn A"), UserMessage(content="old turn B")]
+
+    conv = _Conversation()
+    session = SimpleNamespace(conversation=conv)
+    context = ToolContext(workspace_root=tmp_path)
+    captured: dict = {}
+    compat_result = SimpleNamespace(
+        response_text="ok",
+        usage={"input_tokens": 1, "output_tokens": 1},
+        num_turns=1,
+        terminal=None,
+    )
+
+    async def _capture(*args, **kwargs):
+        # _run_one_agent_loop drives the adapter through asyncio.run().
+        captured.update(kwargs)
+        return compat_result
+
+    monkeypatch.setattr(headless_mod, "run_query_as_agent_loop", _capture)
+    monkeypatch.setattr(
+        headless_mod,
+        "build_effective_system_prompt",
+        lambda *a, **k: "test system prompt",
+    )
+
+    result = headless_mod._run_one_agent_loop(
+        session,
+        MagicMock(),
+        MagicMock(),
+        context,
+        MagicMock(),
+        HeadlessOptions(prompt="hi"),
+        writer=None,
+        aggregate_tool_events=[],
+        in_agent_loop=SimpleNamespace(value=False),
+    )
+    assert result.response_text == "ok" and result.num_turns == 1
+
+    # The hook is wired unconditionally (independent of pipeline_config).
+    hook = captured["on_auto_compact"]
+    assert callable(hook)
+
+    summary = UserMessage(content="<summary>compacted away</summary>")
+    kept = UserMessage(content="recent tool result")
+    hook(
+        CompactionResult(
+            boundary_marker=create_compact_boundary_message(trigger="auto"),
+            summary_messages=[summary],
+            messages_to_keep=[kept],
+        )
+    )
+
+    assert len(conv.messages) == 3
+    assert is_compact_boundary_message(conv.messages[0])
+    assert conv.messages[1] is summary
+    assert conv.messages[2] is kept
+    assert all("old turn" not in str(m.content) for m in conv.messages)
+
+
 if __name__ == "__main__":
     unittest.main()
