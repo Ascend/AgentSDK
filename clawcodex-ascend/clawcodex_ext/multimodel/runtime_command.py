@@ -58,6 +58,7 @@ def register_multimodel_runtime_command(registry: Any | None = None) -> None:
             "[status|use NAME|off|preset NAME|group list|group show NAME|"
             "group delete NAME|group create NAME ...|group update NAME ...]"
         ),
+        supports_non_interactive=True,
     )
     command.set_call(_call)
     reg.register(command)

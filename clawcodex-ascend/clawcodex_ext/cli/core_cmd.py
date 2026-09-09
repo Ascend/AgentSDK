@@ -55,9 +55,11 @@ def run_mcp_command(args: list[str]) -> int:
 @register("daemon", telemetry_mode="daemon")  # nosec B105
 def run_daemon_command(args: list[str]) -> int:
     """Handle ``clawcodex daemon`` subcommands."""
-    from src.entrypoints.daemon import run_daemon_subcommand
+    # Delegate to the full supervisor lifecycle (start/stop/status/attach/
+    # logs/kill) instead of the "not yet implemented" stub.
+    from extensions.daemon.cli import run_daemon
 
-    return run_daemon_subcommand(args)
+    return run_daemon(args)
 
 
 @register("doctor")  # nosec B105

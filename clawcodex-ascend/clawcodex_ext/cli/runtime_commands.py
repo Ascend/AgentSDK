@@ -307,6 +307,7 @@ def _provider_command() -> LocalCommand:
         name="provider",
         description="Show current provider (and available list), or switch to a named provider",
         argument_hint="[NAME]",
+        supports_non_interactive=True,
     )
     command.set_call(_provider_call)
     return command
@@ -317,6 +318,7 @@ def _model_command() -> LocalCommand:
         name="model",
         description="Show current model (and available list), or switch to a named model",
         argument_hint="[NAME [--provider NAME]]",
+        supports_non_interactive=True,
     )
     command.set_call(_model_call)
     return command

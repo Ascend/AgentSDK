@@ -26,6 +26,8 @@ from __future__ import annotations
 
 import argparse
 
+from clawcodex_ext.permissions.types import CLI_PERMISSION_MODE_CHOICES
+
 
 class _ExplicitTrackingAction(argparse.Action):
     """Store the option value and flag it as explicitly provided."""
@@ -353,7 +355,7 @@ Examples:
     permissions_group.add_argument(
         "--permission-mode",
         dest="permission_mode",
-        choices=("default", "plan", "acceptEdits", "bypassPermissions", "dontAsk", "auto"),
+        choices=CLI_PERMISSION_MODE_CHOICES,
         default=None,
         help='Initial permission mode (default: default). "auto" uses LLM classifier.',
     )

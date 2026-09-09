@@ -145,6 +145,30 @@ def test_prune_expired_recurring_tasks(tmp_path) -> None:
     assert read_cron_tasks(tmp_path) == []
 
 
+def test_prune_recurring_keeps_recently_fired_task(tmp_path) -> None:
+    # Regression for F1: a recurring task created long ago but fired recently
+    # must survive ``max_age_ms`` pruning. The old ``created_at + max_age_ms``
+    # check pruned still-active tasks after 7 days.
+    max_age = 7 * 24 * 60 * 60 * 1000
+    task = add_cron_task(tmp_path, cron="*/5 * * * *", prompt="active", recurring=True, created_at=1_000)
+    write_cron_tasks(tmp_path, [replace(task, expires_at=None)])
+    mark_cron_tasks_fired(tmp_path, [task], fired_at=999_900_000)
+    removed = prune_expired_recurring_tasks(tmp_path, at_ms=1_000_000_000, max_age_ms=max_age)
+    assert removed == []
+    assert [t.id for t in read_cron_tasks(tmp_path)] == [task.id]
+
+
+def test_prune_recurring_prunes_idle_task_by_activity(tmp_path) -> None:
+    # F1 companion: a recurring task that never fired (or is long-idle) is
+    # still pruned once its activity reference is older than max_age_ms.
+    max_age = 7 * 24 * 60 * 60 * 1000
+    task = add_cron_task(tmp_path, cron="*/5 * * * *", prompt="idle", recurring=True, created_at=1_000)
+    write_cron_tasks(tmp_path, [replace(task, expires_at=None)])
+    removed = prune_expired_recurring_tasks(tmp_path, at_ms=1_000_000_000, max_age_ms=max_age)
+    assert [t.id for t in removed] == [task.id]
+    assert read_cron_tasks(tmp_path) == []
+
+
 def test_add_cron_task_serializes_concurrent_writes(tmp_path) -> None:
     def create_task(index: int) -> str:
         task = add_cron_task(
