@@ -1,6 +1,10 @@
 # =============================================================
 # 一键启动需要修改路径的参数如下：
 # 1. infer_model_path
+#
+# 如果使用16卡以外的配置，需修改以下参数：
+# 2. tensor_parallel_size和data_parallel_size，
+#    保证为2的幂（如1、2、4、8、16），且相乘的结果=指定卡数
 # =============================================================
 # vllm版本信息
 vllm_version: 0.22.1
@@ -9,7 +13,7 @@ vllm_version: 0.22.1
 infer_model_name: Qwen3.6-27B
 
 # 模型权重路径
-infer_model_path: /path/to/Qwen3.6-27B # 需要修改为模型权重路径
+infer_model_path: /path/to/models/Qwen3.6-27B # 需要修改为模型权重路径
 
 # 是否开启专家并行, MOE模型默认需要开启, Dense模型需要关闭
 enable_expert_parallel: false
