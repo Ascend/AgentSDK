@@ -68,6 +68,11 @@ PERMISSION_MODES: tuple[PermissionMode, ...] = (
     "bubble",
 )
 
+# Modes selectable via ``--permission-mode``. Single source of truth for the
+# CLI parser: the persistable external set plus the transient ``auto`` mode
+# (LLM classifier). ``bubble`` is internal-only and never exposed here.
+CLI_PERMISSION_MODE_CHOICES: tuple[str, ...] = EXTERNAL_PERMISSION_MODES + ("auto",)
+
 PermissionBehavior = Literal["allow", "deny", "ask"]
 
 PermissionRuleSource = Literal[

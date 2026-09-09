@@ -806,6 +806,19 @@ def _run_headless_core(options: HeadlessOptions) -> int:
                 writer.write(AssistantEvent(text=result.response_text))
             return True
 
+        # Populate the global command registry (matching REPL/TUI) so headless
+        # slash-command resolution sees every command instead of just the
+        # builtin fallback list. Without this, /multimodel /template /bg /link
+        # /recap /forecast /provider were reported as "Unknown command".
+        try:
+            from clawcodex_ext.command_system.builtins import register_builtin_commands
+            from clawcodex_ext.cli.runtime_commands import register_runtime_commands
+
+            register_builtin_commands(None)
+            register_runtime_commands(None)
+        except Exception:  # nosec B110
+            pass  # best-effort: fall back to builtin-only resolution
+
         try:
             for user_msg in inputs:
                 # drain any cron prompts that fired while waiting for

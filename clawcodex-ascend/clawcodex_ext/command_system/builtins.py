@@ -30,6 +30,7 @@ Implements core commands like /help, /clear, /exit, /skills, etc.
 from __future__ import annotations
 
 import asyncio
+import inspect
 import logging
 import sys
 from typing import Any
@@ -1774,6 +1775,8 @@ def execute_command_sync(cmd_name: str, args: str, context: CommandContext) -> t
         else:
             return False, None, f"Command not implemented for sync execution: {cmd_name}"
 
+        if inspect.isawaitable(result):
+            result = asyncio.run(result)
         return True, result.value, None
     except Exception as e:
         return False, None, str(e)

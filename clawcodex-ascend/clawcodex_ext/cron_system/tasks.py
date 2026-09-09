@@ -534,7 +534,13 @@ def prune_expired_recurring_tasks(
         if max_age_ms is not None:
             if max_age_ms == 0:
                 return True
-            return task.created_at + max_age_ms > timestamp
+            # Age recurring tasks by their most recent activity, not by when
+            # they were first created. mark_cron_tasks_fired refreshes
+            # last_fired_at/updated_at on every fire, so a task that fired
+            # recently survives even when it was created long ago. The old
+            # ``created_at + max_age_ms`` check pruned still-active tasks.
+            age_base = task.last_fired_at or task.updated_at or task.created_at
+            return age_base + max_age_ms > timestamp
         if task.expires_at is None:
             return True
         return task.expires_at > timestamp

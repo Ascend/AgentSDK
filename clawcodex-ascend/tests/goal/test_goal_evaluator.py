@@ -143,6 +143,39 @@ async def test_evaluate_goal_supports_provider_agnostic_model_override(
 
 
 @pytest.mark.asyncio
+async def test_evaluate_goal_injects_provider_model_for_non_anthropic() -> None:
+    # Non-anthropic providers expose no ANTHROPIC_SMALL_FAST_MODEL, so the
+    # evaluator must fall back to the provider's own configured model.
+    provider = RecordingProvider('{"met": true, "reason": "done"}')
+    provider.model = "deepseek-v4-pro"  # type: ignore[attr-defined]
+
+    await evaluate_goal(provider, _goal(), [])
+
+    _sent_messages, _sent_tools, sent_kwargs = provider.calls[0]
+    assert sent_kwargs["model"] == "deepseek-v4-pro"
+
+
+@pytest.mark.asyncio
+async def test_evaluate_goal_retries_invalid_json_then_succeeds() -> None:
+    contents = ["not-json", '{"met": false, "reason": "retry recovered"}']
+    usage = {"input_tokens": 3, "output_tokens": 1}
+
+    class SequenceProvider(RecordingProvider):
+        def __init__(self) -> None:
+            super().__init__(contents[0], usage)
+            self._queue = list(contents)
+
+        async def chat_async(self, messages, tools=None, **kwargs):  # type: ignore[no-untyped-def]
+            self.calls.append((messages, tools, kwargs))
+            content = self._queue.pop(0) if len(self._queue) > 1 else self._queue[0]
+            return SimpleNamespace(content=content, usage=self.usage)
+
+    evaluation = await evaluate_goal(SequenceProvider(), _goal(), [])
+    assert evaluation.met is False
+    assert evaluation.reason == "retry recovered"
+
+
+@pytest.mark.asyncio
 async def test_evaluate_goal_omits_unsupported_tuning_kwargs_for_openai_codex() -> None:
     class OpenAICodexProvider(RecordingProvider):
         pass

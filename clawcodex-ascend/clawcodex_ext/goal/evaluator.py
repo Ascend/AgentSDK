@@ -117,6 +117,32 @@ class _ProjectionBudget:
             self.active_ids.discard(identity)
 
 
+# 1 initial attempt + 2 retries when the provider emits non-JSON or a
+# malformed object. The strict schema contract is unchanged: only a valid
+# ``{"met": bool, "reason": str}`` object is ever accepted.
+_MAX_EVALUATOR_ATTEMPTS = 3
+
+
+def _parse_evaluator_payload(content: Any) -> dict[str, Any]:
+    """Validate a provider response against the strict goal schema."""
+    if not isinstance(content, str):
+        raise GoalEvaluationError("goal evaluator response content must be a JSON string")
+    try:
+        payload = json.loads(content)
+    except (TypeError, ValueError) as exc:
+        raise GoalEvaluationError("goal evaluator response is not valid JSON") from exc
+    if not isinstance(payload, dict) or set(payload) != {"met", "reason"}:
+        raise GoalEvaluationError("goal evaluator response must contain exactly `met` and `reason`")
+    if not isinstance(payload["met"], bool):
+        raise GoalEvaluationError("goal evaluator `met` must be a boolean")
+    if not isinstance(payload["reason"], str):
+        raise GoalEvaluationError("goal evaluator `reason` must be a string")
+    reason = payload["reason"].strip()
+    if not reason:
+        raise GoalEvaluationError("goal evaluator `reason` must not be empty")
+    return {"met": payload["met"], "reason": reason}
+
+
 async def evaluate_goal(
     provider: Any,
     goal: ThreadGoal,
@@ -171,55 +197,54 @@ async def evaluate_goal(
     elif slot_model:
         call_kwargs["model"] = slot_model
 
-    try:
-        response = await _call_with_abort(
-            asyncio.wait_for(
-                _call_provider(selected_provider, request, call_kwargs),
-                timeout=30.0,
-            ),
-            abort_signal,
-        )
-    except Exception as exc:
-        selected_model = call_kwargs.get("model") or "<provider default>"
-        raise GoalEvaluationError(f"goal evaluator provider call failed for model {selected_model!r}: {exc}") from exc
+    last_usage: dict[str, Any] = {}
+    for attempt in range(_MAX_EVALUATOR_ATTEMPTS):
+        if attempt > 0:
+            # The model already emitted non-JSON or a malformed object once.
+            # Re-ask with a harder constraint while carrying the same evidence.
+            request[0]["content"] = system_prompt + (
+                "\n\nYour previous response was rejected because it was not a "
+                "single valid JSON object. Reply with only the JSON object "
+                '{"met": <true|false>, "reason": "<short reason>"} and nothing '
+                "else: no Markdown, no code fences, no prose."
+            )
+        try:
+            response = await _call_with_abort(
+                asyncio.wait_for(
+                    _call_provider(selected_provider, request, call_kwargs),
+                    timeout=30.0,
+                ),
+                abort_signal,
+            )
+        except Exception as exc:
+            selected_model = call_kwargs.get("model") or "<provider default>"
+            raise GoalEvaluationError(
+                f"goal evaluator provider call failed for model {selected_model!r}: {exc}",
+                usage=last_usage,
+            ) from exc
 
-    if abort_signal is not None and abort_signal.aborted:
-        raise asyncio.CancelledError(abort_signal.reason or "aborted")
+        if abort_signal is not None and abort_signal.aborted:
+            raise asyncio.CancelledError(abort_signal.reason or "aborted")
 
-    raw_usage = getattr(response, "usage", None)
-    usage = dict(raw_usage) if isinstance(raw_usage, Mapping) else {}
-    content = getattr(response, "content", None)
-    if not isinstance(content, str):
-        raise GoalEvaluationError(
-            "goal evaluator response content must be a JSON string",
+        raw_usage = getattr(response, "usage", None)
+        usage = dict(raw_usage) if isinstance(raw_usage, Mapping) else {}
+        last_usage = usage
+        content = getattr(response, "content", None)
+        try:
+            payload = _parse_evaluator_payload(content)
+        except GoalEvaluationError as exc:
+            if attempt + 1 < _MAX_EVALUATOR_ATTEMPTS:
+                continue
+            raise GoalEvaluationError(str(exc), usage=usage) from exc
+
+        return GoalEvaluation(
+            met=payload["met"],
+            reason=payload["reason"],
             usage=usage,
         )
-    try:
-        payload = json.loads(content)
-    except (TypeError, ValueError) as exc:
-        raise GoalEvaluationError(
-            "goal evaluator response is not valid JSON",
-            usage=usage,
-        ) from exc
 
-    if not isinstance(payload, dict) or set(payload) != {"met", "reason"}:
-        raise GoalEvaluationError(
-            "goal evaluator response must contain exactly `met` and `reason`",
-            usage=usage,
-        )
-    if not isinstance(payload["met"], bool):
-        raise GoalEvaluationError("goal evaluator `met` must be a boolean", usage=usage)
-    if not isinstance(payload["reason"], str):
-        raise GoalEvaluationError("goal evaluator `reason` must be a string", usage=usage)
-    reason = payload["reason"].strip()
-    if not reason:
-        raise GoalEvaluationError("goal evaluator `reason` must not be empty", usage=usage)
-
-    return GoalEvaluation(
-        met=payload["met"],
-        reason=reason,
-        usage=usage,
-    )
+    # Unreachable: the loop above either returns a valid evaluation or raises.
+    raise GoalEvaluationError("goal evaluator failed after retries", usage=last_usage)
 
 
 def _project_transcript(messages: Sequence[Any]) -> list[dict[str, str]]:
@@ -731,7 +756,11 @@ def _configured_evaluator_model(provider: Any) -> str | None:
     provider_name = getattr(provider, "provider_name", "")
     is_anthropic = "anthropic" in identity or (isinstance(provider_name, str) and provider_name.lower() == "anthropic")
     if not is_anthropic:
-        return None
+        # Non-anthropic providers expose no "small fast" override, so fall back
+        # to the provider's own configured model. This makes the evaluator
+        # request an explicit model instead of relying on provider defaults.
+        model = getattr(provider, "model", None)
+        return str(model).strip() if isinstance(model, str) and model.strip() else None
 
     env_model = os.environ.get("ANTHROPIC_SMALL_FAST_MODEL", "").strip()
     if env_model:

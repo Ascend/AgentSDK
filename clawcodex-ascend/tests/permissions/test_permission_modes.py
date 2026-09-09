@@ -24,7 +24,11 @@ from __future__ import annotations
 
 import unittest
 
-from clawcodex_ext.permissions.types import PERMISSION_MODES
+from clawcodex_ext.permissions.types import (
+    CLI_PERMISSION_MODE_CHOICES,
+    EXTERNAL_PERMISSION_MODES,
+    PERMISSION_MODES,
+)
 from src.permissions.modes import (
     is_default_mode,
     permission_mode_from_string,
@@ -64,6 +68,15 @@ class TestPermissionModeFromString(unittest.TestCase):
     def test_invalid_mode_returns_default(self) -> None:
         self.assertEqual(permission_mode_from_string("invalid"), "default")
         self.assertEqual(permission_mode_from_string(""), "default")
+
+
+class TestCliPermissionModeChoices(unittest.TestCase):
+    def test_cli_choices_are_external_plus_auto(self) -> None:
+        # The CLI ``--permission-mode`` surface is exactly the persistable
+        # external set plus the transient ``auto`` mode; ``bubble`` stays
+        # internal-only and must not leak into argparse choices.
+        self.assertEqual(set(CLI_PERMISSION_MODE_CHOICES), set(EXTERNAL_PERMISSION_MODES) | {"auto"})
+        self.assertNotIn("bubble", CLI_PERMISSION_MODE_CHOICES)
 
 
 class TestIsDefaultMode(unittest.TestCase):
