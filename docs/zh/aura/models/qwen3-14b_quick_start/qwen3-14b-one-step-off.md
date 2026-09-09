@@ -158,12 +158,16 @@ python3 /path/to/AgentSDK/aura/cli/preprocess_data.py gsm8k
 
 ## **文件修改**
 
-在快速入门 qwen3-14b math 场景前，需要您修改以下配置文件，需要进行修改的参数可以参照文件头的注释，请将其中的示例路径修改为您自己的实际路径。
+在快速入门 qwen3-14b math 场景前，需要您修改以下配置文件。
 
-1. [分离训练配置文件](../../../../../aura/configs/train/verl_train_async_A3_t16_qwen3_14b_math_fsdp.yaml)
-2. [分离推理配置文件](../../../../../aura/configs/infer/vllm_infer_i16_qwen3_14b.yaml)
+### 修改训练/推理配置文件
 
-分离模式通过文件同步训练权重，训练配置中的 `verl_conf.extras.weight_save_dir` 必须设置为两个节点均可访问的共享路径。例如：
+需要进行修改的参数可以参照文件头的注释，请将其中的示例路径修改为您自己的实际路径。
+
+- [单步异步分离训练配置文件](../../../../../aura/configs/train/verl_train_async_A3_t16_qwen3_14b_math_fsdp.yaml)
+- [单步异步分离推理配置文件](../../../../../aura/configs/infer/vllm_infer_i16_qwen3_14b.yaml)
+
+单步异步分离模式通过文件同步训练权重，训练配置中的 `verl_conf.extras.weight_save_dir` 必须设置为两个节点均可访问的共享路径。例如：
 
 ```yaml
 verl_conf:
@@ -174,6 +178,8 @@ verl_conf:
 两个节点看到的绝对路径必须一致，且运行用户需要具有该目录的读写权限。
 
 ### 修改hosts.conf
+
+- [hosts.conf](../../../../../aura/configs/hosts.conf)
 
 填写推理节点和训练节点之间可相互访问的 IP 地址：
 
@@ -188,6 +194,8 @@ verl_conf:
 其中第一个节点作为推理节点，第二个节点作为训练节点。请将占位符替换为对应节点的实际 IP 地址。
 
 ### 修改base.conf
+
+- [base.conf](../../../../../aura/configs/base.conf)
 
 ```shell
 # [train]

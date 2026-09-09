@@ -75,12 +75,17 @@ python3 gsm8k.py \
 
 ## **文件修改**
 
-在快速入门 qwen3-4b math 场景前，需要修改以下配置文件，需要进行修改的参数可以参照文件头的注释，请将其中的示例路径修改为实际路径。
+在快速入门 qwen3-4b math 场景前，需要修改以下配置文件。
 
-1. [共卡训练配置文件](../../../../../aura/configs/train/verl_train_hybrid_A3_t16_qwen3_4b_math_fsdp.yaml)
-2. [共卡推理配置文件](../../../../../aura/configs/infer/vllm_infer_i16_qwen3_4b.yaml)
+### 修改训练/推理配置文件
+
+需要进行修改的参数可以参照文件头的注释，请将其中的示例路径修改为实际路径。
+
+- [共卡训练配置文件](../../../../../aura/configs/train/verl_train_hybrid_A3_t16_qwen3_4b_math_fsdp.yaml)
 
 ### 修改hosts.conf
+
+- [hosts.conf](../../../../../aura/configs/hosts.conf)
 
 修改为单机对应的 IP 地址：
 
@@ -92,6 +97,8 @@ python3 gsm8k.py \
 ```
 
 ### 修改base.conf
+
+- [base.conf](../../../../../aura/configs/base.conf)
 
 ```shell
 # [train]
