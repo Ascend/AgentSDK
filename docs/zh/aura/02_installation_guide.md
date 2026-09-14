@@ -29,7 +29,7 @@
 以 A3 服务器、Ubuntu 系统为例，拉取镜像的命令为：
 
 ```shell
-docker pull swr.cn-south-1.myhuaweicloud.com/ascendhub/agentsdk:26.1.0-cann9.0.0-torch_npu2.9.0-a3-ubuntu22.04-py3.11
+docker pull swr.cn-south-1.myhuaweicloud.com/ascendhub/agentsdk:26.2.0-cann9.0.0-torch_npu2.9.0-a3-ubuntu22.04-py3.11
 ```
 
 ##### 选项二：从 Dockerfile 构建镜像
@@ -309,7 +309,7 @@ docker rm your_container_name
 # 查看本地镜像，确认镜像名和标签
 docker images
 
-# 删除镜像（将 <image_name>:<tag> 替换为实际镜像名，如 aura-a3:26.1.0）
+# 删除镜像（将 <image_name>:<tag> 替换为实际镜像名，如 aura-a3:26.2.0）
 docker rmi <image_name>:<tag>
 ```
 

@@ -12,7 +12,7 @@
 </tr>
 <tr id="zh-cn_topic_0000001938532254_zh-cn_topic_0000001935094108_row255mcpsimp"><th class="firstcol" valign="top" width="25%" id="mcps1.1.3.2.1"><p id="zh-cn_topic_0000001938532254_zh-cn_topic_0000001935094108_p257mcpsimp"><a name="zh-cn_topic_0000001938532254_zh-cn_topic_0000001935094108_p257mcpsimp"></a><a name="zh-cn_topic_0000001938532254_zh-cn_topic_0000001935094108_p257mcpsimp"></a>产品版本</p>
 </th>
-<td class="cellrowborder" valign="top" width="75%" headers="mcps1.1.3.2.1 "><p id="zh-cn_topic_0000001938532254_zh-cn_topic_0000001935094108_p233mcpsimp"><a name="zh-cn_topic_0000001938532254_zh-cn_topic_0000001935094108_p233mcpsimp"></a><a name="zh-cn_topic_0000001938532254_zh-cn_topic_0000001935094108_p233mcpsimp"></a>26.1.0</p>
+<td class="cellrowborder" valign="top" width="75%" headers="mcps1.1.3.2.1 "><p id="zh-cn_topic_0000001938532254_zh-cn_topic_0000001935094108_p233mcpsimp"><a name="zh-cn_topic_0000001938532254_zh-cn_topic_0000001935094108_p233mcpsimp"></a><a name="zh-cn_topic_0000001938532254_zh-cn_topic_0000001935094108_p233mcpsimp"></a>26.2.0</p>
 </td>
 </tr>
 <tr id="zh-cn_topic_0000001938532254_zh-cn_topic_0000001935094108_row7259721105019"><th class="firstcol" valign="top" width="25%" id="mcps1.1.3.3.1"><p id="zh-cn_topic_0000001938532254_zh-cn_topic_0000001935094108_p7260182135013"><a name="zh-cn_topic_0000001938532254_zh-cn_topic_0000001935094108_p7260182135013"></a><a name="zh-cn_topic_0000001938532254_zh-cn_topic_0000001935094108_p7260182135013"></a>版本类型</p>
@@ -27,9 +27,9 @@
 
 **表 1**  Agent SDK软件版本配套表
 
-| Agent SDK | CANN版本 | Ascend HDK版本        |
-|-----------|--------|---------------------|
-| 26.1.0    | 9.1.0  | Ascend HDK 26.1.0   |
+| Agent SDK | CANN版本 | Ascend HDK版本      |
+|-----------|--------|-------------------|
+| 26.2.0    | 9.0.0  | Ascend HDK 26.0.0 |
 
 ## 版本兼容性说明<a name="ZH-CN_TOPIC_0000002545284919"></a>
 
@@ -54,7 +54,7 @@
   </tr></thead>
 <tbody>
   <tr>
-    <td>26.1.0</td>
+    <td>26.2.0</td>
     <td style="text-align: center;">Y</td>
     <td style="text-align: center;">Y</td>
   </tr>
@@ -80,7 +80,7 @@
   </tr></thead>
 <tbody>
   <tr>
-    <td>26.1.0</td>
+    <td>26.2.0</td>
     <td style="text-align: center;">Y</td>
     <td style="text-align: center;">Y</td>
   </tr>
@@ -95,11 +95,12 @@
 
 ### 新增特性<a name="ZH-CN_TOPIC_0000002545284925"></a>
 
-| 组件名称 | 特性描述                                           | 配套产品型号                      |
-|------|------------------------------------------------|-----------------------------|
-| Aura | 支持[共卡模式](./04_user_guide/02_hybrid.md)训练       | Atlas 900 A3 SuperPoD 训练服务器 |
-| Aura | 支持[分离模式](./04_user_guide/03_one_step_off.md)训练 | Atlas 900 A3 SuperPoD 训练服务器 |
-| Aura | 支持qwen3-4b，qwen3-8b，qwen3-32b，qwen3-30b-a3b模型  | Atlas 900 A3 SuperPoD 训练服务器 |
+| 组件名称 | 特性描述                                              | 配套产品型号                      |
+|------|---------------------------------------------------|-----------------------------|
+| Aura | 支持[全异步分离模式](./04_user_guide/04_fully_async.md)训练  | Atlas 900 A3 SuperPoD 训练服务器 |
+| Aura | 支持[混合批次调度](./04_user_guide/05_mixed_batch.md)训练   | Atlas 900 A3 SuperPoD 训练服务器 |
+| Aura | 支持[黑盒Agent](./04_user_guide/07_blackbox_agent.md) | Atlas 900 A3 SuperPoD 训练服务器 |
+| Aura | 支持qwen3-14b，qwen3.6-27b，qwen3.6-35b-a3b模型         | Atlas 900 A3 SuperPoD 训练服务器 |
 
 ### 业务接口变更<a name="ZH-CN_TOPIC_0000002545204929"></a>
 
@@ -127,11 +128,11 @@
 
 无
 
-## 26.1.0版本配套文档<a name="ZH-CN_TOPIC_0000002545204931"></a>
+## 26.2.0版本配套文档<a name="ZH-CN_TOPIC_0000002545204931"></a>
 
 | 文档名称                                          | 内容简介                                         | 更新说明                                               |
 |-----------------------------------------------|----------------------------------------------|----------------------------------------------------|
-| 《[Agent SDK 26.1.0 用户指南](../../../aura/README.md)》 | 主要包括Agent SDK的简介、安装部署、快速入门、API接口说明以及其他常用的操作。 | 变更详见《[Agent SDK 26.1.0 用户指南](../../../aura/README.md)》。 |
+| 《[Agent SDK 26.2.0 用户指南](../../../aura/README.md)》 | 主要包括Agent SDK的简介、安装部署、快速入门、API接口说明以及其他常用的操作。 | 变更详见《[Agent SDK 26.2.0 用户指南](../../../aura/README.md)》。 |
 
 ## 病毒扫描结果
 
