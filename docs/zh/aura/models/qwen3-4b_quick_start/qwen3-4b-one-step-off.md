@@ -7,7 +7,7 @@
 第一步：拉取预构建镜像：
 
 ```shell
-docker pull swr.cn-south-1.myhuaweicloud.com/ascendhub/agentsdk:26.2.0-cann9.0.0-torch_npu2.9.0-a3-ubuntu22.04-py3.11
+docker pull swr.cn-south-1.myhuaweicloud.com/ascendhub/agentsdk:26.2.0-cann9.0.0-torch_npu2.10.0-a3-ubuntu22.04-py3.11
 ```
 
 第二步：创建容器：
@@ -34,7 +34,7 @@ docker run --name your_container_name \
     -v /etc/ascend_install.info:/etc/ascend_install.info \
     -v /usr/share/zoneinfo/Asia/Shanghai:/etc/localtime \
     -v /usr/local/sbin:/usr/local/sbin \
-    swr.cn-south-1.myhuaweicloud.com/ascendhub/agentsdk:26.2.0-cann9.0.0-torch_npu2.9.0-a3-ubuntu22.04-py3.11  \
+    swr.cn-south-1.myhuaweicloud.com/ascendhub/agentsdk:26.2.0-cann9.0.0-torch_npu2.10.0-a3-ubuntu22.04-py3.11  \
     sleep infinity
 ```
 
@@ -43,6 +43,13 @@ docker run --name your_container_name \
 ```shell
 docker exec -it your_container_name bash
 ```
+
+第四步：更新代码（推荐）
+
+预构建镜像中的代码为镜像构建时刻的快照，可能与代码仓发布分支的最新代码不一致。建议进入容器后先检查本地与远程对应分支的最新 commit 是否一致，如不一致可拉取最新代码更新。
+
+> [!NOTE]
+> 多机场景下，用户需在共享目录手动拉取最新代码。
 
 ## **模型获取**
 
@@ -83,70 +90,13 @@ parquet → jsonl → bin/idx
 
 #### **parquet 转 jsonl**
 
-创建转换脚本 `convert_data.py`：
-
-```python
-import pandas as pd
-import json
-import os
-import argparse
-
-def convert_parquet_to_filtered_jsonl(input_parquet, output_jsonl):
-    """
-    将 Parquet 转换为 JSONL 格式，提取特定字段。
-    """
-    print(f"正在读取 Parquet 文件: {input_parquet} ...")
-
-    try:
-        df = pd.read_parquet(input_parquet)
-        records = df.to_dict('records')
-    except Exception as e:
-        print(f"读取 Parquet 失败: {e}")
-        return
-
-    print(f"读取到 {len(records)} 行数据，开始提取字段...")
-
-    count = 0
-    with open(output_jsonl, 'w', encoding='utf-8') as f_out:
-        for data in records:
-            try:
-                new_data = {
-                    "data_source": data.get('data_source'),
-                    "question": data['prompt'][0]['content'],
-                    "answer": data['reward_model']['ground_truth'],
-                    "labels": data['reward_model']['ground_truth']
-                }
-                f_out.write(json.dumps(new_data, ensure_ascii=False) + '\n')
-                count += 1
-            except KeyError:
-                pass
-            except Exception as e:
-                print(f"处理行出错: {e}")
-
-    print(f"处理完成！成功提取 {count} 条数据，保存至: {output_jsonl}")
-
-def main():
-    parser = argparse.ArgumentParser(description="将 Parquet 转换为 JSONL")
-    parser.add_argument('--input', type=str, required=True, help='输入的 parquet 文件路径')
-    parser.add_argument('--output', type=str, default='output.jsonl', help='输出的 jsonl 文件路径')
-
-    args = parser.parse_args()
-
-    if not os.path.exists(args.input):
-        print(f"错误: 找不到输入文件 {args.input}")
-        return
-
-    convert_parquet_to_filtered_jsonl(args.input, args.output)
-
-if __name__ == "__main__":
-    main()
-```
-
-执行转换：
+使用代码仓中提供的转换脚本 [`convert_data.py`](../../../../../aura/cli/convert_data.py)，通过 `--input` 和 `--output` 参数指定输入 parquet 文件和输出 jsonl 文件的绝对路径。完整的数据处理说明请参考[安装指南](../../02_installation_guide.md#分离模式数据处理)。
 
 ```shell
-python convert_data.py --input train.parquet --output train.jsonl
-python convert_data.py --input test.parquet --output test.jsonl
+cd /path/to/AgentSDK/aura/cli
+python convert_data.py \
+    --input /path/to/gsm8k-parquet/train.parquet \
+    --output /path/to/gsm8k-jsonl/train.jsonl
 ```
 
 #### **jsonl 转 bin/idx**
@@ -207,24 +157,48 @@ python3 /path/to/AgentSDK/aura/cli/preprocess_data.py gsm8k
 
 ## **文件修改**
 
-在快速入门 qwen3-4b math 场景前，需要修改以下配置文件。
+在快速入门 Qwen3-4B Math 场景前，需要修改以下配置文件。需要修改的配置点汇总如下，YAML 文件中的参数含义可参见对应文件头的注释：
+
+| # | 配置文件 | 必改参数 | 说明 |
+|---|---------|---------|------|
+| 1 | `aura/configs/datasets/gsm8k.yaml` | `input`、`tokenizer_name_or_path`、`output_prefix` | 数据格式转换使用（分离模式需 bin/idx 数据） |
+| 2 | `aura/configs/train/verl_train_async_A3_t16_qwen3_4b_math_fsdp.yaml` | `hydra.searchpath`、`verl_conf.extras.data_loader.train_data_path`、`verl_conf.actor_rollout_ref.model.path` | 分离模式数据集路径与模型权重路径 |
+| 3 | `aura/configs/infer/vllm_infer_i16_qwen3_4b.yaml` | `infer_model_path` | 推理侧模型权重路径 |
+| 4 | `aura/configs/hosts.conf` | `host`、`index`、`train_master_index` | 节点 IP 与节点角色，见下文 |
+| 5 | `aura/configs/base.conf` | `work_mode`、`train_config_name`、`infer_config_name` | 见下文 |
+| 6 | `aura/configs/env/env.local` | `DEFAULT_SOCKET_IFNAME`、`ASCEND_RT_VISIBLE_DEVICES` | 见下文 |
 
 ### 修改训练/推理配置文件
 
-需要进行修改的参数可以参照文件头的注释，请将其中的示例路径修改为实际路径。
+参数含义可参见文件头的注释。训练配置至少需要修改以下路径（其余参数保持默认即可）：
 
 - [单步异步分离训练配置文件](../../../../../aura/configs/train/verl_train_async_A3_t16_qwen3_4b_math_fsdp.yaml)
-- [单步异步分离推理配置文件](../../../../../aura/configs/infer/vllm_infer_i16_qwen3_4b.yaml)
-
-单步异步分离模式通过文件同步训练权重，训练配置中的 `verl_conf.extras.weight_save_dir` 必须设置为两个节点均可访问的共享路径。例如：
 
 ```yaml
+hydra:
+  searchpath:
+    - file:///verl/verl/trainer/config
+    - file:///path/to/AgentSDK/aura/configs/train/verl_conf # 改为本代码仓 aura/configs/train/verl_conf 的绝对路径
+
 verl_conf:
   extras:
-    weight_save_dir: /path/to/shared/weights
+    data_loader:
+      train_data_path: /path/to/data/math_train_dataset/rl # 分离模式数据集路径（bin/idx），末尾需要带上 /rl
+  actor_rollout_ref:
+    model:
+      path: /path/to/models/Qwen3-4B # 模型权重路径
 ```
 
-两个节点看到的绝对路径必须一致，且运行用户需要具有该目录的读写权限。
+> [!NOTE]
+> `weight_save_dir` 默认为代码目录下的 `aura/weights`，分离多机模式下请将代码与权重均保存在共享盘内，无需修改该参数。
+
+推理配置只需修改模型权重路径：
+
+- [单步异步分离推理配置文件](../../../../../aura/configs/infer/vllm_infer_i16_qwen3_4b.yaml)
+
+```yaml
+infer_model_path: /path/to/models/Qwen3-4B # 推理侧模型权重路径
+```
 
 ### 修改hosts.conf
 

@@ -1,9 +1,9 @@
 # =============================================================
 # 一键启动需要修改路径的参数如下：
-# 1. hydra.searchpath
-# 2. verl_conf.data.train_files
-# 3. verl_conf.data.val_files
-# 4. verl_conf.actor_rollout_ref.model.path
+# 1. hydra.searchpath：verl 训练配置搜索路径，需改为本代码仓 aura/configs/train/verl_conf 目录的绝对路径
+# 2. verl_conf.data.train_files：共卡模式训练数据集（parquet）路径
+# 3. verl_conf.data.val_files：共卡模式测试数据集（parquet）路径
+# 4. verl_conf.actor_rollout_ref.model.path：模型权重路径
 #
 # 如果使用16卡以外的配置，需修改以下参数：
 # 5. n_gpus_per_node：修改为指定的卡数
