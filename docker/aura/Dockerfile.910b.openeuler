@@ -1,14 +1,17 @@
 FROM swr.cn-south-1.myhuaweicloud.com/ascendhub/cann:9.0.0-910b-openeuler24.03-py3.11
-ENV SOC_VERSION=ascend910b1
-ARG GIT_BRANCH=master
+ENV SOC_VERSION=ascend910b1 \
+    DEBIAN_FRONTEND=noninteractive \
+    LANG=en_US.UTF-8 \
+    LC_ALL=en_US.UTF-8
 
-ENV DEBIAN_FRONTEND=noninteractive
+ARG GIT_BRANCH=master
 
 RUN yum -y update && \
     yum -y install net-tools dos2unix ca-certificates curl wget numactl jemalloc clang patch && \
     update-ca-trust || true && \
     yum clean all && \
-    rm -rf /var/cache/yum
+    rm -rf /var/cache/yum && \
+    echo 'set encoding=utf-8' >> /etc/vimrc
 
 RUN mkdir -p /home/work
 
