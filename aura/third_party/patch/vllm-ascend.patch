@@ -44,3 +44,17 @@ index cee31250..1a618022 100644
                      num_active_loras=num_active_loras,
                  )
              else:
+diff --git a/ops/triton/fla/sigmoid_gating.py b/ops/triton/fla/sigmoid_gating.py
+--- a/ops/triton/fla/sigmoid_gating.py
++++ b/ops/triton/fla/sigmoid_gating.py
+@@ -246,7 +246,3 @@
+-        # if idx >= 0:
+-        tmp0 = tl.where(idx < 0, 0, idx)
+-        p_h0 = h0_source + tmp0 * HV * K * V + i_hv * K * V + o_k[:, None] * V + o_v[None, :]
+-        temp1 = tl.load(p_h0, mask=mask_h, other=0).to(tl.float32)
+-        temp2 = tl.zeros_like(temp1)
+-        value0 = tl.where(idx < 0, temp2, temp1)
+-        b_h += value0  # tl.load(p_h0, mask=mask_h, other=0).to(tl.float32)
++        if idx >= 0:
++            p_h0 = h0_source + idx * HV * K * V + i_hv * K * V + o_k[:, None] * V + o_v[None, :]
++            b_h += tl.load(p_h0, mask=mask_h, other=0).to(tl.float32)
