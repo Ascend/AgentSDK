@@ -7,7 +7,7 @@
 第一步：拉取预构建镜像：
 
 ```shell
-docker pull swr.cn-south-1.myhuaweicloud.com/ascendhub/agentsdk:26.2.0-cann9.0.0-torch_npu2.9.0-a3-ubuntu22.04-py3.11
+docker pull swr.cn-south-1.myhuaweicloud.com/ascendhub/agentsdk:26.2.0-cann9.0.0-torch_npu2.10.0-a3-ubuntu22.04-py3.11
 ```
 
 第二步：创建容器：
@@ -34,7 +34,7 @@ docker run --name your_container_name \
     -v /etc/ascend_install.info:/etc/ascend_install.info \
     -v /usr/share/zoneinfo/Asia/Shanghai:/etc/localtime \
     -v /usr/local/sbin:/usr/local/sbin \
-    swr.cn-south-1.myhuaweicloud.com/ascendhub/agentsdk:26.2.0-cann9.0.0-torch_npu2.9.0-a3-ubuntu22.04-py3.11  \
+    swr.cn-south-1.myhuaweicloud.com/ascendhub/agentsdk:26.2.0-cann9.0.0-torch_npu2.10.0-a3-ubuntu22.04-py3.11  \
     sleep infinity
 ```
 
@@ -43,6 +43,10 @@ docker run --name your_container_name \
 ```shell
 docker exec -it your_container_name bash
 ```
+
+第四步：更新代码（推荐）
+
+预构建镜像中的代码为镜像构建时刻的快照，可能与代码仓发布分支的最新代码不一致。建议进入容器后先检查本地与远程对应分支的最新 commit 是否一致，如不一致可拉取最新代码更新。
 
 ## **模型获取**
 
@@ -75,13 +79,35 @@ python3 gsm8k.py \
 
 ## **文件修改**
 
-在快速入门 qwen3-4b math 场景前，需要修改以下配置文件。
+在快速入门 Qwen3-4B Math 场景前，需要修改以下配置文件。需要修改的配置点汇总如下，YAML 文件中的参数含义可参见对应文件头的注释：
+
+| # | 配置文件 | 必改参数 | 说明 |
+|---|---------|---------|------|
+| 1 | `aura/configs/train/verl_train_hybrid_A3_t16_qwen3_4b_math_fsdp.yaml` | `hydra.searchpath`、`verl_conf.data.train_files`、`verl_conf.data.val_files`、`verl_conf.actor_rollout_ref.model.path` | 共卡模式使用 parquet 数据集，无需转换为 bin/idx |
+| 2 | `aura/configs/hosts.conf` | `host`、`index`、`train_master_index`、`infer_master_index` | 单机训推共部署时，后两列均填 1，见下文 |
+| 3 | `aura/configs/base.conf` | `work_mode`、`train_config_name` | 共卡模式下 `infer_config_name` 不生效，见下文 |
+| 4 | `aura/configs/env/env.local` | `DEFAULT_SOCKET_IFNAME`、`ASCEND_RT_VISIBLE_DEVICES` | 见下文 |
 
 ### 修改训练/推理配置文件
 
-需要进行修改的参数可以参照文件头的注释，请将其中的示例路径修改为实际路径。
+参数含义可参见文件头的注释。训练配置至少需要修改以下路径（其余参数保持默认即可）：
 
 - [共卡训练配置文件](../../../../../aura/configs/train/verl_train_hybrid_A3_t16_qwen3_4b_math_fsdp.yaml)
+
+```yaml
+hydra:
+  searchpath:
+    - file:///verl/verl/trainer/config
+    - file:///path/to/AgentSDK/aura/configs/train/verl_conf # 改为本代码仓 aura/configs/train/verl_conf 的绝对路径
+
+verl_conf:
+  data:
+    train_files: /path/to/data/train.parquet # 训练数据集（parquet），由 gsm8k.py 处理生成
+    val_files: /path/to/data/test.parquet # 测试数据集（parquet），由 gsm8k.py 处理生成
+  actor_rollout_ref:
+    model:
+      path: /path/to/models/Qwen3-4B # 模型权重路径
+```
 
 ### 修改hosts.conf
 

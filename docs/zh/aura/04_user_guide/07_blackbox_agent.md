@@ -41,7 +41,7 @@
     第一步：拉取预构建镜像（本文档以 Atlas A3 服务器 16 卡、Ubuntu 系统为例进行说明）：
 
     ```shell
-    docker pull swr.cn-south-1.myhuaweicloud.com/ascendhub/agentsdk:26.2.0-cann9.0.0-torch_npu2.9.0-a3-ubuntu22.04-py3.11
+    docker pull swr.cn-south-1.myhuaweicloud.com/ascendhub/agentsdk:26.2.0-cann9.0.0-torch_npu2.10.0-a3-ubuntu22.04-py3.11
     ```
 
     第二步：创建容器：
@@ -60,7 +60,7 @@
         -v /etc/ascend_install.info:/etc/ascend_install.info \
         -v /usr/share/zoneinfo/Asia/Shanghai:/etc/localtime \
         -v /usr/local/sbin:/usr/local/sbin \
-        swr.cn-south-1.myhuaweicloud.com/ascendhub/agentsdk:26.2.0-cann9.0.0-torch_npu2.9.0-a3-ubuntu22.04-py3.11  \
+        swr.cn-south-1.myhuaweicloud.com/ascendhub/agentsdk:26.2.0-cann9.0.0-torch_npu2.10.0-a3-ubuntu22.04-py3.11  \
         sleep infinity
     ```
 
@@ -69,6 +69,10 @@
     ```shell
     docker exec -it your_container_name bash
     ```
+
+    第四步：更新代码（推荐）
+
+    预构建镜像中的代码为镜像构建时刻的快照，可能与代码仓发布分支的最新代码不一致。建议进入容器后先检查本地与远程对应分支的最新 commit 是否一致，如不一致可拉取最新代码更新。
 
 2. 下载代码：
 
