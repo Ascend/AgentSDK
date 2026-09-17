@@ -1,14 +1,17 @@
 FROM swr.cn-south-1.myhuaweicloud.com/ascendhub/cann:9.0.0-910b-ubuntu22.04-py3.11
-ENV SOC_VERSION=ascend910b1
-ARG GIT_BRANCH=master
+ENV SOC_VERSION=ascend910b1 \
+    DEBIAN_FRONTEND=noninteractive \
+    LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8
 
-ENV DEBIAN_FRONTEND=noninteractive
+ARG GIT_BRANCH=master
 
 RUN apt update && \
     apt install -y net-tools dos2unix ca-certificates curl wget && \
     update-ca-certificates || true && \
     apt clean && \
-    rm -rf /var/lib/apt/lists/*
+    rm -rf /var/lib/apt/lists/* && \
+    echo 'set encoding=utf-8' >> /etc/vim/vimrc
 
 RUN mkdir -p /home/work
 

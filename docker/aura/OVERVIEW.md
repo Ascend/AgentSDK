@@ -31,7 +31,7 @@ Tags follow this pattern:
 |--------------------|------------------------------------------|--------------------|
 | `AgentSDK_version` | `26.2.0`                                 | Agent SDK version  |
 | `CANN_version`     | `cann9.0.0`                              | CANN version       |
-| `pytorch_version`  | `torch_npu2.7.1`, `torch_npu2.9.0.post2` | PyTorch version    |
+| `pytorch_version`  | `torch_npu2.7.1`, `torch_npu2.10.0.post2` | PyTorch version    |
 | `chip_series`      | `910`, `910b`, `a3`, `310p`              | Target chip family |
 | `os`               | `ubuntu22.04`, `openeuler24.03`          | Operating system   |
 | `python_version`   | `py3.11`                                 | Python version     |
@@ -40,10 +40,10 @@ Tags follow this pattern:
 
 | Tag                                                        | Dockerfile                                                                              | 镜像内容                |
 |------------------------------------------------------------|-----------------------------------------------------------------------------------------|---------------------|
-| `26.2.0-cann9.0.0-torch_npu2.9.0-a2-ubuntu22.04-py3.11`    | [Dockerfile](https://gitcode.com/Ascend/AgentSDK/docker/aura/Dockerfile.910b.ubuntu)    | toolkit + Agent SDK |
-| `26.2.0-cann9.0.0-torch_npu2.9.0-a3-ubuntu22.04-py3.11`    | [Dockerfile](https://gitcode.com/Ascend/AgentSDK/docker/aura/Dockerfile.a3.ubuntu)      | toolkit + Agent SDK |
-| `26.2.0-cann9.0.0-torch_npu2.9.0-a2-openeuler24.03-py3.11` | [Dockerfile](https://gitcode.com/Ascend/AgentSDK/docker/aura/Dockerfile.910b.openeuler) | toolkit + Agent SDK |
-| `26.2.0-cann9.0.0-torch_npu2.9.0-a3-openeuler24.03-py3.11` | [Dockerfile](https://gitcode.com/Ascend/AgentSDK/docker/aura/Dockerfile.a3.openeuler)   | toolkit + Agent SDK |
+| `26.2.0-cann9.0.0-torch_npu2.10.0-a2-ubuntu22.04-py3.11`    | [Dockerfile](https://gitcode.com/Ascend/AgentSDK/docker/aura/Dockerfile.910b.ubuntu)    | toolkit + Agent SDK |
+| `26.2.0-cann9.0.0-torch_npu2.10.0-a3-ubuntu22.04-py3.11`    | [Dockerfile](https://gitcode.com/Ascend/AgentSDK/docker/aura/Dockerfile.a3.ubuntu)      | toolkit + Agent SDK |
+| `26.2.0-cann9.0.0-torch_npu2.10.0-a2-openeuler24.03-py3.11` | [Dockerfile](https://gitcode.com/Ascend/AgentSDK/docker/aura/Dockerfile.910b.openeuler) | toolkit + Agent SDK |
+| `26.2.0-cann9.0.0-torch_npu2.10.0-a3-openeuler24.03-py3.11` | [Dockerfile](https://gitcode.com/Ascend/AgentSDK/docker/aura/Dockerfile.a3.openeuler)   | toolkit + Agent SDK |
 
 ## 4.Quick Start
 
