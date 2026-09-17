@@ -40,6 +40,9 @@ max_num_seqs: 16
 # 图模式的capture size
 cudagraph_capture_sizes: [4,8,12,16,24]
 
+# 是否开启 prefix cache
+enable_prefix_caching: true
+
 # kv cache PD之间同步传输后端: mooncake 或 llmdatadist
 kv_backend: mooncake
 

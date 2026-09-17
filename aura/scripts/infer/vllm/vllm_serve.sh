@@ -114,6 +114,12 @@ export VLLM_ASCEND_LLMDD_RPC_PORT=${VLLM_ASCEND_LLMDD_RPC_PORT:-7778}
 export ASCEND_RT_VISIBLE_DEVICES=${ASCEND_RT_VISIBLE_DEVICES:-0,1,2,3,4,5,6,7}
 export TOOL_CALL_ENABLE=${TOOL_CALL_ENABLE:-false}
 
+# 兼容旧配置：未配置时保持原有的 prefix cache 开启行为。
+PREFIX_CACHING_ARG="--enable-prefix-caching"
+if [ "${ENABLE_PREFIX_CACHING}" = "false" ]; then
+    PREFIX_CACHING_ARG="--no-enable-prefix-caching"
+fi
+
 # DP_START_RANK 计算: DP_START_RANK = local_node_rank * DATA_PARALLEL_SIZE_LOCAL
 DP_START_RANK=$(( LOCAL_NODE_RANK * DATA_PARALLEL_SIZE_LOCAL ))
 
@@ -157,6 +163,7 @@ echo " TP Size             : $TENSOR_PARALLEL_SIZE"
 echo " DP Size             : $DATA_PARALLEL_SIZE"
 echo " DP Size Local       : $DATA_PARALLEL_SIZE_LOCAL"
 echo " Expert Parallel     : $ENABLE_EXPERT_PARALLEL"
+echo " Prefix Caching      : ${ENABLE_PREFIX_CACHING:-default}"
 echo " tool call           : $TOOL_CALL_ARGS"
 echo "============================================"
 
@@ -237,7 +244,7 @@ function start_vllm_serve_separate()
           --enforce-eager \
           --enable-chunked-prefill \
           --max-num-seqs ${MAX_NUM_SEQS} \
-          --enable-prefix-caching \
+          ${PREFIX_CACHING_ARG} \
           --worker_extension_cls "aura.runner.infer_adapter.vllm.extension.custom_worker_extensions.CustomWorkerExtensions" \
           --additional-config '{"ascend_scheduler_config":{"enabled":true,"enable_chunked_prefill":true}}' \
           --kv-transfer-config "$KV_TRANSFER_CONFIG"
@@ -261,7 +268,7 @@ function start_vllm_serve_separate()
           --trust-remote-code \
           --enable-chunked-prefill \
           --max-num-seqs ${MAX_NUM_SEQS} \
-          --enable-prefix-caching \
+          ${PREFIX_CACHING_ARG} \
           --worker_extension_cls "aura.runner.infer_adapter.vllm.extension.custom_worker_extensions.CustomWorkerExtensions" \
           --additional-config '{"ascend_scheduler_config":{"enabled":true,"enable_chunked_prefill":true}}' \
           --compilation_config '{"cudagraph_capture_sizes":'"$CUDAGRAPH_CAPTURE_SIZES"',"cudagraph_mode":"FULL_DECODE_ONLY"}' \
@@ -295,7 +302,7 @@ function start_vllm_serve_hybrid()
           --enable-chunked-prefill \
           ${API_SERVER_CNT} \
           --max-num-seqs ${MAX_NUM_SEQS} \
-          --enable-prefix-caching \
+          ${PREFIX_CACHING_ARG} \
           --worker_extension_cls "aura.runner.infer_adapter.vllm.extension.custom_worker_extensions.CustomWorkerExtensions" \
           --additional-config '{"ascend_scheduler_config":{"enabled":true,"enable_chunked_prefill":true}}' \
           --compilation_config '{"cudagraph_capture_sizes":'"$CUDAGRAPH_CAPTURE_SIZES"', "pass_config": {"enable_sp": true}}'
@@ -340,7 +347,7 @@ function start_vllm_serve_hybrid_opt()
           --trust-remote-code \
           --enable-chunked-prefill \
           --max-num-seqs ${MAX_NUM_SEQS} \
-          --enable-prefix-caching \
+          ${PREFIX_CACHING_ARG} \
           ${API_SERVER_CNT} \
           --async-scheduling \
           --worker_extension_cls "aura.runner.infer_adapter.vllm.extension.custom_worker_extensions.CustomWorkerExtensions" \
