@@ -88,7 +88,7 @@ FAQ 包含环境部署或运行过程中可能需要的报错及解决方案，�
 
 # ⚖️ 相关说明
 
-🔹 《[版本说明](../docs/zh/aura/08_release_notes.md)》<br>
+🔹 《[版本说明](../docs/zh/aura/08_release_notes_agent.md)》<br>
 🔹 《[许可证声明](../LICENSE.md)》<br>
 🔹 《[文档许可证声明](../docs/LICENSE)》<br>
 🔹 《[免责声明](../docs/zh/aura/09_disclaimer.md)》<br>

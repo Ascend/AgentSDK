@@ -86,7 +86,7 @@ The FAQ includes error solutions that may be needed during environment deploymen
 
 # ⚖️ Related Information
 
-🔹 《[Release Notes](../docs/zh/aura/08_release_notes.md)》<br>
+🔹 《[Release Notes](../docs/zh/aura/08_release_notes_agent.md)》<br>
 🔹 《[License Statement](../LICENSE.md)》<br>
 🔹 《[Document License Statement](../docs/LICENSE)》<br>
 🔹 《[Disclaimer](../docs/zh/aura/09_disclaimer.md)》<br>
