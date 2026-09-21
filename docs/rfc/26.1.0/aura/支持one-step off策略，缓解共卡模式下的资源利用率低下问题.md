@@ -190,9 +190,9 @@ One Step Off模式借鉴了以下技术：
 
 ## 验收标准
 
-在A3服务器上，Agentic RL训推调框架支持 Qwen3系列模型（Qwen3-4B/8B/32B/30B-A3B）的 训推分离 + One Step Off训练。
+在Atlas A3系列产品上，Agentic RL训推调框架支持 Qwen3系列模型（Qwen3-4B/8B/32B/30B-A3B）的 训推分离 + One Step Off训练。
 在训练数据集（[https://huggingface.co/datasets/R2E-Gym/R2E-Gym-Subset],  Agent采用DeepSWE Agent[https://huggingface.co/agentica-org/DeepSWE-Preview], 精度指标：持平GPU（reward曲线收敛稳定的指标 或者 任务成功率pass@1）,1epoch的端到端训练时长较 共卡+on policy模式 降低20%以上
-硬件：Ascend  A2/A3
+硬件：Atlas A2系列产品、Atlas A3系列产品
 OS：Ubuntu 22.04 LTS
 
 ## 其他补充说明

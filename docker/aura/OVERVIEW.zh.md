@@ -89,7 +89,7 @@ docker run --name your_container_name \
 
 > [!NOTE] 说明
 >
-> 1. 根据 NPU 数量的不同，挂载不同数量的设备 ID。例如： Atlas A3 有 16 个 NPU，需挂载 16 个设备 ID，每个设备 ID 对应一个 NPU。
+> 1. 根据 NPU 数量的不同，挂载不同数量的设备 ID。例如：Atlas A3系列产品有 16 个 NPU，需挂载 16 个设备 ID，每个设备 ID 对应一个 NPU。
 > 2. 镜像内默认工作目录为 /home/work，因此不建议挂载整个 /home 目录，以避免覆盖容器内默认工作空间或引发权限冲突。
 
 ### 4.3 快速启动用例
@@ -102,8 +102,8 @@ docker run --name your_container_name \
 
 | 芯片系列      | 产品示例          | 架构             |
 |-----------|---------------|----------------|
-| Atlas 910 | Atlas 800I A2 | ARM64 / x86_64 |
-| Atlas A3  | Atlas 800I A3 | ARM64 / x86_64 |
+| Atlas A2系列产品 | Atlas 800I A2推理服务器 | ARM64 / x86_64 |
+| Atlas A3系列产品 | Atlas 900 A3 SuperPoD超节点 | ARM64 / x86_64 |
 
 ---
 

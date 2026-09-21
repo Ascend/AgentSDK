@@ -38,7 +38,7 @@
 
 1. 启动 Aura 容器环境（不需要挂 NPU 卡），用于运行 TrajProxy 服务。
 
-    第一步：拉取预构建镜像（本文档以 Atlas A3 服务器 16 卡、Ubuntu 系统为例进行说明）：
+    第一步：拉取预构建镜像（本文档以Atlas 900 A3 SuperPoD超节点（16 × 64 GB）、Ubuntu 系统为例进行说明）：
 
     ```shell
     docker pull swr.cn-south-1.myhuaweicloud.com/ascendhub/agentsdk:26.2.0-cann9.0.0-torch_npu2.9.0-a3-ubuntu22.04-py3.11
