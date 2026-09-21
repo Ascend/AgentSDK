@@ -97,10 +97,10 @@
 
 | 组件名称 | 特性描述                                              | 配套产品型号                      |
 |------|---------------------------------------------------|-----------------------------|
-| Aura | 支持[全异步分离模式](./04_user_guide/04_fully_async.md)训练  | Atlas 900 A3 SuperPoD 训练服务器 |
-| Aura | 支持[混合批次调度](./04_user_guide/05_mixed_batch.md)训练   | Atlas 900 A3 SuperPoD 训练服务器 |
-| Aura | 支持[黑盒Agent](./04_user_guide/07_blackbox_agent.md) | Atlas 900 A3 SuperPoD 训练服务器 |
-| Aura | 支持qwen3-14b，qwen3.6-27b，qwen3.6-35b-a3b模型         | Atlas 900 A3 SuperPoD 训练服务器 |
+| Aura | 支持[全异步分离模式](./04_user_guide/04_fully_async.md)训练  | Atlas 900 A3 SuperPoD超节点 |
+| Aura | 支持[混合批次调度](./04_user_guide/05_mixed_batch.md)训练   | Atlas 900 A3 SuperPoD超节点 |
+| Aura | 支持[黑盒Agent](./04_user_guide/07_blackbox_agent.md) | Atlas 900 A3 SuperPoD超节点 |
+| Aura | 支持qwen3-14b，qwen3.6-27b，qwen3.6-35b-a3b模型         | Atlas 900 A3 SuperPoD超节点 |
 
 ### 业务接口变更<a name="ZH-CN_TOPIC_0000002545204929"></a>
 
