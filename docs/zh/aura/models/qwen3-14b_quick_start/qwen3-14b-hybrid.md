@@ -2,7 +2,7 @@
 
 ## **容器环境部署**
 
-本文档以 Atlas A2 服务器 8 卡、Ubuntu 系统为例进行说明。
+本文档以 Atlas 800I A2推理服务器（8 × 64 GB）、Ubuntu 系统为例进行说明。
 
 第一步：拉取预构建镜像：
 
@@ -36,7 +36,7 @@ docker run --name your_container_name \
 
 > [!NOTE]
 >
->- 由于Atlas A2服务器为8卡配置，故挂载NPU设备序号为0～7，若使用Atlas A3服务器（16卡配置），应挂载序号为0～15的NPU设备
+>- 由于Atlas 800I A2推理服务器（8 × 64 GB）为8卡配置，故挂载NPU设备序号为0～7，若使用Atlas 900 A3 SuperPoD超节点（16 × 64 GB），应挂载序号为0～15的NPU设备
 
 第三步：进入容器环境
 
@@ -160,7 +160,7 @@ export ASCEND_RT_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
 
 > [!NOTE]
 >
->- 由于Atlas A2服务器为8卡配置，故配置NPU设备序号为0～7，若使用Atlas A3服务器（16卡配置），应配置序号为0～15的NPU设备
+>- 由于Atlas 800I A2推理服务器（8 × 64 GB）为8卡配置，故配置NPU设备序号为0～7，若使用Atlas 900 A3 SuperPoD超节点（16 × 64 GB），应配置序号为0～15的NPU设备
 
 ## **启动训练**
 

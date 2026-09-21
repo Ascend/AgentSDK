@@ -290,7 +290,7 @@ gpu_memory_utilization: 0.6
 
 推理集群的节点分配由启动脚本根据推理 YAML 中的并行度参数自动计算。每个推理实例所需卡数为 `tensor_parallel_size × data_parallel_size`，所需节点数为 `卡数 / 每节点卡数`。
 
-例如：`tensor_parallel_size=4, data_parallel_size=4`，则推理需要 16 卡，在 A3 机器（16 卡/节点）上需要 1 个节点。
+例如：`tensor_parallel_size=4, data_parallel_size=4`，则推理需要 16 卡，在Atlas 900 A3 SuperPoD超节点（16 × 64 GB）需要 1 个节点。
 
 ### 步骤 5：启动训练
 

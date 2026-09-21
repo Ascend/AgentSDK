@@ -103,8 +103,8 @@ Quick start reference: [Qwen3-4B hybrid mode quick start](../../docs/zh/aura/mod
 
 | Chip Series | Product Examples | Architecture   |
 |-------------|------------------|----------------|
-| Atlas 910   | Atlas 800I A2    | ARM64 / x86_64 |
-| Atlas A3    | Atlas 800I A3    | ARM64 / x86_64 |
+| Atlas A2 products  | Atlas 800I A2    | ARM64 / x86_64 |
+| Atlas A3 products  | Atlas 900 A3 SuperPoD    | ARM64 / x86_64 |
 
 ---
 
