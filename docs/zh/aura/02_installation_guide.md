@@ -26,7 +26,7 @@
 
 可从昇腾镜像仓库直接拉取已构建好的镜像，[AgentSDK 镜像发布页面](https://www.hiascend.com/developer/ascendhub/detail/72825ebadb23432ba55dea3f58e68a69)
 
-以 A3 服务器、Ubuntu 系统为例，拉取镜像的命令为：
+以 Atlas A3系列产品、Ubuntu 系统为例，拉取镜像的命令为：
 
 ```shell
 docker pull swr.cn-south-1.myhuaweicloud.com/ascendhub/agentsdk:26.2.0-cann9.0.0-torch_npu2.10.0-a3-ubuntu22.04-py3.11
@@ -48,7 +48,7 @@ docker build -f Dockerfile.a3.ubuntu -t your_image_name:your_image_tag .
 
 #### 步骤 2：创建容器
 
-以 Atlas A3服务器16卡为例，创建容器：
+以Atlas 900 A3 SuperPoD超节点（16 × 64 GB）为例，创建容器：
 
 ```shell
 docker run --name your_container_name \
@@ -78,7 +78,7 @@ docker run --name your_container_name \
 
 > [!NOTE]
 >
-> 1. 根据 NPU 数量的不同，挂载不同数量的设备 ID。例如： Atlas A3 有 16 个 NPU，需挂载 16 个设备 ID，每个设备 ID 对应一个 NPU。
+> 1. 根据 NPU 数量的不同，挂载不同数量的设备 ID。例如： Atlas A3系列产品有 16 个 NPU，需挂载 16 个设备 ID，每个设备 ID 对应一个 NPU。
 > 2. 镜像内默认工作目录为 /home/work，因此不建议挂载整个 /home 目录，以避免覆盖容器内默认工作空间或引发权限冲突。
 > 3. 分离模式需要额外挂载共享目录，存放代码、权重、数据。
 
