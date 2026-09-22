@@ -8,7 +8,7 @@
 
     - [Issue Feedback](https://gitcode.com/Ascend/AgentSDK/issues)
     - [Agent SDK Code](https://gitcode.com/Ascend/AgentSDK/tree/master/aura)
-    - [Aura Quick-start Documentation](../../docs/zh/aura/03_quick_start.md)
+    - [Aura Quick-start Documentation](https://gitcode.com/Ascend/AgentSDK/blob/master/docs/zh/aura/03_quick_start.md)
     - [Community](https://www.hiascend.com/en/)
 
 ## 2.Aura Overview
@@ -36,14 +36,16 @@ Tags follow this pattern:
 | `os`               | `ubuntu22.04`, `openeuler24.03`          | Operating system   |
 | `python_version`   | `py3.11`                                 | Python version     |
 
-### 3.2 CANN 9.0.0 + 26.2.0 Agent SDK Image
+### 3.2 Latest Version: Agent SDK 26.2.0
 
-| Tag                                                        | Dockerfile                                                                              | 镜像内容                |
-|------------------------------------------------------------|-----------------------------------------------------------------------------------------|---------------------|
-| `26.2.0-cann9.0.0-torch_npu2.10.0-a2-ubuntu22.04-py3.11`    | [Dockerfile](https://gitcode.com/Ascend/AgentSDK/docker/aura/Dockerfile.910b.ubuntu)    | toolkit + Agent SDK |
-| `26.2.0-cann9.0.0-torch_npu2.10.0-a3-ubuntu22.04-py3.11`    | [Dockerfile](https://gitcode.com/Ascend/AgentSDK/docker/aura/Dockerfile.a3.ubuntu)      | toolkit + Agent SDK |
-| `26.2.0-cann9.0.0-torch_npu2.10.0-a2-openeuler24.03-py3.11` | [Dockerfile](https://gitcode.com/Ascend/AgentSDK/docker/aura/Dockerfile.910b.openeuler) | toolkit + Agent SDK |
-| `26.2.0-cann9.0.0-torch_npu2.10.0-a3-openeuler24.03-py3.11` | [Dockerfile](https://gitcode.com/Ascend/AgentSDK/docker/aura/Dockerfile.a3.openeuler)   | toolkit + Agent SDK |
+The following are all images for the latest Agent SDK release, version 26.2.0. For tags of all previous versions, please refer to [Supported Tags](https://gitcode.com/Ascend/AgentSDK/tree/master/docker/aura/supported_tags.md).
+
+| Tag                                                           | Dockerfile                                                                                                  | content             |
+|---------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------|---------------------|
+| `26.2.0-cann9.0.0-torch_npu2.10.0-910b-ubuntu22.04-py3.11`    | [Dockerfile](https://gitcode.com/Ascend/AgentSDK/blob/branch_v26.2.0/docker/aura/Dockerfile.910b.ubuntu)    | toolkit + Agent SDK |
+| `26.2.0-cann9.0.0-torch_npu2.10.0-a3-ubuntu22.04-py3.11`      | [Dockerfile](https://gitcode.com/Ascend/AgentSDK/blob/branch_v26.2.0/docker/aura/Dockerfile.a3.ubuntu)      | toolkit + Agent SDK |
+| `26.2.0-cann9.0.0-torch_npu2.10.0-910b-openeuler24.03-py3.11` | [Dockerfile](https://gitcode.com/Ascend/AgentSDK/blob/branch_v26.2.0/docker/aura/Dockerfile.910b.openeuler) | toolkit + Agent SDK |
+| `26.2.0-cann9.0.0-torch_npu2.10.0-a3-openeuler24.03-py3.11`   | [Dockerfile](https://gitcode.com/Ascend/AgentSDK/blob/branch_v26.2.0/docker/aura/Dockerfile.a3.openeuler)   | toolkit + Agent SDK |
 
 ## 4.Quick Start
 
@@ -95,20 +97,11 @@ docker run --name your_container_name \
 
 ### 4.3 Quick-start Demo
 
-Quick start reference: [Qwen3-4B hybrid mode quick start](../../docs/zh/aura/models/qwen3-4b_quick_start/qwen3-4b-hybrid.md)
+Quick start reference: [Qwen3-4B hybrid mode quick start](https://gitcode.com/Ascend/AgentSDK/blob/master/docs/zh/aura/models/qwen3-4b_quick_start/qwen3-4b-hybrid.md)
 
 ---
 
-## 5. Supported Hardware
-
-| Chip Series | Product Examples | Architecture   |
-|-------------|------------------|----------------|
-| Atlas A2 products  | Atlas 800I A2    | ARM64 / x86_64 |
-| Atlas A3 products  | Atlas 900 A3 SuperPoD    | ARM64 / x86_64 |
-
----
-
-## 6. License
+## 5. License
 
 View the [license information](https://github.com/Ascend/cann-container-image/blob/main/LICENSE) for CANN and MindSeries software included in these images.
 
