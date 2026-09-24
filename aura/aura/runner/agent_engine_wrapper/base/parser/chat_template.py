@@ -17,6 +17,7 @@
 # limitations under the License.
 # -------------------------------------------------------------------------
 
+import copy
 import json
 from typing import Dict, List, Any, Optional
 from .utils import PARSER_TEST_MESSAGES
