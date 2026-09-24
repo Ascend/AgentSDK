@@ -374,8 +374,8 @@ class TestExecutorManager:
         # Call _remove_executor
         await manager._remove_executor(executor_item)
 
-        # Verify finalize was called
-        mock_executor_item_instance.finalize.assert_called_once()
+        # Verify finalize was called via .remote()
+        mock_executor_item_instance.finalize.remote.assert_called_once()
 
         # Verify ray.kill was called
         mock_ray.kill.assert_called_once_with(mock_actor_handle)

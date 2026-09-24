@@ -97,8 +97,6 @@ def fake_chat_template_env():
 
     with patch.dict(sys.modules, fakes):
         import aura.runner.agent_engine_wrapper.base.parser.chat_template as mod
-        # Inject copy into module's global namespace for _manual_parse
-        mod.copy = copy
         yield {
             "mod": mod,
             "ChatTemplateParser": mod.ChatTemplateParser,
