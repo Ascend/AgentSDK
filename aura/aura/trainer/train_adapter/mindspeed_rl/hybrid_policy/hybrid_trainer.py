@@ -17,9 +17,6 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
-
-import traceback
-
 from codetiming import Timer
 import ray
 
@@ -87,9 +84,9 @@ class AgentGRPOTrainer(CommonGRPOTrainer):
                 logger.info('rollout_worker start ...')
                 try:
                     new_samples_per_prompt = ray.get(self.rollout_worker.generate_sequences.remote())
-                except Exception as e:
-                    traceback.print_exc()
-                    print(f"error: {e}")
+                except Exception:
+                    logger.exception('rollout_worker generate_sequences failed')
+                    raise
 
                 if self.kwargs.get("use_stepwise_advantage") == True:
                     # total num changed

@@ -106,7 +106,7 @@ class ExecutorManager:
 
     async def _remove_executor(self, executor: ExecutorItem, ) -> None:
         """Stop and remove a single Executor"""
-        await executor.finalize()
+        await executor.finalize.remote()
         ray.kill(executor.ref)
         await self._release_resource_set(executor.resource_set)
 
