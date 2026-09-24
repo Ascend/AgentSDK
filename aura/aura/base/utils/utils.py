@@ -66,9 +66,9 @@ def compute_pass_at_k(results):
     pass_at_1 = sum(problem_correct_map.values()) / sum(problem_total_map.values())
     pass_at_k = sum(1 for problem, correct in problem_correct_map.items() if correct > 0) / total_problems
 
-    logger.info("Total unique problems:", total_problems)
-    logger.info("Average Pass@1 Accuracy:", pass_at_1)
-    logger.info("Average Pass@k Accuracy:", pass_at_k)
+    logger.info("Total unique problems: %s", total_problems)
+    logger.info("Average Pass@1 Accuracy: %s", pass_at_1)
+    logger.info("Average Pass@k Accuracy: %s", pass_at_k)
 
 
 def call_oai_rm_llm(
@@ -96,12 +96,12 @@ def call_oai_rm_llm(
             break
         except Exception as e:
             if "429" in str(e):
-                logger.info("Retry due to rate limit: ", e)
+                logger.info("Retry due to rate limit: %s", e)
                 time.sleep(backoff)
                 backoff = min(backoff * 2, 64)  # Exponential backoff up to 64s
                 continue
             else:
-                logger.info("Exception: ", e)
+                logger.info("Exception: %s", e)
                 return []
 
     if response is None:
@@ -176,15 +176,15 @@ def call_gemini_llm(
         except Exception as e:
             # Retry if there's a rate-limit error (HTTP 429)
             if "429" in str(e):
-                logger.warning("Retry due to rate limit: ", e)
+                logger.warning("Retry due to rate limit: %s", e)
                 time.sleep(backoff)
                 backoff = min(backoff * 2, 64)  # Exponential backoff up to 64s
                 continue
             elif "403" in str(e):
-                logger.error("NO ACCESS TO ENDPOINT", e)
+                logger.error("NO ACCESS TO ENDPOINT: %s", e)
                 raise NotImplementedError from None
             else:
-                logger.error("Exception: ", e)
+                logger.error("Exception: %s", e)
                 return []  # or raise an exception if desired
 
     # Collect the texts from all returned candidates
@@ -198,7 +198,7 @@ def call_gemini_llm(
             return response.candidates[0].text
         return [candidate.text for candidate in response.candidates]
     except Exception as e:
-        logger.error("Error extracting text from response:", e)
+        logger.error("Error extracting text from response: %s", e)
         return []
 
 
