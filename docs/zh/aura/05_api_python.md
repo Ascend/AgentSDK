@@ -122,7 +122,7 @@ class BaseEngineWrapper(ABC):
 
 注册表接口用于注册自定义的Agent。
 
-### 2.4 AGENTS_MAPPING - Agent 配置映射
+### 2.1 AGENTS_MAPPING - Agent 配置映射
 
 **功能描述**
 
