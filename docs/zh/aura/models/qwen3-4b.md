@@ -14,16 +14,55 @@
 
 ## **文件修改**
 
-在快速入门qwen3-4b math场景前，需修改以下文件，需要进行修改的参数可以参照文件头的注释。
+在快速入门 Qwen3-4B Math 场景前，需按模式修改以下训练/推理配置文件，参数含义可参见对应文件头的注释。训练配置至少需要修改以下路径（其余参数保持默认即可）：
+
+共卡模式请修改：
+
+- [共卡训练配置文件](../../../../aura/configs/train/verl_train_hybrid_A3_t16_qwen3_4b_math_fsdp.yaml)
+
+```yaml
+hydra:
+  searchpath:
+    - file:///verl/verl/trainer/config
+    - file:///path/to/AgentSDK/aura/configs/train/verl_conf # 改为本代码仓 aura/configs/train/verl_conf 的绝对路径
+
+verl_conf:
+  data:
+    train_files: /path/to/data/train.parquet # 共卡模式训练数据集（parquet）
+    val_files: /path/to/data/test.parquet # 共卡模式测试数据集（parquet）
+  actor_rollout_ref:
+    model:
+      path: /path/to/models/Qwen3-4B # 模型权重路径
+```
 
 单步异步分离模式请修改：
 
-1. [共卡配置文件](../../../../aura/configs/train/verl_train_hybrid_A3_t16_qwen3_4b_math_fsdp.yaml)
+- [单步异步分离训练配置文件](../../../../aura/configs/train/verl_train_async_A3_t16_qwen3_4b_math_fsdp.yaml)
+- [单步异步分离推理配置文件](../../../../aura/configs/infer/vllm_infer_i16_qwen3_4b.yaml)
 
-单步异步分离模式请修改：
+```yaml
+hydra:
+  searchpath:
+    - file:///verl/verl/trainer/config
+    - file:///path/to/AgentSDK/aura/configs/train/verl_conf # 改为本代码仓 aura/configs/train/verl_conf 的绝对路径
 
-1. [单步异步分离配置文件](../../../../aura/configs/train/verl_train_async_A3_t16_qwen3_4b_math_fsdp.yaml)
-2. [单步异步分离推理配置](../../../../aura/configs/infer/vllm_infer_i16_qwen3_4b.yaml)
+verl_conf:
+  extras:
+    data_loader:
+      train_data_path: /path/to/data/math_train_dataset/rl # 分离模式数据集路径（bin/idx），末尾需要带上 /rl
+  actor_rollout_ref:
+    model:
+      path: /path/to/models/Qwen3-4B # 模型权重路径
+```
+
+> [!NOTE]
+> `weight_save_dir` 默认为代码目录下的 `aura/weights`，分离多机模式下请将代码与权重均保存在共享盘内，无需修改该参数。
+
+推理配置只需修改模型权重路径：
+
+```yaml
+infer_model_path: /path/to/models/Qwen3-4B # 推理侧模型权重路径
+```
 
 > [!NOTE]
 >

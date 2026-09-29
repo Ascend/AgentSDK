@@ -16,6 +16,11 @@ Aura 提供两种构建运行环境的方式，用户可根据实际情况任选
 
     如果您已经在 CANN 9.0.0 的基础镜像容器内，可以执行一键拉起脚本完成 Aura 及其所有依赖（vLLM、 vllm-ascend、 MindSpeed、 Megatron-LM、 verl、 transformers 等）的安装。具体操作请参见“[使用一键式环境配置脚本 build_env.sh](02_installation_guide.md#方式二使用一键式环境配置脚本-build_envsh)”。
 
+> [!NOTE]
+> 预构建镜像中的代码为镜像构建时刻的快照，可能与代码仓发布分支的最新代码不一致。进入容器后建议先检查本地与远程对应分支的最新 commit 是否一致，如不一致可拉取最新代码更新，再按本文档进行配置和启动。
+>
+> 多机场景下，用户需在共享目录手动拉取最新代码。
+
 ## **使用流程**
 
 Aura 提供了训练模型示例。
@@ -36,7 +41,7 @@ Aura 提供了训练模型示例。
 work_mode=one_step_off
 
 # 共卡和分离模式均需要配置训练yaml文件
-train_config_name=verl_train_async_t16_qwen3_32B_math
+train_config_name=verl_train_async_A3_t16_qwen3_32b_math_fsdp
 
 # 分离模式需要单独配置推理yaml文件, 共卡模式该配置不生效
 infer_config_name=vllm_infer_i16_qwen3_32b
