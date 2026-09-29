@@ -70,11 +70,26 @@ function get_is_config_shared_filesystem()
   # 是配置VC_TASK_HOSTS, 云道是配置VC_WORKER_HOSTS
   if [[ -n "${VC_TASK_HOSTS}" ]]; then
     export VC_WORKER_HOSTS=${VC_TASK_HOSTS}
-    export IS_SHARED_CONF=1
-  else
-    # 云道环境非共享配置文件路径
-    export IS_SHARED_CONF=0
   fi
+
+  # 显式配置优先；auto 模式保持原有环境识别方式。
+  case "${IS_SHARED_FILESYSTEM:-auto}" in
+    auto|"")
+      if [[ -n "${VC_TASK_HOSTS}" ]]; then
+        export IS_SHARED_FILESYSTEM=1
+      else
+        # 云道环境中各节点使用独立的本地代码目录。
+        export IS_SHARED_FILESYSTEM=0
+      fi
+      ;;
+    0|1)
+      export IS_SHARED_FILESYSTEM
+      ;;
+    *)
+      log_error "invalid IS_SHARED_FILESYSTEM '${IS_SHARED_FILESYSTEM}', supported values: auto, 0, 1"
+      exit 1
+      ;;
+  esac
 }
 
 function prepare_cluster_info()
@@ -181,6 +196,8 @@ function parse_train_conf()
   export WORK_MODE=$(get_conf_val "work_mode" "${BASE_CONF}")
   export TRAIN_CONF_NAME=$(get_conf_val "train_config_name" "${BASE_CONF}")
   export INFER_CONF_NAME=$(get_conf_val "infer_config_name" "${BASE_CONF}")
+  local filesystem_mode=$(get_conf_val "is_shared_filesystem" "${BASE_CONF}")
+  export IS_SHARED_FILESYSTEM=${IS_SHARED_FILESYSTEM:-${filesystem_mode:-auto}}
   if [[ -z "${WORK_MODE}" ]]; then
     log_error "get WORK_MODE from ${BASE_CONF} failed, please confirm the conf"
     exit 1

@@ -303,9 +303,16 @@ function get_infer_configs_for_non_shared_filesystem()
 
 function get_infer_configs()
 {
-  if [[ ${IS_SHARED_FILESYSTEM} -eq 1 ]]; then
-    get_infer_configs_for_shared_filesystem
-  else
-    get_infer_configs_for_non_shared_filesystem
-  fi
+  case "${IS_SHARED_FILESYSTEM:-0}" in
+    1)
+      get_infer_configs_for_shared_filesystem
+      ;;
+    0)
+      get_infer_configs_for_non_shared_filesystem
+      ;;
+    *)
+      log_error "invalid IS_SHARED_FILESYSTEM '${IS_SHARED_FILESYSTEM}', expected resolved value 0 or 1"
+      exit 1
+      ;;
+  esac
 }
