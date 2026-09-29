@@ -232,6 +232,9 @@ python3 /path/to/AgentSDK/aura/cli/preprocess_data.py gsm8k
 # 工作模式：hybrid 共卡模式 | one_step_off 全异步分离模式
 work_mode=one_step_off
 
+# 两个节点分别使用各自的本地 Agent SDK 代码目录
+is_shared_filesystem=0
+
 # 共卡和分离模式均需要配置训练yaml文件
 train_config_name=verl_train_async_A3_t16_qwen3_4b_math_fsdp
 
@@ -248,6 +251,14 @@ max_retries=100
 
 # 第一次启动是否需要清空ckpt文件夹: 0 不清理; 1 需要清理
 clean_old_ckpt=0
+```
+
+两个节点上的 Agent SDK 代码绝对路径可以不同，但代码版本、`base.conf`、训练 YAML 和推理 YAML 的内容必须一致。训练 YAML 中的 `weight_save_dir` 仍须修改为两个节点均可访问的共享存储绝对路径，例如：
+
+```yaml
+verl_conf:
+  extras:
+    weight_save_dir: /shared/aura/qwen3-4b/weights
 ```
 
 ## **配置环境变量**
@@ -295,7 +306,8 @@ export ASCEND_RT_VISIBLE_DEVICES=0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
 
 ```shell
 # 进入自己的工作目录
-cd /home/work/AgentSDK/aura
+# 每个节点进入各自本地的 Agent SDK 代码目录
+cd /path/to/local/AgentSDK/aura
 # 启动训练脚本
 bash scripts/start_rl_with_verl_vllm.sh
 ```

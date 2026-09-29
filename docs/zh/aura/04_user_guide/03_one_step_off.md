@@ -2,11 +2,11 @@
 
 ## 简介
 
-训推分离是 AgentSDK 提供的一种资源部署模式，训练与推理任务分别部署在不同节点上，独立运行、并行执行。在该模式下，训练集群和推理集群通过权重文件和 rollout 数据进行异步交互，适用于大规模集群或对训练吞吐有较高要求的场景。
+训推分离是 Agent SDK 提供的一种资源部署模式，训练与推理任务分别部署在不同节点上，独立运行、并行执行。在该模式下，训练集群和推理集群通过权重文件和 rollout 数据进行异步交互，适用于大规模集群或对训练吞吐有较高要求的场景。
 
 ### 模式与策略
 
-AgentSDK 的训推分离采用两层设计：
+Agent SDK 的训推分离采用两层设计：
 
 - 部署模式：指训练和推理的资源部署方式，目前支持训推分离和训推共卡。
 - 训练策略：指在分离模式下，训练如何利用推理产生的数据的异步策略。目前仅支持 One-Step-Off 策略，即训练始终使用上一轮推理产出的轨迹数据，保持一个迭代步的滞后。
@@ -77,6 +77,9 @@ AgentSDK 的训推分离采用两层设计：
 # 工作模式设置为 one_step_off
 work_mode=one_step_off
 
+# Agent SDK 代码位于各节点本地独立目录
+is_shared_filesystem=0
+
 # 训练yaml文件
 train_config_name=verl_train_async_A3_t16_qwen3_8b_math_fsdp
 
@@ -87,6 +90,7 @@ infer_config_name=vllm_infer_i16_qwen3_8b
 | 参数 | 说明 |
 |------|------|
 | work_mode | 设为 `one_step_off` 表示分离模式 |
+| is_shared_filesystem | Agent SDK 代码目录是否共享：`0` 表示各节点使用本地独立目录，`1` 表示共享目录，`auto` 根据集群环境自动识别 |
 | train_config_name | 训练 YAML 配置文件名（不含 .yaml 后缀） |
 | infer_config_name | 推理 YAML 配置文件名（不含 .yaml 后缀），**分离模式必须配置** |
 
@@ -103,6 +107,7 @@ infer_config_name=vllm_infer_i16_qwen3_8b
 | `hydra.searchpath`                                  | verl 配置模板路径，改为本机 aura 代码仓中 `configs/train/verl_conf` 目录的绝对路径 | `file:///home/work/aura/configs/train/verl_conf` |
 | `verl_conf.extras.data_loader.train_data_path`      | 训练数据集路径（bin/idx 格式，不含文件后缀）                                   | `/data/train/rl`                                 |
 | `verl_conf.actor_rollout_ref.model.path`            | 模型权重路径                                                       | `/data/weights/qwen3-8b`                         |
+| `verl_conf.extras.weight_save_dir`                  | 训推权重同步目录，分离模式下仍须为训练和推理节点均可访问的共享路径                         | `/shared/aura/weights`                           |
 | `train_instances.rollout_config.llm_tokenizer_path` | 分词器路径（与模型路径一致）                                               | `/data/weights/qwen3-8b`                         |
 
 #### 3.2 分离模式 + One-Step-Off 策略关键配置项
@@ -165,7 +170,7 @@ verl_conf:
 - `enable_expert_parallel`：是否开启专家并行（来自推理 YAML）
 
 > [!NOTE]
-> 此自动替换机制依赖**共享文件系统**：推理集群将配置写入共享存储的临时文件，训练主节点读取后通过 sed 替换训练 YAML，其他训练节点通过共享文件系统读取修改后的配置。仅训练主节点执行替换操作，避免多节点并发修改冲突。
+> 当 `is_shared_filesystem=0` 时，每个节点根据相同的推理 YAML 和集群节点列表，在本地代码目录生成 `conf_for_train/` 临时文件，不需要通过共享代码目录传递推理配置。训练主节点只修改其本地训练 YAML。训推权重同步目录仍须配置为训练和推理节点均可访问的共享路径。
 
 配置时填入默认值即可：
 
@@ -261,8 +266,8 @@ bash scripts/start_rl_with_verl_vllm.sh
 ### 启动流程
 
 1. **入口脚本** [start_rl_with_verl_vllm.sh](../../../../aura/scripts/start_rl_with_verl_vllm.sh)：`get_node_type()` 根据 `VC_TASK_INDEX` 和 `MASTER_TRAIN_INDEX` 判定节点为 `infer` 或 `train` 类型，分别启动推理和训练进程
-2. **推理集群启动** [start_vllm_infer_cluster.sh](../../../../aura/scripts/infer/start_vllm_infer_cluster.sh)：解析推理配置，启动 vLLM 推理服务，将服务地址写入共享存储
-3. **推理配置解析** [parse_infer_config.sh](../../../../aura/scripts/infer/vllm/parse_infer_config.sh)：从推理 YAML 读取并行度参数，自动分配节点 IP，写入 `conf_for_train/` 临时文件
+2. **推理集群启动** [start_vllm_infer_cluster.sh](../../../../aura/scripts/infer/start_vllm_infer_cluster.sh)：解析推理配置并启动 vLLM 推理服务
+3. **推理配置解析** [parse_infer_config.sh](../../../../aura/scripts/infer/vllm/parse_infer_config.sh)：从推理 YAML 读取并行度参数，自动分配节点 IP；共享模式由推理主节点写入 `conf_for_train/`，非共享模式由各节点在本地生成相同配置
 4. **训练集群启动** [start_verl_train_cluster.sh](../../../../aura/scripts/train/start_verl_train_cluster.sh)：等待推理集群就绪，读取临时文件替换训练 YAML 中的推理配置，启动训练
 5. **任务路由** [train_register.py](../../../../aura/aura/trainer/trainer_register/train_register.py)：根据 `train_engine=verl` 和 `work_mode=one_step_off` 注册并路由到 `verl_async_train`
 
