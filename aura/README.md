@@ -34,7 +34,7 @@
 - 支持[训推共卡](../docs/zh/aura/04_user_guide/02_hybrid.md)和[训推分离](../docs/zh/aura/04_user_guide/03_one_step_off.md)模式。
 - 支持[混合批次调度](../docs/zh/aura/04_user_guide/mixed_batch.md)（实验特性）。
 - 支持[自定义 agent 接入](../docs/zh/aura/04_user_guide/04_custom_agent.md)。
-- 支持[Qwen3-4B](../docs/zh/aura/models/qwen3-4b.md)、[Qwen3-8B](../docs/zh/aura/models/qwen3_8b.md)、[Qwen3-14B](../docs/zh/aura/models/qwen3-14b_quick_start/qwen3-14b-hybrid.md)、[Qwen3-32B](../docs/zh/aura/models/qwen3_32b.md)、[Qwen3-30B-A3B](../docs/zh/aura/models/qwen3-30b-a3b.md)模型。
+- 支持[Qwen3-4B](../docs/zh/aura/models/qwen3-4b.md)、[Qwen3-8B](../docs/zh/aura/models/qwen3_8b.md)、[Qwen3-14B](../docs/zh/aura/models/qwen3-14b_quick_start/qwen3-14b-hybrid.md)、[Qwen3-32B](../docs/zh/aura/models/qwen3_32b.md)、[Qwen3-30B-A3B](../docs/zh/aura/models/qwen3-30b-a3b.md)、[Qwen3.5-9B](../docs/zh/aura/models/qwen3.5-9b.md)模型。
 - 支持 verl 训练引擎，vllm 推理引擎。
 - 支持 rLLM agent 引擎。
 - 使用 tensorboard 记录训练指标。
@@ -47,6 +47,7 @@
 | verl+vllm+fsdp2+训推共卡 | Qwen3-4B  | Math | A3    | 单机 4*64GB 显存 | [Qwen3-4B 共卡模式快速拉起指南](../docs/zh/aura/models/qwen3-4b_quick_start/qwen3-4b-hybrid.md)       |
 | verl+vllm+fsdp2+训推分离 | Qwen3-4B  | Math | A3    | 双机 4*64GB 显存 | [Qwen3-4B 分离模式快速拉起指南](../docs/zh/aura/models/qwen3-4b_quick_start/qwen3-4b-one-step-off.md) |
 | verl+vllm+fsdp2+训推共卡 | Qwen3-14B | Math | A2    | 单机 8*64GB 显存 | [Qwen3-14B 共卡模式快速拉起指南](../docs/zh/aura/models/qwen3-14b_quick_start/qwen3-14b-hybrid.md)    |
+| verl+vllm+fsdp2+训推共卡 | Qwen3.5-9B | Math | Atlas A2系列产品 | 单机 8*64GB 显存 | [Qwen3.5-9B 快速拉起指南](../docs/zh/aura/models/qwen3.5-9b.md) |
 
 - 如果想了解模型通用的完整快速入门流程，请参考：[快速入门指南](../docs/zh/aura/03_quick_start.md)。
 
@@ -90,7 +91,7 @@ FAQ 包含环境部署或运行过程中可能需要的报错及解决方案，�
 
 # ⚖️ 相关说明
 
-🔹 《[版本说明](../docs/zh/aura/08_release_notes.md)》<br>
+🔹 《[版本说明](../docs/zh/aura/08_release_notes_agent.md)》<br>
 🔹 《[许可证声明](../LICENSE.md)》<br>
 🔹 《[文档许可证声明](../docs/LICENSE)》<br>
 🔹 《[免责声明](../docs/zh/aura/09_disclaimer.md)》<br>
