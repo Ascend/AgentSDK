@@ -29,7 +29,7 @@
 以 Atlas A3系列产品、Ubuntu 系统为例，拉取镜像的命令为：
 
 ```shell
-docker pull swr.cn-south-1.myhuaweicloud.com/ascendhub/agentsdk:26.2.0-cann9.0.0-torch_npu2.9.0-a3-ubuntu22.04-py3.11
+docker pull swr.cn-south-1.myhuaweicloud.com/ascendhub/agentsdk:26.2.0-cann9.0.0-torch_npu2.10.0-a3-ubuntu22.04-py3.11
 ```
 
 ##### 选项二：从 Dockerfile 构建镜像
@@ -80,6 +80,7 @@ docker run --name your_container_name \
 >
 > 1. 根据 NPU 数量的不同，挂载不同数量的设备 ID。例如： Atlas A3系列产品有 16 个 NPU，需挂载 16 个设备 ID，每个设备 ID 对应一个 NPU。
 > 2. 镜像内默认工作目录为 /home/work，因此不建议挂载整个 /home 目录，以避免覆盖容器内默认工作空间或引发权限冲突。
+> 3. 分离模式需要额外挂载共享目录，存放代码、权重、数据。
 
 #### 步骤 3：进入容器
 

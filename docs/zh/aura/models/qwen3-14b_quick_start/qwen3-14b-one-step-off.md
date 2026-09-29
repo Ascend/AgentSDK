@@ -7,7 +7,7 @@
 第一步：拉取预构建镜像：
 
 ```shell
-docker pull swr.cn-south-1.myhuaweicloud.com/ascendhub/agentsdk:26.2.0-a3-ubuntu22.04-py3.11
+docker pull swr.cn-south-1.myhuaweicloud.com/ascendhub/agentsdk:26.2.0-cann9.0.0-torch_npu2.10.0-a3-ubuntu22.04-py3.11
 ```
 
 第二步：创建容器：
@@ -34,7 +34,7 @@ docker run --name your_container_name \
     -v /etc/ascend_install.info:/etc/ascend_install.info \
     -v /usr/share/zoneinfo/Asia/Shanghai:/etc/localtime \
     -v /usr/local/sbin:/usr/local/sbin \
-    swr.cn-south-1.myhuaweicloud.com/ascendhub/agentsdk:26.2.0-a3-ubuntu22.04-py3.11  \
+    swr.cn-south-1.myhuaweicloud.com/ascendhub/agentsdk:26.2.0-cann9.0.0-torch_npu2.10.0-a3-ubuntu22.04-py3.11  \
     sleep infinity
 ```
 
@@ -44,9 +44,13 @@ docker run --name your_container_name \
 docker exec -it your_container_name bash
 ```
 
+第四步：更新代码（推荐）
+
+预构建镜像中的代码为镜像构建时刻的快照，可能与代码仓发布分支的最新代码不一致。建议进入容器后先检查本地与远程对应分支的最新 commit 是否一致，如不一致可拉取最新代码更新。
+
 > [!NOTE] 说明
 >
->- 训练节点和推理节点需使用相同版本的 Agent SDK 代码及配置文件。
+>- 多机场景下，用户需在共享目录手动拉取最新代码。
 >- 两个节点需能够通过相同的绝对路径访问模型权重和训练过程中生成的权重目录，建议使用共享存储。
 >- 两个节点之间需网络互通，且容器内配置的节点 IP 可以相互访问。
 
@@ -158,24 +162,48 @@ python3 /path/to/AgentSDK/aura/cli/preprocess_data.py gsm8k
 
 ## **文件修改**
 
-在快速入门 qwen3-14b math 场景前，需要您修改以下配置文件。
+在快速入门 Qwen3-14B Math 场景前，需要您修改以下配置文件。需要修改的配置点汇总如下，YAML 文件中的参数含义可参见对应文件头的注释：
+
+| # | 配置文件 | 必改参数 | 说明 |
+|---|---------|---------|------|
+| 1 | `aura/configs/datasets/gsm8k.yaml` | `input`、`tokenizer_name_or_path`、`output_prefix` | 数据格式转换使用（分离模式需 bin/idx 数据） |
+| 2 | `aura/configs/train/verl_train_async_A3_t16_qwen3_14b_math_fsdp.yaml` | `hydra.searchpath`、`verl_conf.extras.data_loader.train_data_path`、`verl_conf.actor_rollout_ref.model.path` | 分离模式数据集路径与模型权重路径 |
+| 3 | `aura/configs/infer/vllm_infer_i16_qwen3_14b.yaml` | `infer_model_path` | 推理侧模型权重路径 |
+| 4 | `aura/configs/hosts.conf` | `host`、`index`、`train_master_index` | 节点 IP 与节点角色，见下文 |
+| 5 | `aura/configs/base.conf` | `work_mode`、`train_config_name`、`infer_config_name` | 见下文 |
+| 6 | `aura/configs/env/env.local` | `DEFAULT_SOCKET_IFNAME`、`ASCEND_RT_VISIBLE_DEVICES` | 见下文 |
 
 ### 修改训练/推理配置文件
 
-需要进行修改的参数可以参照文件头的注释，请将其中的示例路径修改为您自己的实际路径。
+参数含义可参见文件头的注释。训练配置至少需要修改以下路径（其余参数保持默认即可）：
 
 - [单步异步分离训练配置文件](../../../../../aura/configs/train/verl_train_async_A3_t16_qwen3_14b_math_fsdp.yaml)
-- [单步异步分离推理配置文件](../../../../../aura/configs/infer/vllm_infer_i16_qwen3_14b.yaml)
-
-单步异步分离模式通过文件同步训练权重，训练配置中的 `verl_conf.extras.weight_save_dir` 必须设置为两个节点均可访问的共享路径。例如：
 
 ```yaml
+hydra:
+  searchpath:
+    - file:///verl/verl/trainer/config
+    - file:///path/to/AgentSDK/aura/configs/train/verl_conf # 改为本代码仓 aura/configs/train/verl_conf 的绝对路径
+
 verl_conf:
   extras:
-    weight_save_dir: /path/to/shared/weights
+    data_loader:
+      train_data_path: /path/to/data/math_train_dataset/rl # 分离模式数据集路径（bin/idx），末尾需要带上 /rl
+  actor_rollout_ref:
+    model:
+      path: /path/to/models/Qwen3-14B # 模型权重路径
 ```
 
-两个节点看到的绝对路径必须一致，且运行用户需要具有该目录的读写权限。
+> [!NOTE]
+> `weight_save_dir` 默认为代码目录下的 `aura/weights`，分离多机模式下请将代码与权重均保存在共享盘内，无需修改该参数。
+
+推理配置只需修改模型权重路径：
+
+- [单步异步分离推理配置文件](../../../../../aura/configs/infer/vllm_infer_i16_qwen3_14b.yaml)
+
+```yaml
+infer_model_path: /path/to/models/Qwen3-14B # 推理侧模型权重路径
+```
 
 ### 修改hosts.conf
 

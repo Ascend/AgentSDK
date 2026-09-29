@@ -1,8 +1,8 @@
 # =============================================================
 # 一键启动需要修改路径的参数如下：
-# 1. hydra.searchpath
-# 2. verl_conf.extras.data_loader.train_data_path
-# 3. verl_conf.actor_rollout_ref.model.path
+# 1. hydra.searchpath：verl 训练配置搜索路径，需改为本代码仓 aura/configs/train/verl_conf 目录的绝对路径
+# 2. verl_conf.extras.data_loader.train_data_path：分离模式数据集（bin/idx）路径，末尾需带上 /rl
+# 3. verl_conf.actor_rollout_ref.model.path：模型权重路径
 #
 # 如果使用16卡以外的配置，需修改以下参数：
 # 4. n_gpus_per_node：修改为指定的卡数
@@ -51,7 +51,7 @@ verl_conf:
     validate_num_samples: 5 # 验证数据采样
     init_num_group_batches: 1 # 从 DataLoader 首次加载数据批次数量
     max_queue_size: 256
-    weight_save_dir: /path/to/shared/weights # 需要修改为训练和推理节点可访问的共享路径
+    weight_save_dir: ${hydra:runtime.cwd}/weights
     consumed_train_samples: 0 # 已处理的样本数量
     data_loader:
       train_data_path: /path/to/data/math_train_dataset/rl # 分离模式使用的数据集路径，末尾需要加上/rl

@@ -1,3 +1,9 @@
+# =============================================================
+# 一键启动需要修改路径的参数如下：
+# 1. input: jsonl 数据所在目录（需包含 train.jsonl 和 test.jsonl）
+# 2. tokenizer_name_or_path: 分词器路径，需与训练/推理使用的模型保持一致
+# 3. output_prefix: bin/idx 输出路径前缀，其父目录需提前创建，末尾的 rl 为输出文件前缀
+# =============================================================
 input: /path/to/input_data_dir
 tokenizer_name_or_path: /path/to/tokenizer
 output_prefix: /path/to/output/train/rl
