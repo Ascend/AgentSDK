@@ -3,6 +3,7 @@
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Copyright (c) 2023-2024 The vLLM team. All rights reserved.
 #
 # AgentSDK is licensed under Mulan PSL v2.
 # You can use this software according to the terms and conditions of the Mulan PSL v2.
