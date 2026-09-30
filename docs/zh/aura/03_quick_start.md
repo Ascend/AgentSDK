@@ -144,6 +144,7 @@ bash scripts/start_rl_with_verl_vllm.sh
 
 **Aura Qwen3-14B Math 场景一键拉起样例请参考[Qwen3-14B Math 场景样例](models/qwen3-14b_quick_start/qwen3-14b-hybrid.md)**
 
+**Aura Qwen3.5-9B Math 分离 One-step off-policy 场景一键拉起样例请参考[Qwen3.5-9B 分离场景样例](models/qwen3.5-9b_quick_start/qwen3.5-9b-one-step-off.md)**
 **Aura Qwen3.5-35B-A3B Math 分离 One-step off-policy 场景一键拉起样例请参考[Qwen3.5-35B-A3B 分离场景样例](models/qwen3.5-35b-a3b_quick_start/qwen3.5-35b-a3b-one-step-off.md)**
 
 **Aura Qwen3-32B Math 场景一键拉起样例请参考[Qwen3-32B Math 场景样例](models/qwen3_32b.md)**
