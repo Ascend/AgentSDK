@@ -85,5 +85,6 @@ Aura 支持以下模型：
 |Qwen3-14B|14B|Qwen3系列中大型模型，具备强大的复杂推理与数学逻辑能力。|
 |Qwen3-32B|32B|Qwen3系列通用大模型，具有强大的语言理解和生成能力。|
 |Qwen3-30B-A3B|30B|Qwen3系列MoE模型，兼顾大模型性能与推理效率。|
+|Qwen3.5-9B|9B|Qwen3.5系列Dense模型，包含Gated DeltaNet层。|
 |Qwen3.5-35B-A3B|35B|Qwen3.5系列MoE模型，包含Gated DeltaNet层。|
 |Qwen3.5-9B|9B|Qwen3.5系列Dense多模态模型，混合注意力架构，兼顾长上下文效率与推理能力。|
