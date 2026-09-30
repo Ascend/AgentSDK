@@ -19,6 +19,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import torch
+from torch import nn
 import torch._dynamo.cache_size
 import numpy as np
 import torch.distributed as dist
@@ -29,7 +30,7 @@ from vllm_ascend.utils import ProfileExecuteDuration, lmhead_tp_enable, vllm_ver
 from vllm_ascend.worker.model_runner_v1 import NPUModelRunner
 
 import os
-from typing import TYPE_CHECKING, Optional, Union
+from typing import TYPE_CHECKING, Optional, Union, cast
 from vllm.sequence import IntermediateTensors
 from vllm.v1.outputs import EMPTY_MODEL_RUNNER_OUTPUT, ModelRunnerOutput
 from vllm.v1.worker.kv_connector_model_runner_mixin import KVConnectorOutput
