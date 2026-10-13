@@ -50,7 +50,7 @@ jobs:
   JOB_smoke:
     name: JOB_smoke
     select: selected_by_default
-    runs-on: [ self-hosted, npu=1 ]
+    runs-on: [ self-hosted, agentsdk, arm, cpu=32 ]
     container:
       image: ${{ inputs.IMAGE_FLAG }}
       options: --user root
