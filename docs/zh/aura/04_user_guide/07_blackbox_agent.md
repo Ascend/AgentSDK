@@ -206,13 +206,13 @@
 
 ### （可选）步骤：实现轨迹聚合函数
 
-自定义轨迹聚合函数（ttraj_refine_func），负责将从 TrajProxy 拉取的原始请求/响应记录（`List[RequestRecord]`）聚合为层级化轨迹（`Episode`）。如果场景与默认行为一致，可以跳过此步骤。
+自定义轨迹聚合函数（traj_refine_func），负责将从 TrajProxy 拉取的原始请求/响应记录（`List[RequestRecord]`）聚合为层级化轨迹（`Episode`）。如果场景与默认行为一致，可以跳过此步骤。
 
 > [!NOTE]
 > 完整实现可参考内置轨迹聚合函数：[ozy_token_traj_refine_func](../../../../aura/agents/proxy_agent/math/ozy_traj_refine_reward.py)
 > 自定义函数实现后需要同步修改训练配置 [共卡训练配置文件](../../../../aura/configs/train/verl_train_hybrid_A3_t16_qwen3_8b_blackbox_math_fsdp.yaml) 中 `traj_refine_func` 为 对应函数路径
 
-### （可选）步骤：实现奖励函数（可选）
+### （可选）步骤：实现奖励函数
 
 自定义轨迹级奖励函数（res_reward_func），为整个轨迹计算最终奖励。
 

@@ -1,5 +1,6 @@
 # Agent SDK 用户指南
 
+<!-- npu="A3,910b" id1 -->
 - [简介](01_introduction.md)
 - [软件安装](02_installation_guide.md)
 - [快速入门](03_quick_start.md)
@@ -14,3 +15,4 @@
 - [安全加固](06_security_hardening.md)
 - [FAQ](07_faq.md)
 - [附录](10_appendix.md)
+<!-- end id1 -->
