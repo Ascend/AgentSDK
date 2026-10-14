@@ -277,7 +277,7 @@ fatal error: 'moe_distribute_comm_ctx.h' file not found
 
 **原因分析<a name="faq_011_analysis"></a>**
 
-vllm-ascend对于a3服务器，在cmake编译算子时，缺少头文件路径，需补充环境变量，从而将该文件路径添加到CMakeList的文件路径中。
+vllm-ascend对于a3服务器，在cmake编译算子时，缺少头文件路径，需补充环境变量，从而将该文件路径添加到CMakeLists的文件路径中。
 
 **解决方案<a name="faq_011_solution"></a>**
 
