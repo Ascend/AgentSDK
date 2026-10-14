@@ -53,7 +53,7 @@ The following are all images for the latest Agent SDK release, version 26.2.0. F
 
 #### 4.1.1 Install Driver
 
-- An Atlas NPU driver compatible with the container's CANN version must be installed on the host. See the [CANN Compatibility Matrix](https://www.hiascend.com/document) for driver ↔ CANN version mapping.
+- An Atlas NPU driver compatible with the container's CANN version must be installed on the host. See the [CANN Compatibility Matrix](https://www.hiascend.com/en/document) for driver ↔ CANN version mapping.
 - Docker version requirement: Docker version should not be lower than 24.0.x.
 
 ### 4.2 Running a Aura Container
