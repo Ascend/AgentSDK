@@ -75,7 +75,6 @@ jobs:
           cat ${ATOMGIT_WORKSPACE}/change.txt
 
       - name: extra setup (openclaw)
-        if: ${{ inputs.EXTRA_SETUP == true }}
         run: |
           set -ex
           apt-get update
