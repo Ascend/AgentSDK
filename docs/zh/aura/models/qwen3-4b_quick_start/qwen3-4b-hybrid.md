@@ -1,13 +1,13 @@
-# Qwen3-4B 共卡模式快速拉起指南
+# Qwen3-4B 共卡模式快速入门指南
 
 ## **容器环境部署**
 
-本文档以 Atlas A3 服务器 16 卡、Ubuntu 系统为例进行说明。
+本文档以Atlas 900 A3 SuperPoD超节点（16 × 64 GB）、Ubuntu 系统为例进行说明。
 
 第一步：拉取预构建镜像：
 
 ```shell
-docker pull swr.cn-south-1.myhuaweicloud.com/ascendhub/agentsdk:26.1.0-a3-ubuntu22.04-py3.11
+docker pull swr.cn-south-1.myhuaweicloud.com/ascendhub/agentsdk:26.2.0-cann9.0.0-torch_npu2.10.0-a3-ubuntu22.04-py3.11
 ```
 
 第二步：创建容器：
@@ -34,7 +34,7 @@ docker run --name your_container_name \
     -v /etc/ascend_install.info:/etc/ascend_install.info \
     -v /usr/share/zoneinfo/Asia/Shanghai:/etc/localtime \
     -v /usr/local/sbin:/usr/local/sbin \
-    swr.cn-south-1.myhuaweicloud.com/ascendhub/agentsdk:26.1.0-a3-ubuntu22.04-py3.11  \
+    swr.cn-south-1.myhuaweicloud.com/ascendhub/agentsdk:26.2.0-cann9.0.0-torch_npu2.10.0-a3-ubuntu22.04-py3.11  \
     sleep infinity
 ```
 
@@ -43,6 +43,10 @@ docker run --name your_container_name \
 ```shell
 docker exec -it your_container_name bash
 ```
+
+第四步：更新代码（推荐）
+
+预构建镜像中的代码为镜像构建时刻的快照，可能与代码仓发布分支的最新代码不一致。建议进入容器后先检查本地与远程对应分支的最新 commit 是否一致，如不一致可拉取最新代码更新。
 
 ## **模型获取**
 
@@ -75,12 +79,39 @@ python3 gsm8k.py \
 
 ## **文件修改**
 
-在快速拉起 qwen3-4b math 场景前，需要修改以下配置文件，需要进行修改的参数可以参照文件头的注释，请将其中的示例路径修改为实际路径。
+在快速入门 Qwen3-4B Math 场景前，需要修改以下配置文件。需要修改的配置点汇总如下，YAML 文件中的参数含义可参见对应文件头的注释：
 
-1. [共卡训练配置文件](../../../../../aura/configs/train/verl_train_hybrid_A3_t16_qwen3_4b_math_fsdp.yaml)
-2. [共卡推理配置文件](../../../../../aura/configs/infer/vllm_infer_i16_qwen3_4b.yaml)
+| # | 配置文件 | 必改参数 | 说明 |
+|---|---------|---------|------|
+| 1 | `aura/configs/train/verl_train_hybrid_A3_t16_qwen3_4b_math_fsdp.yaml` | `hydra.searchpath`、`verl_conf.data.train_files`、`verl_conf.data.val_files`、`verl_conf.actor_rollout_ref.model.path` | 共卡模式使用 parquet 数据集，无需转换为 bin/idx |
+| 2 | `aura/configs/hosts.conf` | `host`、`index`、`train_master_index`、`infer_master_index` | 单机训推共部署时，后两列均填 1，见下文 |
+| 3 | `aura/configs/base.conf` | `work_mode`、`train_config_name` | 共卡模式下 `infer_config_name` 不生效，见下文 |
+| 4 | `aura/configs/env/env.local` | `DEFAULT_SOCKET_IFNAME`、`ASCEND_RT_VISIBLE_DEVICES` | 见下文 |
+
+### 修改训练/推理配置文件
+
+参数含义可参见文件头的注释。训练配置至少需要修改以下路径（其余参数保持默认即可）：
+
+- [共卡训练配置文件](../../../../../aura/configs/train/verl_train_hybrid_A3_t16_qwen3_4b_math_fsdp.yaml)
+
+```yaml
+hydra:
+  searchpath:
+    - file:///verl/verl/trainer/config
+    - file:///path/to/AgentSDK/aura/configs/train/verl_conf # 改为本代码仓 aura/configs/train/verl_conf 的绝对路径
+
+verl_conf:
+  data:
+    train_files: /path/to/data/train.parquet # 训练数据集（parquet），由 gsm8k.py 处理生成
+    val_files: /path/to/data/test.parquet # 测试数据集（parquet），由 gsm8k.py 处理生成
+  actor_rollout_ref:
+    model:
+      path: /path/to/models/Qwen3-4B # 模型权重路径
+```
 
 ### 修改hosts.conf
+
+- [hosts.conf](../../../../../aura/configs/hosts.conf)
 
 修改为单机对应的 IP 地址：
 
@@ -93,10 +124,12 @@ python3 gsm8k.py \
 
 ### 修改base.conf
 
+- [base.conf](../../../../../aura/configs/base.conf)
+
 ```shell
 # [train]
 # 启动训练相关参数
-# 工作模式：hybrid 共卡模式 | one_step_off 全异步分离模式
+# 工作模式：hybrid 共卡模式 | one_step_off 单步异步分离模式 | fully_async 全异步分离模式
 work_mode=hybrid
 
 # 共卡和分离模式均需要配置训练yaml文件
@@ -118,6 +151,12 @@ clean_old_ckpt=0
 ```
 
 ## **配置环境变量**
+
+一键拉起脚本默认读取 `aura/configs/env/env.conf`。如需按本机环境覆盖网卡、可见 NPU 等变量，请创建 `aura/configs/env/env.local`，并以每行一个 `KEY=VALUE` 的格式写入覆盖值，无需添加 `export`。临时调试也可以先在 shell 中 `export`，其优先级最高。训练和推理业务参数仍在对应的 YAML 文件中配置；完整说明请参见【[环境变量配置](../../02_installation_guide.md#环境变量配置)】。
+
+```shell
+touch aura/configs/env/env.local
+```
 
 ### 配置 DEFAULT_SOCKET_IFNAME
 
@@ -142,18 +181,18 @@ clean_old_ckpt=0
             inet 192.168.100.100  netmask 255.255.255.0  broadcast 192.168.100.255
     ```
 
-3. 假设本地 IP 为 192.168.0.1，那么指向本地 IP 对应网络接口的值即为 enp189s0f0，即需要执行：
+3. 假设本地 IP 为 192.168.0.1，那么指向本地 IP 对应虚拟网桥的值即为 enp189s0f0 ，即需要写入 `aura/configs/env/env.local`：
 
-    ```shell
-    export DEFAULT_SOCKET_IFNAME=enp189s0f0
+    ```text
+    DEFAULT_SOCKET_IFNAME=enp189s0f0
     ```
 
 ### 配置 ASCEND_RT_VISIBLE_DEVICES
 
 配置可用的 NPU 的卡数。
 
-```shell
-export ASCEND_RT_VISIBLE_DEVICES=0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
+```text
+ASCEND_RT_VISIBLE_DEVICES=0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
 ```
 
 ## **启动训练**
@@ -168,4 +207,4 @@ bash scripts/start_rl_with_verl_vllm.sh
 ```
 
 > [!NOTE]
-> 本文档专门针对 Qwen3-4B 共卡模式（hybrid）的启动示例，提供该场景下的快速拉起步骤；通用且详细的完整启动流程请参考 [快速入门指南](../../03_quick_start.md)。
+> 本文档专门针对 Qwen3-4B 共卡模式（hybrid）的启动示例，提供该场景下的快速入门步骤；通用且详细的完整启动流程请参考 [快速入门指南](../../03_quick_start.md)。

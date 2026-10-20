@@ -1,10 +1,10 @@
 # 使用指南
 
-本文档介绍 AgentSDK 的核心使用方法，包括运行模式、自定义 Agent 开发、配置文件使用等内容。
+本文档介绍 Agent SDK 的核心使用方法，包括运行模式、自定义 Agent 开发、配置文件使用等内容。
 
 ## 运行模式
 
-AgentSDK 支持两种运行模式：
+Agent SDK 支持两种运行模式：
 
 | 模式 | 说明 |
 |------|------|
@@ -86,7 +86,7 @@ curl -X POST http://localhost:8030/v1/chat/completions \
 
 ## 自定义 Agent 开发
 
-详见 [自定义 Agent 接入指南](04_custom_agent.md)。
+详见 [自定义 Agent 接入指南](06_custom_agent.md)。
 
 ---
 
@@ -197,14 +197,14 @@ Hydra配置系统采用分层组合的方式，通过`hydra.searchpath`和`defau
 hydra:
   searchpath:
     - file:///verl/verl/trainer/config    # verl原始默认配置路径
-    - file://AgenticRL/configs/verl_conf  # 项目自定义配置路径
+    - file://path/to/AgentSDK/aura/configs/train/verl_conf  # 项目自定义配置路径
 ```
 
 **说明**：
 
 > - `file:///verl/verl/trainer/config`：指向verl框架的默认配置文件目录
 >
-> - `file://AgenticRL/configs/verl_conf`：指向项目自定义的配置文件目录
+> - `file://path/to/AgentSDK/aura/configs/train/verl_conf`：指向项目自定义的配置文件目录
 >
 > - Hydra会按照列表顺序依次搜索配置文件
 
@@ -274,30 +274,7 @@ trainer:
 
 ## 注册自定义引擎
 
-AgentSDK 提供注册表机制，支持注册自定义的训练引擎、推理引擎和数据管理器。
-
-### 注册训练引擎
-
-```python
-from aura.trainer.train_register import registry as train_registry
-
-# 注册自定义训练引擎
-train_registry.register(
-    train_engine="my_train_engine",
-    cluster_mode="hybrid",
-    rollout_method=my_rollout_fn,
-    train_method=my_train_fn
-)
-```
-
-### 注册推理引擎
-
-```python
-from aura.runner.infer_adapter.infer_registry import registry as infer_registry
-
-# 注册自定义推理后端
-infer_registry.register("my_infer_backend", MyInferServer)
-```
+Agent SDK 提供注册表机制，支持注册自定义的Agent。
 
 ### 注册 Agent 引擎
 
@@ -330,26 +307,15 @@ AGENTS_MAPPING.append({
 })
 ```
 
-### 注册数据管理器
-
-```python
-from aura.data_manager.data_registry import registry as data_registry
-
-# 注册自定义数据管理器
-data_registry.register(
-    train_backend="my_backend",
-    service_mode="train",
-    cls=MyDataManager
-)
-```
-
 ---
 
 ## 更多实践指南
 
 - 训推共卡模式（On-Policy 策略）：[02_hybrid.md](02_hybrid.md)
-- 训推分离模式（One-Step-Off 策略）：[03_one_step_off.md](03_one_step_off.md)
-- 自定义 Agent 接入指南：[04_custom_agent.md](04_custom_agent.md)
+- 训推单步异步分离模式（One Step Off 策略）：[03_one_step_off.md](03_one_step_off.md)
+- 训推全异步分离模式（Fully Async 策略）：[04_fully_async.md](04_fully_async.md)
+- 混合批次调度（Mixed Batch Scheduling）：[05_mixed_batch.md](05_mixed_batch.md)
+- 自定义 Agent 接入指南：[06_custom_agent.md](06_custom_agent.md)
 
 ---
 

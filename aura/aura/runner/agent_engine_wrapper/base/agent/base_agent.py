@@ -38,6 +38,10 @@ class Step:
     mc_return: float = 0.0
 
     step_id: int = 0
+    prompt_ids = []
+    response_ids = []
+    response_masks = None
+    logprobs = []
 
     def to_dict(self):
         return {

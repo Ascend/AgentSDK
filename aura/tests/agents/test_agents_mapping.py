@@ -36,6 +36,8 @@ _MODULES_TO_MOCK = [
     "agents.proxy_agent.extern_agent",
     "agents.proxy_agent.environment.tool_env",
     "aura.runner.agent_engine_wrapper.base.environment.env_utils",
+    "aura.runner.agent_engine_wrapper.proxy_client",
+    "aura.runner.agent_engine_wrapper.proxy_client.traj_proxy_client",
 ]
 
 _original_modules = {}

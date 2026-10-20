@@ -115,7 +115,8 @@ with patch.dict('sys.modules', {
     'verl.experimental': mock_verl.experimental,
     'verl.experimental.separation.utils': mock_verl.experimental.separation.utils,
     'socket': mock_socket,
-    'os': MagicMock(getpid=mock_os_pid, path=os.path),
+    # Keep the real ``os`` module intact so libraries like numpy can still call
+    # ``os.uname()``; only ``os.getpid`` is overridden via patch below.
     # Mock aura submodules
     'aura.trainer.train_adapter.verl.full_async.workers.fsdp_workers': mock_fsdp_workers,
     'aura.trainer.train_adapter.verl.full_async.workers.megatron_worker': mock_megatron_worker,
@@ -362,6 +363,134 @@ class TestStartTrain(unittest.TestCase):
             # Verify exception
             with self.assertRaises(RuntimeError):
                 start_train_func('local', mock_config)
+
+
+class TestFullyAsyncTaskRunnerHelpers(unittest.TestCase):
+    """Unit tests for the extracted helpers ``_drain_futures``/``_handle_completed_future``/``_cancel_all``."""
+
+    def setUp(self):
+        # Reset module-level mocks (including side_effect/return_value) to avoid
+        # cross-test state pollution. Each test re-sets the behavior it needs.
+        mock_ray.reset_mock(side_effect=True, return_value=True)
+        mock_fully_async_trainer.reset_mock(side_effect=True, return_value=True)
+        self.task_runner = FullyAsyncTaskRunner()
+
+    def _make_future(self, name="f"):
+        return MagicMock(name=name)
+
+    def test_cancel_all_invokes_ray_cancel(self):
+        f1 = self._make_future("f1")
+        f2 = self._make_future("f2")
+        f3 = self._make_future("f3")
+
+        self.task_runner._cancel_all([f1, f2, f3])
+
+        # ``ray.cancel`` is mocked at module level via mock_ray
+        self.assertEqual(mock_ray.cancel.call_count, 3)
+        for f in (f1, f2, f3):
+            mock_ray.cancel.assert_any_call(f)
+
+    def test_cancel_all_handles_empty_list(self):
+        # Should not raise when there are no futures to cancel
+        self.task_runner._cancel_all([])
+        mock_ray.cancel.assert_not_called()
+
+    def test_handle_completed_future_success_does_not_cancel_siblings(self):
+        future = self._make_future("future")
+        sibling = self._make_future("sibling")
+        mock_ray.get.return_value = None
+
+        # Should not raise
+        self.task_runner._handle_completed_future(future, [sibling])
+
+        mock_ray.get.assert_called_once_with(future)
+        # ray.cancel should not be called because future succeeded
+        mock_ray.cancel.assert_not_called()
+
+    def test_handle_completed_future_failure_cancels_siblings_and_raises(self):
+        future = self._make_future("future")
+        sibling = self._make_future("sibling")
+        mock_ray.get.side_effect = RuntimeError("worker crashed")
+
+        with self.assertRaises(RuntimeError):
+            self.task_runner._handle_completed_future(future, [sibling])
+
+        mock_ray.get.assert_called_once_with(future)
+        # Siblings should be cancelled
+        mock_ray.cancel.assert_called_once_with(sibling)
+
+    def test_drain_futures_returns_when_no_futures(self):
+        result = self.task_runner._drain_futures([])
+        self.assertEqual(result, [])
+
+    def test_drain_futures_processes_single_future_success(self):
+        future = self._make_future("future")
+        mock_ray.wait.return_value = ([future], [])
+        mock_ray.get.return_value = None
+
+        result = self.task_runner._drain_futures([future])
+
+        # After one iteration, remaining is [] and loop exits
+        self.assertEqual(result, [])
+        mock_ray.wait.assert_called_once()
+        mock_ray.get.assert_called_once_with(future)
+
+    def test_drain_futures_loops_through_multiple_futures(self):
+        f1 = self._make_future("f1")
+        f2 = self._make_future("f2")
+        # First wait returns f1 done with f2 remaining, second wait returns f2 done with no remaining
+        mock_ray.wait.side_effect = [([f1], [f2]), ([f2], [])]
+        mock_ray.get.return_value = None
+
+        result = self.task_runner._drain_futures([f1, f2])
+
+        self.assertEqual(result, [])
+        self.assertEqual(mock_ray.wait.call_count, 2)
+        self.assertEqual(mock_ray.get.call_count, 2)
+
+    def test_drain_futures_propagates_failure_and_stops_loop(self):
+        f1 = self._make_future("f1")
+        f2 = self._make_future("f2")
+        mock_ray.wait.return_value = ([f1], [f2])
+        mock_ray.get.side_effect = RuntimeError("first future failed")
+
+        with self.assertRaises(RuntimeError):
+            self.task_runner._drain_futures([f1, f2])
+
+        # Only the first future was processed (loop aborted via exception)
+        mock_ray.get.assert_called_once_with(f1)
+        # Sibling cancelled
+        mock_ray.cancel.assert_called_once_with(f2)
+
+    def test_run_training_loop_sets_running_flag(self):
+        """``_run_training_loop`` should set running=True at the start."""
+        self.task_runner.components = {"trainer": mock_fully_async_trainer}
+        mock_fully_async_trainer.reset_mock()
+        future = self._make_future("future")
+        mock_fully_async_trainer.fit.remote.return_value = future
+        mock_ray.wait.return_value = ([future], [])
+        mock_ray.get.return_value = None
+
+        self.task_runner._run_training_loop()
+
+        self.assertTrue(self.task_runner.running)
+        mock_fully_async_trainer.fit.remote.assert_called_once()
+
+    def test_run_training_loop_cancels_remaining_on_failure(self):
+        """On failure, ``_run_training_loop`` should cancel remaining futures and re-raise."""
+        self.task_runner.components = {"trainer": mock_fully_async_trainer}
+        mock_fully_async_trainer.reset_mock()
+        future = self._make_future("future")
+        mock_fully_async_trainer.fit.remote.return_value = future
+        mock_ray.wait.return_value = ([future], [])
+        mock_ray.get.side_effect = RuntimeError("train crashed")
+
+        with self.assertRaises(RuntimeError):
+            self.task_runner._run_training_loop()
+
+        # Cancel invoked on the original futures list (which is [future])
+        mock_ray.cancel.assert_any_call(future)
+
 
 if __name__ == '__main__':
     unittest.main()

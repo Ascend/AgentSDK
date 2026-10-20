@@ -40,11 +40,13 @@ eth0: error fetching interface information: Device not found
             inet 192.168.100.100  netmask 255.255.255.0  broadcast 192.168.100.255
     ```
 
-3. 假设本地IP为 192.168.0.1，那么指向本地IP对应网络接口的值即为 enp189s0f0，即需要执行：
+3. 假设本地IP为 192.168.0.1，那么指向本地IP对应虚拟网桥的值即为 enp189s0f0。建议将配置写入 `aura/configs/env/env.local`，使后续启动持续生效：
 
     ```shell
-    export DEFAULT_SOCKET_IFNAME=enp189s0f0
+    echo 'DEFAULT_SOCKET_IFNAME=enp189s0f0' >> aura/configs/env/env.local
     ```
+
+    如仅需临时调试，也可以在当前 shell 中执行 `export DEFAULT_SOCKET_IFNAME=enp189s0f0`，外部环境变量的优先级高于 `env.local` 和 `env.conf`。
 
 ## 提示换行符不识别<a name="faq_002"></a>
 
@@ -275,7 +277,7 @@ fatal error: 'moe_distribute_comm_ctx.h' file not found
 
 **原因分析<a name="faq_011_analysis"></a>**
 
-vllm-ascend对于a3服务器，在cmake编译算子时，缺少头文件路径，需补充环境变量，从而将该文件路径添加到CMakeList的文件路径中。
+vllm-ascend对于a3服务器，在cmake编译算子时，缺少头文件路径，需补充环境变量，从而将该文件路径添加到CMakeLists的文件路径中。
 
 **解决方案<a name="faq_011_solution"></a>**
 
@@ -382,7 +384,7 @@ AssertionError: Session name session_2026-07-09_09-17-24_537353_45519 does not m
 
 **原因分析<a name="faq_015_analysis"></a>**
 
-AgentSDK 底层使用 Ray 进行分布式训练，而 Ray 依赖 Redis 来管理集群状态。之前的 Ray 会话没有正常退出，其临时文件或 Redis 中的元数据未被清理，与新启动的会话产生冲突。
+Agent SDK 底层使用 Ray 进行分布式训练，而 Ray 依赖 Redis 来管理集群状态。之前的 Ray 会话没有正常退出，其临时文件或 Redis 中的元数据未被清理，与新启动的会话产生冲突。
 
 **解决方案<a name="faq_015_solution"></a>**
 

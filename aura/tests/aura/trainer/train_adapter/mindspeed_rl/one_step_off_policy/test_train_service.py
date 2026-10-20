@@ -58,6 +58,39 @@ def train_service_module(monkeypatch):
         mock_train_controller_module,
     )
 
+    # Mock aura.base.exceptions.exceptions to avoid `from fastapi import HTTPException`
+    # which triggers incompatible fastapi/pydantic schema generation errors.
+    mock_exceptions_module = MagicMock()
+
+    class RolloutShutdownException(Exception):
+        """Raised when SampleQueue is shut down, signaling rollout to stop generation."""
+        pass
+
+    mock_exceptions_module.RolloutShutdownException = RolloutShutdownException
+    monkeypatch.setitem(
+        sys.modules,
+        "aura.base.exceptions.exceptions",
+        mock_exceptions_module,
+    )
+
+    # Mock aura.data_manager.data_transform to avoid `from tensordict import TensorDict`.
+    monkeypatch.setitem(
+        sys.modules,
+        "aura.data_manager.data_transform",
+        MagicMock(),
+    )
+
+    # Mock aura.trainer.rollout.rollout_worker so that `dummy_rollout`'s
+    # `from aura.trainer.rollout.rollout_worker import RolloutWorker` does not trigger
+    # the real import chain (fastapi/starlette/tensordict).
+    mock_rollout_worker_module = MagicMock()
+    mock_rollout_worker_module.RolloutWorker = MagicMock()
+    monkeypatch.setitem(
+        sys.modules,
+        "aura.trainer.rollout.rollout_worker",
+        mock_rollout_worker_module,
+    )
+
     # Keep prepare_train lightweight and isolated from deeper training deps.
     mock_prepare_train_module = MagicMock()
     mock_prepare_train_module.prepare_train = MagicMock()

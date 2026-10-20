@@ -19,7 +19,9 @@
 from typing import Optional
 
 from aura.runner.agent_engine_wrapper.base.environment.env_utils import compute_trajectory_reward
-
+from agents.proxy_agent.extern_agent import ProxyAgent
+from agents.proxy_agent.environment.tool_env import ProxyEnvironment
+from aura.runner.agent_engine_wrapper.proxy_client.traj_proxy_client import TrajProxyClient
 from agents.math_agent.environment.tool_env import ToolEnvironment
 from agents.math_agent.reward.reward_fn import math_reward_fn
 from agents.math_agent.tool_agent import ToolAgent
@@ -42,6 +44,16 @@ AGENTS_MAPPING = [
             "For example, if the answer is 42, you should return: \\boxed{42}. ",
         },
         "compute_trajectory_reward_fn": compute_trajectory_reward,
+    },
+    {
+        "name": "proxy",
+        "env_class": ProxyEnvironment,
+        "env_args": {
+        },
+        "agent_class": ProxyAgent,
+        "agent_args": {
+            "parser_name": "qwen",
+        },
     },
 ]
 

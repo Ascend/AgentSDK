@@ -187,13 +187,20 @@ function parse_train_conf()
   fi
 
   case "${WORK_MODE}" in
-    hybrid|one_step_off)
+    hybrid|one_step_off|fully_async)
       ;;
     *)
-      log_error "invalid WORK_MODE '${WORK_MODE}' in ${BASE_CONF}, supported values: hybrid, one_step_off"
+      log_error "invalid WORK_MODE '${WORK_MODE}' in ${BASE_CONF}, supported values: hybrid, one_step_off, fully_async"
       exit 1
       ;;
   esac
+
+  # Determine the black box mode based on the agent_engine configuration
+  local train_yaml="${root_dir}/configs/train/${TRAIN_CONF_NAME}.yaml"
+  if [[ -f "${train_yaml}" ]]; then
+    export AGENT_ENGINE=$(grep "agent_engine:" "${train_yaml}" | tail -1 | awk '{print $2}')
+  fi
+  log_info "AGENT_ENGINE: ${AGENT_ENGINE}"
 }
 
 function parse_resume_conf()
@@ -314,4 +321,55 @@ function grep_global_step_from_path()
         global_step="${BASH_REMATCH[1]}"
     fi
     echo "$global_step"
+}
+
+function start_load_balance_for_hybrid() {
+  if [[ ${VC_TASK_INDEX} -gt 0 ]]; then
+    return
+  fi
+
+  local PORT=8080
+  local PROXY_SCRIPT="${scripts_dir}/infer/vllm/load_balance_proxy_server.py"
+  if [ -f "$PROXY_SCRIPT" ]; then
+      echo "   - Cleaning up existing load balance processes..."
+
+      # 1) Clear residual LB processes
+      if command -v pkill >/dev/null 2>&1; then
+          pkill -9 -f "$(basename "$PROXY_SCRIPT")" 2>/dev/null
+      fi
+
+      # 2) Terminate any remaining processes occupying port 8080
+      if command -v fuser >/dev/null 2>&1; then
+          echo "     force-killing process on port ${PORT}"
+          fuser -k -n tcp ${PORT} 2>/dev/null
+      elif command -v lsof >/dev/null 2>&1; then
+          local PID=$(lsof -t -i:${PORT})
+          echo "     force-killing process on port ${PORT}: ${PID}"
+          [ -z "$PID" ] || kill -9 $PID 2>/dev/null
+      fi
+
+      # 3) Wait for port 8080 to be released
+      local waited=0
+      while [ ${waited} -lt 30 ]; do
+          if command -v ss >/dev/null 2>&1; then
+              ss -ltn 2>/dev/null | grep -q ":${PORT} " || break
+          elif command -v lsof >/dev/null 2>&1; then
+              lsof -i:${PORT} >/dev/null 2>&1 || break
+          else
+              break
+          fi
+          echo "     port ${PORT} still in use, waiting... (${waited}s)"
+          sleep 1
+          waited=$((waited+1))
+      done
+
+      timestamp=$(date +"%Y%m%d_%H%M%S")
+      echo "   - Starting proxy in background: ${PROXY_SCRIPT} on port ${PORT}"
+      python $PROXY_SCRIPT \
+          --host 0.0.0.0 \
+          --port ${PORT} > ${root_dir}/logs/lb_${timestamp}.log 2>&1 &
+      sleep 0.5
+  else
+      echo "   - Error: Proxy script not found at ${PROXY_SCRIPT}"
+  fi
 }

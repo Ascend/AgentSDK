@@ -61,7 +61,7 @@ class RewardMathFn:
             RewardOutput: The calculated reward with correctness information
         """
         # Extract information from task_info
-        task = task_info.get("task", "")
+        task = task_info.get("task", task_info)
         if isinstance(task, dict):
             problem = task.get("question", "")
         else:

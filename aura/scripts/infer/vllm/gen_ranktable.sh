@@ -1,8 +1,13 @@
 #!/bin/bash
 # Copyright Huawei Technologies Co., Ltd. 2026-2026. All rights reserved.
 
+# 注意: 本脚本会被复制到 / 目录下执行（参见 vllm_launch.sh::generate_ranktable），
+# 因此不能依赖相对路径 source load_env.sh。所需环境变量（DEFAULT_SOCKET_IFNAME /
+# CANN_OPP_VENDORS_OP_API_LIB 等）已由上游脚本通过 load_env.sh 加载并 export，
+# 此处仅作兜底默认值处理。
+
 source /usr/local/Ascend/ascend-toolkit/set_env.sh
-export LD_LIBRARY_PATH=/usr/local/Ascend/ascend-toolkit/latest/opp/vendors/customize/op_api/lib/:${LD_LIBRARY_PATH}
+export LD_LIBRARY_PATH=${CANN_OPP_VENDORS_OP_API_LIB:-/usr/local/Ascend/ascend-toolkit/latest/opp/vendors/customize/op_api/lib/}:${LD_LIBRARY_PATH}
 
 NPUS_PER_NODE=8
 while [[ $# -gt 0 ]]; do

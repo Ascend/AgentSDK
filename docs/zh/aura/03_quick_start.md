@@ -16,6 +16,11 @@ Aura 提供两种构建运行环境的方式，用户可根据实际情况任选
 
     如果您已经在 CANN 9.0.0 的基础镜像容器内，可以执行一键拉起脚本完成 Aura 及其所有依赖（vLLM、 vllm-ascend、 MindSpeed、 Megatron-LM、 verl、 transformers 等）的安装。具体操作请参见“[使用一键式环境配置脚本 build_env.sh](02_installation_guide.md#方式二使用一键式环境配置脚本-build_envsh)”。
 
+> [!NOTE]
+> 预构建镜像中的代码为镜像构建时刻的快照，可能与代码仓发布分支的最新代码不一致。进入容器后建议先检查本地与远程对应分支的最新 commit 是否一致，如不一致可拉取最新代码更新，再按本文档进行配置和启动。
+>
+> 多机场景下，用户需在共享目录手动拉取最新代码。
+
 ## **使用流程**
 
 Aura 提供了训练模型示例。
@@ -32,11 +37,11 @@ Aura 提供了训练模型示例。
 ```shell
 # [train]
 # 启动训练相关参数
-# 工作模式：hybrid 共卡模式 | one_step_off 单步滞后分离模式
+# 工作模式：hybrid 共卡模式 | one_step_off 单步异步分离模式 | fully_async 全异步分离模式
 work_mode=one_step_off
 
 # 共卡和分离模式均需要配置训练yaml文件
-train_config_name=verl_train_async_t16_qwen3_32B_math
+train_config_name=verl_train_async_A3_t16_qwen3_32b_math_fsdp
 
 # 分离模式需要单独配置推理yaml文件, 共卡模式该配置不生效
 infer_config_name=vllm_infer_i16_qwen3_32b
@@ -57,7 +62,7 @@ clean_old_ckpt=0
 
 根据工作模式选择对应的配置方式：
 
-**hybrid 模式（单机）**：修改为单机对应的 IP 地址，以下以 `192.168.0.1` 为例：
+**共卡模式（hybrid）单机**：修改为单机对应的 IP 地址，以下以 `192.168.0.1` 为例：
 
 ```shell
 # host,index,train_master_index,infer_master_index(可选)
@@ -65,7 +70,7 @@ clean_old_ckpt=0
 192.168.0.1,0,1,1
 ```
 
-**one-step-off 模式（双机）**：修改为双机对应的 IP 地址，以下以 `192.168.0.1` 和 `192.168.0.2` 为例：
+**分离模式（One Step Off 和 Fully Async）双机**：修改为双机对应的 IP 地址，以下以 `192.168.0.1` 和 `192.168.0.2` 为例：
 
 ```shell
 # host,index,train_master_index,infer_master_index(可选)
@@ -75,6 +80,12 @@ clean_old_ckpt=0
 ```
 
 ### 修改环境变量配置
+
+一键拉起脚本默认读取 `aura/configs/env/env.conf`。开发者按本机环境修改网卡、NPU 可见卡等配置时，建议在 `aura/configs/env/env.local` 中覆盖默认值；临时调试也可以先在 shell 中 `export`，其优先级最高。`env.local` 每行写一个 `KEY=VALUE`，无需添加 `export`。训练和推理业务参数仍在对应的 YAML 文件中配置；完整的加载优先级和 Python 路径配置请参见【[环境变量配置](02_installation_guide.md#环境变量配置)】。
+
+```shell
+touch aura/configs/env/env.local
+```
 
 #### 配置 DEFAULT_SOCKET_IFNAME
 
@@ -99,18 +110,18 @@ clean_old_ckpt=0
             inet 192.168.100.100  netmask 255.255.255.0  broadcast 192.168.100.255
     ```
 
-3. 假设本地 IP 为 192.168.0.1，那么指向本地 IP 对应网络接口的值即为 enp189s0f0 ，即需要执行：
+3. 假设本地 IP 为 192.168.0.1，那么指向本地 IP 对应虚拟网桥的值即为 enp189s0f0 ，即需要写入 `aura/configs/env/env.local`：
 
-    ```shell
-    export DEFAULT_SOCKET_IFNAME=enp189s0f0
+    ```text
+    DEFAULT_SOCKET_IFNAME=enp189s0f0
     ```
 
 #### 配置 ASCEND_RT_VISIBLE_DEVICES
 
 根据自己实际需要设置可用的 NPU 的卡数，例如需要指定 0-15 号 NPU：
 
-```shell
-export ASCEND_RT_VISIBLE_DEVICES=0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
+```text
+ASCEND_RT_VISIBLE_DEVICES=0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
 ```
 
 ### 启动方式
@@ -135,14 +146,19 @@ bash scripts/start_rl_with_verl_vllm.sh
 
 **Aura 使用样例请参考[使用指南](04_user_guide/01_user_guide.md)**
 
-**Aura Qwen3-4B Math 场景一键拉起样例请参考[Qwen3-4B Math 场景样例](models/qwen3-4b.md)**
+**Aura 各模型支持的场景模式及一键拉起样例：**
 
-**Aura Qwen3-8B Math 场景一键拉起样例请参考[Qwen3-8B Math 场景样例](models/qwen3_8b.md)**
+| 模型              | 共卡模式                                                     | 单步异步分离模式                                                       | 混合批次调度                        | 全异步分离模式                     |
+|-----------------|----------------------------------------------------------|----------------------------------------------------------------|-------------------------------|-----------------------------|
+| Qwen3-4B        | [✓ 支持](models/qwen3-4b_quick_start/qwen3-4b-hybrid.md)   | [✓ 支持](models/qwen3-4b_quick_start/qwen3-4b-one-step-off.md)   | —                             | —                           |
+| Qwen3-8B        | [✓ 支持](models/qwen3_8b.md)                               | [✓ 支持](models/qwen3_8b.md)                                     | —                             | —                           |
+| Qwen3-14B       | [✓ 支持](models/qwen3-14b_quick_start/qwen3-14b-hybrid.md) | [✓ 支持](models/qwen3-14b_quick_start/qwen3-14b-one-step-off.md) | —                             | —                           |
+| Qwen3-30B-A3B   | [✓ 支持](models/qwen3-30b-a3b.md)                          | [✓ 支持](models/qwen3-30b-a3b.md)                                | —                             | —                           |
+| Qwen3-32B       | [✓ 支持](models/qwen3_32b.md)                              | [✓ 支持](models/qwen3_32b.md)                                    | —                             | [✓ 支持](models/qwen3_32b.md) |
+| Qwen3.6-27B     | [✓ 支持](models/qwen3.6-27b.md)                            | [✓ 支持](models/qwen3.6-27b.md)                                  | [✓ 支持](models/qwen3.6-27b.md) | —                           |
+| Qwen3.6-35B-A3B | [✓ 支持](models/qwen3.6-35b-a3b.md)                        | [✓ 支持](models/qwen3.6-35b-a3b.md)                              | —                             | —                           |
 
-**Aura Qwen3-30B-A3B Math 场景一键拉起样例请参考[Qwen3-30B-A3B Math 场景样例](models/qwen3-30b-a3b.md)**
-
-**Aura Qwen3-14B Math 场景一键拉起样例请参考[Qwen3-14B Math 场景样例](models/qwen3-14b_quick_start/qwen3-14b-hybrid.md)**
-
-**Aura Qwen3-32B Math 场景一键拉起样例请参考[Qwen3-32B Math 场景样例](models/qwen3_32b.md)**
+> [!NOTE]
+> 「—」表示该模型当前未提供对应模式的一键拉起样例；「✓ 支持」为对应场景样例的链接。
 
 **Aura 支持的后端与模型列表请参考[支持推理后端](10_appendix.md#支持的推理后端)，[支持训练后端](10_appendix.md#支持的训练后端)，[支持agent后端](10_appendix.md#支持的Agent后端)，[支持模型列表](10_appendix.md#支持的模型列表)**

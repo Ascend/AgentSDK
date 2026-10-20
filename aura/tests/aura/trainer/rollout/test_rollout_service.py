@@ -33,8 +33,12 @@ class TestRolloutService(unittest.TestCase):
             sys.path.insert(0, aura_src)
         module_names = ['mindspeed_rl', 'mindspeed_rl.utils', 'mindspeed_rl.utils.utils', 'verl',
                         'aura.trainer.rollout.rollout_service', 'aura.trainer.rollout.rollout_worker',
-                        'aura.trainer.rollout.rollout_executor', 'aura.controllers.rollout_controller',
-                        'aura.controllers.rollout_controller.rollout_controller', 'aura.base.utils.pad_process',
+                        'aura.trainer.rollout.rollout_executor', 'aura.trainer.rollout.fully_async_rollout_executor',
+                        'aura.controllers.rollout_controller',
+                        'aura.controllers.rollout_controller.rollout_controller',
+                        'aura.controllers.rollout_controller.rollout_queue',
+                        'aura.controllers.rollout_controller.sample_queue',
+                        'aura.base.utils.pad_process',
                         'aura.base.log.loggers', 'ray', 'ray.util', 'ray.util.scheduling_strategies']
         for module_name in module_names:
             if module_name in sys.modules:
@@ -89,6 +93,13 @@ class TestRolloutService(unittest.TestCase):
         mock_executor_module.OneStepOffRolloutExecutor = self.mock_executor_cls
         sys.modules['aura.trainer.rollout.rollout_executor'] = mock_executor_module
 
+        self.mock_fully_async_executor_cls = MagicMock()
+        self.mock_fully_async_executor_instance = MagicMock()
+        self.mock_fully_async_executor_cls.return_value = self.mock_fully_async_executor_instance
+        mock_fully_async_executor_module = MagicMock()
+        mock_fully_async_executor_module.FullyAsyncRolloutExecutor = self.mock_fully_async_executor_cls
+        sys.modules['aura.trainer.rollout.fully_async_rollout_executor'] = mock_fully_async_executor_module
+
         self.mock_controller_cls = MagicMock()
         self.mock_controller_instance = MagicMock()
         self.mock_controller_cls.return_value = self.mock_controller_instance
@@ -102,12 +113,19 @@ class TestRolloutService(unittest.TestCase):
         mock_rollout_queue_module.get_rollout_queue_actor = MagicMock(return_value=MagicMock())
         sys.modules['aura.controllers.rollout_controller.rollout_queue'] = mock_rollout_queue_module
 
+        # Mock sample_queue module so the lazy import in start_fully_async_rollout resolves.
+        self.mock_sample_queue = MagicMock()
+        self.mock_sample_queue_obj = MagicMock()
+        self.mock_sample_queue.get_sample_queue.return_value = self.mock_sample_queue_obj
+        sys.modules['aura.controllers.rollout_controller.sample_queue'] = self.mock_sample_queue
+
         # Import target module, then patch key symbols on module object to avoid stale imports.
         self.rollout_service = importlib.import_module('aura.trainer.rollout.rollout_service')
         self.rollout_service.ray = self.mock_ray
         self.rollout_service.NodeAffinitySchedulingStrategy = self.mock_node_affinity
         self.rollout_service.RolloutWorker = self.mock_rollout_worker_cls
         self.rollout_service.OneStepOffRolloutExecutor = self.mock_executor_cls
+        self.rollout_service.FullyAsyncRolloutExecutor = self.mock_fully_async_executor_cls
         self.rollout_service.RolloutController = self.mock_controller_cls
 
     def tearDown(self):
@@ -116,8 +134,11 @@ class TestRolloutService(unittest.TestCase):
                         'ray', 'ray.util', 'ray.util.scheduling_strategies',
                         'aura.base.log.loggers', 'aura.base.utils.pad_process',
                         'aura.trainer.rollout.rollout_worker', 'aura.trainer.rollout.rollout_executor',
+                        'aura.trainer.rollout.fully_async_rollout_executor',
                         'aura.controllers.rollout_controller', 'aura.controllers.rollout_controller.rollout_controller',
-                        'aura.controllers.rollout_controller.rollout_queue', 'aura.trainer.rollout.rollout_service']
+                        'aura.controllers.rollout_controller.rollout_queue',
+                        'aura.controllers.rollout_controller.sample_queue',
+                        'aura.trainer.rollout.rollout_service']
         for module_name in mock_modules:
             if module_name in sys.modules:
                 del sys.modules[module_name]
@@ -310,6 +331,216 @@ class TestRolloutService(unittest.TestCase):
         self.mock_rollout_worker_cls.options.assert_called_once()
         self.mock_controller_cls.assert_called_once()
         self.mock_executor_cls.assert_called_once()
+
+    def _build_rollout_config(self, **overrides):
+        """Build a MagicMock rollout_config with default verl-like field values."""
+        mock_rollout_config = MagicMock()
+        mock_rollout_config.train_backend = "verl"
+        mock_rollout_config.trajectory_timeout = 300
+        mock_rollout_config.weight_save_dir = "/path/to/weights"
+        mock_rollout_config.hybrid_batch_num = 2
+        mock_rollout_config.use_on_policy = False
+        mock_rollout_config.wait_available_weight_timeout = 60
+        mock_rollout_config.n_samples_per_prompt = 8
+        mock_rollout_config.actor_rollout_dispatch_size = 0
+        mock_rollout_config.validate_n_samples = 1
+        mock_rollout_config.traj_output_path = "/path/to/output"
+        mock_rollout_config.tokenizer_name_or_path = "test_tokenizer"
+        mock_rollout_config.dataset_additional_keys = ["key1", "key2"]
+        mock_rollout_config.global_batch_size = 32
+        mock_rollout_config.train_iters = 100
+        mock_rollout_config.trust_remote_code = True
+        mock_rollout_config.infer_tensor_parallel_size = 1
+        mock_rollout_config.train_tensor_parallel_size = 1
+        mock_rollout_config.infer_expert_parallel_size = 1
+        mock_rollout_config.enable_version_control = True
+        mock_rollout_config.data_optimized = True
+        # Default: no SampleQueue injection (max_required_samples=0).
+        mock_rollout_config.max_required_samples = 0
+        for k, v in overrides.items():
+            setattr(mock_rollout_config, k, v)
+        return mock_rollout_config
+
+    # ---------- _create_rollout_worker ----------
+    def test_create_rollout_worker_default(self):
+        """Test _create_rollout_worker helper with default args."""
+        mock_rollout_config = self._build_rollout_config()
+        self.rollout_service._create_rollout_worker(
+            mock_rollout_config, "test_agent_service", "test_infer_service"
+        )
+        # Rollup worker construction via options().remote()
+        self.mock_rollout_worker_cls.options.assert_called_once()
+        self.mock_rollout_worker_cls.remote.assert_called_once()
+        kwargs = self.mock_rollout_worker_cls.remote.call_args.kwargs
+        self.assertEqual(kwargs["train_backend"], "verl")
+        self.assertEqual(kwargs["service_mode"], "infer")
+        self.assertEqual(kwargs["agent_service"], "test_agent_service")
+        self.assertEqual(kwargs["infer_service"], "test_infer_service")
+        self.assertEqual(kwargs["generate_config"], None)
+        self.assertEqual(kwargs["remove_padding_and_split_to_list"], None)
+
+    def test_create_rollout_worker_with_split_to_list(self):
+        """Test _create_rollout_worker helper with custom split_to_list and generate_config."""
+        mock_rollout_config = self._build_rollout_config()
+        mock_generate_config = MagicMock()
+        mock_split = MagicMock()
+        self.rollout_service._create_rollout_worker(
+            mock_rollout_config, "agent_svc", "infer_svc",
+            generate_config=mock_generate_config, split_to_list=mock_split
+        )
+        kwargs = self.mock_rollout_worker_cls.remote.call_args.kwargs
+        self.assertEqual(kwargs["generate_config"], mock_generate_config)
+        self.assertEqual(kwargs["remove_padding_and_split_to_list"], mock_split)
+
+    def test_create_rollout_worker_llm_tokenizer_path_missing(self):
+        """Test _create_rollout_worker helper falls back to None when llm_tokenizer_path missing."""
+        mock_rollout_config = self._build_rollout_config()
+        # Delete the auto-generated MagicMock attribute to simulate missing field
+        del mock_rollout_config.llm_tokenizer_path
+        self.rollout_service._create_rollout_worker(
+            mock_rollout_config, "agent_svc", "infer_svc"
+        )
+        kwargs = self.mock_rollout_worker_cls.remote.call_args.kwargs
+        self.assertIsNone(kwargs["llm_tokenizer_path"])
+
+    # ---------- _create_rollout_controller ----------
+    def test_create_rollout_controller(self):
+        """Test _create_rollout_controller helper."""
+        mock_rollout_config = self._build_rollout_config()
+        self.rollout_service._create_rollout_controller(mock_rollout_config, "test_model")
+        self.mock_controller_cls.assert_called_once()
+        kwargs = self.mock_controller_cls.call_args.kwargs
+        self.assertEqual(kwargs["model_name"], "test_model")
+        self.assertEqual(kwargs["weight_save_dir"], "/path/to/weights")
+        self.assertEqual(kwargs["tokenizer_name_or_path"], "test_tokenizer")
+        self.assertEqual(kwargs["train_tensor_parallel_size"], 1)
+
+    # ---------- start_fully_async_rollout ----------
+    def test_start_fully_async_rollout(self):
+        """Test start_fully_async_rollout function."""
+        mock_rollout_config = self._build_rollout_config()
+        self.rollout_service.start_fully_async_rollout(
+            rollout_config=mock_rollout_config,
+            agent_service="test_agent_service",
+            infer_service="test_infer_service",
+        )
+        self.mock_rollout_worker_cls.options.assert_called_once()
+        self.mock_controller_cls.assert_called_once()
+        self.mock_fully_async_executor_cls.assert_called_once()
+        self.mock_fully_async_executor_instance.fit.assert_called_once()
+        self.mock_controller_instance.send_ready_to_train.assert_called_once()
+
+    def test_start_fully_async_rollout_with_llm_tokenizer_path(self):
+        """Test start_fully_async_rollout function with llm_tokenizer_path set."""
+        mock_rollout_config = self._build_rollout_config(llm_tokenizer_path="/path/to/llm_tokenizer")
+        self.rollout_service.start_fully_async_rollout(
+            rollout_config=mock_rollout_config,
+            agent_service="agent_svc",
+            infer_service="infer_svc",
+        )
+        kwargs = self.mock_rollout_worker_cls.remote.call_args.kwargs
+        self.assertEqual(kwargs["llm_tokenizer_path"], "/path/to/llm_tokenizer")
+        self.mock_fully_async_executor_instance.fit.assert_called_once()
+
+    def test_start_fully_async_rollout_passes_executor_args(self):
+        """Test start_fully_async_rollout forwards expected kwargs to FullyAsyncRolloutExecutor."""
+        mock_rollout_config = self._build_rollout_config()
+        self.rollout_service.start_fully_async_rollout(
+            rollout_config=mock_rollout_config,
+            agent_service="agent_svc",
+            infer_service="infer_svc",
+        )
+        kwargs = self.mock_fully_async_executor_cls.call_args.kwargs
+        self.assertEqual(kwargs["train_iters"], 100)
+        self.assertEqual(kwargs["dataset_additional_keys"], ["key1", "key2"])
+        self.assertEqual(kwargs["data_optimized"], True)
+        self.assertEqual(kwargs["n_samples_per_prompt"], 8)
+        self.assertEqual(kwargs["hybrid_batch_num"], 2)
+
+    def test_start_fully_async_rollout_no_injection_when_max_required_samples_zero(self):
+        """Test start_fully_async_rollout does not inject SampleQueue when max_required_samples=0."""
+        mock_rollout_config = self._build_rollout_config(max_required_samples=0)
+        self.rollout_service.start_fully_async_rollout(
+            rollout_config=mock_rollout_config,
+            agent_service="agent_svc",
+            infer_service="infer_svc",
+        )
+        self.mock_sample_queue.get_sample_queue.assert_not_called()
+        self.mock_rollout_worker_instance.set_fully_async_config.remote.assert_not_called()
+        self.mock_fully_async_executor_instance.fit.assert_called_once()
+
+    def test_start_fully_async_rollout_injects_sample_queue_from_attr(self):
+        """Test start_fully_async_rollout injects SampleQueue from object attribute."""
+        mock_rollout_config = self._build_rollout_config(max_required_samples=4)
+        self.rollout_service.start_fully_async_rollout(
+            rollout_config=mock_rollout_config,
+            agent_service="agent_svc",
+            infer_service="infer_svc",
+        )
+        self.mock_sample_queue.get_sample_queue.assert_called_once()
+        self.mock_rollout_worker_instance.set_fully_async_config.remote.assert_called_once_with(
+            self.mock_sample_queue_obj, 4
+        )
+        self.mock_fully_async_executor_instance.fit.assert_called_once()
+
+    def test_start_fully_async_rollout_injects_sample_queue_from_dict(self):
+        """Test start_fully_async_rollout injects SampleQueue when rollout_config is a dict."""
+        # Use a dict subclass that also exposes items as attributes, so isinstance(.., dict)
+        # is True (exercising the dict branch) while _create_rollout_worker can still read fields.
+        class AttrDict(dict):
+            def __getattr__(self, name):
+                try:
+                    return self[name]
+                except KeyError:
+                    raise AttributeError(name)
+
+        rollout_dict = AttrDict({
+            "train_backend": "verl",
+            "trajectory_timeout": 300,
+            "weight_save_dir": "/path/to/weights",
+            "hybrid_batch_num": 2,
+            "use_on_policy": False,
+            "wait_available_weight_timeout": 60,
+            "n_samples_per_prompt": 8,
+            "actor_rollout_dispatch_size": 0,
+            "validate_n_samples": 1,
+            "traj_output_path": "/path/to/output",
+            "tokenizer_name_or_path": "test_tokenizer",
+            "dataset_additional_keys": ["key1", "key2"],
+            "global_batch_size": 32,
+            "train_iters": 100,
+            "trust_remote_code": True,
+            "infer_tensor_parallel_size": 1,
+            "train_tensor_parallel_size": 1,
+            "infer_expert_parallel_size": 1,
+            "enable_version_control": True,
+            "data_optimized": True,
+            "max_required_samples": 8,
+        })
+        self.rollout_service.start_fully_async_rollout(
+            rollout_config=rollout_dict,
+            agent_service="agent_svc",
+            infer_service="infer_svc",
+        )
+        self.mock_sample_queue.get_sample_queue.assert_called_once()
+        self.mock_rollout_worker_instance.set_fully_async_config.remote.assert_called_once_with(
+            self.mock_sample_queue_obj, 8
+        )
+        self.mock_fully_async_executor_instance.fit.assert_called_once()
+
+    def test_start_fully_async_rollout_injection_failure_reraises(self):
+        """Test start_fully_async_rollout re-raises when SampleQueue injection fails."""
+        mock_rollout_config = self._build_rollout_config(max_required_samples=4)
+        self.mock_rollout_worker_instance.set_fully_async_config.remote.side_effect = RuntimeError("rpc timeout")
+
+        with self.assertRaises(RuntimeError):
+            self.rollout_service.start_fully_async_rollout(
+                rollout_config=mock_rollout_config,
+                agent_service="agent_svc",
+                infer_service="infer_svc",
+            )
+        # Executor.fit should not be called when injection fails
+        self.mock_fully_async_executor_instance.fit.assert_not_called()
 
 
 if __name__ == '__main__':
