@@ -58,7 +58,7 @@ class AgentExecutor(Executor):
                 **agent_engine_kwargs,
             )
         elif self.agent_engine == "vaee":
-            from aura.runner.agent_engine_wrapper.vaee_v2.vaee_engine_wrapper import VirtualAgentEngineExecutionWrapper
+            from aura.runner.agent_engine_wrapper.vaee.vaee_engine_wrapper import VirtualAgentEngineExecutionWrapper
 
             self.agent_executor_wrapper = VirtualAgentEngineExecutionWrapper(
                 infer_service_params=infer_service_params, **agent_engine_kwargs

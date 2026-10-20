@@ -40,10 +40,14 @@ from aura.controllers.utils.utils import DEFAULT_SLEEP_TIME
 from aura.data_manager.data_manager import DataManager
 from aura.runner.agent_router import AgentRouter
 from aura.runner.infer_adapter.async_server import AsyncServerManager, AsyncServerProxyManager
+from aura.base.exceptions.exceptions import RolloutShutdownException
+from aura.base.analysis.data_analysis import json_save_data
 
 logger = Loggers(__name__).get_logger()
 
 UNAVAILABLE_WEIGHT_VERSION = -1
+# Sleep interval used when polling for new weights under backpressure.
+BACKPRESSURE_SLEEP_S = 0.5
 
 
 def get_least_common_multiple(num_1: int, num_2: int):
@@ -213,6 +217,7 @@ class RolloutWorker:
         if llm_tokenizer_path is not None:
             self.llm_tokenizer = AutoTokenizer.from_pretrained(llm_tokenizer_path)
         self.iteration = 0
+        self.group_count = 0
         self.dataset_additional_keys = dataset_additional_keys
         self.global_batch_size = global_batch_size
 
@@ -252,6 +257,11 @@ class RolloutWorker:
                 f"must be 1 when use_on_policy={self.use_on_policy}."
             )
         self.wait_timeout = wait_available_weight_timeout
+        self.samples_since_last_weight = 0
+        self.staleness_samples = 0
+        self.max_required_samples = 0
+        self.sample_queue = None
+        self.rollout_weight_version = 0
         self.terminate_trajectories = 0
 
         logger.info(f"trajectory_timeout: {self.trajectory_timeout}")
@@ -322,6 +332,23 @@ class RolloutWorker:
         cost_time = time.time() - start_time
         logger.info(
             f"==== infer update weights done, e2e cost: {cost_time}, "
+            f"current version: {self.current_weights_version} ==="
+        )
+        return cost_time
+
+    async def _do_update_model_weights_fully_async(self, actual_batch_num=1):
+        start_time = time.time()
+        service_mode = self.service_mode
+        offloaded = self.rollout_engine.get_weight_offloaded()
+        if service_mode == "train" or offloaded:
+            await self.rollout_engine.wake_up()
+            if not self.is_hybrid_mode():
+                await self.first_gen_update_model_weights(actual_batch_num)
+        else:
+            await self.update_model_weights_fully_async(actual_batch_num)
+        cost_time = time.time() - start_time
+        logger.info(
+            f"==== fully_async weight update done, e2e cost: {cost_time}, "
             f"current version: {self.current_weights_version} ==="
         )
         return cost_time
@@ -1026,7 +1053,7 @@ class RolloutWorker:
             return
 
         start_time = time.time()
-        weights_path = self.weight_save_dir + ROLLOUT_WEIGHTS_PREFIX + "/weights_" + str(weights_version)
+        weights_path = self._weights_path_for_version(weights_version)
         logger.info(f"|perf-stat|rollout| start update_weights from {weights_path}")
 
         _synchronize_and_collect()
@@ -1039,3 +1066,331 @@ class RolloutWorker:
             f"|perf-stat|rollout| infer update_weights done, cost: {time.time() - start_time}, "
             f"current version: {self.current_weights_version} ==="
         )
+
+    def _weights_path_for_version(self, weights_version):
+        """Build the on-disk weights directory path for a given version."""
+        return self.weight_save_dir + ROLLOUT_WEIGHTS_PREFIX + "/weights_" + str(weights_version)
+
+    def _remove_padding_for_responses(self, responses):
+        """Strip padding from responses when msrl padding-removal is configured.
+
+        Returns the original responses unchanged when no padding-removal function
+        was injected by the caller. Fully-async paths always run in Token mode,
+        so ``use_stepwise_advantage`` (which would imply Step mode) is treated as
+        inactive here regardless of its flag value.
+        """
+        if self.remove_padding_and_split_to_list is None:
+            return responses
+        pad_token_id = self.tokenizer.pad_token_id if self.tokenizer.pad_token_id else self.tokenizer.eos_token_id
+        return self.remove_padding_and_split_to_list(responses, pad_token_id, pad_token_id)
+
+    def _build_outputs(self, final_gen_batch_output, responses):
+        """Assemble the standardized outputs dict consumed by the trainer backend.
+
+        The dict always carries prompt_length / rm_scores / token_level_rewards /
+        response_mask; verl- and msrl-specific fields are filled in by the
+        corresponding ``add_output_for_*`` helpers.
+        """
+        outputs = {
+            "prompt_length": final_gen_batch_output['prompt_length'],
+            "rm_scores": final_gen_batch_output["token_level_scores"],
+            "token_level_rewards": final_gen_batch_output["token_level_scores"],
+            "response_mask": final_gen_batch_output['traj_mask'],
+        }
+        input_ids = final_gen_batch_output['input_ids']
+        self.add_output_for_verl(final_gen_batch_output, responses, outputs)
+        self.add_output_for_msrl(responses, input_ids, outputs)
+        return outputs
+
+    def _pad_trajectories_to_concurrency(self, trajectories, all_prompt_ids, concurrency):
+        """Append dummy trajectories until ``concurrency`` samples are collected.
+
+        Needed when the stream finishes early (e.g. due to terminations): training
+        would hang waiting for a complete batch, so we pad with dummy data.
+        """
+        if len(trajectories) >= concurrency:
+            return
+        for prompt_id in all_prompt_ids:
+            for _ in range(self.n_samples_per_prompt):
+                trajectories.append(generate_dummy_trajectory(prompt_id))
+            if len(trajectories) == concurrency:
+                break
+
+    @staticmethod
+    def _outputs_gen_count(outputs):
+        """Best-effort count of generated trajectories inside an outputs dict."""
+        if "input_ids" in outputs:
+            return len(outputs["input_ids"])
+        responses = outputs["responses"]
+        if hasattr(responses, "shape"):
+            return responses.shape[0]
+        return len(responses)
+
+    @staticmethod
+    def _slice_outputs_for_prompt(outputs, start, end):
+        """Slice the batched outputs dict to the [start, end) range for one prompt.
+
+        Tensor / list / ndarray values are sliced; scalar / shared objects are
+        passed through unchanged so all prompts reference the same instance.
+        """
+        prompt_outputs = {}
+        for key, val in outputs.items():
+            if isinstance(val, (torch.Tensor, list, np.ndarray)):
+                prompt_outputs[key] = val[start:end]
+            else:
+                prompt_outputs[key] = val
+        return prompt_outputs
+
+    async def _apply_backpressure(self, backpressure_count, weight_reload_count):
+        """Stall when staleness or queue size reaches the limit.
+
+        While blocked, polls the weight manager for newer weights and reloads them
+        on-the-fly so the next enqueued samples use fresh weights. Returns the
+        updated (backpressure_count, weight_reload_count) tuple.
+        """
+        while self.max_required_samples > 0:
+            try:
+                queue_size = await self.sample_queue.get_queue_size.remote()
+            except Exception:
+                queue_size = 0
+            if self.staleness_samples < self.max_required_samples and queue_size < self.max_required_samples:
+                break
+            # Backpressure triggered: log once and poll for new weights.
+            if backpressure_count == 0:
+                logger.info(
+                    f"[async-rollout] backpressure triggered: "
+                    f"staleness={self.staleness_samples}/{self.max_required_samples}, "
+                    f"queue_size={queue_size}/{self.max_required_samples}, "
+                    f"current_weight_version={self.current_weights_version}"
+                )
+            backpressure_count += 1
+            weights_version = await self.rollout_weight_manager.get_weights_version.remote()
+            if weights_version > self.current_weights_version:
+                logger.info(
+                    f"[async-rollout] loading new weight v{weights_version} "
+                    f"(>current v{self.current_weights_version}) during backpressure"
+                )
+                await self._load_weights_fully_async(weights_version)
+                weight_reload_count += 1
+                continue
+            await asyncio.sleep(BACKPRESSURE_SLEEP_S)
+        return backpressure_count, weight_reload_count
+
+    def set_fully_async_config(self, sample_queue, max_required_samples):
+        self.sample_queue = sample_queue
+        self.max_required_samples = int(max_required_samples)
+        logger.info(f"fully_async config set, max_required_samples={self.max_required_samples}")
+
+    async def _load_weights_fully_async(self, weights_version):
+        start_time = time.time()
+        weights_path = self._weights_path_for_version(weights_version)
+        logger.info(f"[async-rollout] start update_weights from {weights_path}")
+        _synchronize_and_collect()
+        await self.rollout_engine.update_weights(weights_path)
+        _synchronize_and_collect()
+        self.current_weights_version = weights_version
+        self.rollout_weight_version = weights_version
+        try:
+            in_flight = await self.sample_queue.get_queue_size.remote()
+        except Exception:
+            in_flight = 0
+        self.staleness_samples = in_flight
+        logger.info(
+            f"[async-rollout] weights reloaded: cost={time.time() - start_time:.2f}s, "
+            f"new_version={self.current_weights_version}, "
+            f"staleness_reset_to={self.staleness_samples} (in-flight stale samples)"
+        )
+
+    async def update_model_weights_fully_async(self, actual_batch_num=1):
+        self.rollout_weight_manager.update_max_version.remote(add_version_num=actual_batch_num)
+        if self.staleness_samples < self.max_required_samples:
+            logger.info(
+                f"[async-rollout] skip weight check: staleness={self.staleness_samples}/{self.max_required_samples} "
+                f"under limit, keep overlap"
+            )
+            return
+        weights_version = await self.rollout_weight_manager.get_weights_version.remote()
+        if weights_version <= self.current_weights_version:
+            logger.info(
+                f"[async-rollout] no new weights (wv={weights_version}<=cwv={self.current_weights_version}), "
+                f"keep stale weights"
+            )
+            return
+        logger.info(
+            f"[async-rollout] staleness={self.staleness_samples}/{self.max_required_samples} reached, "
+            f"loading new weight v{weights_version}"
+        )
+        await self._load_weights_fully_async(weights_version)
+
+    async def _put_sample_streaming(self, outputs, rollout_metrics):
+        batch_size = self._outputs_gen_count(outputs)
+        n = self.n_samples_per_prompt
+        assert batch_size % n == 0, (
+            f"batch_size ({batch_size}) must be divisible by n_samples_per_prompt ({n}) "
+            f"to pack per-prompt samples aligned with verl"
+        )
+        num_prompts = batch_size // n
+        backpressure_count = 0
+        weight_reload_count = 0
+        for p in range(num_prompts):
+            # Backpressure check: stall when staleness or queue size reaches the limit.
+            backpressure_count, weight_reload_count = await self._apply_backpressure(
+                backpressure_count, weight_reload_count
+            )
+            start = p * n
+            end = start + n
+            prompt_outputs = self._slice_outputs_for_prompt(outputs, start, end)
+            sample = (prompt_outputs, self.rollout_weight_version, rollout_metrics)
+            put_success = await self.sample_queue.put_sample.remote(sample)
+            if not put_success:
+                logger.warning(
+                    f"[async-rollout] SampleQueue shutdown detected, stop putting "
+                    f"(weight_version={self.rollout_weight_version})"
+                )
+                raise RolloutShutdownException("SampleQueue shutdown, abort rollout generation")
+            self.staleness_samples += 1
+        logger.info(
+            f"[async-rollout] put_batch done: prompts={num_prompts}, trajectories={batch_size}, "
+            f"weight_version={self.rollout_weight_version}, "
+            f"staleness_after={self.staleness_samples}/{self.max_required_samples}, "
+            f"backpressure_events={backpressure_count}, weight_reloads={weight_reload_count}"
+        )
+
+    async def handle_prompt_group_trajectories_fully_async(
+        self, start_time, resharding_to_infer, trajectories, prompt_id
+    ):
+        """Group-level streaming: process and enqueue once n_sample trajectories
+        for one prompt are ready, without waiting for the whole batch.
+        """
+        group_start = time.time()
+        trajectories.sort(key=lambda x: x["idx"])
+
+        final_gen_batch_output, metrics = self._transform_agent_trajectories(trajectories)
+        responses = self._remove_padding_for_responses(final_gen_batch_output['responses'])
+        outputs = self._build_outputs(final_gen_batch_output, responses)
+
+        self.group_count += 1
+        group_end = time.time()
+        group_cost = group_end - group_start
+        batch_cost = group_end - start_time
+        rollout_metrics = _stat_rollout_metrics(group_cost, resharding_to_infer, metrics)
+        rollout_gen_count = self._outputs_gen_count(outputs)
+        logger.info(
+            f"[async-rollout] group={self.group_count} iter={self.iteration} prompt_id={prompt_id} "
+            f"gen_count={rollout_gen_count}, "
+            f"staleness_before={self.staleness_samples}/{self.max_required_samples} "
+            f"({self.staleness_samples / max(self.max_required_samples, 1) * 100:.1f}%), "
+            f"weight_version={self.rollout_weight_version}, "
+            f"group_cost={group_cost:.2f}s, batch_cost={batch_cost:.2f}s"
+        )
+        await self._put_sample_streaming(outputs, rollout_metrics)
+        self.hybrid_mode_metrics_handle(metrics, group_start, group_end)
+
+    async def handle_full_batch_trajectories_fully_async(self, start_time, resharding_to_infer, trajectories):
+
+        json_save_data(trajectories, "trajectories_before_sort", self.iteration)
+        trajectories.sort(key=lambda x: x["idx"])
+
+        final_gen_batch_output, metrics = self._transform_agent_trajectories(trajectories)
+        responses = self._remove_padding_for_responses(final_gen_batch_output['responses'])
+        outputs = self._build_outputs(final_gen_batch_output, responses)
+
+        self.write_file(trajectories, prefix="trajectories")
+        self.write_file(outputs, prefix="outputs")
+        end_time = time.time()
+
+        rollout_cost = end_time - start_time
+        rollout_metrics = _stat_rollout_metrics(rollout_cost, resharding_to_infer, metrics)
+        rollout_gen_count = self._outputs_gen_count(outputs)
+        logger.info(
+            f"[async-rollout] batch={self.iteration} gen_count={rollout_gen_count}, "
+            f"staleness_before={self.staleness_samples}/{self.max_required_samples} "
+            f"({self.staleness_samples / max(self.max_required_samples, 1) * 100:.1f}%), "
+            f"weight_version={self.rollout_weight_version}, rollout_cost={rollout_cost:.2f}s"
+        )
+        await self._put_sample_streaming(outputs, rollout_metrics)
+        self.hybrid_mode_metrics_handle(metrics, start_time, end_time)
+        logger.info(
+            f"[async-rollout] batch={self.iteration} done, total_cost={time.time() - start_time:.2f}s"
+        )
+        app_stats.print(self.iteration)
+
+    async def multi_batches_final_handle_fully_async(
+        self, traj_groups, all_prompt_ids, concurrency, indexes, start_time, resharding_to_infer
+    ):
+        if not all_prompt_ids:
+            logger.info("prompt id is empty, go to next iteration")
+            return
+        logger.info(f"maybe early terminated, traj_groups: {len(traj_groups)}, all_prompt_ids: {len(all_prompt_ids)}")
+        trajectories = self.get_train_batch_traj(traj_groups, concurrency, self.n_samples_per_prompt)
+        clean_traj_groups(traj_groups, all_prompt_ids, trajectories)
+        if not trajectories:
+            logger.warning("skip empty trajectories, go to next iteration")
+            return
+        # Insufficient concurrency data, need to pad with dummy data, otherwise training will hang if it can't collect a complete td data
+        self._pad_trajectories_to_concurrency(trajectories, all_prompt_ids, concurrency)
+        logger.info(
+            f"|perf-stat|rollout| ====finish trajectories: {len(trajectories)}/{concurrency}, "
+            f"terminate trajectories: {self.terminate_trajectories}"
+        )
+        await self.handle_full_batch_trajectories_fully_async(start_time, resharding_to_infer, trajectories)
+
+    async def multi_batches_generate_sequences_fully_async(
+        self, agent_tasks, agent_router, indexes, start_time, resharding_to_infer, actual_batch_num
+    ):
+        batch_start_time = time.time()
+        concurrency = int(len(agent_tasks) / actual_batch_num)
+        mode = "Token"
+        logger.info(
+            f"[async-rollout] batch_start iter={self.iteration} tasks={len(agent_tasks)} "
+            f"concurrency={concurrency} actual_batch_num={actual_batch_num}"
+        )
+        result_stream = self.stream_generate_trajectories(agent_tasks, agent_router, mode=mode, concurrency=concurrency)
+        traj_groups = defaultdict(list)
+        all_prompt_ids = get_all_prompt_ids(agent_tasks)
+        group_count_before = self.group_count
+        traj_count = 0
+        async for trajectory in result_stream:
+            traj_count += 1
+            if trajectory is None:
+                continue
+            prompt_id = trajectory['prompt_id']
+            traj_groups[prompt_id].append(trajectory)
+            # Group-level streaming: process and enqueue once n_sample trajectories
+            # for one prompt are ready, without waiting for the whole batch.
+            if len(traj_groups[prompt_id]) < self.n_samples_per_prompt:
+                continue
+            group_trajectories = traj_groups[prompt_id][:self.n_samples_per_prompt]
+            traj_groups[prompt_id] = traj_groups[prompt_id][self.n_samples_per_prompt:]
+            if not traj_groups[prompt_id]:
+                del traj_groups[prompt_id]
+                all_prompt_ids.discard(int(prompt_id))
+            await self.handle_prompt_group_trajectories_fully_async(
+                start_time, resharding_to_infer, group_trajectories, prompt_id
+            )
+        groups_in_batch = self.group_count - group_count_before
+        logger.info(
+            f"[async-rollout] stream_done iter={self.iteration} traj_count={traj_count} "
+            f"groups_in_batch={groups_in_batch} stream_cost={time.time() - batch_start_time:.2f}s"
+        )
+        await self.multi_batches_final_handle_fully_async(
+            traj_groups, all_prompt_ids, concurrency, indexes, start_time, resharding_to_infer
+        )
+
+    async def generate_sequences_fully_async(self, actual_batch_num=1):
+        self.iteration += 1
+        gen_start_time = time.time()
+        logger.info(f"[async-rollout] gen_start iter={self.iteration} actual_batch_num={actual_batch_num}")
+        resharding_to_infer = await self._do_update_model_weights_fully_async(actual_batch_num)
+        tasks, indexes, start_time = self.get_data_for_generation()
+        agent_tasks, agent_router = await self.get_agents(tasks)
+        self.terminate_trajectories = 0
+        await self.multi_batches_generate_sequences_fully_async(
+            agent_tasks, agent_router, indexes, start_time, resharding_to_infer, actual_batch_num
+        )
+        await agent_router.clear_cache(self.agent_service)
+        await self._do_offload_model_weights()
+        logger.info(
+            f"[async-rollout] gen_end iter={self.iteration} total_cost={time.time() - gen_start_time:.2f}s"
+        )
+        return len(indexes) // self.global_batch_size

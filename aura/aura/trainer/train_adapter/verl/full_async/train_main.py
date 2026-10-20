@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+# SPDX-License-Identifier: Apache-2.0 OR MulanPSL-2.0
+# Copyright 2025 Meituan Ltd. and/or its affiliates
 #
 # This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
@@ -170,37 +172,53 @@ class FullyAsyncTaskRunner:
         self.components["trainer"] = trainer
         logger.info("[ASYNC MAIN] FullyAsyncTrainer created and initialized successfully")
 
+        try:
+            from aura.controllers.rollout_controller.sample_queue import get_sample_queue
+            _sq = get_sample_queue()
+            ray.get(trainer.set_sample_queue.remote(_sq))
+            logger.info("[ASYNC MAIN] SampleQueue injected into FullyAsyncTrainer (fully_async streaming mode)")
+        except Exception as _sq_e:
+            logger.debug(f"[ASYNC MAIN] SampleQueue not available, skip injection: {_sq_e}")
+
     def _run_training_loop(self) -> None:
         """Run the main training loop, handling exceptions gracefully."""
         self.running = True
-
         logger.info("[ASYNC MAIN] Starting Trainer...")
         trainer_future = self.components["trainer"].fit.remote()
         futures = [trainer_future]
         try:
-            while futures:
-                # Use ray.wait to monitor all futures and return when any one is completed.
-                done_futures, remaining_futures = ray.wait(futures, num_returns=1, timeout=None)
-
-                for future in done_futures:
-                    try:
-                        ray.get(future)
-                        logger.info("[ASYNC MAIN] One component completed successfully")
-                    except Exception as e:
-                        logger.error(f"[ASYNC MAIN] Component failed with error: {e}")
-                        for remaining_future in remaining_futures:
-                            ray.cancel(remaining_future)
-                        raise e
-
-                futures = remaining_futures
-
+            futures = self._drain_futures(futures)
         except Exception as e:
             logger.error(f"[ASYNC MAIN] Training failed: {e}")
-            for future in futures:
-                ray.cancel(future)
+            self._cancel_all(futures)
             raise
         finally:
             logger.info("[ASYNC MAIN] Training completed or interrupted")
+
+    def _drain_futures(self, futures):
+        """Wait for all futures to complete, cancelling the rest on first failure."""
+        while futures:
+            done_futures, remaining_futures = ray.wait(futures, num_returns=1, timeout=None)
+            for future in done_futures:
+                self._handle_completed_future(future, remaining_futures)
+            futures = remaining_futures
+        return futures
+
+    def _handle_completed_future(self, future, remaining_futures):
+        """Process a single completed future, raising on failure after cancelling siblings."""
+        try:
+            ray.get(future)
+            logger.info("[ASYNC MAIN] One component completed successfully")
+        except Exception as e:
+            logger.error(f"[ASYNC MAIN] Component failed with error: {e}")
+            self._cancel_all(remaining_futures)
+            raise
+
+    @staticmethod
+    def _cancel_all(futures):
+        """Cancel every future in ``futures`` (best-effort)."""
+        for future in futures:
+            ray.cancel(future)
 
 
 @ray.remote

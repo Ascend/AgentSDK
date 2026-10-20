@@ -28,6 +28,9 @@ from typing import List, Optional, Any
 from pydantic.dataclasses import dataclass
 from pydantic import BaseModel, ConfigDict, Field
 
+from aura.base.log.loggers import Loggers
+
+logger = Loggers(__name__).get_logger()
 
 @dataclass
 class RequestRecord:
@@ -199,6 +202,9 @@ class _TrajectoryBase(BaseModel):
     signals: dict[str, float] = Field(default_factory=dict)  # Evaluation signals
     metadata: dict | None = None
 
+    res_reward: float | None = None
+    toolcall_reward: float | None = None
+
     @property
     def result(self):
         """Get the output from the trajectory (backward compatibility)."""
@@ -237,6 +243,7 @@ class Step(_StepBase):
     prompt_ids: list[int] | list[Any] = Field(default_factory=list)
     response_ids: list[int] = Field(default_factory=list)
     logprobs: list[float] = Field(default_factory=list)
+    response_masks: list[int]| None = None
     routing_matrices: list[str] | None = None  # per-token routing matrices (R3, transient)
 
     chat_completions: list[dict[str, Any]] = Field(default_factory=list)
@@ -255,6 +262,9 @@ class Step(_StepBase):
 
     # weight version at time of generation (for async training staleness tracking)
     weight_version: int | None = None
+
+    # tool messages in current step
+    tool_outputs: list[dict] = None
 
     @property
     def info(self) -> dict:
@@ -328,21 +338,21 @@ class Step(_StepBase):
             prompt_ids=data["prompt_ids"],
             response_ids=data["response_ids"],
             logprobs=data["logprobs"],
-            routing_matrices=data.get("routing_matrices"),
+            routing_matrices=data.get("routing_matrices", None),
             chat_completions=data["chat_completions"],
-            observation=data["observation"],
-            thought=data["thought"],
-            action=data["action"],
-            model_response=data["model_response"],
+            observation=data.get("observation", None),
+            thought=data.get("thought", ""),
+            action=data.get("action", None),
+            model_response=data.get("model_response", ""),
             model_output=ModelOutput.from_dict(data["model_output"])
             if data.get("model_output", None) is not None
             else None,
             metadata=data.get("info", data.get("metadata", {})),
-            reward=data["reward"],
-            done=data["done"],
-            mc_return=data["mc_return"],
+            reward=data.get("reward", 0.0),
+            done=data.get("done", False),
+            mc_return=data.get("mc_return", 0.0),
             advantage=data.get("advantage", 0.0),
-            weight_version=data.get("weight_version"),
+            weight_version=data.get("weight_version", 0),
         )
 
     @classmethod
@@ -376,6 +386,8 @@ class Trajectory(_TrajectoryBase):
 
     name: str = _DEFAULT_TRAJ_NAME  # Override canonical default for core compat
     steps: list[Step] = Field(default_factory=list)  # Narrow type to training Step
+    toolcall_reward: float = 0.0
+    res_reward: float = 0.0
 
     @property
     def info(self) -> dict:
@@ -432,6 +444,10 @@ class Trajectory(_TrajectoryBase):
             prev = step
         return True
 
+    @property
+    def prompt_id(self) -> int:
+        return int(self.task["prompt_id"])
+
 
 class Episode(_EpisodeBase):
     """Training episode extending the canonical Episode."""
@@ -473,7 +489,7 @@ class Episode(_EpisodeBase):
             id=data["id"],
             task=data["task"],
             termination_reason=data.get("termination_reason", "unknown"),
-            is_correct=data["is_correct"],
+            is_correct=data.get("is_correct", False),
             trajectories=[Trajectory.from_dict(trajectory_data) for trajectory_data in data["trajectories"]],
             metrics=data.get("metrics", {}),
             metadata=data.get("info", data.get("metadata", {})),
@@ -481,99 +497,12 @@ class Episode(_EpisodeBase):
 
     @property
     def task_id(self) -> str:
-        return self.id.split(":")[0]
+        return self.id.split("-")[0]
 
     @property
     def rollout_idx(self) -> str:
-        return self.id.split(":")[1]
-
-
-class TrajectoryGroup(BaseModel):
-    """
-    A group of trajectories for advantage computation.
-
-    Unlike Episode (which represents raw rollout data), TrajectoryGroup is specifically
-    structured for advantage computation. All trajectories in a group will have their
-    rewards compared to compute advantages (e.g., via GRPO).
-
-    Attributes:
-        trajectories: List of trajectories to compare for advantage computation
-        group_id: Optional identifier for the group (e.g., "task1:agent_0")
-        metadata: List of metadata for each trajectory in the group
-    """
-
-    trajectories: list[Trajectory]
-    group_id: str = ""
-    metadata: list[dict] = Field(default_factory=list)
-    weight_version: int = 0
+        return self.id.split("-")[1]
 
     @property
-    def group_role(self) -> str:
-        return self.group_id.split(":")[1] if ":" in self.group_id[:-1] else "all_groups"
-
-    @property
-    def task_id(self) -> str:
-        return self.group_id.split(":")[0]
-
-
-class BaseAgent(ABC):
-    @property
-    def chat_completions(self) -> list[dict[str, str]]:
-        """Converts agent's internal state into a list of OAI chat completions."""
-        return []
-
-    @property
-    def trajectory(self) -> Trajectory:
-        """Converts agent's internal state into a Trajectory object."""
-        return Trajectory()
-
-    def update_from_env(self, observation: Any, reward: float, done: bool, info: dict, **kwargs):
-        """
-        Updates the agent's internal state after an environment step.
-
-        Args:
-            observation (Any): The observation after stepping through environment.
-            reward (float): The reward received after taking the action.
-            done (bool): Whether the episode has ended due to termination.
-            info (dict): Additional metadata from the environment.
-        """
-        raise NotImplementedError("Subclasses must implement this method if using AgentExecutionEngine")
-
-    def update_from_model(self, response: str, **kwargs) -> Action:
-        """
-        Updates the agent's internal state after the model generates a response.
-
-        Args:
-            response (str): The response from the model.
-
-        Returns:
-            None
-        """
-        raise NotImplementedError("Subclasses must implement this method if using AgentExecutionEngine")
-
-    @abstractmethod
-    def reset(self):
-        """
-        Resets the agent's internal state, typically called at the beginning of a new episode.
-
-        This function should clear any stored history or state information necessary
-        for a fresh interaction.
-
-        Returns:
-            None
-        """
-        return
-
-    def get_current_state(self) -> Step | None:
-        """
-        Returns the agent's current state as a dictionary.
-
-        This method provides access to the agent's internal state at the current step,
-        which can be useful for debugging, logging, or state management.
-
-        Returns:
-            Step: The agent's current state.
-        """
-        if not self.trajectory.steps:
-            return None
-        return self.trajectory.steps[-1]
+    def prompt_id(self) -> int:
+        return int(self.id.split("-")[1])

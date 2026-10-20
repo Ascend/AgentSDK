@@ -92,9 +92,10 @@ class TestAgentLoopManager:
             "verl.utils.hf_tokenizer": MagicMock(),
             "verl.experimental": MagicMock(),
             "verl.experimental.agent_loop": MagicMock(),
+            "verl.protocol": MagicMock(),
             "verl.DataProto": MagicMock(),
             "aura.runner.agent_engine_wrapper.base_engine_wrapper": mock_base_engine_wrapper,
-            "aura.runner.agent_engine_wrapper.vaee_v2.vaee_types": mock_vaee_types,
+            "aura.runner.agent_engine_wrapper.vaee.vaee_types": mock_vaee_types,
         }):
             yield
 
@@ -619,8 +620,8 @@ class TestAgentLoopManager:
             assert manager.traj_output_path == "/tmp/test_trajectories"
 
     @pytest.mark.asyncio
-    async def test_transform_episodes_to_batch(self, patch_modules):
-        """测试transform_episodes_to_batch函数"""
+    async def test_transform_episodes_to_batch(self, mock_config, patch_modules):
+        """Test transform_episodes_to_batch function"""
         from aura.trainer.train_adapter.verl.hybrid.agent_loop_manager import transform_episodes_to_batch
 
         mock_tokenizer = MagicMock()
@@ -645,7 +646,9 @@ class TestAgentLoopManager:
 
         with patch("aura.trainer.train_adapter.verl.hybrid.agent_loop_manager.torch.nn.utils."
                    "rnn.pad_sequence") as mock_pad_sequence, \
-                patch("aura.trainer.train_adapter.verl.hybrid.agent_loop_manager.DataProto") as mock_data_proto:
+                patch("aura.trainer.train_adapter.verl.hybrid.agent_loop_manager.DataProto") as mock_data_proto, \
+                patch("aura.trainer.train_adapter.verl.hybrid.agent_loop_manager."
+                      "pad_dataproto_to_divisor") as mock_pad_dp:
             mock_pad_sequence.side_effect = [
                 torch.tensor([[1, 2, 3]]),
                 torch.tensor([[4, 5, 6, 7, 8, 9, 10]]),
@@ -657,16 +660,17 @@ class TestAgentLoopManager:
             mock_data_proto.from_dict.return_value = mock_data_proto_instance
             mock_data_proto_instance.non_tensor_batch = {}
             mock_data_proto_instance.meta_info = {}
+            mock_pad_dp.return_value = (mock_data_proto_instance, 0)
 
-            result = await transform_episodes_to_batch(mock_tokenizer, [mock_trajectory], ["0"])
+            result = await transform_episodes_to_batch(mock_config, mock_tokenizer, [mock_trajectory], ["0"])
 
             assert mock_pad_sequence.call_count == 4
             assert "uid" in result.non_tensor_batch
             assert "timing" in result.meta_info
 
     @pytest.mark.asyncio
-    async def test_transform_episodes_to_batch_no_logprobs(self, patch_modules):
-        """测试transform_episodes_to_batch函数 - 没有logprobs"""
+    async def test_transform_episodes_to_batch_no_logprobs(self, mock_config, patch_modules):
+        """Test transform_episodes_to_batch function - no logprobs"""
         from aura.trainer.train_adapter.verl.hybrid.agent_loop_manager import transform_episodes_to_batch
 
         mock_tokenizer = MagicMock()
@@ -685,7 +689,9 @@ class TestAgentLoopManager:
 
         with patch("aura.trainer.train_adapter.verl.hybrid.agent_loop_manager.torch.nn.utils."
                    "rnn.pad_sequence") as mock_pad_sequence, \
-                patch("aura.trainer.train_adapter.verl.hybrid.agent_loop_manager.DataProto") as mock_data_proto:
+                patch("aura.trainer.train_adapter.verl.hybrid.agent_loop_manager.DataProto") as mock_data_proto, \
+                patch("aura.trainer.train_adapter.verl.hybrid.agent_loop_manager."
+                      "pad_dataproto_to_divisor") as mock_pad_dp:
             mock_pad_sequence.side_effect = [
                 torch.tensor([[1, 2, 3]]),
                 torch.tensor([[4, 5, 6]]),
@@ -696,8 +702,9 @@ class TestAgentLoopManager:
             mock_data_proto.from_dict.return_value = mock_data_proto_instance
             mock_data_proto_instance.non_tensor_batch = {}
             mock_data_proto_instance.meta_info = {}
+            mock_pad_dp.return_value = (mock_data_proto_instance, 0)
 
-            result = await transform_episodes_to_batch(mock_tokenizer, [mock_trajectory], ["0"])
+            result = await transform_episodes_to_batch(mock_config, mock_tokenizer, [mock_trajectory], ["0"])
 
             assert mock_pad_sequence.call_count == 3
 

@@ -3,6 +3,7 @@
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Copyright (c) rllm-org. All rights reserved.
 #
 # AgentSDK is licensed under Mulan PSL v2.
 # You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -21,7 +22,7 @@ Review the current state of the page and all other information to find the best 
 Make sure to follow the Action Space formatting instructions and wrap your final action in ```action````.
 Key Guidelines You MUST follow:
 * Action guidelines *
-1) Execute only one action per iteration. 
+1) Execute only one action per iteration.
 2) STRICTLY Avoid repeating the same action if the webpage remains unchanged. You may have selected the wrong web element or numerical label. Continuous use of the Wait is also NOT allowed.
 * Web Browsing Guidelines *
 1) Don't interact with useless web elements like Login, Sign-in, donation that appear in Webpages. Pay attention to Key Web Elements like search textbox and menu.
@@ -39,7 +40,7 @@ Review the current state of the page and all other information to find the best 
 Make sure to follow the Action Space formatting instructions and wrap your final action in ```action````.
 Key Guidelines You MUST follow:
 * Action guidelines *
-1) Execute only one action per iteration. 
+1) Execute only one action per iteration.
 2) STRICTLY Avoid repeating the same action if the webpage remains unchanged. You may have selected the wrong web element or numerical label. Continuous use of the Wait is also NOT allowed.
 * Web Browsing Guidelines *
 1) Don't interact with useless web elements like Login, Sign-in, donation that appear in Webpages. Pay attention to Key Web Elements like search textbox and menu.
@@ -54,7 +55,7 @@ Action: ```{One Action format you choose}```"""
 SYSTEM_WEBARENA_PROMPT = """Imagine you are a robot browsing the web, just like humans. Now you need to complete a task. In each iteration, you will receive an Observation that includes a screenshot of a webpage and some texts. This screenshot will feature Numerical Labels placed in the TOP LEFT corner of each Web Element.
 Carefully analyze the visual information to identify the Numerical Label corresponding to the Web Element that requires interaction, then follow the guidelines and choose one of the following actions:
 1. Click a Web Element.
-2. Delete existing content in a textbox and then type content. 
+2. Delete existing content in a textbox and then type content.
 3. Scroll up or down. Multiple scrolls are allowed to browse the webpage. Pay attention!! The default scroll is the whole window. If the scroll widget is located in a certain area of the webpage, then you have to specify a Web Element in that area. I would hover the mouse there and then scroll.
 4. Wait. Typically used to wait for unfinished webpage processes, with a duration of 5 seconds.
 5. Go back, returning to the previous webpage.
@@ -68,11 +69,11 @@ Correspondingly, Action should STRICTLY follow the format:
 - ANSWER; [content]
 Key Guidelines You MUST follow:
 * Action guidelines *
-1) To input text, NO need to click textbox first, directly type content. After typing, the system automatically hits `ENTER` key. Sometimes you should click the search button to apply search filters. Try to use simple language when searching.  
-2) You must Distinguish between textbox and search button, don't type content into the button! If no textbox is found, you may need to click the search button first before the textbox is displayed. 
-3) Execute only one action per iteration. 
+1) To input text, NO need to click textbox first, directly type content. After typing, the system automatically hits `ENTER` key. Sometimes you should click the search button to apply search filters. Try to use simple language when searching.
+2) You must Distinguish between textbox and search button, don't type content into the button! If no textbox is found, you may need to click the search button first before the textbox is displayed.
+3) Execute only one action per iteration.
 4) STRICTLY Avoid repeating the same action if the webpage remains unchanged. You may have selected the wrong web element or numerical label. Continuous use of the Wait is also NOT allowed.
-5) When a complex Task involves multiple questions or steps, select "ANSWER" only at the very end, after addressing all of these questions (steps). Flexibly combine your own abilities with the information in the web page. Double check the formatting requirements in the task when ANSWER. 
+5) When a complex Task involves multiple questions or steps, select "ANSWER" only at the very end, after addressing all of these questions (steps). Flexibly combine your own abilities with the information in the web page. Double check the formatting requirements in the task when ANSWER.
 6) If you can't find the answer using the given website because there is no such information on the website, you should report "N/A" as the answer to represent that the task is impossible to solve with the given website.
 7) Only provide answer based on the information from the image, make sure the answer is consistent with the image, don't hallucinate any information that is not based on image.
 * Web Browsing Guidelines *
@@ -314,7 +315,7 @@ Follow these steps to resolve the issue:
 4. Rerun your reproduce script and confirm that the error is fixed!
 5. Think about edgecases and make sure your fix handles them as well
 6. When viewing large files, use specific line-ranges, usually within 50 to 100 lines) as required
-7. NOTE: The repository is at '/testbed' and the current working directory is already '/testbed', so DO NOT include 'testbed/' or 'testbed.' in relative paths in bash commands or reproduction python files. 
+7. NOTE: The repository is at '/testbed' and the current working directory is already '/testbed', so DO NOT include 'testbed/' or 'testbed.' in relative paths in bash commands or reproduction python files.
 """
 
 SWEAGENT_USER_PROMPT = """I have uploaded a python code repository in the /testbed directory.
@@ -329,9 +330,9 @@ Can you help me implement the necessary changes to the repository to fix the <gi
 I have already taken care of all changes to any of the test files described in the <github_issue>. This means you DON'T have to modify the testing logic or any of the tests in any way! Your task is to make changes to non-test files in the /testbed directory to ensure the <github_issue> is resolved.
 
 Follow these steps to resolve the issue:
-1. First, explore the codebase to locate and understand the code relevant to the <github_issue>. 
-  - Use efficient search commands to identify key files and functions. 
-  - You should err on the side of caution and look at various relevant files and build your understanding of 
+1. First, explore the codebase to locate and understand the code relevant to the <github_issue>.
+  - Use efficient search commands to identify key files and functions.
+  - You should err on the side of caution and look at various relevant files and build your understanding of
     - how the code works
     - what are the expected behaviors and edge cases
     - what are the potential root causes for the given issue
@@ -340,11 +341,11 @@ Follow these steps to resolve the issue:
     - Create a script at '/testbed/reproduce_issue.py' that demonstrates the error.
     - Execute this script to confirm the error behavior.
     - You should reproduce the issue before fixing it.
-    - Your reproduction script should also assert the expected behavior for the fixed code. 
+    - Your reproduction script should also assert the expected behavior for the fixed code.
 
 3. Analyze the root cause:
     - Identify the underlying problem based on your code exploration and reproduction results.
-    - Critically analyze different potential approaches to fix the issue. 
+    - Critically analyze different potential approaches to fix the issue.
     - You NEED to explicitly reason about multiple approaches to fix the issue. Next, find the most elegant and effective solution among them considering the tradeoffs (correctness, generality, side effects, etc.).
     - You would need to reason about execution paths, edge cases, and other potential issues. You should look at the unit tests to understand the expected behavior of the relevant code.
 
@@ -391,14 +392,14 @@ A successful resolution means:
 Additional recommendations:
 - You should be thorough, methodical, and prioritize quality over speed. Be comprehensive.
 - You should think carefully before making the tool call about what should be done. However, each step should only use one tool call. YOU SHOULD NOT USE TOOLS INSIDE YOUR THOUGHT PROCESS. YOU SHOULD PRIMARILY USE THINKING FOR IDENTIFYING THE ROOT CAUSE OF THE ISSUE, MAKING THE CHANGES, AND CREATING TEST CASES (REPRODUCTION OR EDGE CASES).
-- Each action you take is somewhat expensive. Wherever possible, combine multiple actions into a single action (e.g., combine multiple bash commands, use sed/grep for bulk operations). 
+- Each action you take is somewhat expensive. Wherever possible, combine multiple actions into a single action (e.g., combine multiple bash commands, use sed/grep for bulk operations).
     - Your grep commands should identify both relevant files and line numbers so you can use the file_editor tool.
     - Use grep with `-A -B -C` flags to quickly identify the relevant code blocks during your exploration.
 - When exploring the codebase, use targeted search patterns to minimize unnecessary operations.
 - When creating edge cases, you should look at the relevant existing tests to understand existing "regression" test cases. Ensure the fix doesn't break existing functionality.
 """
 
-TOOL_SYSTEM_PROMPT = """You are a tool agent. You are given a task to complete. You have a set of tools at your disposal. Before you use the tools, outputting your thoughts before calling the tools. 
+TOOL_SYSTEM_PROMPT = """You are a tool agent. You are given a task to complete. You have a set of tools at your disposal. Before you use the tools, outputting your thoughts before calling the tools.
 """
 
 SEARCH_SYSTEM_PROMPT = """You are a helpful AI assistant that can search for information to answer questions accurately.

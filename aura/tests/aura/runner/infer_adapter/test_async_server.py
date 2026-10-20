@@ -496,7 +496,7 @@ class TestAsyncServerManager:
         async_server_mod.ray.get.assert_called_once_with(["fut0", "fut1"])
 
     def test_manager_update_weights(self, async_server_mod):
-        """update_weights calls collective_rpc.remote with 'update_weights' method."""
+        """update_weights calls the disk-based worker RPC."""
         mgr = async_server_mod.AsyncServerManager.__new__(async_server_mod.AsyncServerManager)
         mgr.async_servers = [MagicMock(), MagicMock()]
 
@@ -505,8 +505,12 @@ class TestAsyncServerManager:
 
         asyncio.run(mgr.update_weights("/tmp/weights"))
 
-        mgr.async_servers[0].collective_rpc.remote.assert_awaited_once_with("update_weights", args="/tmp/weights")
-        mgr.async_servers[1].collective_rpc.remote.assert_awaited_once_with("update_weights", args="/tmp/weights")
+        mgr.async_servers[0].collective_rpc.remote.assert_awaited_once_with(
+            "update_weights_with_disk", args="/tmp/weights"
+        )
+        mgr.async_servers[1].collective_rpc.remote.assert_awaited_once_with(
+            "update_weights_with_disk", args="/tmp/weights"
+        )
 
     def test_manager_vllm_statistics(self, async_server_mod):
         """vllm_statistics calls collective_rpc.remote with 'vllm_statistics'."""

@@ -26,10 +26,10 @@
 
 可从昇腾镜像仓库直接拉取已构建好的镜像，[AgentSDK 镜像发布页面](https://www.hiascend.com/developer/ascendhub/detail/72825ebadb23432ba55dea3f58e68a69)
 
-以 A3 服务器、Ubuntu 系统为例，拉取镜像的命令为：
+以 Atlas A3系列产品、Ubuntu 系统为例，拉取镜像的命令为：
 
 ```shell
-docker pull swr.cn-south-1.myhuaweicloud.com/ascendhub/agentsdk:26.1.0-a3-ubuntu22.04-py3.11
+docker pull swr.cn-south-1.myhuaweicloud.com/ascendhub/agentsdk:26.2.0-cann9.0.0-torch_npu2.10.0-a3-ubuntu22.04-py3.11
 ```
 
 ##### 选项二：从 Dockerfile 构建镜像
@@ -48,7 +48,7 @@ docker build -f Dockerfile.a3.ubuntu -t your_image_name:your_image_tag .
 
 #### 步骤 2：创建容器
 
-以 Atlas A3服务器16卡为例，创建容器：
+以Atlas 900 A3 SuperPoD超节点（16 × 64 GB）为例，创建容器：
 
 ```shell
 docker run --name your_container_name \
@@ -78,8 +78,9 @@ docker run --name your_container_name \
 
 > [!NOTE]
 >
-> 1. 根据 NPU 数量的不同，挂载不同数量的设备 ID。例如： Atlas A3 有 16 个 NPU，需挂载 16 个设备 ID，每个设备 ID 对应一个 NPU。
+> 1. 根据 NPU 数量的不同，挂载不同数量的设备 ID。例如： Atlas A3系列产品有 16 个 NPU，需挂载 16 个设备 ID，每个设备 ID 对应一个 NPU。
 > 2. 镜像内默认工作目录为 /home/work，因此不建议挂载整个 /home 目录，以避免覆盖容器内默认工作空间或引发权限冲突。
+> 3. 分离模式需要额外挂载共享目录，存放代码、权重、数据。
 
 #### 步骤 3：进入容器
 
@@ -127,10 +128,11 @@ modelscope download --dataset AI-ModelScope/gsm8k --local_dir /path/to/gsm8k
 
 根据训练模式的不同，数据处理方式也有所区别：
 
-| 训练模式 | 数据处理方式 | 说明 |
-|---------|-------------|------|
-| **共卡模式 (Hybrid)** | verl 官方脚本 | 数据格式为 parquet |
-| **分离模式 (One-Step-Off)** | Aura 脚本 | 数据格式为 Megatron |
+| 训练模式                        | 数据处理方式 | 说明 |
+|-----------------------------|-------------|------|
+| **共卡模式 (Hybrid)**           | verl 官方脚本 | 数据格式为 parquet |
+| **单步异步分离模式 (One Step Off)** | Aura 脚本 | 数据格式为 Megatron |
+| **全异步分离模式 (Fully Async)**   | Aura 脚本 | 数据格式为 Megatron |
 
 #### 共卡模式数据处理
 
@@ -229,6 +231,24 @@ python3 /path/to/AgentSDK/aura/cli/preprocess_data.py gsm8k
 
 ## 环境变量配置
 
+Aura 一键拉起脚本会统一加载 `aura/configs/env/env.conf` 中的默认环境变量。开发者如需按本机环境覆盖默认值，建议在同目录创建 `env.local` 文件；该文件只在本机生效，不需要提交到代码仓。
+
+环境变量加载优先级为：已 `export` 的外部环境变量 > `aura/configs/env/env.local` > `aura/configs/env/env.conf` > 脚本默认值。临时调试时可直接使用 `export`，长期固定的本机配置建议写入 `env.local`。此优先级仅适用于启动脚本加载环境变量的阶段；训练和推理业务参数仍以对应的 YAML 配置文件为准，推理 YAML 中的同名配置会在后续解析阶段覆盖环境变量。
+
+```shell
+touch aura/configs/env/env.local
+cat >> aura/configs/env/env.local <<'EOF'
+DEFAULT_SOCKET_IFNAME=enp189s0f0
+ASCEND_RT_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
+EOF
+```
+
+`env.local` 使用 `KEY=VALUE` 格式，每行一个变量，无需添加 `export`。变量名需满足 `[A-Za-z_][A-Za-z0-9_]*`，否则加载时会告警并跳过。`PYTHON_HOME` 默认可留空，脚本会根据当前 `python3` 自动推导安装前缀；如果环境中存在多个 Python 版本，或 torch/torch_npu 安装在指定 Python 目录下，可在 `env.local` 中显式设置 Python 安装前缀：
+
+```text
+PYTHON_HOME=/usr/local/python3.11.14
+```
+
 ### 设置 DEFAULT_SOCKET_IFNAME
 
 通过`ifconfig`指令，查看自己的网卡 ID，以本机 IP 地址为 192.168.0.1 为例：
@@ -252,19 +272,19 @@ python3 /path/to/AgentSDK/aura/cli/preprocess_data.py gsm8k
             inet 192.168.100.100  netmask 255.255.255.0  broadcast 192.168.100.255
     ```
 
-3. 假设本地 IP 为 192.168.0.1，那么指向本地 IP 对应网络接口的值即为 enp189s0f0 ，即需要执行：
+3. 假设本地 IP 为 192.168.0.1，那么指向本地 IP 对应虚拟网桥的值即为 enp189s0f0 ，即需要写入 `env.local`：
 
-    ```shell
-    export DEFAULT_SOCKET_IFNAME=enp189s0f0
+    ```text
+    DEFAULT_SOCKET_IFNAME=enp189s0f0
     ```
 
 ### 设置 ASCEND_RT_VISIBLE_DEVICES
 
 根据自己实际需要设置可用的 NPU 的卡数，例如需要指定 0~15 号 NPU：
 
-```shell
+```text
 # 配置可用的NPU的卡数
-export ASCEND_RT_VISIBLE_DEVICES=0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
+ASCEND_RT_VISIBLE_DEVICES=0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
 ```
 
 ## 卸载与清理
@@ -290,7 +310,7 @@ docker rm your_container_name
 # 查看本地镜像，确认镜像名和标签
 docker images
 
-# 删除镜像（将 <image_name>:<tag> 替换为实际镜像名，如 aura-a3:26.1.0）
+# 删除镜像（将 <image_name>:<tag> 替换为实际镜像名，如 aura-a3:26.2.0）
 docker rmi <image_name>:<tag>
 ```
 
