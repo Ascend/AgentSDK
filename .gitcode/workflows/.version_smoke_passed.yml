@@ -1,0 +1,61 @@
+on:
+  workflow_call:
+    inputs:
+      REMOTE_URL:
+        required: false
+        type: string
+        default: ${{ atomgit.repositoryurl }}
+      IMAGE_FLAG:
+        required: true
+        type: string
+        description: "Full SWR image URL, e.g. swr.<region>.<org>/mindx_arm:tag"
+      TARGET_BRANCH:
+        required: false
+        type: string
+        default: "master"
+      runs_on_arch:
+        required: true
+        type: string
+        description: "x64 or arm64"
+      DEFAULT_BRANCH:
+        required: false
+        type: string
+        default: "master"
+      servicename:
+        required: false
+        type: string
+        default: $(echo "${{ atomgit.repository }}" | cut -d '/' -f 2)
+      Version:
+        required: false
+        type: string
+        default: "26.3.0"
+      obs_prefix:
+        required: false
+        type: string
+
+jobs:
+  JOB_compile:
+    name: JOB_compile
+    select: selected_by_default
+    runs-on: [ self-hosted, arm64, cpu=16 ]
+    container:
+      image: ${{ inputs.IMAGE_FLAG }}
+      options: --user root
+    steps:
+      - name: compile
+        run: |
+          set -ex
+          echo 'start archive smoke-passed artifact'
+          mkdir -p version_snapshot
+          cd version_snapshot
+          echo 'start archive smoke-passed artifact1'
+          obsutil config -i=${{ secrets.MindCluster_OBS_AK }} -k=${{ secrets.MindCluster_OBS_SK }} -e=obs.cn-north-4.myhuaweicloud.com
+          SOURCE_PATH="obs://mindcluster/${{ inputs.obs_prefix }}"
+          now=$(date -u -d '+8 hours' +%Y%m%d%H%M%S)
+          echo $now
+          target_folder="${{ inputs.servicename }}-${{ inputs.Version }}-$(date -u -d '+8 hours' +%Y%m%d%H%M%S)"
+          echo "冒烟归档文件夹：${target_folder}"
+          TARGET_PATH_SNAPSHOT="obs://mindcluster/actions_version_snapshot/${target_folder}"
+          TARGET_PATH_LATEST="obs://mindcluster/actions_version_snapshot/latest/${{ inputs.servicename }}"
+          obsutil cp ${SOURCE_PATH}/ ${TARGET_PATH_SNAPSHOT}/ -f -r --flat
+          obsutil cp ${SOURCE_PATH}/ ${TARGET_PATH_LATEST}/ -f -r --flat

@@ -1,0 +1,135 @@
+name: version-test-pipeline_agentsdk
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 6 * * *'
+
+  NIGHTLY_IMAGE: "swr.cn-north-4.myhuaweicloud.com/atlas-ci/test-mindsdk-agent-nightly"
+  servicename: "AgentSDK"
+  Version: "26.3.0"
+
+
+permissions:
+  project: read
+  repository: read
+  id-token: write
+  pr: write
+  note: write
+
+stages:
+  stage_prepare:
+    name: prepare
+    select: selected_by_default
+    jobs:
+      Prepare_tag:
+        runs-on: [self-hosted, buildkitTest]
+        outputs:
+          image_tag: ${{ steps.timestamp.outputs.image_tag }}
+          obs_prefix: ${{ steps.timestamp.outputs.obs_prefix }}
+        steps:
+          - name: generate timestamp
+            id: timestamp
+            run: |
+              set -eu
+              image_tag="$(TZ=Asia/Shanghai date +%Y%m%d%H%M%S)"
+              output_file="$(printenv ATOMGIT_OUTPUT)"
+              printf 'image_tag=%s\n' "$image_tag" >> "$output_file"
+              printf 'Image tag: %s\n' "$image_tag"
+              obs_tag_ym="$(TZ=Asia/Shanghai date +%Y%m%d)"
+              obs_prefix="${{ env.servicename }}/daily/actions/version/${{ env.VERSION }}/${obs_tag_ym}.${ATOMGIT_RUN_NUMBER}"
+              printf 'obs_prefix=%s\n' "$obs_prefix" >> "$output_file"
+              printf 'obs prefix: %s\n' "$obs_prefix"
+
+  stage_0:
+    name: Nightly_build
+    select: selected_by_default
+    jobs:
+      Build_arm:
+        name: Nightly_Build_arm
+        uses: .gitcode/workflows/.version_build_agentsdk.yml
+        with:
+          IMAGE_FLAG: "swr.cn-north-4.myhuaweicloud.com/ascend-mindx/mindx_arm:SDK_20251230_1"
+          runs_on_arch: "arm64"
+          TARGET_BRANCH: "master"
+          Version: "26.3.0"
+          servicename: "${{ env.Version }}"
+          obs_prefix: "${{ jobs.Prepare_tag.outputs.obs_prefix }}"
+
+  stage_1:
+    name: 镜像构建
+    select: selected_by_default
+    jobs:
+      Build_nightly_image:
+        name: Build_nightly_image
+        uses: pipelineascode/buildkit-dev/.gitcode/workflows/reusable-build-image.yml@v1.0.1
+        with:
+          dockerfile_url: "https://gitcode.com/AscendTest/pytest-infra/blob/main/resources/dockerfile/Dockerfile.mindsdk_agent"
+          harbor_registry: "swr.cn-north-4.myhuaweicloud.com"
+          harbor_image: "atlas-ci/test-mindsdk-agent-nightly"
+          harbor_tag: "${{ jobs.Prepare_tag.outputs.image_tag }}"
+          oidc_account_id: "0d336831568090260fd5c01450729240"
+          region: "cn-north-4"
+          provider_name: "pta_swr_nightly"
+          audience: "pta_swr_nightly"
+          agency_name: "pta_swr_nightly"
+          duration_seconds: "3600"
+          runner_label: "buildkitTest"
+          target_platforms: "linux/arm64"
+          build_context: "resources/dockerfile"
+
+  stage_publish:
+    name: 更新latest镜像
+    select: selected_by_default
+    jobs:
+      Publish_latest:
+        runs-on: [self-hosted, buildkitTest]
+        env:
+          DOCKER_CONFIG: /home/user/.docker
+          PATH: /root/.cache/buildkit/bin/amd64:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+          SOURCE_IMAGE: "${{ env.NIGHTLY_IMAGE }}:${{ jobs.Prepare_tag.outputs.image_tag }}"
+          LATEST_IMAGE: "${{ env.NIGHTLY_IMAGE }}:latest"
+        steps:
+          - name: swr login via oidc
+            uses: pipelineascode/buildkit-dev/.gitcode/actions/swr-login@v1.0.1
+            with:
+              account_id: "0d336831568090260fd5c01450729240"
+              registry: "swr.cn-north-4.myhuaweicloud.com"
+              region: "cn-north-4"
+              provider_name: "pta_swr_nightly"
+              audience: "pta_swr_nightly"
+              agency_name: "pta_swr_nightly"
+              duration_seconds: "3600"
+          - name: tag built image as latest
+            run: |
+              set -eu
+              source_image="$(printenv SOURCE_IMAGE)"
+              latest_image="$(printenv LATEST_IMAGE)"
+              docker buildx imagetools create --tag "$latest_image" "$source_image"
+              docker buildx imagetools inspect "$source_image"
+              docker buildx imagetools inspect "$latest_image"
+
+  stage_2:
+    name: 冒烟测试
+    select: selected_by_default
+    jobs:
+      Test_nightly_smoke:
+        name: Test_nightly_smoke
+        uses: .gitcode/workflows/.version_nightly_smoke.yml
+        with:
+          testcase_config_file: "resources/pytest_mindsdk_agent.ini"
+          image_label: "${{ env.NIGHTLY_IMAGE }}:${{ jobs.Prepare_tag.outputs.image_tag }}"
+
+  stage_3:
+    name: 冒烟通过产物归档
+    select: selected_by_default
+    jobs:
+      Archive_smoke_passed_artifact:
+        name: Archive_smoke_passed_artifact
+        uses: .gitcode/workflows/.version_smoke_passed.yml
+        with:
+          IMAGE_FLAG: "swr.cn-north-4.myhuaweicloud.com/ascend-mindx/mindx_arm:SDK_20251230_1"
+          Version: "${{ env.Version }}"
+          runs_on_arch: "arm64"
+          servicename: "${{ env.servicename }}"
+          obs_prefix: "${{ jobs.Prepare_tag.outputs.obs_prefix }}"
