@@ -24,7 +24,7 @@ Agent SDK aura能用来帮助用户快速训练AI智能体，支持多种轨迹�
 | -             | Python接口说明 | 05_api_python.md         | 介绍Agent SDK aura的Python接口。          | [Python接口说明](05_api_python.md)             |
 | -             | 安全加固       | 06_security_hardening.md | 介绍Agent SDK aura的操作系统安全加固、防火墙配置等内容。 | [安全加固](06_security_hardening.md)           |
 | -             | FAQ        | 07_faq.md                | 介绍Agent SDK aura的常见问题。              | [FAQ](07_faq.md)                           |
-| -             | 版本说明书      | 08_release_notes.md      | 对该版本的更新点做简要说明。                      | [版本说明书](08_release_notes_agent.md)         |
+| -             | 版本说明书      | 08_release_notes_agent.md      | 对该版本的更新点做简要说明。                      | [版本说明书](08_release_notes_agent.md)         |
 | -             | 免责声明       | 09_disclaimer.md         | 介绍Agent SDK aura的免责声明等内容。           | [免责声明](09_disclaimer.md)                   |
 | -             | 附录         | 10_appendix.md           | 介绍Agent SDK aura的环境变量及支持的后端与模型列表。   | [附录](10_appendix.md)                       |
 | 模型（models）    | -          | -                        | 提供Agent SDK aura针对不同模型的快速部署文档。      | [模型](models/)                              |
