@@ -1,0 +1,112 @@
+on:
+  workflow_call:
+    inputs:
+      REMOTE_URL:
+        required: false
+        type: string
+        default: ${{ atomgit.repositoryurl }}
+      IMAGE_FLAG:
+        required: true
+        type: string
+        description: "Full SWR image URL, e.g. swr.<region>.<org>/mindx_arm:tag"
+      TARGET_BRANCH:
+        required: false
+        type: string
+        default: "master"
+      runs_on_arch:
+        required: true
+        type: string
+        description: "x64 or arm64"
+      DEFAULT_BRANCH:
+        required: false
+        type: string
+        default: "master"
+      servicename:
+        required: false
+        type: string
+        default: $(echo "${{ atomgit.repository }}" | cut -d '/' -f 2)
+      Version:
+        required: false
+        type: string
+        default: "26.3.0"
+      obs_prefix:
+        required: false
+        type: string
+
+jobs:
+  JOB_compile:
+    name: JOB_compile
+    select: selected_by_default
+    runs-on: [ self-hosted, arm64, cpu=16 ]
+    container:
+      image: ${{ inputs.IMAGE_FLAG }}
+      options: --user root
+    steps:
+      - name: setup makeself patch
+        run: |
+          set -ex
+          echo "ATOMGIT_WORKSPACE=${ATOMGIT_WORKSPACE}"
+          echo "${{ inputs.REMOTE_URL }}"
+          git clone -b ${{ inputs.TARGET_BRANCH }} ${{ inputs.REMOTE_URL }} ${{ inputs.servicename }}
+          cd ${ATOMGIT_WORKSPACE}/${{ inputs.servicename }}
+          mkdir -p opensource
+          cd opensource
+          git clone https://gitcode.com/cann-src-third-party/makeself.git
+          cp makeself/makeself-2.5.0.patch ./
+          rm -rf makeself
+          git clone -b release-2.5.0 https://gitcode.com/gh_mirrors/ma/makeself.git
+          cd makeself
+          patch -p1 < ../makeself-2.5.0.patch
+
+      - name: compile
+        run: |
+          set -ex
+          cd ${ATOMGIT_WORKSPACE}/${{ inputs.servicename }}/script
+          bash compile.sh
+          bash build_run.sh
+          ls -al ../output/target/
+
+      - name: generate repoInfo
+        run: |
+          set -e
+          cd ${ATOMGIT_WORKSPACE}/${{ inputs.servicename }}/output/target/
+
+          SHA256_PG=$(sha256sum Ascend-*.run)
+          SHA256=(${SHA256_PG// / })
+          WORKSPACE=$(echo "$(pwd)" | awk -F'/output' '{print $1}')
+          echo "${WORKSPACE}"
+          cd ${WORKSPACE}
+          branch=$(git rev-parse --abbrev-ref HEAD)
+          commit_id=$(git rev-parse HEAD)
+          echo "${commit_id}"
+          cd -
+          package_name=$(printf '%s ' *.run | sed 's/ $//')
+          echo "${package_name}"
+          touch "${package_name}.json"
+          cat>"${package_name}.json"<<EOF
+          {
+              "sha256Sum": "${SHA256}",
+              "repoInfo": [{
+                  "repoUrl": "http://gitcode.com/Ascend/${{ inputs.servicename }}.git",
+                  "repoBranch": "${branch}",
+                  "commitId": "${commit_id}"
+                  }],
+              "buildTime": "$(date -u -d '+8 hours' +%Y%m%d%H%M%S)"
+          }
+          EOF
+
+          echo "${SHA256} ${package_name}" > ${package_name}.sha256sum
+
+          ls -al ./
+          cat "${package_name}.json"
+
+      - name: 上传制品
+        uses: obs-upload
+        with:
+          endpoint: "obs.cn-north-4.myhuaweicloud.com"
+          bucket: "mindcluster"
+          access-key: "${{ secrets.MindCluster_OBS_AK }}"
+          secret-key: "${{ secrets.MindCluster_OBS_SK }}"
+          artifact-path: "${{ inputs.servicename }}/output/target/"
+          object-prefix: "${{ inputs.obs_prefix }}/"
+          if-no-files-found: error

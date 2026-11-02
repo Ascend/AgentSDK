@@ -1,6 +1,11 @@
 name: poc-PR-pipeline_agentsdk
 
 on:
+  pull_request_target:
+    branches: [ 'tech_26.1.0', 'tech_v26.2.0' ]
+    types:
+      - open
+      - update
   pr_comment:
     types: [created]
     keyword: '^rebuild_poc$'
@@ -29,7 +34,7 @@ stages:
     jobs:
       Detect_file_changes:
         name: Detect_file_changes
-        runs-on: [ self-hosted, x86, cpu=32 ]
+        runs-on: [ self-hosted, x86, cpu=16 ]
         container:
           image: swr.cn-north-4.myhuaweicloud.com/pytorch_images_x86/pytorchx86:v_03
         outputs:
@@ -79,7 +84,7 @@ stages:
       associate_pr_comment:
         name: associate_pr_comment
         select: selected_by_default
-        runs-on: [ self-hosted, x86, cpu=16 ]
+        runs-on: [ self-hosted, x86, cpu=2 ]
         container:
           image: swr.cn-north-4.myhuaweicloud.com/atlas-ci/common:latest
         steps:
@@ -102,7 +107,7 @@ stages:
     jobs:
       pre-commit:
         name: pre-commit
-        runs-on: [ self-hosted, x86, cpu=16 ]
+        runs-on: [ self-hosted, x86, cpu=8 ]
         container:
           image: swr.cn-north-4.myhuaweicloud.com/atlas-ci/common:latest
           options: --user root
@@ -125,7 +130,7 @@ stages:
 
       SCA:
         name: SCA
-        runs-on: [ self-hosted, x86, cpu=8 ]
+        runs-on: [ self-hosted, x86, cpu=2 ]
         container:
           image: swr.cn-north-4.myhuaweicloud.com/atlas-ci/common:latest
           options: --user root
@@ -141,7 +146,7 @@ stages:
 
       malicious-scan:
         name: antipoison
-        runs-on: [ self-hosted, x86, cpu=8 ]
+        runs-on: [ self-hosted, x86, cpu=2 ]
         container:
           image: swr.cn-north-4.myhuaweicloud.com/atlas-ci/common:latest
           options: --user root
@@ -157,7 +162,7 @@ stages:
 
       SAST:
         name: PR-SAST-check
-        runs-on: [ self-hosted, x86, cpu=8 ]
+        runs-on: [ self-hosted, x86, cpu=2 ]
         container:
           image: swr.cn-north-4.myhuaweicloud.com/ascend-mindx/mindx_x86:mindxdl_go1207_20251203
           options: --user root
