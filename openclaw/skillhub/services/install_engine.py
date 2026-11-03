@@ -3,6 +3,7 @@
 import json
 import os
 import shutil
+import uuid
 from datetime import datetime
 from typing import List, Optional
 
@@ -57,14 +58,40 @@ class InstallEngineImpl(InstallEngine):
 
         install_path = opts.target_path or str(self.config.skills_dir / skill.name)
 
+        if opts.dry_run:
+            return InstallResult(
+                success=True,
+                skill=InstalledSkill(
+                    name=skill.name,
+                    version=skill.version,
+                    source_id=skill.source.get("id", ""),
+                    source_type=skill.source.get("type", ""),
+                    repository=skill.repository,
+                    ref=skill.ref,
+                    install_path=install_path,
+                    checksum="",
+                ),
+                installed_dependencies=[],
+                warnings=["Dry run: no files were written and no install record was created"],
+                errors=[],
+                duration=(datetime.now() - start_time).total_seconds(),
+            )
+
+        # Stage the installation in a sibling directory so the target is only
+        # replaced after the download and validation succeed. If anything
+        # fails, the previous installation (if any) is left untouched.
+        staging_path = f"{install_path}.staging-{uuid.uuid4().hex[:8]}"
+        backup_path = f"{install_path}.backup-{uuid.uuid4().hex[:8]}"
+        moved_old = False
+
         try:
-            os.makedirs(install_path, exist_ok=True)
+            os.makedirs(staging_path, exist_ok=True)
 
             # For monorepo sources (has subpath but no download_url), use Contents API
             if skill.subpath and not skill.download_url:
-                await self._install_from_contents_api(skill, install_path)
+                await self._install_from_contents_api(skill, staging_path)
             else:
-                archive_path = os.path.join(install_path, "skill.zip")
+                archive_path = os.path.join(staging_path, "skill.zip")
                 from skillhub.utils.http import HttpClient
 
                 client = HttpClient(skill.repository)
@@ -78,13 +105,30 @@ class InstallEngineImpl(InstallEngine):
                 parsed = urlparse(skill.repository)
                 repo_name = parsed.path.strip('/').split('/')[-1]
                 strip_prefix = f"{repo_name}-{skill.ref}/"
-                extract_archive(archive_path, install_path, strip_prefix=strip_prefix)
+                extract_archive(archive_path, staging_path, strip_prefix=strip_prefix)
 
                 if skill.subpath:
-                    self._filter_subpath(install_path, skill.subpath)
+                    self._filter_subpath(staging_path, skill.subpath)
 
                 os.remove(archive_path)
 
+            # Commit: move the old installation aside, move the staged files
+            # into place, then drop the backup. Roll back on failure so the
+            # old installation is preserved.
+            if os.path.exists(install_path):
+                os.rename(install_path, backup_path)
+                moved_old = True
+            try:
+                os.rename(staging_path, install_path)
+            except Exception:
+                if moved_old:
+                    os.rename(backup_path, install_path)
+                raise
+            if moved_old:
+                shutil.rmtree(backup_path, ignore_errors=True)
+
+            # Compute the checksum from the final install path so it matches
+            # the value verify() recomputes from the same path string.
             checksum = compute_checksum(install_path)
 
             installed_skill = InstalledSkill(
@@ -112,6 +156,13 @@ class InstallEngineImpl(InstallEngine):
                 duration=duration,
             )
         except Exception as e:
+            shutil.rmtree(staging_path, ignore_errors=True)
+            if moved_old:
+                if os.path.exists(install_path):
+                    shutil.rmtree(backup_path, ignore_errors=True)
+                else:
+                    os.rename(backup_path, install_path)
+
             duration = (datetime.now() - start_time).total_seconds()
             return InstallResult(
                 success=False,
@@ -238,6 +289,25 @@ class InstallEngineImpl(InstallEngine):
 
         install_path = opts.target_path or str(self.config.skills_dir / name)
 
+        if opts.dry_run:
+            return InstallResult(
+                success=True,
+                skill=InstalledSkill(
+                    name=name,
+                    version=version,
+                    source_id="local",
+                    source_type="local",
+                    repository="",
+                    ref="",
+                    install_path=install_path,
+                    checksum="",
+                ),
+                installed_dependencies=[],
+                warnings=["Dry run: no files were written and no install record was created"],
+                errors=[],
+                duration=(datetime.now() - start_time).total_seconds(),
+            )
+
         try:
             if os.path.exists(install_path) and opts.force:
                 shutil.rmtree(install_path)
@@ -343,8 +413,16 @@ class InstallEngineImpl(InstallEngine):
                 duration=0.0,
             )
 
-        await self.uninstall(skill_name)
-        return await self.install(resolved, InstallOptions(force=True))
+        # Do not uninstall first: install() stages the new version and only
+        # replaces the old installation after a successful download, so a
+        # failed upgrade keeps the old files and install record intact.
+        # Reinstall into the recorded install path so the replacement also
+        # covers skills originally installed to a custom target directory,
+        # otherwise the old directory would be left behind as an orphan.
+        return await self.install(
+            resolved,
+            InstallOptions(force=True, target_path=current.install_path or None),
+        )
 
     async def list_installed(self) -> List[InstalledSkill]:
         return list(self._installed.values())
@@ -441,8 +519,16 @@ class InstallEngineImpl(InstallEngine):
                 duration=0.0,
             )
 
-        await self.uninstall(skill_name)
-        return await self.install(resolved, InstallOptions(force=True))
+        # Do not uninstall first: install() stages the new version and only
+        # replaces the old installation after a successful download, so a
+        # failed repair keeps the old files and install record intact.
+        # Reinstall into the recorded install path so the replacement also
+        # covers skills originally installed to a custom target directory,
+        # otherwise the old directory would be left behind as an orphan.
+        return await self.install(
+            resolved,
+            InstallOptions(force=True, target_path=current.install_path or None),
+        )
 
     async def clean(self) -> int:
         removed = 0

@@ -1,6 +1,6 @@
 """Skill resolver implementation."""
 
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Tuple
 
 from skillhub.interfaces.skill_resolver import SkillResolver, ValidationResult
 from skillhub.models.skill import (
@@ -87,12 +87,22 @@ class SkillResolverImpl(SkillResolver):
             except Exception:
                 default_branch = "main"
 
-            version = version_spec if version_spec != "latest" else (manifest.version or "latest")
+            if version_spec == "latest":
+                version = manifest.version or "latest"
+                ref = default_branch
+            else:
+                ref, version, manifest = await self._resolve_version_ref(
+                    adapter, source_owner, source_repo, skill_path, version_spec, manifest, default_branch
+                )
+                if ref is None:
+                    await adapter.close()
+                    return None
+
             return ResolvedSkill(
                 name=skill_name,
                 version=version,
                 repository=source.url,
-                ref=default_branch,
+                ref=ref,
                 manifest=manifest,
                 source={"id": source.id, "type": source.type.value},
                 download_url=None,
@@ -101,6 +111,71 @@ class SkillResolverImpl(SkillResolver):
         except Exception:
             await adapter.close()
             return None
+
+    async def _resolve_version_ref(
+        self,
+        adapter,
+        source_owner: str,
+        source_repo: str,
+        skill_path: str,
+        version_spec: str,
+        manifest: SkillManifest,
+        default_branch: str,
+    ) -> Tuple[Optional[str], str, SkillManifest]:
+        """Resolve a git ref matching the requested version spec.
+
+        Returns (ref, version, manifest). ref is None when the requested
+        version cannot be satisfied by any tag or the default branch.
+        """
+        # Match tags across all pages so repositories with more tags than the
+        # default page size still resolve older versions. Stops early as soon
+        # as a matching tag is found.
+        per_page = 100
+        page = 1
+        while page <= 50:
+            try:
+                batch = await adapter.list_tags(source_owner, source_repo, per_page=per_page, page=page)
+            except Exception:
+                break
+            if not batch:
+                break
+
+            for tag in batch:
+                # Allow both "1.0.0" and "v1.0.0" style tags.
+                candidate = tag.name[1:] if tag.name.startswith("v") and tag.name[1:2].isdigit() else tag.name
+                try:
+                    if not satisfies_version(candidate, version_spec):
+                        continue
+                except ValueError:
+                    continue
+
+                try:
+                    tag_manifest = self._parse_manifest(
+                        await adapter.get_file_content(
+                            source_owner, source_repo, f"{skill_path}/SKILL.md", ref=tag.name
+                        )
+                    )
+                except Exception:
+                    continue
+
+                return tag.name, (tag_manifest.version or candidate), tag_manifest
+
+            if len(batch) < per_page:
+                break
+            page += 1
+
+        # No matching tag: only fall back to the default branch when its
+        # manifest version satisfies the requested spec, otherwise fail
+        # explicitly instead of registering the default-branch content under
+        # the requested version.
+        if manifest.version:
+            try:
+                if satisfies_version(manifest.version, version_spec):
+                    return default_branch, manifest.version, manifest
+            except ValueError:
+                pass
+
+        return None, version_spec, manifest
 
     async def _try_direct_repo_resolution(
         self, adapter, source: Source, skill_name: str, skill_owner: str, skill_repo: str, version_spec: str
