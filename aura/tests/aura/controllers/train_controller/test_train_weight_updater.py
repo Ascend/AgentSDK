@@ -210,6 +210,30 @@ class TestUpdateWeightsAsync:
         # ray.get should not be called
         fake_updater_env["fake_ray"].get.assert_not_called()
 
+    def test_skips_save_when_version_already_published(self, fake_updater_env):
+        """An already published version must never be saved again (it would race aggregation)."""
+        worker, handlers = make_worker_with_actor_handlers()
+        actor = make_actor(make_dispatch_actor(), worker)
+        actor._published_dirs.add("iter_0000001")
+
+        actor._update_weights_async("iter_0000001", iteration=1)
+
+        for h in handlers:
+            h.prepare_infer_params_to_cpu.remote.assert_not_called()
+        assert actor.update_finished is True
+        assert actor._exports == {}
+
+    def test_finalise_export_marks_version_published(self, fake_updater_env):
+        """Once every rank saved, the version is marked published before notifying rollout."""
+        worker, _ = make_worker_with_actor_handlers()
+        dispatch_actor = make_dispatch_actor()
+        actor = make_actor(dispatch_actor, worker)
+
+        actor._finalise_export("iter_0000002", 0.0, 2)
+
+        assert "iter_0000002" in actor._published_dirs
+        dispatch_actor.notify_weights_update.remote.assert_called_once_with("iter_0000002")
+
 
 # ---------------------------------------------------------------------------
 # Tests for weight_saved

@@ -164,6 +164,8 @@ class FullyAsyncTrainer(SeparateRayPPOTrainer):
         self.progress_bar = None
         self.trigger_parameter_sync_step = config.async_training.trigger_parameter_sync_step
         self.last_ckpt_version = 0
+        # Last param version already pushed to rollout, used to dedupe the final sync.
+        self.last_synced_param_version = 0
         self.train_role = self._compute_train_role(config)
 
         # required_samples use ppo_mini_batch_size*require_batches as the minimum number of samples.
@@ -531,8 +533,19 @@ class FullyAsyncTrainer(SeparateRayPPOTrainer):
         logger.info("fully async training finished!!!")
 
     async def _maybe_sync_final_weights(self) -> None:
-        """Sync the final weights to rollout if the loop ended mid-trigger cycle."""
-        if self.current_param_version % self.config.trainer.test_freq == 0 and self.local_trigger_step <= 1:
+        """Sync the final weights to rollout only if the current version was not published yet.
+
+        The last ``fit_step`` already publishes ``current_param_version`` when
+        ``local_trigger_step == 1``, so dedupe against the last published version
+        instead of ``test_freq``: the old check only skipped when
+        ``test_freq`` happened to divide the version, which saved the same
+        version twice and raced the second write with the aggregation of the first.
+        """
+        if self.current_param_version <= self.last_synced_param_version:
+            logger.info(
+                f"[FullyAsyncTrainer] Training loop ended, weights for param_version="
+                f"{self.current_param_version} already synced, skip final sync"
+            )
             return
         logger.info(
             f"[FullyAsyncTrainer] Training loop ended, syncing final weights to rollout "
@@ -682,6 +695,7 @@ class FullyAsyncTrainer(SeparateRayPPOTrainer):
 
         with marked_timer("timing_s/param_sync", self.timing_raw):
             self.controller.update_rollout_weights(self.current_param_version)
+        self.last_synced_param_version = self.current_param_version
         logger.info(
             f"[FullyAsyncTrainer] _fit_update_weights, "
             f"timing_s/param_sync: {self.timing_raw['timing_s/param_sync']:.4f} seconds "
@@ -859,6 +873,8 @@ class FullyAsyncTrainer(SeparateRayPPOTrainer):
         self.current_param_version = int(global_step_folder.split("global_step_")[-1]).strip(" /")
         self.global_steps = self.current_param_version * self.trigger_parameter_sync_step + 1
         self.last_ckpt_version = self.current_param_version
+        # Weights of this version were published before the checkpoint was written.
+        self.last_synced_param_version = self.current_param_version
         logger.info(
             f"[FullyAsyncTrainer] Setting global step to {self.global_steps}, "
             f"current_param_version to {self.current_param_version}"

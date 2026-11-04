@@ -183,7 +183,7 @@ class InferRouter:
     async def reset_prefix_cache(self, model_name):
         infer_instance = await self.infer_manager.get_instance.remote(model_name)
         object_refs = [executor.ref.reset_prefix_cache.remote() for executor in infer_instance.executor_list]
-        ray.get(object_refs)
+        return ray.get(object_refs)
 
     async def get_workload(self):
         if self.chat_server_mode:

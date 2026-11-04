@@ -121,6 +121,8 @@ export DP_RPC_PORT=${DP_RPC_PORT:-13397}
 export VLLM_ASCEND_LLMDD_RPC_PORT=${VLLM_ASCEND_LLMDD_RPC_PORT:-7778}
 export ASCEND_RT_VISIBLE_DEVICES=${ASCEND_RT_VISIBLE_DEVICES:-0,1,2,3,4,5,6,7}
 export TOOL_CALL_ENABLE=${TOOL_CALL_ENABLE:-false}
+# 是否启用 prefix caching，默认 true 保持原有行为；全异步（fully_async）训练建议设为 false
+export ENABLE_PREFIX_CACHING=${ENABLE_PREFIX_CACHING:-"true"}
 
 if [[ -n "$CUDAGRAPH_MODE" ]]; then
   case "$CUDAGRAPH_MODE" in
@@ -139,6 +141,12 @@ if [[ -n "$ENABLE_SP" && "$ENABLE_SP" != "true" && "$ENABLE_SP" != "false" ]]; t
   exit 1
 fi
 
+if [[ "$ENABLE_PREFIX_CACHING" != "true" && "$ENABLE_PREFIX_CACHING" != "false" ]]; then
+  echo "Invalid ENABLE_PREFIX_CACHING: $ENABLE_PREFIX_CACHING"
+  echo "Supported values: true, false"
+  exit 1
+fi
+
 # DP_START_RANK 计算: DP_START_RANK = local_node_rank * DATA_PARALLEL_SIZE_LOCAL
 DP_START_RANK=$(( LOCAL_NODE_RANK * DATA_PARALLEL_SIZE_LOCAL ))
 
@@ -147,6 +155,14 @@ if [ "$ENABLE_EXPERT_PARALLEL" = "true" ]; then
     EXPERT_PARALLEL_ARG="--enable-expert-parallel"
 else
     EXPERT_PARALLEL_ARG=""
+fi
+
+# 将 ENABLE_PREFIX_CACHING 转换为 VLLM 命令行参数
+# 注意：vLLM V1 未显式指定时默认开启 prefix caching，关闭必须显式传 --no-enable-prefix-caching
+if [ "$ENABLE_PREFIX_CACHING" = "true" ]; then
+    PREFIX_CACHING_ARGS="--enable-prefix-caching"
+else
+    PREFIX_CACHING_ARGS="--no-enable-prefix-caching"
 fi
 
 # 转换模型名称为全小写
@@ -185,6 +201,7 @@ echo " Expert Parallel     : $ENABLE_EXPERT_PARALLEL"
 echo " tool call           : $TOOL_CALL_ARGS"
 echo " CUDAGraph Override  : ${CUDAGRAPH_MODE:-not set}"
 echo " Enable SP Override  : ${ENABLE_SP:-not set}"
+echo " Prefix Caching      : $ENABLE_PREFIX_CACHING"
 echo "============================================"
 
 ########################################
@@ -264,7 +281,7 @@ function start_vllm_serve_separate()
           --enforce-eager \
           --enable-chunked-prefill \
           --max-num-seqs ${MAX_NUM_SEQS} \
-          --enable-prefix-caching \
+          ${PREFIX_CACHING_ARGS} \
           --worker_extension_cls "aura.runner.infer_adapter.vllm.extension.custom_worker_extensions.CustomWorkerExtensions" \
           --additional-config '{"ascend_scheduler_config":{"enabled":true,"enable_chunked_prefill":true}}' \
           --kv-transfer-config "$KV_TRANSFER_CONFIG"
@@ -291,7 +308,7 @@ function start_vllm_serve_separate()
           --trust-remote-code \
           --enable-chunked-prefill \
           --max-num-seqs ${MAX_NUM_SEQS} \
-          --enable-prefix-caching \
+          ${PREFIX_CACHING_ARGS} \
           --worker_extension_cls "aura.runner.infer_adapter.vllm.extension.custom_worker_extensions.CustomWorkerExtensions" \
           --additional-config '{"ascend_scheduler_config":{"enabled":true,"enable_chunked_prefill":true}}' \
           --compilation_config '{
@@ -334,7 +351,7 @@ function start_vllm_serve_hybrid()
           --enable-chunked-prefill \
           ${API_SERVER_CNT} \
           --max-num-seqs ${MAX_NUM_SEQS} \
-          --enable-prefix-caching \
+          ${PREFIX_CACHING_ARGS} \
           --worker_extension_cls "aura.runner.infer_adapter.vllm.extension.custom_worker_extensions.CustomWorkerExtensions" \
           --additional-config '{"ascend_scheduler_config":{"enabled":true,"enable_chunked_prefill":true}}' \
           --compilation_config '{
@@ -388,7 +405,7 @@ function start_vllm_serve_hybrid_opt()
           --trust-remote-code \
           --enable-chunked-prefill \
           --max-num-seqs ${MAX_NUM_SEQS} \
-          --enable-prefix-caching \
+          ${PREFIX_CACHING_ARGS} \
           ${API_SERVER_CNT} \
           --async-scheduling \
           --worker_extension_cls "aura.runner.infer_adapter.vllm.extension.custom_worker_extensions.CustomWorkerExtensions" \

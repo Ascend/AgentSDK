@@ -128,7 +128,7 @@ class VLLMProxyInferServer(BaseInferServer):
         server_list = []
         if self.prefill_server_list is not None or self.decode_server_list is not None:
             server_list.extend(self.prefill_server_list if self.prefill_server_list else [])
-            server_list.extend(self.decode_server_list if self.prefill_server_list else [])
+            server_list.extend(self.decode_server_list if self.decode_server_list else [])
         else:
             server_list.extend(self.chat_server_list)
 
@@ -168,9 +168,9 @@ class VLLMProxyInferServer(BaseInferServer):
         server_list = []
         if self.prefill_server_list is not None or self.decode_server_list is not None:
             server_list.extend(self.prefill_server_list if self.prefill_server_list else [])
-            server_list.extend(self.decode_server_list if self.prefill_server_list else [])
+            server_list.extend(self.decode_server_list if self.decode_server_list else [])
         else:
-            server_list.append(self.chat_server)
+            server_list.extend(self.chat_server_list)
 
         async with httpx.AsyncClient(timeout=300) as client:
             tasks = []
@@ -179,4 +179,26 @@ class VLLMProxyInferServer(BaseInferServer):
                 logger.info(f"reset_prefix_cache={infer_url}, payload={payload}")
                 task = client.post(infer_url, json=payload)
                 tasks.append(task)
-            await asyncio.gather(*tasks, return_exceptions=True)
+            responses = await asyncio.gather(*tasks, return_exceptions=True)
+
+        cache_cleared = True
+        for i, response in enumerate(responses):
+            if isinstance(response, Exception):
+                logger.error(f"Server {server_list[i]} reset_prefix_cache request failed: {response}")
+                cache_cleared = False
+                continue
+            if response.status_code != 200:
+                logger.error(
+                    f"Server {server_list[i]} reset_prefix_cache returned "
+                    f"{response.status_code}: {response.text}"
+                )
+                cache_cleared = False
+                continue
+            try:
+                body = response.json()
+            except ValueError:
+                body = None
+            if isinstance(body, dict) and body.get("success") is False:
+                logger.error(f"Server {server_list[i]} did not clear the prefix cache: {body}")
+                cache_cleared = False
+        return cache_cleared
