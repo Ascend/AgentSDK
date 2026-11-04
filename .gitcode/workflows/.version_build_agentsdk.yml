@@ -37,7 +37,7 @@ jobs:
   JOB_compile:
     name: JOB_compile
     select: selected_by_default
-    runs-on: [ self-hosted, arm64, cpu=16 ]
+    runs-on: [ self-hosted, arm, cpu=16 ]
     container:
       image: ${{ inputs.IMAGE_FLAG }}
       options: --user root
@@ -105,8 +105,8 @@ jobs:
         with:
           endpoint: "obs.cn-north-4.myhuaweicloud.com"
           bucket: "mindcluster"
-          access-key: "${{ secrets.MindCluster_OBS_AK }}"
-          secret-key: "${{ secrets.MindCluster_OBS_SK }}"
+          access-key: "${{ secrets.MINDCLUSTER_OBS_AK }}"
+          secret-key: "${{ secrets.MINDCLUSTER_OBS_SK }}"
           artifact-path: "${{ inputs.servicename }}/output/target/"
           object-prefix: "${{ inputs.obs_prefix }}/"
           if-no-files-found: error
