@@ -205,7 +205,6 @@ class RolloutWeightManager:
         self.logger.info(f"aggregate weights, sharded_path: {sharded_path}, output_file: {output_file}")
         p.start()
         p.join(timeout=AGGREGATE_TIMEOUT)
-        self.logger.info(f"aggregate weights succeed, output file: {output_file}")
 
         error_msg = None
 
@@ -236,6 +235,7 @@ class RolloutWeightManager:
                 os.remove(output_file)
             raise RuntimeError(error_msg)
 
+        self.logger.info(f"aggregate weights succeed, output file: {output_file}")
         self.logger.info("aggregate subprocess finished")
 
     def _move_weights(self, src_dir, weight_iter):
@@ -304,7 +304,15 @@ class RolloutWeightManager:
         with self.update_lock:
             if not self._should_weights_update(weight_iter):
                 return
-            self._do_weights_update(path, weight_iter)
+            try:
+                self._do_weights_update(path, weight_iter)
+            except Exception as e:
+                # The caller is fire-and-forget, so make the failure visible here.
+                self.logger.error(
+                    f"failed to update rollout weights iter {weight_iter} from {path}: {e}, "
+                    f"current version: {self.weights_version}"
+                )
+                raise
 
     def init_done(self):
         pass

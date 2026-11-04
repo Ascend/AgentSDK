@@ -51,9 +51,21 @@ class WeightUpdateActor:
         self.finish_delays: list[int] = []
 
         self.update_finished = False
+        # Versions already published in this process. A second save of the same
+        # directory would overwrite shards that the rollout side may still be
+        # aggregating, so it must be skipped. Kept in memory (not on disk) so that
+        # a fresh run is still allowed to rewrite an existing version directory.
+        self._published_dirs: set[str] = set()
 
     def _update_weights_async(self, weight_save_dir: str, iteration: int):
         """Called by the trainer; returns immediately."""
+        if weight_save_dir in self._published_dirs:
+            self.logger.warning(
+                f">>> weights for iteration {iteration} already saved at {weight_save_dir} "
+                f"in this run, skip re-saving to avoid overwriting published shards"
+            )
+            self.update_finished = True
+            return
         self.logger.info(f">>> updating weights with weights dir: {weight_save_dir} iteration: {iteration}")
         self.current_training_iter = iteration
         self._exports[weight_save_dir] = _ExportTracker(
@@ -109,6 +121,7 @@ class WeightUpdateActor:
         self._exports.pop(weight_save_dir, None)
 
     def _finalise_export(self, weight_save_dir, start_ts, iteration):
+        self._published_dirs.add(weight_save_dir)
         # Notify generation units
         self.dispatch_actor.notify_weights_update.remote(weight_save_dir)
         self._update_metrics(weight_save_dir, start_ts, iteration)

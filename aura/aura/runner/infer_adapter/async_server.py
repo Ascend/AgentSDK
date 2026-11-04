@@ -190,7 +190,14 @@ class AsyncServerProxyManager:
         kwargs_list = [{"path": path}]
         logger.info(f"update_weights, kwargs_list: {kwargs_list}")
         await self.infer_router.update_weights(model_name=self.infer_service, kwargs_list=kwargs_list)
-        await self.infer_router.reset_prefix_cache(model_name=self.infer_service)
+        reset_results = await self.infer_router.reset_prefix_cache(model_name=self.infer_service)
+        cache_cleared = all(result is not False for result in (reset_results or []))
+        if not cache_cleared:
+            logger.error(
+                f"weights loaded from {path} but reset_prefix_cache did not clear every instance: "
+                f"{reset_results}; KV computed with the previous weights may still be reused"
+            )
+        return cache_cleared
 
 
 class AsyncServerManager:
@@ -371,7 +378,7 @@ class AsyncServerManager:
             await server.collective_rpc.remote("update_weights_with_disk", args=path)
 
     async def reset_prefix_cache(self):
-        ray.get([server.reset_prefix_cache.remote() for server in self.async_servers])
+        return ray.get([server.reset_prefix_cache.remote() for server in self.async_servers])
 
     async def vllm_statistics(self):
         for server in self.async_servers:

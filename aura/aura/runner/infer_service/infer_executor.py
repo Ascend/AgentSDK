@@ -125,4 +125,4 @@ class InferExecutor(Executor):
 
     @public_api(name="reset_prefix_cache")
     async def reset_prefix_cache(self, *args, **kwargs):
-        await self.engine.reset_prefix_cache()
+        return await self.engine.reset_prefix_cache()

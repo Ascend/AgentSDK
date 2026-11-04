@@ -1058,7 +1058,12 @@ class RolloutWorker:
 
         _synchronize_and_collect()
 
-        await self.rollout_engine.update_weights(weights_path)
+        cache_cleared = await self.rollout_engine.update_weights(weights_path)
+        if cache_cleared is False:
+            logger.error(
+                f"|perf-stat|rollout| prefix cache was NOT fully cleared after updating weights "
+                f"from {weights_path}, stale KV entries may be reused with the new weights"
+            )
 
         _synchronize_and_collect()
         self.current_weights_version = weights_version
@@ -1186,10 +1191,18 @@ class RolloutWorker:
         weights_path = self._weights_path_for_version(weights_version)
         logger.info(f"[async-rollout] start update_weights from {weights_path}")
         _synchronize_and_collect()
-        await self.rollout_engine.update_weights(weights_path)
+        cache_cleared = await self.rollout_engine.update_weights(weights_path)
         _synchronize_and_collect()
         self.current_weights_version = weights_version
         self.rollout_weight_version = weights_version
+        if cache_cleared is False:
+            # Weights are already the new version, so the version must advance, but
+            # stale KV blocks may still be reused by new requests. Surface it instead
+            # of silently advancing.
+            logger.error(
+                f"[async-rollout] weights v{weights_version} loaded but prefix cache was not cleared; "
+                f"KV computed with the previous weights may still be reused"
+            )
         try:
             in_flight = await self.sample_queue.get_queue_size.remote()
         except Exception:

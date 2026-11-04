@@ -383,5 +383,5 @@ class AsyncVLLMServer(AsyncServerBase):
         await self.engine.abort(request_json["requests"])
 
     async def reset_prefix_cache(self):
-        """Reset the prefix cache."""
-        await self.engine.reset_prefix_cache()
+        """Reset the prefix cache and report whether the engine actually cleared it."""
+        return await self.engine.reset_prefix_cache()

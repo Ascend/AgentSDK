@@ -294,6 +294,14 @@ gpu_memory_utilization: 0.6
 
 ### 步骤 5：启动训练
 
+**全异步模式建议先关闭推理端 prefix caching：**
+
+```bash
+export ENABLE_PREFIX_CACHING=false
+```
+
+`ENABLE_PREFIX_CACHING` 是 [vllm_serve.sh](../../../../aura/scripts/infer/vllm/vllm_serve.sh) 提供的环境变量，默认为 `true`，对 PD、hybrid、hybrid_opt 等所有启动分支生效；仅全异步部署建议显式设为 `false`。
+
 ```bash
 cd /home/work/AgentSDK/aura
 bash scripts/start_rl_with_verl_vllm.sh

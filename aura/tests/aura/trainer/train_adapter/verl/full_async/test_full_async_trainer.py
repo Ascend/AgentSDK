@@ -1159,10 +1159,11 @@ class TestFullyAsyncTrainerRefactoredHelpers(unittest.TestCase):
 
     # ---------------- _maybe_sync_final_weights ----------------
 
-    def test_maybe_sync_final_weights_skips_when_aligned(self):
-        # current_param_version % test_freq == 0 and local_trigger_step <= 1 -> skip
+    def test_maybe_sync_final_weights_skips_when_already_synced(self):
+        # The last fit_step already published current_param_version -> skip.
         self.mock_config.trainer.test_freq = 10
         self.trainer.current_param_version = 20
+        self.trainer.last_synced_param_version = 20
         self.trainer.local_trigger_step = 1
         self.trainer.controller = MagicMock()
 
@@ -1171,9 +1172,12 @@ class TestFullyAsyncTrainerRefactoredHelpers(unittest.TestCase):
 
         self.trainer.controller.update_rollout_weights.assert_not_called()
 
-    def test_maybe_sync_final_weights_triggers_when_off_boundary(self):
-        self.mock_config.trainer.test_freq = 10
-        self.trainer.current_param_version = 25  # 25 % 10 != 0
+    def test_maybe_sync_final_weights_triggers_when_version_not_synced(self):
+        # test_freq does not divide the version, but dedupe is based on the last
+        # published version, so the final weights must still be pushed.
+        self.mock_config.trainer.test_freq = 100000
+        self.trainer.current_param_version = 25
+        self.trainer.last_synced_param_version = 24
         self.trainer.local_trigger_step = 1
         self.trainer.controller = MagicMock()
         self.trainer.timing_raw = {'timing_s/param_sync': 0.0}
@@ -1183,13 +1187,15 @@ class TestFullyAsyncTrainerRefactoredHelpers(unittest.TestCase):
         asyncio.run(self.trainer._maybe_sync_final_weights())
 
         self.trainer.controller.update_rollout_weights.assert_called_once_with(25)
+        assert self.trainer.last_synced_param_version == 25
 
     def test_maybe_sync_final_weights_skips_update_when_local_trigger_not_one(self):
         # ``_maybe_sync_final_weights`` enters the else branch when
         # ``local_trigger_step > 1``, but ``_fit_update_weights`` short-circuits
         # on ``local_trigger_step != 1`` so ``update_rollout_weights`` is NOT called.
         self.mock_config.trainer.test_freq = 10
-        self.trainer.current_param_version = 20  # divisible
+        self.trainer.current_param_version = 20
+        self.trainer.last_synced_param_version = 19
         self.trainer.local_trigger_step = 3  # > 1 -> _fit_update_weights returns early
         self.trainer.controller = MagicMock()
         self.trainer.timing_raw = {'timing_s/param_sync': 0.0}
