@@ -37,7 +37,7 @@ jobs:
   JOB_compile:
     name: JOB_compile
     select: selected_by_default
-    runs-on: [ self-hosted, arm64, cpu=16 ]
+    runs-on: [ self-hosted, arm, cpu=16 ]
     container:
       image: ${{ inputs.IMAGE_FLAG }}
       options: --user root
@@ -49,7 +49,7 @@ jobs:
           mkdir -p version_snapshot
           cd version_snapshot
           echo 'start archive smoke-passed artifact1'
-          obsutil config -i=${{ secrets.MindCluster_OBS_AK }} -k=${{ secrets.MindCluster_OBS_SK }} -e=obs.cn-north-4.myhuaweicloud.com
+          obsutil config -i=${{ secrets.MINDCLUSTER_OBS_AK }} -k=${{ secrets.MINDCLUSTER_OBS_SK }} -e=obs.cn-north-4.myhuaweicloud.com
           SOURCE_PATH="obs://mindcluster/${{ inputs.obs_prefix }}"
           now=$(date -u -d '+8 hours' +%Y%m%d%H%M%S)
           echo $now

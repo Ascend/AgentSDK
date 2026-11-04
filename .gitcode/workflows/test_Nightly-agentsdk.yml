@@ -5,6 +5,7 @@ on:
   schedule:
     - cron: '0 6 * * *'
 
+env:
   NIGHTLY_IMAGE: "swr.cn-north-4.myhuaweicloud.com/atlas-ci/test-mindsdk-agent-nightly"
   servicename: "AgentSDK"
   Version: "26.3.0"
@@ -52,8 +53,8 @@ stages:
           IMAGE_FLAG: "swr.cn-north-4.myhuaweicloud.com/ascend-mindx/mindx_arm:SDK_20251230_1"
           runs_on_arch: "arm64"
           TARGET_BRANCH: "master"
-          Version: "26.3.0"
-          servicename: "${{ env.Version }}"
+          Version: "${{ env.Version }}"
+          servicename: "${{ env.servicename }}"
           obs_prefix: "${{ jobs.Prepare_tag.outputs.obs_prefix }}"
 
   stage_1:
