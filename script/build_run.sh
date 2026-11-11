@@ -24,7 +24,7 @@ workdir=$(
 )
 
 # 获取第一个入参，版本号
-VERSION="${1:-7.0.0}"
+VERSION="${1:-26.3.0}"
 VERSION_FILE="${workdir}"/../ci/config/config.ini
 get_version() {
   if [ -f "$VERSION_FILE" ]; then
