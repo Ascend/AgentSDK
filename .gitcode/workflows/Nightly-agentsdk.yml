@@ -1,4 +1,4 @@
-name: version-test-pipeline_agentsdk
+name: Nightly-CI-Component-pipeline_Agentsdk
 
 on:
   workflow_dispatch:
@@ -38,7 +38,7 @@ stages:
               printf 'image_tag=%s\n' "$image_tag" >> "$output_file"
               printf 'Image tag: %s\n' "$image_tag"
               obs_tag_ym="$(TZ=Asia/Shanghai date +%Y%m%d)"
-              obs_prefix="${{ env.servicename }}/daily/actions/version/${{ env.VERSION }}/${obs_tag_ym}.${ATOMGIT_RUN_NUMBER}"
+              obs_prefix="${{ env.servicename }}/daily/version/${{ env.Version }}/${obs_tag_ym}.${ATOMGIT_RUN_NUMBER}"
               printf 'obs_prefix=%s\n' "$obs_prefix" >> "$output_file"
               printf 'obs prefix: %s\n' "$obs_prefix"
 
