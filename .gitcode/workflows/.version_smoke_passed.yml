@@ -55,7 +55,7 @@ jobs:
           echo $now
           target_folder="${{ inputs.servicename }}-${{ inputs.Version }}-$(date -u -d '+8 hours' +%Y%m%d%H%M%S)"
           echo "冒烟归档文件夹：${target_folder}"
-          TARGET_PATH_SNAPSHOT="obs://mindcluster/actions_version_snapshot/${target_folder}"
-          TARGET_PATH_LATEST="obs://mindcluster/actions_version_snapshot/latest/${{ inputs.servicename }}"
+          TARGET_PATH_SNAPSHOT="obs://mindcluster/version_snapshot/${target_folder}"
+          TARGET_PATH_LATEST="obs://mindcluster/version_snapshot/latest/${{ inputs.servicename }}"
           obsutil cp ${SOURCE_PATH}/ ${TARGET_PATH_SNAPSHOT}/ -f -r --flat
           obsutil cp ${SOURCE_PATH}/ ${TARGET_PATH_LATEST}/ -f -r --flat
