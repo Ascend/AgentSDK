@@ -6,8 +6,8 @@
 
 - 从哪里获取帮助
     - [issue 反馈](https://gitcode.com/Ascend/AgentSDK/issues)
-    - [Agent SDK 代码](https://gitcode.com/Ascend/AgentSDK/tree/release/v26.2.0/aura)
-    - [Aura 快速启动文档](https://gitcode.com/Ascend/AgentSDK/blob/release/v26.2.0/docs/zh/aura/03_quick_start.md)
+    - [Agent SDK 代码](https://gitcode.com/Ascend/AgentSDK/tree/release_v26.2.0/aura)
+    - [Aura 快速启动文档](https://gitcode.com/Ascend/AgentSDK/blob/release_v26.2.0/docs/zh/aura/03_quick_start.md)
     - [社区](https://www.hiascend.com/)
 
 ## 2.Aura简介
@@ -37,14 +37,14 @@ Tag 遵循以下格式：
 
 ### 3.2 最新版本 Agent SDK 26.2.0
 
-如下所示是 Agent SDK 最新发布的 26.2.0 版本的所有镜像，历史版本所有的 Tag 请参考[Supported Tags](https://gitcode.com/Ascend/AgentSDK/tree/release/v26.2.0/docker/aura/supported_tags.md)。
+如下所示是 Agent SDK 最新发布的 26.2.0 版本的所有镜像，历史版本所有的 Tag 请参考[Supported Tags](https://gitcode.com/Ascend/AgentSDK/tree/release_v26.2.0/docker/aura/supported_tags.md)。
 
 | Tag                                                           | Dockerfile                                                                                                  | 镜像内容                |
 |---------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------|---------------------|
-| `26.2.0-cann9.0.0-torch_npu2.10.0-910b-ubuntu22.04-py3.11`    | [Dockerfile](https://gitcode.com/Ascend/AgentSDK/blob/release/v26.2.0/docker/aura/Dockerfile.910b.ubuntu)    | toolkit + Agent SDK |
-| `26.2.0-cann9.0.0-torch_npu2.10.0-a3-ubuntu22.04-py3.11`      | [Dockerfile](https://gitcode.com/Ascend/AgentSDK/blob/release/v26.2.0/docker/aura/Dockerfile.a3.ubuntu)      | toolkit + Agent SDK |
-| `26.2.0-cann9.0.0-torch_npu2.10.0-910b-openeuler24.03-py3.11` | [Dockerfile](https://gitcode.com/Ascend/AgentSDK/blob/release/v26.2.0/docker/aura/Dockerfile.910b.openeuler) | toolkit + Agent SDK |
-| `26.2.0-cann9.0.0-torch_npu2.10.0-a3-openeuler24.03-py3.11`   | [Dockerfile](https://gitcode.com/Ascend/AgentSDK/blob/release/v26.2.0/docker/aura/Dockerfile.a3.openeuler)   | toolkit + Agent SDK |
+| `26.2.0-cann9.0.0-torch_npu2.10.0-910b-ubuntu22.04-py3.11`    | [Dockerfile](https://gitcode.com/Ascend/AgentSDK/blob/release_v26.2.0/docker/aura/Dockerfile.910b.ubuntu)    | toolkit + Agent SDK |
+| `26.2.0-cann9.0.0-torch_npu2.10.0-a3-ubuntu22.04-py3.11`      | [Dockerfile](https://gitcode.com/Ascend/AgentSDK/blob/release_v26.2.0/docker/aura/Dockerfile.a3.ubuntu)      | toolkit + Agent SDK |
+| `26.2.0-cann9.0.0-torch_npu2.10.0-910b-openeuler24.03-py3.11` | [Dockerfile](https://gitcode.com/Ascend/AgentSDK/blob/release_v26.2.0/docker/aura/Dockerfile.910b.openeuler) | toolkit + Agent SDK |
+| `26.2.0-cann9.0.0-torch_npu2.10.0-a3-openeuler24.03-py3.11`   | [Dockerfile](https://gitcode.com/Ascend/AgentSDK/blob/release_v26.2.0/docker/aura/Dockerfile.a3.openeuler)   | toolkit + Agent SDK |
 
 ## 4.快速开始
 
@@ -96,7 +96,7 @@ docker run --name your_container_name \
 
 ### 4.3 快速启动用例
 
-快速启动参考：[Qwen3-4B 共卡模式快速拉起指南](https://gitcode.com/Ascend/AgentSDK/blob/release/v26.2.0/docs/zh/aura/models/qwen3-4b_quick_start/qwen3-4b-hybrid.md)
+快速启动参考：[Qwen3-4B 共卡模式快速拉起指南](https://gitcode.com/Ascend/AgentSDK/blob/release_v26.2.0/docs/zh/aura/models/qwen3-4b_quick_start/qwen3-4b-hybrid.md)
 
 ---
 

@@ -4,7 +4,7 @@ ENV SOC_VERSION=ascend910_9391 \
     LANG=en_US.UTF-8 \
     LC_ALL=en_US.UTF-8
 
-ARG GIT_BRANCH=release/v26.2.0
+ARG GIT_BRANCH=release_v26.2.0
 
 RUN yum -y update && \
     yum -y install net-tools dos2unix ca-certificates curl wget numactl jemalloc clang patch && \
