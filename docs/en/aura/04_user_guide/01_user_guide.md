@@ -84,6 +84,47 @@ curl -X POST http://localhost:8030/v1/chat/completions \
 
 ---
 
+## Viewing Training Metrics with TensorBoard
+
+Add `tensorboard` to the `verl_conf.trainer.logger` list in the Aura training YAML file. The quick start configuration already includes both entries shown below.
+
+```yaml
+verl_conf:
+  trainer:
+    logger: [console, tensorboard]
+```
+
+`console` prints training logs to the terminal, and `tensorboard` writes training metrics to event files.
+
+Follow these steps to view training metrics on your local machine.
+
+1. **Download the event files**
+
+   Download the TensorBoard event files from the training environment, such as `events.out.tfevents.1769777322.k8s-worker1.884335.0`.
+
+   By default, veRL saves logs to `tensorboard_log/<project_name>/<experiment_name>/`.
+2. **Install TensorBoard**
+
+   Run the following command in your local Python environment.
+
+   ```
+   python -m pip install tensorboard
+   ```
+
+3. **Start TensorBoard**
+
+   Create a local `logs/` directory and place the downloaded event files in it. Run the following command from the parent directory of `logs/`.
+
+   ```
+   tensorboard --logdir=logs --port=6006
+   ```
+
+4. **View training metrics**
+
+   Open [http://localhost:6006](http://localhost:6006) in your browser and select **Scalars** to see how the training metrics change over time.
+
+---
+
 ## Custom Agent Development
 
 For details, see the [Custom Agent Integration Guide](06_custom_agent.md).

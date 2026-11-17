@@ -84,6 +84,47 @@ curl -X POST http://localhost:8030/v1/chat/completions \
 
 ---
 
+## 使用 TensorBoard 查看训练指标
+
+在 Aura 训练 YAML 文件的 `verl_conf.trainer.logger` 列表中添加 `tensorboard`。快速入门配置已包含以下两项。
+
+```yaml
+verl_conf:
+  trainer:
+    logger: [console, tensorboard]
+```
+
+`console` 将训练日志输出到终端，`tensorboard` 将训练指标写入事件文件。
+
+按照以下步骤在本地查看训练指标：
+
+1. **下载事件文件**
+
+   从训练环境中下载 TensorBoard 事件文件（如 `events.out.tfevents.1769777322.k8s-worker1.884335.0`）。
+
+   veRL 默认将日志保存在 `tensorboard_log/<project_name>/<experiment_name>/` 目录下。
+2. **安装 TensorBoard**
+
+   在本地 Python 环境中执行：
+
+   ```
+   python -m pip install tensorboard
+   ```
+
+3. **启动 TensorBoard**
+
+   在本地创建 `logs/` 目录，并将下载的事件文件放入其中。随后在该目录的上一级目录执行：
+
+   ```
+   tensorboard --logdir=logs --port=6006
+   ```
+
+4. **查看训练指标**
+
+   在浏览器中访问 [http://localhost:6006](http://localhost:6006)，进入 **Scalars** 页面，查看训练指标及其变化趋势。
+
+---
+
 ## 自定义 Agent 开发
 
 详见 [自定义 Agent 接入指南](06_custom_agent.md)。
