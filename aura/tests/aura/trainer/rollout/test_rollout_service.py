@@ -120,7 +120,9 @@ class TestRolloutService(unittest.TestCase):
         sys.modules['aura.controllers.rollout_controller.sample_queue'] = self.mock_sample_queue
 
         # Import target module, then patch key symbols on module object to avoid stale imports.
+        sys.modules.pop('aura.trainer.rollout.rollout_manager', None)
         self.rollout_service = importlib.import_module('aura.trainer.rollout.rollout_service')
+        self.rollout_manager = importlib.import_module('aura.trainer.rollout.rollout_manager')
         self.rollout_service.ray = self.mock_ray
         self.rollout_service.NodeAffinitySchedulingStrategy = self.mock_node_affinity
         self.rollout_service.RolloutWorker = self.mock_rollout_worker_cls
@@ -138,6 +140,7 @@ class TestRolloutService(unittest.TestCase):
                         'aura.controllers.rollout_controller', 'aura.controllers.rollout_controller.rollout_controller',
                         'aura.controllers.rollout_controller.rollout_queue',
                         'aura.controllers.rollout_controller.sample_queue',
+                        'aura.trainer.rollout.rollout_manager',
                         'aura.trainer.rollout.rollout_service']
         for module_name in mock_modules:
             if module_name in sys.modules:
@@ -365,7 +368,7 @@ class TestRolloutService(unittest.TestCase):
     def test_create_rollout_worker_default(self):
         """Test _create_rollout_worker helper with default args."""
         mock_rollout_config = self._build_rollout_config()
-        self.rollout_service._create_rollout_worker(
+        self.rollout_manager._create_rollout_worker(
             mock_rollout_config, "test_agent_service", "test_infer_service"
         )
         # Rollup worker construction via options().remote()
@@ -384,7 +387,7 @@ class TestRolloutService(unittest.TestCase):
         mock_rollout_config = self._build_rollout_config()
         mock_generate_config = MagicMock()
         mock_split = MagicMock()
-        self.rollout_service._create_rollout_worker(
+        self.rollout_manager._create_rollout_worker(
             mock_rollout_config, "agent_svc", "infer_svc",
             generate_config=mock_generate_config, split_to_list=mock_split
         )
@@ -397,7 +400,7 @@ class TestRolloutService(unittest.TestCase):
         mock_rollout_config = self._build_rollout_config()
         # Delete the auto-generated MagicMock attribute to simulate missing field
         del mock_rollout_config.llm_tokenizer_path
-        self.rollout_service._create_rollout_worker(
+        self.rollout_manager._create_rollout_worker(
             mock_rollout_config, "agent_svc", "infer_svc"
         )
         kwargs = self.mock_rollout_worker_cls.remote.call_args.kwargs
@@ -407,7 +410,7 @@ class TestRolloutService(unittest.TestCase):
     def test_create_rollout_controller(self):
         """Test _create_rollout_controller helper."""
         mock_rollout_config = self._build_rollout_config()
-        self.rollout_service._create_rollout_controller(mock_rollout_config, "test_model")
+        self.rollout_manager._create_rollout_controller(mock_rollout_config, "test_model")
         self.mock_controller_cls.assert_called_once()
         kwargs = self.mock_controller_cls.call_args.kwargs
         self.assertEqual(kwargs["model_name"], "test_model")

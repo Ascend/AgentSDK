@@ -17,6 +17,7 @@
 # -------------------------------------------------------------------------
 import os
 import re
+import signal
 import shutil
 import traceback
 from threading import Lock
@@ -43,6 +44,8 @@ def is_empty(path):
 
 
 def aggregate_worker(sharded_path, output_file, q):
+
+    signal.signal(signal.SIGTERM, signal.SIG_DFL)
     try:
         storage_reader = dcp.FileSystemReader(sharded_path)
         metadata = storage_reader.read_metadata()
@@ -98,6 +101,9 @@ class RolloutWeightManager:
         self.max_possible_version = 0
         self.use_on_policy = use_on_policy
         self.resume_iteration = int(os.getenv("RESUME_ITERATION", '-1'))  # 断点续训的iteration_id
+
+        self._aggregate_proc = None
+        self._closed = False
 
         self.logger.info(f"model name: {model_name}, model_path: {self.model_path}")
         self.logger.info(
@@ -202,10 +208,10 @@ class RolloutWeightManager:
     def aggregate_hf_weights(self, sharded_path, output_file):
         q = Queue()
         p = Process(target=aggregate_worker, args=(sharded_path, output_file, q))
+        self._aggregate_proc = p
         self.logger.info(f"aggregate weights, sharded_path: {sharded_path}, output_file: {output_file}")
         p.start()
         p.join(timeout=AGGREGATE_TIMEOUT)
-        self.logger.info(f"aggregate weights succeed, output file: {output_file}")
 
         error_msg = None
 
@@ -236,6 +242,7 @@ class RolloutWeightManager:
                 os.remove(output_file)
             raise RuntimeError(error_msg)
 
+        self.logger.info(f"aggregate weights succeed, output file: {output_file}")
         self.logger.info("aggregate subprocess finished")
 
     def _move_weights(self, src_dir, weight_iter):
@@ -296,6 +303,9 @@ class RolloutWeightManager:
             self._do_weights_update_with_assemble(path, weight_iter)
 
     def sync_weights_update(self, path):
+        if self._closed:
+            self.logger.warning("rollout weight manager is closed, skip weights update")
+            return
         self.clean_old_weights()
         search_res = re.search(PATH_ITER_PATTERN, path)
         weight_iter = int(search_res.group(1))
@@ -305,6 +315,22 @@ class RolloutWeightManager:
             if not self._should_weights_update(weight_iter):
                 return
             self._do_weights_update(path, weight_iter)
+
+    def close(self):
+        """Reap the in-flight aggregate subprocess and refuse new updates."""
+        if self._closed:
+            return False
+        self._closed = True
+        proc = self._aggregate_proc
+        self._aggregate_proc = None
+        if proc is not None and proc.is_alive():
+            self.logger.info("terminating in-flight aggregate subprocess")
+            proc.terminate()
+            proc.join(timeout=TERMINATE_TIMEOUT)
+            if proc.is_alive():
+                proc.kill()
+                proc.join()
+        return True
 
     def init_done(self):
         pass

@@ -141,12 +141,17 @@ class TestRolloutMain(unittest.TestCase):
         mock_executor_module.OneStepOffRolloutExecutor = mock.MagicMock()
         sys.modules['aura.trainer.rollout.rollout_executor'] = mock_executor_module
 
+        mock_fully_async_executor_module = mock.MagicMock()
+        mock_fully_async_executor_module.FullyAsyncRolloutExecutor = mock.MagicMock()
+        sys.modules['aura.trainer.rollout.fully_async_rollout_executor'] = mock_fully_async_executor_module
+
         mock_controller_module = mock.MagicMock()
         mock_controller_module.RolloutController = mock.MagicMock()
         sys.modules['aura.controllers.rollout_controller.rollout_controller'] = mock_controller_module
 
         # Import test object
         global start_rollout
+        sys.modules.pop('aura.trainer.rollout.rollout_manager', None)
         rollout_service_mod = importlib.import_module('aura.trainer.rollout.rollout_service')
         start_rollout = rollout_service_mod.start_rollout
 
@@ -163,6 +168,7 @@ class TestRolloutMain(unittest.TestCase):
                        'aura.controllers.rollout_controller.rollout_controller',
                        'aura.trainer.rollout.rollout_executor', 'aura.trainer.rollout.rollout_worker',
                        'aura.trainer.rollout.fully_async_rollout_executor',
+                       'aura.trainer.rollout.rollout_manager',
                        'aura.base.log.loggers', 'aura.base.utils.pad_process',
                        'aura.base.exceptions.exceptions',
                        'aura.trainer.rollout.rollout_service']
@@ -172,7 +178,7 @@ class TestRolloutMain(unittest.TestCase):
         # Clean up global variables
         if 'start_rollout' in globals():
             del globals()['start_rollout']
-    @mock.patch('aura.trainer.rollout.rollout_service.RolloutWorker')
+    @mock.patch('aura.trainer.rollout.rollout_worker.RolloutWorker')
     @mock.patch('aura.trainer.rollout.rollout_service.logger')
     def test_start_rollout(self, mock_logger, mock_rollout_worker):
 
@@ -204,14 +210,15 @@ class TestRolloutMain(unittest.TestCase):
 
         # Set the mock on the real import target
         rollout_service_mod = importlib.import_module('aura.trainer.rollout.rollout_service')
-        rollout_service_mod.OneStepOffRolloutExecutor = mock_one_step_off_rollout_executor
+        executor_mod = importlib.import_module('aura.trainer.rollout.rollout_executor')
+        executor_mod.OneStepOffRolloutExecutor = mock_one_step_off_rollout_executor
 
         # Mock RolloutWorker
         mock_rollout_worker_instance = mock.Mock()
         mock_rollout_worker.options.return_value.remote.return_value = mock_rollout_worker_instance
 
         # Execute test (patch RolloutController at its reference site in rollout_service)
-        with mock.patch.object(rollout_service_mod, 'RolloutController'):
+        with mock.patch.object(importlib.import_module('aura.controllers.rollout_controller.rollout_controller'), 'RolloutController'):
             start_rollout(mock_rollout_config, mock_agent_service, mock_infer_service)
 
         # Verify ray.get_runtime_context was called
@@ -236,7 +243,13 @@ class TestRolloutMain(unittest.TestCase):
 
         # Verify wait_init_finished was called
         mock_rollout_worker_instance.wait_init_finished.remote.assert_called_once_with(is_proxy_mode=True)
-        self.mock_ray.get.assert_called_once_with(mock_rollout_worker_instance.wait_init_finished.remote.return_value)
+        self.mock_ray.get.assert_any_call(
+            mock_rollout_worker_instance.wait_init_finished.remote.return_value
+        )
+
+        release_ref = mock_rollout_worker_instance.release.remote.return_value
+        awaited_refs = [c.args[0] for c in self.mock_ray.get.call_args_list if c.args]
+        self.assertNotIn(release_ref, awaited_refs)
 
         # Verify controller interaction happened
         self.assertTrue(mock_one_step_off_rollout_executor.called)
@@ -265,7 +278,7 @@ class TestRolloutMain(unittest.TestCase):
             mock_logger.info.call_args_list,
         )
 
-    @mock.patch('aura.trainer.rollout.rollout_service.RolloutWorker')
+    @mock.patch('aura.trainer.rollout.rollout_worker.RolloutWorker')
     @mock.patch('aura.trainer.rollout.rollout_service.logger')
     def test_start_fully_async_rollout(self, mock_logger, mock_rollout_worker):
 
@@ -286,7 +299,8 @@ class TestRolloutMain(unittest.TestCase):
 
         # Set the mock on the real import target
         rollout_service_mod = importlib.import_module('aura.trainer.rollout.rollout_service')
-        rollout_service_mod.FullyAsyncRolloutExecutor = mock_fully_async_executor
+        fully_async_executor_mod = importlib.import_module('aura.trainer.rollout.fully_async_rollout_executor')
+        fully_async_executor_mod.FullyAsyncRolloutExecutor = mock_fully_async_executor
 
         # Mock RolloutWorker
         mock_rollout_worker_instance = mock.Mock()
@@ -294,7 +308,7 @@ class TestRolloutMain(unittest.TestCase):
 
         # Execute test (patch RolloutController at its reference site in rollout_service)
         start_fully_async_rollout = rollout_service_mod.start_fully_async_rollout
-        with mock.patch.object(rollout_service_mod, 'RolloutController'):
+        with mock.patch.object(importlib.import_module('aura.controllers.rollout_controller.rollout_controller'), 'RolloutController'):
             start_fully_async_rollout(mock_rollout_config, mock_agent_service, mock_infer_service)
 
         # Verify RolloutWorker was initialized correctly
@@ -330,7 +344,7 @@ class TestRolloutMain(unittest.TestCase):
             mock_logger.info.call_args_list,
         )
 
-    @mock.patch('aura.trainer.rollout.rollout_service.RolloutWorker')
+    @mock.patch('aura.trainer.rollout.rollout_worker.RolloutWorker')
     @mock.patch('aura.trainer.rollout.rollout_service.logger')
     def test_start_fully_async_rollout_with_sample_queue(self, mock_logger, mock_rollout_worker):
         # Prepare test data
@@ -350,7 +364,8 @@ class TestRolloutMain(unittest.TestCase):
         mock_fully_async_executor.return_value = mock_fully_async_executor_instance
 
         rollout_service_mod = importlib.import_module('aura.trainer.rollout.rollout_service')
-        rollout_service_mod.FullyAsyncRolloutExecutor = mock_fully_async_executor
+        fully_async_executor_mod = importlib.import_module('aura.trainer.rollout.fully_async_rollout_executor')
+        fully_async_executor_mod.FullyAsyncRolloutExecutor = mock_fully_async_executor
 
         # Mock RolloutWorker
         mock_rollout_worker_instance = mock.Mock()
@@ -366,7 +381,7 @@ class TestRolloutMain(unittest.TestCase):
         }):
             start_fully_async_rollout = rollout_service_mod.start_fully_async_rollout
             # Patch RolloutController at its reference site in rollout_service
-            with mock.patch.object(rollout_service_mod, 'RolloutController'):
+            with mock.patch.object(importlib.import_module('aura.controllers.rollout_controller.rollout_controller'), 'RolloutController'):
                 start_fully_async_rollout(mock_rollout_config, mock_agent_service, mock_infer_service)
 
         # Verify SampleQueue was injected
@@ -379,8 +394,8 @@ class TestRolloutMain(unittest.TestCase):
 
     def test_create_rollout_worker_helper(self):
         # Import test object
-        rollout_service_mod = importlib.import_module('aura.trainer.rollout.rollout_service')
-        _create_rollout_worker = rollout_service_mod._create_rollout_worker
+        rollout_manager_mod = importlib.import_module('aura.trainer.rollout.rollout_manager')
+        _create_rollout_worker = rollout_manager_mod._create_rollout_worker
 
         class MockRolloutConfig:
             train_backend = "test_train_backend"
@@ -405,7 +420,8 @@ class TestRolloutMain(unittest.TestCase):
         mock_rollout_worker = mock.Mock()
         mock_rollout_worker_instance = mock.Mock()
         mock_rollout_worker.options.return_value.remote.return_value = mock_rollout_worker_instance
-        rollout_service_mod.RolloutWorker = mock_rollout_worker
+        rollout_worker_mod = importlib.import_module('aura.trainer.rollout.rollout_worker')
+        rollout_worker_mod.RolloutWorker = mock_rollout_worker
 
         # Call helper
         result = _create_rollout_worker(mock_rollout_config, mock_agent_service, mock_infer_service)
@@ -429,8 +445,8 @@ class TestRolloutMain(unittest.TestCase):
 
     def test_create_rollout_controller_helper(self):
         # Import test object
-        rollout_service_mod = importlib.import_module('aura.trainer.rollout.rollout_service')
-        _create_rollout_controller = rollout_service_mod._create_rollout_controller
+        rollout_manager_mod = importlib.import_module('aura.trainer.rollout.rollout_manager')
+        _create_rollout_controller = rollout_manager_mod._create_rollout_controller
 
         class MockRolloutConfig:
             weight_save_dir = "/test/weight/save/dir"
@@ -446,7 +462,7 @@ class TestRolloutMain(unittest.TestCase):
         mock_model_name = "test_model"
 
         # Patch RolloutController on the rollout_service module directly
-        with mock.patch.object(rollout_service_mod, 'RolloutController') as mock_rollout_controller:
+        with mock.patch.object(importlib.import_module('aura.controllers.rollout_controller.rollout_controller'), 'RolloutController') as mock_rollout_controller:
             mock_rollout_controller_instance = mock.Mock()
             mock_rollout_controller.return_value = mock_rollout_controller_instance
 
