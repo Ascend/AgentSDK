@@ -25,13 +25,14 @@ from ray.util.scheduling_strategies import NodeAffinitySchedulingStrategy
 from verl.trainer.main_ppo import run_ppo
 
 from aura.base.log.loggers import Loggers
+from aura.trainer.rollout.rollout_manager import rollout_manager_enabled
 from aura.trainer.train_adapter.verl.full_async.train_main import FullyAsyncTaskRunner
 
 logger = Loggers(__name__).get_logger()
 
 
 @ray.remote
-def start_train(work_mode, train_config, rollout_config, agent_service, infer_service):
+def start_train(work_mode, train_config, rollout_config, agent_service, infer_service, executor_handle=None):
     """Launch fully-async training: create the SampleQueue, start the rollout,
     then run PPO with ``FullyAsyncTaskRunner``."""
     from aura.trainer.rollout.rollout_service import start_fully_async_rollout
@@ -52,16 +53,33 @@ def start_train(work_mode, train_config, rollout_config, agent_service, infer_se
             node_id=ray.get_runtime_context().node_id,
             soft=False,
         )
-    ).remote(rollout_config=rollout_config, agent_service=agent_service, infer_service=infer_service)
+    ).remote(
+        rollout_config=rollout_config,
+        agent_service=agent_service,
+        infer_service=infer_service,
+        executor_handle=executor_handle,
+    )
 
-    _launch_rollout_monitor(ref)
+    if executor_handle is not None and rollout_manager_enabled(rollout_config):
+        ray.get(executor_handle.register_rollout.remote({"ref": ref}))
+
+    rollout_cancelled = _launch_rollout_monitor(ref)
 
     logger.info(f"fully_async mode, {train_config=}, {work_mode=}")
 
     from time import time
 
     start_time = time()
-    run_ppo(train_config, task_runner_class=FullyAsyncTaskRunner)
+    try:
+        run_ppo(train_config, task_runner_class=FullyAsyncTaskRunner)
+    finally:
+        if rollout_manager_enabled(rollout_config):
+            rollout_cancelled.set()
+            try:
+                ray.cancel(ref, force=False)
+                logger.warning("[AURA_ROLLOUT] rollout.task.cancel.sent mode=fully_async")
+            except Exception as exp:
+                logger.debug(f"cancel fully_async rollout failed: {type(exp).__name__}")
     logger.info(f"fully_async total time: {time() - start_time:.2f} seconds")
 
 
@@ -100,12 +118,17 @@ def _inject_max_required_samples(rollout_config, max_required_samples):
 
 def _launch_rollout_monitor(ref):
     """Start a daemon thread that exits the process if the rollout fails."""
+    cancel_event = threading.Event()
 
     def monitor_rollout():
         try:
             ray.get(ref)
         except Exception as e:
+            if cancel_event.is_set():
+                logger.info("fully_async rollout task cancelled on shutdown")
+                return
             logger.error(f"fully_async rollout failed: {e}", exc_info=True)
             os._exit(1)
 
     threading.Thread(target=monitor_rollout, daemon=True).start()
+    return cancel_event

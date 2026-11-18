@@ -33,6 +33,7 @@ from verl.utils import hf_processor, hf_tokenizer
 
 from aura.controllers.utils.utils import DEFAULT_SLEEP_TIME
 from aura.base.log.loggers import Loggers
+from aura.trainer.rollout.rollout_manager import rollout_manager_enabled
 
 logger = Loggers(__name__).get_logger()
 
@@ -222,7 +223,7 @@ class FullyAsyncTaskRunner:
 
 
 @ray.remote
-def start_train(work_mode, train_config, rollout_config, agent_service, infer_service):
+def start_train(work_mode, train_config, rollout_config, agent_service, infer_service, executor_handle=None):
     from aura.trainer.rollout.rollout_service import start_rollout
 
     # 异步提交 rollout 任务
@@ -231,31 +232,52 @@ def start_train(work_mode, train_config, rollout_config, agent_service, infer_se
             node_id=ray.get_runtime_context().node_id,
             soft=False,  # 强制硬亲和
         )
-    ).remote(rollout_config=rollout_config, agent_service=agent_service, infer_service=infer_service)
+    ).remote(
+        rollout_config=rollout_config,
+        agent_service=agent_service,
+        infer_service=infer_service,
+        executor_handle=executor_handle,
+    )
+
+    if executor_handle is not None and rollout_manager_enabled(rollout_config):
+        ray.get(executor_handle.register_rollout.remote({"ref": ref}))
 
     # 在新线程里监控 rollout 异常
+    import threading
+
+    rollout_cancelled = threading.Event()
+
     def monitor_rollout():
         try:
             ray.get(ref)  # 这里阻塞直到 rollout 完成或抛异常
         except Exception as e:
+            if rollout_cancelled.is_set():
+                logger.info("one_step_off rollout task cancelled on shutdown")
+                return
             logger.error(f"Rollout failed: {e}", exc_info=True)
             os._exit(1)
 
-    import threading
+    try:
+        threading.Thread(target=monitor_rollout, daemon=True).start()
 
-    threading.Thread(target=monitor_rollout, daemon=True).start()
+        logger.info(f"{train_config=}, {work_mode=}")
 
-    # 主流程继续执行，不会被阻塞
-    logger.info(f"{train_config=}, {work_mode=}")
+        if not hasattr(train_config, "async_training"):
+            raise RuntimeError("must set async_training config")
 
-    if not hasattr(train_config, "async_training"):
-        raise RuntimeError("must set async_training config")
+        from time import time
 
-    from time import time
-
-    start_time = time()
-    run_ppo(train_config, task_runner_class=FullyAsyncTaskRunner)
-    logger.info(f"total time: {time() - start_time:.2f} seconds")
+        start_time = time()
+        run_ppo(train_config, task_runner_class=FullyAsyncTaskRunner)
+        logger.info(f"total time: {time() - start_time:.2f} seconds")
+    finally:
+        if rollout_manager_enabled(rollout_config):
+            rollout_cancelled.set()
+            try:
+                ray.cancel(ref, force=False)
+                logger.warning("[AURA_ROLLOUT] rollout.task.cancel.sent mode=one_step_off")
+            except Exception as exp:
+                logger.debug(f"cancel one_step_off rollout failed: {type(exp).__name__}")
 
 
 @ray.remote

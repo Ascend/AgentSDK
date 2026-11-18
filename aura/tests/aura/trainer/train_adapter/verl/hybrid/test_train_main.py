@@ -143,6 +143,12 @@ class TestHybridTrainMain:
                 HybridTrainer=MagicMock(return_value=mock_hybrid_trainer)
             ),
             "aura.base.log.loggers": MagicMock(Loggers=mock_loggers),
+            "aura.trainer.rollout.rollout_manager": MagicMock(
+                rollout_manager_enabled=lambda cfg: isinstance(cfg, dict)
+                and bool(cfg.get("rollout_manager", {}).get("enabled", False)),
+                RolloutManager=MagicMock(),
+                shutdown_hard_limit=MagicMock(return_value=1800.0),
+            ),
         }
 
         self.module_patcher = patch.dict(sys.modules, self.mock_modules)
@@ -191,4 +197,18 @@ class TestHybridTrainMain:
         """
         Test start_train function executes without errors.
         """
-        self.start_train("local", {"key": "value"}, {"key": "value"}, MagicMock(), MagicMock())
+        runner = MagicMock()
+        self.HybridTaskRunner.remote = MagicMock(return_value=runner)
+        rollout_config = {"rollout_manager": {"enabled": True}}
+        self.start_train("local", {"key": "value"}, rollout_config, MagicMock(), MagicMock())
+        runner.run.remote.assert_called_once()
+
+    def test_start_train_disabled_skips_rollout_manager(self):
+        """
+        Test start_train keeps the pre-refactor path when the entry is disabled.
+        """
+        runner = MagicMock()
+        self.HybridTaskRunner.remote = MagicMock(return_value=runner)
+        rollout_config = {"rollout_manager": {"enabled": False}}
+        self.start_train("local", {"key": "value"}, rollout_config, MagicMock(), MagicMock())
+        runner.run.remote.assert_not_called()
