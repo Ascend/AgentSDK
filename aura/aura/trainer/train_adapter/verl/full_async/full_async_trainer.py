@@ -40,6 +40,7 @@ from verl.utils.tracking import Tracking
 from verl import DataProto
 
 from aura.base.log.loggers import Loggers
+from aura.trainer.rollout.rollout_manager import rollout_manager_enabled
 
 logger = Loggers(__name__).get_logger()
 
@@ -104,6 +105,7 @@ class FullyAsyncTrainer(SeparateRayPPOTrainer):
         self.tokenizer = tokenizer
         self.processor = processor
         self.config = config
+        self.rollout_manager_enabled = rollout_manager_enabled(config)
 
         self.hybrid_engine = config.actor_rollout_ref.hybrid_engine
         if self.hybrid_engine:
@@ -160,6 +162,7 @@ class FullyAsyncTrainer(SeparateRayPPOTrainer):
         self.processed_samples = 0
         self.stale_trajectory_processed = 0
         self.current_param_version = 0
+        self.rollout_weight_version = 0
         self.total_train_steps = None
         self.progress_bar = None
         self.trigger_parameter_sync_step = config.async_training.trigger_parameter_sync_step
@@ -531,15 +534,20 @@ class FullyAsyncTrainer(SeparateRayPPOTrainer):
         logger.info("fully async training finished!!!")
 
     async def _maybe_sync_final_weights(self) -> None:
-        """Sync the final weights to rollout if the loop ended mid-trigger cycle."""
-        if self.current_param_version % self.config.trainer.test_freq == 0 and self.local_trigger_step <= 1:
+        if not self.rollout_manager_enabled:
+            if self.current_param_version % self.config.trainer.test_freq == 0 and self.local_trigger_step <= 1:
+                return
+            logger.info(
+                f"[FullyAsyncTrainer] Training loop ended, syncing final weights to rollout "
+                f"(param_version={self.current_param_version}, local_trigger_step={self.local_trigger_step}, "
+                f"trigger_parameter_sync_step={self.trigger_parameter_sync_step})"
+            )
+            await self._fit_update_weights()
             return
         logger.info(
-            f"[FullyAsyncTrainer] Training loop ended, syncing final weights to rollout "
-            f"(param_version={self.current_param_version}, local_trigger_step={self.local_trigger_step}, "
-            f"trigger_parameter_sync_step={self.trigger_parameter_sync_step})"
+            f"[FullyAsyncTrainer] training loop ended, skip final weight sync "
+            f"(trainer_version={self.current_param_version}, rollout_version={self.rollout_weight_version})"
         )
-        await self._fit_update_weights()
 
     def _shutdown_sample_queue(self, success_msg: str) -> None:
         """Best-effort shutdown of the SampleQueue actor if present."""
@@ -679,9 +687,22 @@ class FullyAsyncTrainer(SeparateRayPPOTrainer):
     async def _fit_update_weights(self) -> None:
         if self.local_trigger_step != 1:
             return
+        if (
+            self.rollout_manager_enabled
+            and self.total_train_steps is not None
+            and self.global_steps >= self.total_train_steps
+        ):
+            logger.info(
+                f"[FullyAsyncTrainer] last training iteration "
+                f"({self.global_steps}/{self.total_train_steps}), skip weight sync "
+                f"v{self.current_param_version} (no further rollout generation), "
+                f"rollout stays at v{self.rollout_weight_version}"
+            )
+            return
 
         with marked_timer("timing_s/param_sync", self.timing_raw):
             self.controller.update_rollout_weights(self.current_param_version)
+            self.rollout_weight_version = self.current_param_version
         logger.info(
             f"[FullyAsyncTrainer] _fit_update_weights, "
             f"timing_s/param_sync: {self.timing_raw['timing_s/param_sync']:.4f} seconds "
@@ -738,7 +759,7 @@ class FullyAsyncTrainer(SeparateRayPPOTrainer):
 
         self.progress_bar.update(1)
         self.progress_bar.set_postfix(
-            weight_version=self.current_param_version,
+            weight_version=self.rollout_weight_version,
             sync=f"{self.local_trigger_step}/{self.trigger_parameter_sync_step}",
         )
 

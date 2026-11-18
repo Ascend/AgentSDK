@@ -18,6 +18,7 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 #
+import os
 import uuid
 from copy import deepcopy
 from pprint import pprint
@@ -115,6 +116,10 @@ class HybridTrainer(RayPPOTrainer):
 
         for epoch in range(current_epoch, self.config.trainer.total_epochs):
             for batch_dict in self.train_dataloader:
+                stop_flag = os.environ.get("AURA_STOP_FLAG", "")
+                if stop_flag and os.path.exists(stop_flag):
+                    logger.info(f"[AURA_ROLLOUT] fit.stop_flag step={self.global_steps} flag={stop_flag}")
+                    return
                 if hasattr(self.actor_rollout_wg, "async_calls_finalize_fn_exec"):
                     self.actor_rollout_wg.async_calls_finalize_fn_exec(blocking=False)
                 metrics = {}

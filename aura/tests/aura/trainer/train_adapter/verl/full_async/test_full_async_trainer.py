@@ -357,6 +357,33 @@ class TestFullyAsyncTrainer(unittest.TestCase):
         asyncio.run(self.trainer._fit_update_weights())
 
         self.trainer.controller.update_rollout_weights.assert_called_once_with(5)
+        self.assertEqual(self.trainer.rollout_weight_version, 5)
+
+    def test_fit_update_weights_skips_on_last_iteration(self):
+        self.trainer.rollout_manager_enabled = True
+        self.trainer.local_trigger_step = 1
+        self.trainer.current_param_version = 5
+        self.trainer.global_steps = 5
+        self.trainer.total_train_steps = 5
+        self.trainer.rollout_weight_version = 4
+        self.trainer.timing_raw = {'timing_s/param_sync': 0.0}
+
+        asyncio.run(self.trainer._fit_update_weights())
+
+        self.trainer.controller.update_rollout_weights.assert_not_called()
+        self.assertEqual(self.trainer.rollout_weight_version, 4)
+
+    def test_fit_update_weights_syncs_on_last_iteration_when_disabled(self):
+        self.trainer.rollout_manager_enabled = False
+        self.trainer.local_trigger_step = 1
+        self.trainer.current_param_version = 5
+        self.trainer.global_steps = 5
+        self.trainer.total_train_steps = 5
+        self.trainer.timing_raw = {'timing_s/param_sync': 0.0}
+
+        asyncio.run(self.trainer._fit_update_weights())
+
+        self.trainer.controller.update_rollout_weights.assert_called_once_with(5)
 
     def test_fit_save_checkpoint_no_save(self):
         """Test _fit_save_checkpoint skips when current_param_version == last_ckpt_version."""
@@ -915,6 +942,7 @@ class TestFullyAsyncTrainerRefactoredHelpers(unittest.TestCase):
             role_worker_mapping={self.mock_verl.Role.Actor: MagicMock()},
             resource_pool_manager=MagicMock(),
         )
+        self.trainer.rollout_manager_enabled = False
         self.trainer.logger = MagicMock()
         self.trainer.progress_bar = MagicMock()
         self.trainer.metrics_aggregator = MagicMock()
@@ -1160,7 +1188,6 @@ class TestFullyAsyncTrainerRefactoredHelpers(unittest.TestCase):
     # ---------------- _maybe_sync_final_weights ----------------
 
     def test_maybe_sync_final_weights_skips_when_aligned(self):
-        # current_param_version % test_freq == 0 and local_trigger_step <= 1 -> skip
         self.mock_config.trainer.test_freq = 10
         self.trainer.current_param_version = 20
         self.trainer.local_trigger_step = 1
@@ -1171,13 +1198,25 @@ class TestFullyAsyncTrainerRefactoredHelpers(unittest.TestCase):
 
         self.trainer.controller.update_rollout_weights.assert_not_called()
 
-    def test_maybe_sync_final_weights_triggers_when_off_boundary(self):
+    def test_maybe_sync_final_weights_skips_when_off_boundary_but_synced(self):
+        self.trainer.rollout_manager_enabled = True
         self.mock_config.trainer.test_freq = 10
         self.trainer.current_param_version = 25  # 25 % 10 != 0
         self.trainer.local_trigger_step = 1
         self.trainer.controller = MagicMock()
+
+        import asyncio
+        asyncio.run(self.trainer._maybe_sync_final_weights())
+
+        self.trainer.controller.update_rollout_weights.assert_not_called()
+
+    def test_maybe_sync_final_weights_restores_master_when_disabled(self):
+        self.trainer.rollout_manager_enabled = False
+        self.mock_config.trainer.test_freq = 10
+        self.trainer.current_param_version = 25
+        self.trainer.local_trigger_step = 1
+        self.trainer.controller = MagicMock()
         self.trainer.timing_raw = {'timing_s/param_sync': 0.0}
-        self.trainer.timing_s = {'param_sync': 0.0}
 
         import asyncio
         asyncio.run(self.trainer._maybe_sync_final_weights())

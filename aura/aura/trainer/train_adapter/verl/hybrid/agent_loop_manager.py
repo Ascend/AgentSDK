@@ -29,7 +29,12 @@ from omegaconf import DictConfig
 
 from aura.base.log.loggers import Loggers
 from aura.runner.agent_engine_wrapper.base_engine_wrapper import AgentTask
-from aura.runner.agent_engine_wrapper.vaee.vaee_types import Trajectory, Episode
+from aura.runner.agent_engine_wrapper.vaee.vaee_types import Step, Trajectory, Episode
+from aura.trainer.rollout.session_manager import (
+    DEFAULT_STATUS_PORT,
+    NullSessionManager,
+    SessionManager,
+)
 from aura.runner.infer_router import InferRouter
 from verl import DataProto
 from verl.experimental.agent_loop import AgentLoopManager
@@ -400,6 +405,57 @@ async def transform_episodes_to_batch(config, tokenizer, trajectories: List, tas
     return batch
 
 
+def _extract_steps(result: Any):
+    """Return the interaction step count of a finished trajectory when available."""
+    if isinstance(result, Episode):
+        return len(result.trajectories[0].steps) if result.trajectories else 0
+    if isinstance(result, dict):
+        return (result.get("metrics") or {}).get("steps")
+    return None
+
+
+def _config_get(config: Any, key: str, default=None):
+    """Read a dotted key from an OmegaConf config, returning default if absent."""
+    try:
+        from omegaconf import OmegaConf
+
+        return OmegaConf.select(config, key, default=default)
+    except Exception:
+        return default
+
+
+def _build_dummy_trajectory_dict(task: AgentTask):
+    """Zero-reward placeholder for a failed session (dict backend)."""
+    return {
+        "prompt_tokens": torch.tensor([0]),
+        "response_tokens": torch.tensor([0]),
+        "response_masks": torch.tensor([1]),
+        "trajectory_reward": 0.0,
+        "idx": task.sample_id,
+        "prompt_id": str(task.prompt_id),
+        "chat_completions": [{"role": "system", "content": "0"}],
+    }
+
+
+def _build_dummy_episode(task: AgentTask, tokenizer: Any):
+    """Zero-reward placeholder for a failed session (vaee Episode backend)."""
+    pad_token_id = getattr(tokenizer, "pad_token_id", None)
+    if pad_token_id is None:
+        pad_token_id = getattr(tokenizer, "eos_token_id", None)
+    if pad_token_id is None:
+        pad_token_id = 0
+    prompt_ids = tokenizer.encode(getattr(task, "problem", "") or "") or [pad_token_id]
+    step = Step(
+        prompt_ids=list(prompt_ids),
+        response_ids=[pad_token_id],
+        logprobs=[0.0],
+        chat_completions=[{"role": "assistant", "content": ""}],
+        reward=0.0,
+    )
+    trajectory = Trajectory(task={"prompt_id": task.prompt_id}, steps=[step], reward=0.0)
+    return Episode(task={"prompt_id": task.prompt_id}, trajectories=[trajectory], metrics={"placeholder": True})
+
+
 class HybridAgentLoopManager(AgentLoopManager):
     """Agent loop manager for hybrid (sync rollout + async agent) training mode."""
 
@@ -407,6 +463,9 @@ class HybridAgentLoopManager(AgentLoopManager):
         kwargs.pop('config', None)
         super().__init__(config, *args, **kwargs)
         self.tokenizer = hf_tokenizer(config.actor_rollout_ref.model.path, trust_remote_code=True)
+        self.session_manager = NullSessionManager()
+
+        self._inflight_tasks = set()
 
     async def _initialize_llm_servers(self) -> None:
         """Override to perform hybrid initialization after parent sets server_addresses"""
@@ -450,20 +509,55 @@ class HybridAgentLoopManager(AgentLoopManager):
             DataProto batch assembled from generated trajectories.
         """
         agent_tasks = await create_tasks(config.extras.agent_service, prompts, config.actor_rollout_ref.rollout.n)
-        if hasattr(config.extras, "chat_interface") and config.extras.chat_interface == "generate":
+        use_chat_handles = hasattr(config.extras, "chat_interface") and config.extras.chat_interface == "generate"
+        server_handles = self.server_handles if use_chat_handles else None
+
+        session_manager = self.session_manager
+        if session_manager.enabled:
+            episode_list = await self._generate_with_sessions(config, agent_tasks, server_handles, tokenizer)
+        else:
+            timeout = _config_get(config, "extras.trajectory_timeout", None)
             futures = [
-                asyncio.create_task(generate_trajectory(task, self.chat_server_list, self.server_handles))
+                asyncio.create_task(generate_trajectory(task, self.chat_server_list, server_handles))
                 for task in agent_tasks
             ]
-        else:
-            futures = [
-                asyncio.create_task(generate_trajectory(task, self.chat_server_list, None)) for task in agent_tasks
-            ]
-        episode_list = []
+            results = []
+            if timeout:
+                raw_results = await asyncio.gather(
+                    *(asyncio.wait_for(future, timeout) for future in futures),
+                    return_exceptions=True,
+                )
+                for result in raw_results:
+                    if isinstance(result, BaseException) and not isinstance(result, asyncio.TimeoutError):
+                        raise result
+                    results.append(result)
+            else:
+                for future in futures:
+                    results.append(await future)
+            use_episode = bool(_config_get(config, "extras.agent_engine", None) == "vaee")
+            for result in results:
+                if isinstance(result, Episode):
+                    use_episode = True
+                    break
+                if isinstance(result, dict):
+                    use_episode = False
+                    break
+            episode_list = []
+            for task, result in zip(agent_tasks, results):
+                if not isinstance(result, asyncio.TimeoutError):
+                    episode_list.append(result)
+                    continue
+                logger.warning(
+                    f"trajectory timeout after {timeout}s, replaced by a zero-reward placeholder "
+                    f"prompt_id={task.prompt_id} sample_id={task.sample_id}"
+                )
+                episode_list.append(
+                    _build_dummy_episode(task, tokenizer) if use_episode
+                    else _build_dummy_trajectory_dict(task)
+                )
+
         task_id_list = []
         trajectory_list = []
-        for f in futures:
-            episode_list.append(await f)
 
         if isinstance(episode_list[0], Episode):
             for ep_idx, episode in enumerate(episode_list):
@@ -478,6 +572,60 @@ class HybridAgentLoopManager(AgentLoopManager):
                 self.write_file(episode_list, prefix="trajectories")
             result = await transform_trajectories_to_batch(config, tokenizer, episode_list)
         return result
+
+    async def _generate_with_sessions(self, config, agent_tasks, server_handles, tokenizer):
+        """Generate every task under its own session and isolate failures."""
+        session_manager = self.session_manager
+        retry_limit = int(_config_get(config, "extras.retry_limit", 0) or 0)
+
+        async def generate_one(task):
+            session_id = str(task.task_id)
+            session_manager.create_session(session_id, prompt_id=task.prompt_id, slot=task.sample_id)
+            attempt = 0
+            while True:
+                try:
+                    result = await generate_trajectory(task, self.chat_server_list, server_handles)
+                    session_manager.finalize_session(session_id, steps=_extract_steps(result))
+                    return result
+                except asyncio.CancelledError:
+                    session_manager.abort_session(session_id, reason="cancelled")
+                    raise
+                except Exception as exp:
+                    attempt += 1
+                    if attempt > retry_limit:
+                        session_manager.abort_session(session_id, reason=type(exp).__name__)
+                        raise
+
+        tasks = [asyncio.create_task(generate_one(task)) for task in agent_tasks]
+        self._inflight_tasks.update(tasks)
+        try:
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+        finally:
+            self._inflight_tasks.difference_update(tasks)
+
+        use_episode = bool(_config_get(config, "extras.agent_engine", None) == "vaee")
+        for result in results:
+            if isinstance(result, Episode):
+                use_episode = True
+                break
+            if isinstance(result, dict):
+                use_episode = False
+                break
+
+        episode_list = []
+        for task, result in zip(agent_tasks, results):
+            if not isinstance(result, BaseException):
+                episode_list.append(result)
+                continue
+            session_manager.record_placeholder(
+                task.prompt_id, index=task.sample_id, session_id=str(task.task_id)
+            )
+            if use_episode:
+                episode_list.append(_build_dummy_episode(task, tokenizer))
+            else:
+                episode_list.append(_build_dummy_trajectory_dict(task))
+        session_manager.log_status()
+        return episode_list
 
     def generate_sequences(self, prompts: DataProto) -> DataProto:
         """Synchronous entry point: forward prompts to the agent service and return results.
@@ -538,3 +686,88 @@ class HybridAgentLoopManager(AgentLoopManager):
             f.write('\n')
 
         logger.info(f'write_file {output_file} in iteration {self.iteration} done')
+
+
+class RolloutAgentLoopManager(HybridAgentLoopManager):
+    """Agent loop manager injected by ``RolloutManager`` for hybrid mode."""
+
+    ROLLOUT_MANAGER_KEY = "extras.rollout_manager"
+
+    def __init__(self, config: DictConfig, *args, **kwargs):
+        super().__init__(config, *args, **kwargs)
+        self._status_server = None
+        self._status_port = int(
+            _config_get(config, f"{self.ROLLOUT_MANAGER_KEY}.status_port", DEFAULT_STATUS_PORT)
+        )
+        enabled = _config_get(config, f"{self.ROLLOUT_MANAGER_KEY}.enabled", False)
+        if isinstance(enabled, str):
+            enabled = enabled.strip().lower() in ("1", "true", "yes", "on")
+        if not enabled:
+            return
+
+        self.session_manager = SessionManager(enabled=True)
+        self._status_server = self._start_status_server()
+
+    def _start_status_server(self):
+        """Serve ``GET /session_status`` from the process owning the sessions."""
+        from aura.trainer.rollout.session_status_server import (
+            SessionStatusServer,
+            is_train_master_process,
+        )
+
+        if not is_train_master_process():
+            return None
+
+        server = SessionStatusServer(self._status_port, self._status_payload, mode="hybrid")
+        server.start()
+        return server
+
+    def get_session_status(self):
+        """Host interface: session counters owned by the trainer process."""
+        return self.session_manager.get_status()
+
+    def cancel_inflight(self):
+        """Cancel generation tasks still tracked in this process (best-effort)."""
+        tasks = [task for task in self._inflight_tasks if not task.done()]
+        for task in tasks:
+            try:
+                task.cancel()
+            except RuntimeError:
+                pass
+        return len(tasks)
+
+    def drain_sessions(self, timeout=0.0):
+        """Host interface: drain in-flight sessions before the trainer exits."""
+        self.cancel_inflight()
+        return self.session_manager.shutdown(timeout=timeout)
+
+    def log_shutdown_status(self):
+        """Emit the final session snapshot before the status endpoint stops."""
+        if not self.session_manager.enabled:
+            return
+        payload = self._status_payload()
+        sessions = payload["sessions"]
+        logger.info(
+            f"[AURA_ROLLOUT] manager.shutdown.status active={sessions['active']} "
+            f"finished={sessions['finished']} aborted={sessions['aborted']} "
+            f"placeholder={payload['placeholder']} mode=hybrid"
+        )
+
+    def stop_status_server(self):
+        """Stop serving ``GET /session_status`` after the final snapshot."""
+        if self._status_server is not None:
+            self._status_server.stop()
+            self._status_server = None
+
+    def _status_payload(self):
+        """JSON payload matching ``RolloutManager.status()`` for this process."""
+        status = self.get_session_status()
+        return {
+            "mode": "hybrid",
+            "enabled": True,
+            "running": True,
+            "source": "trainer",
+            "status_port": self._status_port,
+            "sessions": {key: status.get(key, 0) for key in ("active", "finished", "aborted")},
+            "placeholder": status.get("placeholder", 0),
+        }
