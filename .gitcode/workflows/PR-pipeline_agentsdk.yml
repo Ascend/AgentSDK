@@ -256,7 +256,7 @@ stages:
 post:
   jobs:
     query_pipeline:
-      runs-on: [ self-hosted, x86, cpu=16 ]
+      runs-on: [ self-hosted, x86, cpu=8 ]
       container:
         image: swr.cn-north-4.myhuaweicloud.com/atlas-ci/common:latest
       steps:
