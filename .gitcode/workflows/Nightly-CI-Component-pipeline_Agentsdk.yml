@@ -1,9 +1,9 @@
-name: Nightly-CI-Component-pipeline_Agentsdk
+name: Nightly-CI-Component-pipeline_AgentSDK
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 6 * * *'
+    - cron: '30 7 * * *'
 
 env:
   NIGHTLY_IMAGE: "swr.cn-north-4.myhuaweicloud.com/atlas-ci/test-mindsdk-agent-nightly"
