@@ -18,8 +18,11 @@
 # -------------------------------------------------------------------------
 
 import sys
+import os
 import asyncio
 import unittest
+
+import requests
 from unittest.mock import MagicMock, patch, AsyncMock
 
 # ---------------------------------------------------------------------------
@@ -71,6 +74,9 @@ class TestDispatchActor(unittest.TestCase):
     """Tests for DispatchActor covering init, sync helpers, and async workflows."""
 
     def setUp(self):
+        self._env = patch.dict(os.environ, {"AURA_ROLLOUT_ENABLED": "1"})
+        self._env.start()
+        self.addCleanup(self._env.stop)
         self.mock_initialize = MagicMock(return_value=(iter([{"prompt": "a"}]), None, None))
         self.actor = DispatchActor(
             n_samples_per_prompt=2,
@@ -220,6 +226,29 @@ class TestDispatchActor(unittest.TestCase):
 
     def test_init_done_runs_without_error(self):
         self.actor.init_done()
+
+    # ---- async: rollout_already_quit ----------------------------------------
+
+    def test_rollout_already_quit_returns_true_when_connection_refused(self):
+        mock_post_with_url.side_effect = requests.exceptions.ConnectionError("refused")
+        try:
+            result = asyncio.run(self.actor.rollout_already_quit())
+        finally:
+            mock_post_with_url.side_effect = None
+        self.assertEqual(result, {"Status": "true"})
+        self.assertEqual(mock_post_with_url.call_count, 1)
+
+    def test_rollout_already_quit_returns_remote_status(self):
+        mock_post_with_url.return_value = {"Status": "false"}
+        result = asyncio.run(self.actor.rollout_already_quit())
+        self.assertEqual(result, {"Status": "false"})
+
+    def test_rollout_already_quit_retries_when_disabled(self):
+        self.actor.rollout_manager_enabled = False
+        mock_post_with_url.return_value = {"Status": "false"}
+        result = asyncio.run(self.actor.rollout_already_quit())
+        self.assertEqual(result, {"Status": "false"})
+        mock_post_with_url.assert_called_once_with("http://127.0.0.1:4001/rollout/is_quit", 3, 30.0)
 
     # ---- async: unlock_rollout_unit -----------------------------------------
 

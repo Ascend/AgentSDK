@@ -44,6 +44,13 @@ log_info "after parsing domain, VC_WORKER_HOSTS: ${VC_WORKER_HOSTS}"
 
 rm -rf /tmp/ray/*
 
+train_pid=""
+
+# 协作式停止标记: 收到信号时 executor 写该文件, hybrid 训练循环每步开头检查一次
+# (HybridTaskRunner 是同步 actor 方法, ray.cancel(force=False) 对它无效)
+export AURA_STOP_FLAG="${LOG_PATH:-/tmp}/aura_stop.flag"
+rm -f "${AURA_STOP_FLAG}"
+
 function start_train()
 {
   # Hybrid: Vaee starts the vllm load balance and registers it with the TrajProxy
@@ -67,11 +74,28 @@ function start_train()
 
   log_info "start verl train cluster, work_mode: ${WORK_MODE}, config name: ${real_train_conf_name}"
   log_info "start mode: $1"
-  if [[ "$1" == "daemon" ]]; then
+  # 同时读取 enabled 开关并传给内层脚本: 关闭时内层不输出优雅关闭提示, 与改造前一致。
+  local rollout_conf
+  rollout_conf=$(python3 -c "import yaml; \
+    cfg = yaml.safe_load(open('${root_dir}/configs/train/${real_train_conf_name}${CONFIG_EXT:-.yaml}'))['train_instances'][0]['executor_kwargs']['rollout_config'].get('rollout_manager') or {}; \
+    print(int(bool(cfg.get('enabled', False))), int(cfg.get('shutdown_hard_limit', 1800)))" 2>/dev/null)
+  AURA_ROLLOUT_ENABLED=$(echo "${rollout_conf}" | awk '{print $1}')
+  shutdown_hard_limit=$(echo "${rollout_conf}" | awk '{print $2}')
+  [[ "${AURA_ROLLOUT_ENABLED}" =~ ^[01]$ ]] || AURA_ROLLOUT_ENABLED=0
+  shutdown_hard_limit=${shutdown_hard_limit%%.*}
+  [[ "${shutdown_hard_limit}" =~ ^[0-9]+$ ]] || shutdown_hard_limit=1800
+  export AURA_ROLLOUT_ENABLED
+  export AURA_MAIN_SCRIPT_PID=$$
+  if [[ "${AURA_ROLLOUT_ENABLED}" == "1" ]]; then
+    bash ${scripts_dir}/train/start_verl_train_cluster.sh --config-name ${real_train_conf_name} \
+      > >(trap '' INT; exec sed -u "s/^/[train_cluster] /") 2>&1 &
+    train_pid=$!
+    wait ${train_pid}
+    exit_code=$?
+  elif [[ "$1" == "daemon" ]]; then
     (
       bash ${scripts_dir}/train/start_verl_train_cluster.sh --config-name ${real_train_conf_name} \
         | sed "s/^/[train_cluster] /"
-      # 子脚本退出码作为子 shell 的退出码
       exit ${PIPESTATUS[0]}
     ) &
     pid=$!
@@ -154,12 +178,34 @@ function set_infer_visible_devices()
 # 定义清理函数, 主进程ctrl+c, 回收子进程
 function cleanup()
 {
+  local sig=$1
+  echo "receive ${sig}, stopping child processes..."
+  local pgid
+  pgid=$(ps -o pgid= -p $$ | tr -d ' ')
+
+  if [[ "${AURA_ROLLOUT_ENABLED}" == "1" ]] && [[ "${sig}" != "SIGUSR1" ]]; then
+    if [[ -n "${train_pid}" ]] && kill -0 ${train_pid} 2>/dev/null; then
+      echo "graceful shutdown: send SIGTERM to ${train_pid}"
+      kill -TERM ${train_pid} 2>/dev/null
+      local wait_start=$(date +%s)
+
+      # 等待由内层退出事件驱动(内层在 driver 排空完成后自行退出)
+      local hard_limit=${shutdown_hard_limit:-1800}
+      local deadline=$(( wait_start + hard_limit ))
+      while kill -0 ${train_pid} 2>/dev/null; do
+        if [[ $(date +%s) -ge ${deadline} ]]; then
+          echo "graceful shutdown: wait exceeded ${hard_limit}s, force ray stop"
+          break
+        fi
+        sleep 1
+      done
+    fi
+  fi
+
   # 杀掉当前进程组中的所有后台进程
-  echo "receive $1, stopping child processes..."
   ray stop
-  pgid=$(ps -o pgid= -p $$)
   pgrep -g $pgid | grep -vE "^ *($pgid|$$) *$" | xargs -r kill -TERM 2>/dev/null
-  if [[ "$1" == "SIGUSR1" ]]; then
+  if [[ "$sig" == "SIGUSR1" ]]; then
     exit 0
   fi
 }

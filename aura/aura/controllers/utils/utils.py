@@ -52,7 +52,12 @@ MAX_CONCURRENCY = 128
 TRAIN_CONTROLLER_NAMESPACE = "controller_raygroup"
 
 
-def post_with_url(url: str, retry: int = MIN_RETRY_COUNT, backoff: float = DEFAULT_BACKOFF_FACTOR):
+def post_with_url(
+    url: str,
+    retry: int = MIN_RETRY_COUNT,
+    backoff: float = DEFAULT_BACKOFF_FACTOR,
+    silent: bool = False,
+):
     for attempt in range(1, retry + 1):
         try:
             response = requests.post(url)
@@ -61,13 +66,15 @@ def post_with_url(url: str, retry: int = MIN_RETRY_COUNT, backoff: float = DEFAU
         except Exception as e:
             if attempt < retry:
                 # log and back off
-                logger.warning(
+                log = logger.debug if silent else logger.warning
+                log(
                     f"Attempt {attempt}/{retry} failed sending to {url}: {e!r}. Waiting {backoff}s before retry ..."
                 )
                 time.sleep(backoff)
             else:
                 # all retries exhausted
-                logger.error(f"All {retry} attempts failed for {url}.")
+                log = logger.debug if silent else logger.error
+                log(f"All {retry} attempts failed for {url}.")
                 raise e
 
 

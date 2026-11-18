@@ -16,6 +16,8 @@
 #
 from typing import Any, Optional
 
+import os
+
 import ray
 from omegaconf import OmegaConf
 from ray.util.scheduling_strategies import NodeAffinitySchedulingStrategy
@@ -24,6 +26,8 @@ from aura.base.execution.executor import Executor, public_api
 from aura.base.log.loggers import Loggers
 
 logger = Loggers(__name__).get_logger()
+
+ROLLOUT_TASK_WORK_MODES = ("one_step_off", "fully_async")
 
 
 class TrainExecutor(Executor):
@@ -61,11 +65,14 @@ class TrainExecutor(Executor):
 
         self.agent_service = agent_service
         self.infer_service = infer_service
+        self._train_future = None
+
+        self._rollout_future = None
+        self._rollout_worker = None
 
         logger.info(f"TrainExecutor: train_engine={train_engine}, work_mode={work_mode} is initialized.")
 
-    @classmethod
-    async def _run_method(cls, start_method: Optional[Any], is_blocking: bool, *args, **kwargs) -> None:
+    async def _run_method(self, start_method: Optional[Any], is_blocking: bool, *args, **kwargs) -> None:
         """
         Schedule a Ray remote method on the current node and optionally await it.
 
@@ -85,23 +92,83 @@ class TrainExecutor(Executor):
 
         if not is_blocking:
             return
-        await future
+        self._train_future = future
+        try:
+            await future
+        finally:
+            self._train_future = None
+
+    def register_rollout(self, payload=None):
+        """Record handles published by ``start_train`` / the rollout task."""
+        payload = payload or {}
+        if "ref" in payload:
+            self._rollout_future = payload["ref"]
+        if "worker" in payload:
+            self._rollout_worker = payload["worker"]
+        logger.warning(f"[AURA_ROLLOUT] manager.rollout.registered executor={os.getpid()}")
+
+    def get_rollout_future(self):
+        """Return the rollout task ref and worker handle published earlier."""
+        return {"ref": self._rollout_future, "worker": self._rollout_worker}
+
+    def cancel(self, signal_name: str = "SIGTERM", target: str = "start_train") -> bool:
+        """Cancel the blocking train task so the trainer's ``finally`` drains sessions."""
+        future = self._train_future
+        if future is None:
+            return False
+        logger.warning(
+            f"[AURA_ROLLOUT] manager.signal.cancel signal={signal_name} "
+            f"target={target} executor={os.getpid()}"
+        )
+
+        if str(getattr(self, "work_mode", "")).lower() != "hybrid":
+            ray.cancel(future, force=False)
+            self._train_future = None
+            return True
+        stop_flag = os.environ.get("AURA_STOP_FLAG", "")
+        if stop_flag:
+            try:
+                with open(stop_flag, "w", encoding="utf-8") as flag_file:
+                    flag_file.write(f"{signal_name} executor={os.getpid()}\n")
+                logger.warning(
+                    f"[AURA_ROLLOUT] manager.signal.stop_flag.written signal={signal_name} "
+                    f"path={stop_flag} target={target} executor={os.getpid()}"
+                )
+                self._train_future = None
+                return True
+            except OSError as exp:
+                logger.warning(
+                    f"[AURA_ROLLOUT] manager.signal.stop_flag.failed signal={signal_name} "
+                    f"path={stop_flag} error={type(exp).__name__}, fallback to ray.cancel"
+                )
+        else:
+            logger.warning(
+                f"[AURA_ROLLOUT] manager.signal.stop_flag.missing signal={signal_name} "
+                f"reason=AURA_STOP_FLAG unset, fallback to ray.cancel"
+            )
+        ray.cancel(future, force=False)
+        self._train_future = None
+        return True
 
     async def _run_train_and_rollout(self) -> None:
         """Start the rollout worker (non-blocking) followed by the train worker (blocking)."""
+        from aura.trainer.rollout.rollout_manager import rollout_manager_enabled
         from aura.trainer.trainer_register.train_register import get_train_method
 
         start_train = get_train_method(train_engine=self.train_engine, work_mode=self.work_mode)
 
-        await self._run_method(
-            start_method=start_train,
-            is_blocking=True,
+        kwargs = dict(
             work_mode=self.work_mode,
             train_config=self.train_config,
             rollout_config=self.rollout_config,
             agent_service=self.agent_service,
             infer_service=self.infer_service,
         )
+        register_handle = self.work_mode in ROLLOUT_TASK_WORK_MODES and rollout_manager_enabled(self.rollout_config)
+        if register_handle:
+            kwargs["executor_handle"] = ray.get_runtime_context().current_actor
+
+        await self._run_method(start_method=start_train, is_blocking=True, **kwargs)
 
     @public_api(name="fit")
     async def fit(self, *args, **kwargs) -> None:
@@ -114,6 +181,8 @@ class TrainExecutor(Executor):
         """
         try:
             await self._run_train_and_rollout()
-        except Exception as exc:
+        except BaseException as exc:
+            if not isinstance(exc, Exception):
+                raise
             logger.error(f"Training pipeline failed: {exc}.")
             raise exc

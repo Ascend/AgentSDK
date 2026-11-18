@@ -20,6 +20,7 @@
 
 import asyncio
 import os
+import signal
 import time
 
 import hydra
@@ -34,6 +35,74 @@ from aura.controllers.utils.utils import DEFAULT_SLEEP_TIME
 from aura.runner.infer_manager import get_or_create_infer_manager, destroy_infer_manager
 
 logger = Loggers(__name__).get_logger()
+
+
+def _rollout_config(conf):
+    """Return the first train instance's rollout config, or None."""
+    try:
+        return conf.train_instances[0].executor_kwargs.rollout_config
+    except (AttributeError, IndexError, KeyError, TypeError):
+        return None
+
+
+def _train_router_kwargs(conf):
+    """Build the rollout shutdown settings injected into ``TrainRouter``."""
+    from aura.trainer.rollout.rollout_manager import (
+        rollout_manager_enabled,
+        session_drain_timeout,
+        shutdown_hard_limit,
+    )
+
+    rollout_config = _rollout_config(conf)
+    return {
+        "shutdown_hard_limit": shutdown_hard_limit(rollout_config),
+        "session_drain_timeout": session_drain_timeout(rollout_config),
+        "rollout_manager_enabled": rollout_manager_enabled(rollout_config),
+    }
+
+
+def _rollout_manager_enabled(conf):
+    """Read ``rollout_manager.enabled`` from the first train instance."""
+    from aura.trainer.rollout.rollout_manager import rollout_manager_enabled
+
+    return rollout_manager_enabled(_rollout_config(conf))
+
+
+def _run_with_signal_cancel(run_coroutine, rollout_manager_on):
+    """Run the driver loop, routing SIGINT/SIGTERM to in-flight training first."""
+    if not rollout_manager_on:
+        asyncio.run(run_coroutine())
+        return
+
+    from aura.trainer.train_router import TrainRouter
+
+    cancel_started = False
+
+    def _handle_signal(signum, _frame):
+        nonlocal cancel_started
+        signal_name = signal.Signals(signum).name
+        if cancel_started:
+            logger.warning(f"[AURA_ROLLOUT] driver.signal.ignored signal={signal_name} reason=already_cancelling")
+            return
+        cancel_started = True
+        logger.warning(
+            f"[AURA_ROLLOUT] driver.signal.received signal={signal_name} pid={os.getpid()} "
+            f"action=cancel_active_then_KeyboardInterrupt"
+        )
+        try:
+            TrainRouter.cancel_active(signal_name=signal_name)
+        except Exception as exp:
+            logger.warning(f"cancel active training failed: {type(exp).__name__}")
+        raise KeyboardInterrupt
+
+    previous_handlers = {}
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        previous_handlers[sig] = signal.signal(sig, _handle_signal)
+    try:
+        asyncio.run(run_coroutine())
+    finally:
+        for sig, handler in previous_handlers.items():
+            signal.signal(sig, handler)
 
 
 def start_direct_mode(conf: DictConfig):
@@ -96,7 +165,7 @@ def start_direct_mode(conf: DictConfig):
 
         from aura.trainer.train_router import TrainRouter
 
-        router = await TrainRouter.create()
+        router = await TrainRouter.create(**_train_router_kwargs(conf))
         try:
             await router.train(name=job_name, **job_dict.get("job_kwargs", {}))
             logger.info(f"[FINISH] Successful job_type={job_type}, job_name={job_name}")
@@ -112,7 +181,7 @@ def start_direct_mode(conf: DictConfig):
         logger.info("All jobs completed.")
 
     try:
-        asyncio.run(run_all_jobs())
+        _run_with_signal_cancel(run_all_jobs, _rollout_manager_enabled(conf))
     finally:
         _exit_manager()
         kill_actor(train_register_actor)
@@ -251,7 +320,7 @@ def start_direct_mode_with_serve(conf: DictConfig):
 
         from aura.trainer.train_router import TrainRouter
 
-        router = await TrainRouter.create()
+        router = await TrainRouter.create(**_train_router_kwargs(conf))
         try:
             await router.train(name=job_name, **job_dict.get("job_kwargs", {}))
             logger.info(f"[FINISH] Successful job_type={job_type}, job_name={job_name}")
@@ -267,7 +336,7 @@ def start_direct_mode_with_serve(conf: DictConfig):
         logger.info("All jobs completed.")
 
     try:
-        asyncio.run(run_all_jobs())
+        _run_with_signal_cancel(run_all_jobs, _rollout_manager_enabled(conf))
     finally:
         # stop all manager
         _exit_manager()
