@@ -2,7 +2,7 @@ name: poc-PR-pipeline_agentsdk
 
 on:
   pull_request_target:
-    branches: [ 'tech_26.1.0', 'tech_v26.2.0' ]
+    branches: [ 'tech_26.1.0', 'tech_v26.2.0', 'tech_v26.3.0' ]
     types:
       - open
       - update
@@ -11,7 +11,7 @@ on:
     keyword: '^rebuild_poc$'
   pull_request_comment:
     types: [ created ]
-    branches: [ 'tech_26.1.0', 'tech_v26.2.0' ]
+    branches: [ 'tech_26.1.0', 'tech_v26.2.0', 'tech_v26.3.0' ]
     comments: [ '^rebuild_poc$' ]
 
 env:
