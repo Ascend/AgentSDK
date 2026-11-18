@@ -40,6 +40,10 @@ from aura.controllers.utils.utils import DEFAULT_SLEEP_TIME
 from aura.data_manager.data_manager import DataManager
 from aura.runner.agent_router import AgentRouter
 from aura.runner.infer_adapter.async_server import AsyncServerManager, AsyncServerProxyManager
+from aura.trainer.rollout.session_manager import (
+    NullSessionManager,
+    SessionManager,
+)
 from aura.base.exceptions.exceptions import RolloutShutdownException
 from aura.base.analysis.data_analysis import json_save_data
 
@@ -48,6 +52,8 @@ logger = Loggers(__name__).get_logger()
 UNAVAILABLE_WEIGHT_VERSION = -1
 # Sleep interval used when polling for new weights under backpressure.
 BACKPRESSURE_SLEEP_S = 0.5
+# Grace window between ``cancel_request`` and forcing the local coroutine down.
+SESSION_GRACE_TIMEOUT = 5.0
 
 
 def get_least_common_multiple(num_1: int, num_2: int):
@@ -85,6 +91,16 @@ def generate_dummy_trajectory(prompt_id):
         },
     }
     return trajectory
+
+
+def extract_trajectory_steps(result):
+    """Return the interaction step count of a finished trajectory when available."""
+    if not isinstance(result, dict):
+        return None
+    steps = (result.get("metrics") or {}).get("steps")
+    if steps is None and isinstance(result.get("steps"), list):
+        steps = len(result["steps"])
+    return steps
 
 
 def parse_messages(prompt, model_name="qwen"):
@@ -179,6 +195,7 @@ class RolloutWorker:
         agent_service=None,
         infer_service=None,
         llm_tokenizer_path=None,
+        track_sessions=False,
     ):
         # ------------------------------------------------
         import signal
@@ -264,6 +281,16 @@ class RolloutWorker:
         self.rollout_weight_version = 0
         self.terminate_trajectories = 0
 
+        if track_sessions:
+            self.session_manager = SessionManager(enabled=True)
+        else:
+            self.session_manager = NullSessionManager()
+
+        self._drain_lock = None
+        self._drain_done = None
+        self._released = False
+        self._stopped = False
+
         logger.info(f"trajectory_timeout: {self.trajectory_timeout}")
 
     async def wait_init_finished(self, is_proxy_mode=True):
@@ -289,6 +316,41 @@ class RolloutWorker:
 
     def data_manager_put_experience(self, batch_dict, index):
         return self.data_manager.put_experience(batch_dict, index)
+
+    def get_session_status(self):
+        """Session counters pulled by the unified entry through ray."""
+        return self.session_manager.get_status()
+
+    DRAIN_RETURN_HEADROOM = 30.0
+
+    async def drain_sessions(self, timeout=0.0):
+        """Drain in-flight sessions; called by the driver on shutdown."""
+        if self._drain_lock is None:
+            self._drain_lock = asyncio.Lock()
+        budget = float(timeout)
+        effective = budget - min(self.DRAIN_RETURN_HEADROOM, budget * 0.2)
+        async with self._drain_lock:
+            if self._drain_done is None:
+                self._drain_done = await asyncio.to_thread(self.session_manager.shutdown, effective)
+            return self._drain_done
+
+    async def release(self):
+        """Release worker-owned resources after the driver finished draining."""
+        if self._released:
+            return False
+        self._released = True
+        self.stop()
+        return True
+
+    def stop(self):
+        """Drop worker-owned rollout clients after the drain finished."""
+        if self._stopped:
+            return False
+        self._stopped = True
+
+        self.rollout_engine = None
+        self.data_manager = None
+        return True
 
     def init_weight_manager(self, rollout_weight_manager):
         self.rollout_weight_manager = rollout_weight_manager
@@ -457,35 +519,93 @@ class RolloutWorker:
         rollout_queue_actor = get_rollout_queue_actor()
         rollout_queue_actor.add_abort_queue.remote(task)
 
+    async def _cancel_generation(self, session_id, task, agent_router, generation):
+        """Two-phase cancel: ask the agent to stop, grace-wait, then force."""
+        try:
+            await agent_router.cancel_request(task)
+        except (asyncio.CancelledError, Exception) as exp:
+            logger.debug(
+                f"[AURA_ROLLOUT] worker.cancel.request.failed sid={session_id} "
+                f"error={type(exp).__name__}"
+            )
+        try:
+            await asyncio.wait_for(asyncio.shield(generation), timeout=SESSION_GRACE_TIMEOUT)
+        except asyncio.TimeoutError:
+            generation.cancel()
+            if self.session_manager.enabled:
+                logger.warning(f"[AURA_ROLLOUT] worker.cancel.force sid={session_id}")
+        except asyncio.CancelledError:
+            generation.cancel()
+            if self.session_manager.enabled:
+                logger.warning(f"[AURA_ROLLOUT] worker.cancel.force sid={session_id}")
+        except Exception as exp:
+            logger.debug(
+                f"[AURA_ROLLOUT] worker.cancel.generation.failed sid={session_id} "
+                f"error={type(exp).__name__}"
+            )
+            if self.session_manager.enabled:
+                logger.warning(f"[AURA_ROLLOUT] worker.cancel.graceful sid={session_id}")
+        else:
+            if self.session_manager.enabled:
+                logger.warning(f"[AURA_ROLLOUT] worker.cancel.graceful sid={session_id}")
+
     async def stream_generate_trajectories(self, agent_tasks, agent_router, mode="Text", concurrency=64):
         """Return completed task results in real-time streaming mode"""
         semaphore = asyncio.Semaphore(concurrency)
 
         async def worker_with_retry(task):
+            session_id = str(task.task_id)
+            self.session_manager.create_session(session_id, prompt_id=task.prompt_id)
             retry_count = 0
             while retry_count < self.retry_limit:
+                generation = None
                 try:
                     async with semaphore:
-                        task_result = await asyncio.wait_for(
+                        if not self.session_manager.enabled:
+                            task_result = await asyncio.wait_for(
+                                agent_router.generate_trajectory(
+                                    task=task, mode=mode, addresses=self.rollout_engine.server_addresses
+                                ),
+                                timeout=self.trajectory_timeout,
+                            )
+                            return task_result
+                        generation = asyncio.create_task(
                             agent_router.generate_trajectory(
                                 task=task, mode=mode, addresses=self.rollout_engine.server_addresses
-                            ),
-                            timeout=self.trajectory_timeout,
+                            )
                         )
+                        if self.trajectory_timeout:
+                            task_result = await asyncio.wait_for(
+                                asyncio.shield(generation), timeout=self.trajectory_timeout
+                            )
+                        else:
+                            task_result = await asyncio.shield(generation)
+                    self.session_manager.finalize_session(
+                        session_id, steps=extract_trajectory_steps(task_result)
+                    )
                     return task_result
                 except asyncio.TimeoutError:
                     logger.warning(
                         f"generate trajectory timeout, task id: {task.task_id}, prompt id: {task.prompt_id} "
                         f"after {self.trajectory_timeout}s, early termination."
                     )
+                    if generation is not None:
+                        generation.cancel()
+                    self.session_manager.abort_session(session_id, reason="timeout")
                     await self.early_termination_requests(task, agent_router)
                     return None
+                except asyncio.CancelledError:
+                    if generation is not None:
+                        await self._cancel_generation(session_id, task, agent_router, generation)
+                    self.session_manager.abort_session(session_id, reason="cancelled")
+                    raise
                 except Exception as exp:
                     retry_count += 1
                     logger.warning(
                         f"generate trajectory failed task: {task.task_id} prompt_id: {task.prompt_id}, "
                         f"retrying ({retry_count}/{self.retry_limit}), exp: {exp}"
                     )
+            self.session_manager.abort_session(session_id, reason="retry_exhausted")
             raise Exception(f"generate_agent_trajectory Task failed after {self.retry_limit} retries.")
 
         futures = [asyncio.create_task(worker_with_retry(task)) for task in agent_tasks]
@@ -652,6 +772,9 @@ class RolloutWorker:
                 for _ in range(self.n_samples_per_prompt):
                     traj = generate_dummy_trajectory(prompt_id)
                     trajectories.append(traj)
+                    self.session_manager.record_placeholder(
+                        prompt_id, index=len(trajectories) - 1, session_id=f"dummy-{prompt_id}"
+                    )
                 if len(trajectories) == concurrency:
                     break
         logger.info(
@@ -705,6 +828,7 @@ class RolloutWorker:
         await self.multi_batches_generate_sequences(
             agent_tasks, agent_router, indexes, start_time, resharding_to_infer, actual_batch_num
         )
+        self.session_manager.log_status()
         await agent_router.clear_cache(self.agent_service)
         await self._do_offload_model_weights()
         return len(indexes) // self.global_batch_size
@@ -758,8 +882,19 @@ class RolloutWorker:
 
         agent_tasks, agent_router = await self.get_agents(tasks)
 
+        session_ids = [
+            self.session_manager.create_session(f"val-{task['id']}", prompt_id=task["id"])
+            for task in tasks
+        ]
         await self._do_update_model_weights()
-        trajectories = await agent_router.generate_trajectories(agent_tasks, mode='Token')
+        try:
+            trajectories = await agent_router.generate_trajectories(agent_tasks, mode='Token')
+        except Exception as exp:
+            for session_id in session_ids:
+                self.session_manager.abort_session(session_id, reason=type(exp).__name__)
+            raise
+        for session_id in session_ids:
+            self.session_manager.finalize_session(session_id)
         await self._do_offload_model_weights()
 
         trajectories.sort(key=lambda x: x["idx"])
@@ -1113,6 +1248,9 @@ class RolloutWorker:
         for prompt_id in all_prompt_ids:
             for _ in range(self.n_samples_per_prompt):
                 trajectories.append(generate_dummy_trajectory(prompt_id))
+                self.session_manager.record_placeholder(
+                    prompt_id, index=len(trajectories) - 1, session_id=f"dummy-{prompt_id}"
+                )
             if len(trajectories) == concurrency:
                 break
 
@@ -1388,6 +1526,7 @@ class RolloutWorker:
         await self.multi_batches_generate_sequences_fully_async(
             agent_tasks, agent_router, indexes, start_time, resharding_to_infer, actual_batch_num
         )
+        self.session_manager.log_status()
         await agent_router.clear_cache(self.agent_service)
         await self._do_offload_model_weights()
         logger.info(
