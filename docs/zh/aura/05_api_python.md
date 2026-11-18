@@ -595,6 +595,36 @@ python aura/start.py --config-name=${CONFIG_NAME} 2>&1 | tee ${LOG_PATH}/train_u
 | executor_kwargs.infer_service  | str  | 推理服务名称      | 应引用infer_instances中的name             |
 | resource_info                  | list | 整个训练服务的资源描述 | 默认为空列表                               |
 
+#### rollout_config.rollout_manager 配置
+
+Rollout 统一管理的开关与生命周期参数，位于 `train_instances[].executor_kwargs.rollout_config.rollout_manager`下。
+不配置或 `enabled: false` 时能力关闭，行为与改造前一致，且不输出 `[AURA_ROLLOUT]` 日志。
+
+| 参数名                                                 | 类型   | 说明                                                                  | 约束                                   |
+|-----------------------------------------------------|------|---------------------------------------------------------------------|--------------------------------------|
+| executor_kwargs.rollout_config.rollout_manager.enabled | bool | 总开关。开启后输出生命周期日志、启动状态端点、关闭时执行会话排空与显式资源释放                            | 默认为 false                            |
+| executor_kwargs.rollout_config.rollout_manager.status_port | int  | 会话状态端点起始端口，仅在训练主节点绑定                                                | 默认为 18080；被占用时自动顺延，最多尝试 10 个端口       |
+| executor_kwargs.rollout_config.rollout_manager.session_drain_timeout | float | 训练停止时等待在途会话结束的秒数                                         | 默认为 30，预置配置中为 240；建议不小于单条会话耗时的 P99              |
+| executor_kwargs.rollout_config.rollout_manager.shutdown_hard_limit | float | 关闭阶段等待训练任务退出的防挂死上限，仅用于进程卡死兜底，不参与业务排空                                | 默认为 1800                             |
+
+**配置示例**：
+
+```yaml
+train_instances:
+  - name: RL-QWEN3-8B-WITH-MATH
+    executor_kwargs:
+      work_mode: one_step_off
+      rollout_config:
+        # ... 其他 rollout 配置 ...
+        rollout_manager:        # Rollout 统一管理
+          enabled: true
+          status_port: 18080
+          session_drain_timeout: 240
+          shutdown_hard_limit: 1800
+```
+
+> 说明：开启后 Rollout 侧不再设置轨迹超时，以保证排空期间会话可自然完成。
+
 ---
 
 ### Agent实例配置
@@ -1095,3 +1125,64 @@ def traj_reward_func(
 ```
 
 **参考实现**: aura/agents/proxy_agent/math/ozy_math_reward.py
+
+---
+
+## 六、Rollout 会话状态接口
+
+### 6.1 GET /session_status — 查询会话状态
+
+**功能描述**
+
+查询当前训练任务的 Rollout 会话计数，用于观测在途会话、已完成会话与失败会话数量。该接口仅在
+`train_instances[].executor_kwargs.rollout_config.rollout_manager.enabled: true` 时提供：
+
+- 共卡模式（hybrid）：由 trainer 进程提供，`source` 为 `trainer`
+- 单步异步（one_step_off）/ 全异步（fully_async）：由训练主节点上的入口进程提供，`source` 为 `worker`
+
+**HTTP 请求**
+
+| 项目 | 说明 |
+|------|------|
+| 方法 | `GET` |
+| 路径 | `/session_status` |
+| 服务地址 | 训练主节点的 `rollout_manager.status_port`（默认 18080；被占用时自动顺延，最多尝试 10 个端口） |
+
+**请求示例**
+
+```bash
+curl http://0.0.0.0:18080/session_status
+```
+
+**响应体**
+
+```json
+{
+  "mode": "one_step_off",
+  "enabled": true,
+  "running": true,
+  "source": "worker",
+  "status_port": 18080,
+  "sessions": {"active": 3, "finished": 125, "aborted": 0},
+  "placeholder": 0
+}
+```
+
+**参数说明**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `mode` | str | 当前工作模式：`hybrid` / `one_step_off` / `fully_async` |
+| `enabled` | bool | `rollout_manager.enabled` 的实际取值 |
+| `running` | bool | 入口是否处于运行状态 |
+| `source` | str | 会话计数来源：`worker`（RolloutWorker actor）/ `local`（入口进程内）/ `trainer`（hybrid trainer 进程） |
+| `status_port` | int | 配置的状态端点端口 |
+| `sessions` | dict/null | `{active, finished, aborted}` 会话计数；`null` 表示当前进程不承载会话或状态查询失败 |
+| `placeholder` | int | 因会话失败而插入的零奖励占位数量 |
+
+**说明**
+
+- 会话计数满足 `create = finalize + abort`，每轮 rollout 结束后 `active` 应归零
+- 非 hybrid 模式返回 `sessions: null` 通常表示 RolloutWorker 尚未创建或状态查询失败，可检查日志中的
+  `manager.status.worker.failed` 告警
+- 访问其他路径返回 `404`；端点关闭后连接会被拒绝

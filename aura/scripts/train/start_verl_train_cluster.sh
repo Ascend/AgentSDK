@@ -312,9 +312,43 @@ function start_rollout_and_train()
     sleep 10
     ray status
     cd ${root_dir}/
-    python aura/start.py --config-name=${CONFIG_NAME} 2>&1 | tee ${LOG_PATH}/train_unit_${timestamp}.log
-    # 结束ray集群
-    python_exit_code=${PIPESTATUS[0]}
+    train_log_file="${LOG_PATH}/train_unit_${timestamp}.log"
+
+    if [[ "${AURA_ROLLOUT_ENABLED:-0}" == "1" ]]; then
+      AURA_SHUTDOWN_IN_PROGRESS=0
+      py_pid=""
+
+      function on_graceful_signal()
+      {
+        local sig=$1
+        trap '' INT
+        set +e
+        if [[ "${sig}" == "TERM" ]] && [[ -n "${py_pid}" ]] && kill -0 "${py_pid}" 2>/dev/null; then
+          kill -TERM "${py_pid}" 2>/dev/null
+        fi
+        if [[ "${AURA_SHUTDOWN_IN_PROGRESS}" == "1" ]]; then
+          return 0
+        fi
+        AURA_SHUTDOWN_IN_PROGRESS=1
+        local msg="[AURA_ROLLOUT] shutdown.signal received, draining in-flight sessions, please wait and do NOT press Ctrl+C again"
+        printf '%s\n' "${msg}" >> "${train_log_file}" 2>/dev/null
+        echo "${msg}"
+      }
+      trap 'on_graceful_signal INT' INT
+      trap 'on_graceful_signal TERM' TERM
+
+      python aura/start.py --config-name=${CONFIG_NAME} > >(tee -i "${train_log_file}") 2>&1 &
+      py_pid=$!
+      wait ${py_pid}
+      python_exit_code=$?
+      while kill -0 ${py_pid} 2>/dev/null; do
+        wait ${py_pid}
+        python_exit_code=$?
+      done
+    else
+      python aura/start.py --config-name=${CONFIG_NAME} 2>&1 | tee ${train_log_file}
+      python_exit_code=${PIPESTATUS[0]}
+    fi
     if [[ "${python_exit_code}" -eq 0 ]]; then
       ray stop
     else
@@ -400,4 +434,5 @@ start_ray_cluster
 start_rollout_and_train
 
 # 训练正常结束, 通知主进程退出
-kill -USR1 $PPID
+# 优先用父脚本显式传入的 PID: 后台启动会多一层子 shell, $PPID 指向该子 shell 而非主脚本
+kill -USR1 "${AURA_MAIN_SCRIPT_PID:-$PPID}"

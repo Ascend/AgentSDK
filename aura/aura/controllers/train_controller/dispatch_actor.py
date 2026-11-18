@@ -16,6 +16,7 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 import asyncio
+import os
 from collections import deque
 from dataclasses import dataclass
 from threading import Lock
@@ -23,6 +24,7 @@ from typing import List, Dict
 
 import aiohttp
 import ray
+import requests
 import torch
 
 from aura.base.log.loggers import Loggers
@@ -76,6 +78,7 @@ class DispatchActor:
         )
         self.data_optimized = data_optimized
         self.rollout_server_addr = rollout_server_addr
+        self.rollout_manager_enabled = os.environ.get("AURA_ROLLOUT_ENABLED", "0") == "1"
 
         self.data_iter_end = False
 
@@ -185,7 +188,12 @@ class DispatchActor:
     async def rollout_already_quit(self):
         self.logger.info(">>> judge rollout unit is already quit")
         url = f"{DEFAULT_URL_METHOD}://{self.rollout_server_addr}/rollout/is_quit"
-        return await asyncio.to_thread(post_with_url, url, DEFAULT_RETRY_COUNT, DEFAULT_BACKOFF_FACTOR)
+        if not self.rollout_manager_enabled:
+            return await asyncio.to_thread(post_with_url, url, DEFAULT_RETRY_COUNT, DEFAULT_BACKOFF_FACTOR)
+        try:
+            return await asyncio.to_thread(post_with_url, url, 1, DEFAULT_BACKOFF_FACTOR, True)
+        except requests.exceptions.ConnectionError:
+            return {"Status": "true"}
 
     def set_rollout_unit_ready(self):
         self.rollout_unit_ready = True
