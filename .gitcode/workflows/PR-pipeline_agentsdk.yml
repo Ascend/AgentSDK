@@ -159,16 +159,11 @@ stages:
         name: PR-SAST-check
         runs-on: [ self-hosted, x86, cpu=2 ]
         container:
-          image: swr.cn-north-4.myhuaweicloud.com/ascend-mindx/mindx_x86:mindxdl_go1207_20251203
+          image: swr.cn-north-4.myhuaweicloud.com/atlas-ci/common:latest
           options: --user root
         steps:
-          - name: git upgrade
+          - name: git version
             run: |
-              apt-get update
-              apt-get install -y software-properties-common
-              add-apt-repository ppa:git-core/ppa -y
-              apt-get update
-              apt-get install -y git
               git --version
           - name: checkout
             uses: checkout
@@ -192,7 +187,7 @@ stages:
         if: ${{ jobs.Detect_file_changes.outputs.need_build == 'yes' }}
         uses: .gitcode/workflows/.build_job.yml
         with:
-          IMAGE_FLAG: "swr.cn-north-4.myhuaweicloud.com/ascend-mindx/mindx_arm:SDK_20251230_1"
+          IMAGE_FLAG: "swr.cn-north-4.myhuaweicloud.com/ascend-mindx/mindx_image:agentsdk-aarch64-202611191218"
           runs_on_arch: "arm64"
 
       UT_python_aura:
@@ -200,7 +195,7 @@ stages:
         if: ${{ jobs.Detect_file_changes.outputs.need_build == 'yes' }}
         uses: .gitcode/workflows/.ut_python.yml
         with:
-          IMAGE_FLAG: "swr.cn-north-4.myhuaweicloud.com/ascend-mindx/mindx_x86:mindxdl_go1207_20251225_sdk1"
+          IMAGE_FLAG: "swr.cn-north-4.myhuaweicloud.com/ascend-mindx/mindx_image:agentsdk-ut-x86_64-202611191235"
           runs_on_arch: "x64"
           UT_SCRIPT: "script/aura_ut.sh"
           CHANGE_PATTERN: "aura/|presmoke/aura/"
@@ -210,7 +205,7 @@ stages:
         if: ${{ jobs.Detect_file_changes.outputs.need_build == 'yes' }}
         uses: .gitcode/workflows/.ut_python.yml
         with:
-          IMAGE_FLAG: "swr.cn-north-4.myhuaweicloud.com/ascend-mindx/mindx_x86:mindxdl_go1207_20251225_sdk1"
+          IMAGE_FLAG: "swr.cn-north-4.myhuaweicloud.com/ascend-mindx/mindx_image:agentsdk-ut-x86_64-202611191235"
           runs_on_arch: "x64"
           UT_SCRIPT: "script/openclaw_ut.sh"
           CHANGE_PATTERN: "openclaw/|presmoke/openclaw/"
@@ -224,7 +219,7 @@ stages:
         if: ${{ jobs.Detect_file_changes.outputs.need_build == 'yes' }}
         uses: .gitcode/workflows/.presmoke.yml
         with:
-          IMAGE_FLAG: "swr.cn-north-4.myhuaweicloud.com/ascend-mindx/mindx_arm:AgentSDK_26.0.0"
+          IMAGE_FLAG: "swr.cn-north-4.myhuaweicloud.com/ascend-mindx/mindx_image:agentsdk-presmoke-aura-aarch64-202611191218"
           runs_on_arch: "arm64"
           SMOKE_SCRIPT: "run_presmoke_aura.sh"
           SMOKE_COMPONENT: "AgentSDK"
@@ -235,7 +230,7 @@ stages:
         if: ${{ jobs.Detect_file_changes.outputs.need_build == 'yes' }}
         uses: .gitcode/workflows/.presmoke.yml
         with:
-          IMAGE_FLAG: "swr.cn-south-1.myhuaweicloud.com/ascendhub/openclaw:2026.5.22"
+          IMAGE_FLAG: "swr.cn-north-4.myhuaweicloud.com/ascend-mindx/mindx_image:agentsdk-presmoke-claw-aarch64-202611191218"
           runs_on_arch: "arm64"
           SMOKE_SCRIPT: "run_presmoke_openclaw.sh"
           SMOKE_COMPONENT: "AgentSDK"
@@ -247,7 +242,7 @@ stages:
         if: ${{ jobs.Detect_file_changes.outputs.need_build == 'yes' && atomgit.event.pull_request.base.ref == 'tech_v26.2.0' }}
         uses: .gitcode/workflows/.presmoke.yml
         with:
-          IMAGE_FLAG: "swr.cn-south-1.myhuaweicloud.com/ascendhub/openclaw:2026.5.22"
+          IMAGE_FLAG: "swr.cn-north-4.myhuaweicloud.com/ascend-mindx/mindx_image:agentsdk-presmoke-claw-aarch64-202611191218"
           runs_on_arch: "arm64"
           SMOKE_SCRIPT: "run_presmoke_clawcodex.sh"
           SMOKE_COMPONENT: "AgentSDK"
