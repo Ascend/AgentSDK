@@ -1,0 +1,120 @@
+nohup: ignoring input
+=========set cann env================
+[0;32m[INFO] [ 26-11-20 07:55:19 ] AGENT_ENGINE: rllm[0m
+[0;32m[INFO] [ 26-11-20 07:55:19 ] ============================================================[0m
+[0;32m[INFO] [ 26-11-20 07:55:19 ] VC_TASK_HOSTS: 179.52.56.133[0m
+[0;32m[INFO] [ 26-11-20 07:55:19 ] VC_WORKER_HOSTS: [0m
+[0;32m[INFO] [ 26-11-20 07:55:19 ] VC_TASK_INDEX: 1[0m
+[0;32m[INFO] [ 26-11-20 07:55:19 ] MASTER_TRAIN_INDEX: 1[0m
+[0;32m[INFO] [ 26-11-20 07:55:19 ] MASTER_INFER_INDEX: [0m
+[0;32m[INFO] [ 26-11-20 07:55:19 ] RL_TRAIN_BACKEND: verl[0m
+[0;32m[INFO] [ 26-11-20 07:55:19 ] ============================================================[0m
+[0;32m[INFO] [ 26-11-20 07:55:19 ] after parsing domain, VC_WORKER_HOSTS: 179.52.56.133[0m
+[0;32m[INFO] [ 26-11-20 07:55:19 ] NODE_TYPE: train[0m
+[0;32m[INFO] [ 26-11-20 07:55:19 ] start verl train cluster, work_mode: hybrid, config name: verl_train_hybrid_A2_t8_qwen3_14b_math_fsdp[0m
+[0;32m[INFO] [ 26-11-20 07:55:19 ] start mode: non_daemon[0m
+2026-11-20 07:55:29,326	WARNING utils.py:473 -- Detecting docker specified CPUs. In previous versions of Ray, CPU detection in containers was incorrect. Please ensure that Ray has enough CPUs allocated. As a temporary workaround to revert to the prior behavior, set `RAY_USE_MULTIPROCESSING_CPU_COUNT=1` as an env var before starting Ray. Set the env var: `RAY_DISABLE_DOCKER_CPU_WARNING=1` to mute this warning.
+[train_cluster] [0;32m[INFO] [ 26-11-20 07:55:20 ] NPU_RESOURCES: 8[0m
+[train_cluster] 2026-11-20 07:55:23,256	INFO scripts.py:1490 -- Did not find any active Ray processes.
+[train_cluster] [0;32m[INFO] [ 26-11-20 07:55:23 ] [train] ASCEND_RT_VISIBLE_DEVICES: 0,1,2,3,4,5,6,7[0m
+[train_cluster] [0;32m[INFO] [ 26-11-20 07:55:23 ] ********** train master-1 starts, card type: 0 **********[0m
+[train_cluster] 2026-11-20 07:55:26,099	INFO usage_lib.py:474 -- Usage stats collection is enabled by default without user confirmation because this terminal is detected to be non-interactive. To disable this, add `--disable-usage-stats` to the command that starts the cluster, or run the following command: `ray disable-usage-stats` before starting the cluster. See https://docs.ray.io/en/master/cluster/usage-stats.html for more details.
+[train_cluster] 2026-11-20 07:55:26,100	INFO scripts.py:1042 -- [37mLocal node IP[39m: [1m179.52.56.133[22m
+[train_cluster] 2026-11-20 07:55:31,582	SUCC scripts.py:1081 -- [32m--------------------[39m
+[train_cluster] 2026-11-20 07:55:31,583	SUCC scripts.py:1082 -- [32mRay runtime started.[39m
+[train_cluster] 2026-11-20 07:55:31,583	SUCC scripts.py:1083 -- [32m--------------------[39m
+[train_cluster] 2026-11-20 07:55:31,583	INFO scripts.py:1085 -- [36mNext steps[39m
+[train_cluster] 2026-11-20 07:55:31,583	INFO cli_output_helpers.py:16 -- [2mNote: The following commands are intended for use on[22m
+[train_cluster] 2026-11-20 07:55:31,583	INFO cli_output_helpers.py:17 -- [2mthe head node or within the cluster network.[22m
+[train_cluster] 2026-11-20 07:55:31,583	INFO scripts.py:1089 -- To add another node to this Ray cluster, run
+[train_cluster] 2026-11-20 07:55:31,583	INFO scripts.py:1092 -- [1m  ray start --address='179.52.56.133:6344'[22m
+[train_cluster] 2026-11-20 07:55:31,583	INFO scripts.py:1103 -- To connect to this Ray cluster:
+[train_cluster] 2026-11-20 07:55:31,583	INFO scripts.py:1105 -- [35mimport[39m[26m ray
+[train_cluster] 2026-11-20 07:55:31,584	INFO scripts.py:1106 -- ray[35m.[39m[26minit()
+[train_cluster] 2026-11-20 07:55:31,584	INFO scripts.py:1120 -- To submit a Ray job using the Ray Jobs CLI:
+[train_cluster] 2026-11-20 07:55:31,584	INFO scripts.py:1121 -- [1m  RAY_API_SERVER_ADDRESS='http://179.52.56.133:8260' ray job submit --working-dir . -- python my_script.py[22m
+[train_cluster] 2026-11-20 07:55:31,584	INFO scripts.py:1130 -- See https://docs.ray.io/en/latest/cluster/running-applications/job-submission/index.html 
+[train_cluster] 2026-11-20 07:55:31,584	INFO scripts.py:1134 -- for more information on submitting Ray jobs to the Ray cluster.
+[train_cluster] 2026-11-20 07:55:31,584	INFO scripts.py:1139 -- To terminate the Ray runtime, run
+[train_cluster] 2026-11-20 07:55:31,584	INFO scripts.py:1140 -- [1m  ray stop[22m
+[train_cluster] 2026-11-20 07:55:31,584	INFO scripts.py:1143 -- To view the status of the cluster, use
+[train_cluster] 2026-11-20 07:55:31,584	INFO scripts.py:1144 --   [1mray status[22m[26m
+[train_cluster] 2026-11-20 07:55:31,584	INFO scripts.py:1148 -- To monitor and debug Ray, view the dashboard at 
+[train_cluster] 2026-11-20 07:55:31,584	INFO scripts.py:1149 --   [1m179.52.56.133:8260[22m[26m
+[train_cluster] 2026-11-20 07:55:31,584	INFO scripts.py:1156 -- [4mIf connection to the dashboard fails, check your firewall settings and network configuration.[24m
+[train_cluster] ======== Autoscaler status: 2026-11-20 07:57:02.450627 ========
+[train_cluster] Node status
+[train_cluster] ---------------------------------------------------------------
+[train_cluster] Active:
+[train_cluster]  1 node_6ce50ee0c02bcab497ab9997cdcb947f6a2f2a15ac080f8be83ff3b9
+[train_cluster] Pending:
+[train_cluster]  (no pending nodes)
+[train_cluster] Recent failures:
+[train_cluster]  (no failures)
+[train_cluster] 
+[train_cluster] Resources
+[train_cluster] ---------------------------------------------------------------
+[train_cluster] Total Usage:
+[train_cluster]  0.0/128.0 CPU
+[train_cluster]  0.0/8.0 NPU
+[train_cluster]  0B/491.90GiB memory
+[train_cluster]  0B/15.20GiB object_store_memory
+[train_cluster] 
+[train_cluster] From request_resources:
+[train_cluster]  (none)
+[train_cluster] Pending Demands:
+[train_cluster]  (no resource demands)
+[train_cluster] [0;32m[INFO] [ 26-11-20 07:57:05 ] start rollout and train process, current_time: 20261120_075705[0m
+[train_cluster] [0;32m[INFO] [ 26-11-20 07:57:05 ] ********** work-1 training **********[0m
+[train_cluster] ======== Autoscaler status: 2026-11-20 07:57:17.463389 ========
+[train_cluster] Node status
+[train_cluster] ---------------------------------------------------------------
+[train_cluster] Active:
+[train_cluster]  1 node_6ce50ee0c02bcab497ab9997cdcb947f6a2f2a15ac080f8be83ff3b9
+[train_cluster] Pending:
+[train_cluster]  (no pending nodes)
+[train_cluster] Recent failures:
+[train_cluster]  (no failures)
+[train_cluster] 
+[train_cluster] Resources
+[train_cluster] ---------------------------------------------------------------
+[train_cluster] Total Usage:
+[train_cluster]  0.0/128.0 CPU
+[train_cluster]  0.0/8.0 NPU
+[train_cluster]  0B/491.90GiB memory
+[train_cluster]  0B/15.20GiB object_store_memory
+[train_cluster] 
+[train_cluster] From request_resources:
+[train_cluster]  (none)
+[train_cluster] Pending Demands:
+[train_cluster]  (no resource demands)
+[train_cluster] ANTLR runtime and generated code versions disagree: 4.7.2!=4.9.3
+[train_cluster] ANTLR runtime and generated code versions disagree: 4.7.2!=4.9.3
+[train_cluster] ANTLR runtime and generated code versions disagree: 4.7.2!=4.9.3
+[train_cluster] ANTLR runtime and generated code versions disagree: 4.7.2!=4.9.3
+[train_cluster] 2026-11-20 07:57:30,445	INFO worker.py:1833 -- Connecting to existing Ray cluster at address: 179.52.56.133:6344...
+[train_cluster] 2026-11-20 07:57:30,458	INFO worker.py:2015 -- Connected to Ray cluster. View the dashboard at [1m[32mhttp://179.52.56.133:8260 [39m[22m
+[train_cluster] 2026-11-20 07:57:33,885|INFO|start.py|main():286|Start the service in direct mode.
+[train_cluster] /usr/local/python3.11.15/lib/python3.11/site-packages/google/api_core/_python_version_support.py:254: FutureWarning: You are using a Python version (3.11.15) which Google will stop supporting in new releases of google.api_core once it reaches its end of life (2027-10-24). Please upgrade to the latest Python version, or at least Python 3.12, to continue receiving updates for google.api_core past that date.
+[train_cluster]   warnings.warn(message, FutureWarning)
+[train_cluster] /usr/local/python3.11.15/lib/python3.11/site-packages/google/api_core/_python_version_support.py:254: FutureWarning: You are using a Python version (3.11.15) which Google will stop supporting in new releases of google.cloud.aiplatform_v1 once it reaches its end of life (2027-10-24). Please upgrade to the latest Python version, or at least Python 3.12, to continue receiving updates for google.cloud.aiplatform_v1 past that date.
+[train_cluster]   warnings.warn(message, FutureWarning)
+[train_cluster] /usr/local/python3.11.15/lib/python3.11/site-packages/google/api_core/_python_version_support.py:254: FutureWarning: You are using a Python version (3.11.15) which Google will stop supporting in new releases of google.cloud.aiplatform_v1beta1 once it reaches its end of life (2027-10-24). Please upgrade to the latest Python version, or at least Python 3.12, to continue receiving updates for google.cloud.aiplatform_v1beta1 past that date.
+[train_cluster]   warnings.warn(message, FutureWarning)
+[train_cluster] /usr/local/python3.11.15/lib/python3.11/site-packages/google/api_core/_python_version_support.py:254: FutureWarning: You are using a Python version (3.11.15) which Google will stop supporting in new releases of google.cloud.resourcemanager_v3 once it reaches its end of life (2027-10-24). Please upgrade to the latest Python version, or at least Python 3.12, to continue receiving updates for google.cloud.resourcemanager_v3 past that date.
+[train_cluster]   warnings.warn(message, FutureWarning)
+[train_cluster] /usr/local/python3.11.15/lib/python3.11/site-packages/google/api_core/_python_version_support.py:254: FutureWarning: You are using a Python version (3.11.15) which Google will stop supporting in new releases of google.cloud.aiplatform.v1.schema.predict.instance_v1 once it reaches its end of life (2027-10-24). Please upgrade to the latest Python version, or at least Python 3.12, to continue receiving updates for google.cloud.aiplatform.v1.schema.predict.instance_v1 past that date.
+[train_cluster]   warnings.warn(message, FutureWarning)
+[train_cluster] /usr/local/python3.11.15/lib/python3.11/site-packages/google/api_core/_python_version_support.py:254: FutureWarning: You are using a Python version (3.11.15) which Google will stop supporting in new releases of google.cloud.aiplatform.v1.schema.predict.params_v1 once it reaches its end of life (2027-10-24). Please upgrade to the latest Python version, or at least Python 3.12, to continue receiving updates for google.cloud.aiplatform.v1.schema.predict.params_v1 past that date.
+[train_cluster]   warnings.warn(message, FutureWarning)
+[train_cluster] /usr/local/python3.11.15/lib/python3.11/site-packages/google/api_core/_python_version_support.py:254: FutureWarning: You are using a Python version (3.11.15) which Google will stop supporting in new releases of google.cloud.aiplatform.v1.schema.predict.prediction_v1 once it reaches its end of life (2027-10-24). Please upgrade to the latest Python version, or at least Python 3.12, to continue receiving updates for google.cloud.aiplatform.v1.schema.predict.prediction_v1 past that date.
+[train_cluster]   warnings.warn(message, FutureWarning)
+[train_cluster] /usr/local/python3.11.15/lib/python3.11/site-packages/google/api_core/_python_version_support.py:254: FutureWarning: You are using a Python version (3.11.15) which Google will stop supporting in new releases of google.cloud.aiplatform.v1.schema.trainingjob.definition_v1 once it reaches its end of life (2027-10-24). Please upgrade to the latest Python version, or at least Python 3.12, to continue receiving updates for google.cloud.aiplatform.v1.schema.trainingjob.definition_v1 past that date.
+[train_cluster]   warnings.warn(message, FutureWarning)
+[train_cluster] /usr/local/python3.11.15/lib/python3.11/site-packages/google/api_core/_python_version_support.py:254: FutureWarning: You are using a Python version (3.11.15) which Google will stop supporting in new releases of google.cloud.aiplatform.v1beta1.schema.predict.instance_v1beta1 once it reaches its end of life (2027-10-24). Please upgrade to the latest Python version, or at least Python 3.12, to continue receiving updates for google.cloud.aiplatform.v1beta1.schema.predict.instance_v1beta1 past that date.
+[train_cluster]   warnings.warn(message, FutureWarning)
+[train_cluster] /usr/local/python3.11.15/lib/python3.11/site-packages/google/api_core/_python_version_support.py:254: FutureWarning: You are using a Python version (3.11.15) which Google will stop supporting in new releases of google.cloud.aiplatform.v1beta1.schema.predict.params_v1beta1 once it reaches its end of life (2027-10-24). Please upgrade to the latest Python version, or at least Python 3.12, to continue receiving updates for google.cloud.aiplatform.v1beta1.schema.predict.params_v1beta1 past that date.
+[train_cluster]   warnings.warn(message, FutureWarning)
+[train_cluster] /usr/local/python3.11.15/lib/python3.11/site-packages/google/api_core/_python_version_support.py:254: FutureWarning: You are using a Python version (3.11.15) which Google will stop supporting in new releases of google.cloud.aiplatform.v1beta1.schema.predict.prediction_v1beta1 once it reaches its end of life (2027-10-24). Please upgrade to the latest Python version, or at least Python 3.12, to continue receiving updates for google.cloud.aiplatform.v1beta1.schema.predict.prediction_v1beta1 past that date.
+[train_cluster]   warnings.warn(message, FutureWarning)
+[train_cluster] /usr/local/python3.11.15/lib/python3.11/site-packages/google/api_core/_python_version_support.py:254: FutureWarning: You are using a Python version (3.11.15) which Google will stop supporting in new releases of google.cloud.aiplatform.v1beta1.schema.trainingjob.definition_v1beta1 once it reaches its end of life (2027-10-24). Please upgrade to the latest Python version, or at least Python 3.12, to continue receiving updates for google.cloud.aiplatform.v1beta1.schema.trainingjob.definition_v1beta1 past that date.
