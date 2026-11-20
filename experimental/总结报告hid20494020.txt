@@ -1,0 +1,125 @@
+<任务名称> 总结报告
+一句话结论：<达成 / 未达成目标>；关键阻塞点：<无 / 是什么>；关键指标：训练吞吐 → samples/s（+%），口径：2×Ascend950，batch_size=<...>，统计 步平均。
+
+1 文档信息
+项目	内容
+文档类型	验证报告
+提交人	GitCode ID：<hid20494020>
+文档版本 / 日期	v1 / 2026-MM-DD
+2 任务背景与目标
+任务目标：在 Ascend950（A5）2 卡环境、【应用使能】RecSDK 镜像下，基于 RecSDK TorchRec-V2 跑通 GR 模型（recsys-gr），用 profiling 定位瓶颈并调优，训练吞吐提升 ≥10%；按规范提交跑通截图、profiling 截图与体验报告。
+任务结果：<达成 / 未达成>；关键阻塞点：<无 / 描述 + issue 链接>；关键指标：<吞吐提升数值 + 口径>。
+3 环境准备
+3.1 环境创建步骤
+步骤 1：申请 / 创建算力环境
+
+操作：HiDevLab 在线开发，实例名 <...>，Ascend 950（A5）×2 卡，HBM <...> GB
+截图：01_env_create.png
+步骤 2：选择镜像
+
+操作：选择【应用使能】RecSDK 镜像（<镜像版本/ID>）
+截图：02_env_image.png
+步骤 3：启动并登录开发环境
+
+操作：<WebIDE / 本地 VS Code 插件>
+截图：03_env_login.png
+3.2 环境信息
+npu-smi info 输出（关键行粘贴到下面）：
+
+TEXT
+复制
+<粘贴 npu-smi info 输出>
+截图：04_npu_smi.png
+
+软件版本核对：
+
+组件	版本
+PyTorch / torch_npu	<2.7.1 / 2.7.1>
+torchrec	<1.2.0+npu>
+fbgemm_gpu	<1.2.0>
+dynamic_emb	<25.09>
+CANN	<版本>
+环境自检命令：
+
+BASH
+复制
+source /usr/local/set_cann_env.sh a5
+source /opt/buildtools/torch_v2_pt2.7.1/bin/activate
+python -c "import torch_npu, torchrec, dynamic_emb; print(torch_npu.__version__)"
+4 实际执行步骤
+任务入口文档：<链接>
+样例 / 代码路径：<链接>
+是否修改样例代码：否 / 是（改了什么、为什么、是否可回退）
+步骤 1：<做了什么>
+BASH
+复制
+<命令原样，不改写、不美化>
+预期：<可判定的结果>
+实际：成功 / 失败，<关键输出>
+截图：05_step1.png
+步骤 2：<做了什么>
+BASH
+复制
+<命令原样>
+预期：
+实际：
+截图：06_step2.png
+按实际执行顺序继续增加步骤；每步必须配截图。
+
+5 执行结果
+结论：通过 / 不通过
+判据：<如训练正常结束、输出完整且无异常栈>
+关键输出（日志原文或截图，二选一）：
+TEXT
+复制
+<日志片段>
+6 发现的问题
+问题	提交 issue
+<一句话现象，含触发条件>	#xxxx
+未发现问题则写「本次未发现问题」，并说明验证覆盖范围。
+
+7 总结
+<结论一：一句话可核对，带关键数字>
+<结论二>
+8 体验总结
+维度	评价	说明
+文档易懂度	好 / 一般 / 差	<能否只看文档独立完成，卡在哪一步>
+流程顺畅度	好 / 一般 / 差	<从申请环境到跑通，哪一步最费时、最易出错>
+报错可读性	好 / 一般 / 差	<报错能否指向根因，是否误导排查方向>
+整体评价	<x / 5>	
+最耗时的一步：<步骤 N：……，约 x 分钟>
+最值得改进的点：<...>
+附 A：性能优化数据（任务要求，务必填写）
+A.1 吞吐对比
+指标	基线	调优后	提升
+训练吞吐（samples/s）	<...>	<...>	<+x%>
+单步耗时（ms/step）	<...>	<...>	<-x%>
+（可选）NPU 利用率	<...>%	<...>%	
+口径必须写清：2×Ascend950、batch_size=<>、warmup <> 步、统计 <> 步取平均；基线 = 原始代码，调优后 = <具体改动>。
+
+截图：09_throughput_baseline.png、10_throughput_tuned.png
+
+A.2 profiling 与瓶颈分析
+采集方式：torch_npu.profiler / msprof，关键参数 <...>
+截图：07_profiling_baseline.png、08_profiling_tuned.png
+时间线结论：Free 时间占比 <...>%、Device 计算占比 <...>%、数据加载占比 <...>% → 判定为 <Host Bound / Device Bound>
+Top 算子耗时：<operator: xx ms, 占比 xx%>
+采取的调优措施及效果：
+多进程 DataLoader（num_workers=8、persistent_workers、数据分区）：<效果>
+大页内存（transparent_hugepage）：<效果>
+jemalloc（libjemalloc 预加载）：<效果>
+NUMA 绑核 / TASK_QUEUE_ENABLE=2：<效果>
+其他（算子融合 / 流水线并行等）：<效果>
+附 B：Issue 模板（提交时用）
+MARKDOWN
+复制
+**现状问题**：<从体验中看，当前验证过程指导文档存在哪些问题>
+**优化方案**：<具体修改点、改动范围、优化思路>
+**附件**：<截图、日志>
+附 C：交付规范自查
+文件夹名称：<任务名称>-<开发者ID>
+截图命名统一为 NN_内容.png，且全部在文档中引用
+Issue 标题：【MeetUp】<问题描述>（链接已填入第 6 节）
+PR 标题：【MeetUp】<任务名称> 总结报告
+PR 目标：RecSDK experimental 分支下的 experimental 目录
+附件齐全：跑通截图、profiling 截图、吞吐前后对比、关键日志
