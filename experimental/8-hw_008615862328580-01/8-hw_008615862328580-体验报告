@@ -1,0 +1,89 @@
+一、基本信息
+项目
+内容
+任务编号
+8
+开发者ID
+hw_008615862328580
+设备
+Atlas 800I A2（8 NPUs，8 × 64GB）
+镜像
+【应用使能】AgentSDK
+工作模式
+hybrid 训推共卡
+本地 IP / 网卡
+179.52.56.133 / eth0
+训练配置
+verl_train_hybrid_A2_t8_qwen3_14b_math_fsdp
+二、任务完成情况
+[x] 模型权重准备：使用环境预置的 /workspace/shared_assets/MindSDKMeetup/model/Qwen3-14B（8 个 safetensors 分片，约 28G，权重完整）
+[x] 数据集预处理：用 verl v0.7.0 的 gsm8k.py 处理预置 gsm8k 数据集，生成 train.parquet / test.parquet
+[x] 配置文件修改与环境变量设置：train yaml、hosts.conf、base.conf、env.local 均已按共卡场景配置
+[x] 训推启动成功：Ray runtime 正常拉起，8 张 NPU 全部投入，进入 rollout + train 循环
+[x] TensorBoard 看板生成：已产出事件文件并成功打开看板，观测到 actor/loss 等指标随 step 变化
+三、关键步骤与命令
+# 1) 环境：所有产物与缓存指向 300G 可写盘 /workspace（根 overlay 仅 5G）
+export HF_HOME=/workspace/.cache/huggingface
+export HF_DATASETS_CACHE=/workspace/.cache/huggingface/datasets
+export TMPDIR=/workspace/tmp RAY_TMPDIR=/workspace/tmp/ray
+
+# 2) 数据集预处理（预置数据为 parquet，含 main/ 子目录）
+python3 /verl/examples/data_preprocess/gsm8k.py \
+  --local_dataset_path /workspace/shared_assets/MindSDKMeetup/dataset/gsm8k \
+  --local_save_dir /workspace/data/gsm8k-output
+
+# 3) 训练 yaml 中四处必改路径
+#   hydra.searchpath  -> file:///workspace/AgentSDK/aura/configs/train/verl_conf
+#   data.train_files  -> /workspace/data/gsm8k-output/train.parquet
+#   data.val_files    -> /workspace/data/gsm8k-output/test.parquet
+#   actor_rollout_ref.model.path -> /workspace/shared_assets/MindSDKMeetup/model/Qwen3-14B
+
+# 4) hosts.conf（本机 IP, index, train_master, infer_master）
+179.52.56.133,0,1,1
+
+# 5) base.conf：work_mode=hybrid；train_config_name=verl_train_hybrid_A2_t8_qwen3_14b_math_fsdp
+#    env.local：DEFAULT_SOCKET_IFNAME=eth0；ASCEND_RT_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
+
+# 6) 后台启动训练（WebIDE 无 tmux，用 nohup）
+cd /workspace/AgentSDK/aura
+nohup bash scripts/start_rl_with_verl_vllm.sh > /workspace/train_start.log 2>&1 &
+
+# 7) 打开 TensorBoard（logdir 必须指向目录，而非事件文件）
+tensorboard --logdir /workspace/AgentSDK/aura/tensorboard_log \
+  --host 0.0.0.0 --port 6006
+四、验收结果
+4.1 启动与运行证据
+- 启动日志显示 Ray runtime started.、NPU_RESOURCES: 8、start rollout and train process，ASCEND_RT_VISIBLE_DEVICES: 0,1,2,3,4,5,6,7，8 卡训推共卡模式正常拉起。
+- 运行日志出现 trajectory reward ... final reward: 0.0 到 final reward: 1.0 的样本，reward 信号已正常接入 RL 训练回路。
+4.2 指标变化趋势（TensorBoard）
+看板 run：qwen3_14b_math_code_hybrid/qwen3_14b_math_code_h...
+指标
+观察到的趋势
+是否符合预期
+actor/loss
+随 step 由约 0.006 下降至约 0.0026
+符合（损失下降）
+actor/lr
+稳定在 1e-6 量级
+符合（学习率按计划保持）
+actor/pg_clipfrac
+随训练推进上升
+符合（策略更新幅度变化）
+看板截图：8-hw_008615862328580-01-屏幕截图.jpeg
+4.3 reward 曲线说明 [需补图]
+任务书要求以 reward 曲线上升 作为核心验收依据。当前随附截图仅展示了 actor/* 系列指标，尚未包含 reward 相关 tag 的曲线。运行日志中已出现 final reward: 1.0 的样本，表明 reward 计算通路正常；但由于当前训练步数很少（step 1–2），reward 曲线尚不足以体现上升趋势。
+结论：训练流程已跑通、reward 信号已接入；reward 曲线的「上升」验收需在训练推进更多 step 后补充截图（见文末「附：补图指引」）。提交前请务必补上该截图，否则交付件不齐。
+五、遇到的问题与 Issue 清单
+#
+问题描述
+Issue 链接
+1
+快速入门未提示容器 overlay 仅 5G，按文档下载模型会写满，导致 sed/ray 报 No space left on device
+https://gitcode.com/Ascend/AgentSDK/issues/197
+
+六、体验总结与优化建议
+1. 环境磁盘是最大坑点：容器 overlay 仅 5G，而模型约 28G。文档应在开篇就给出磁盘布局说明和预置资源路径，直接建议使用 /workspace 与预置模型，避免开发者重复下载并写满根分区。
+2. 配置说明需要更可操作：本机 IP/网卡、hosts.conf、env.local 三者强相关，建议合并成一个「网络与节点配置」章节，给出从 ifconfig 取值到落盘的完整示例。
+3. 可复制命令优先于截图：任务书中多处关键命令以截图呈现，无法复制且不便检索；建议改为代码块文本，尤其是 TensorBoard、数据预处理、训练启动这几处。
+4. WebIDE 适配：环境未安装 tmux，且需要端口转发才能访问 TensorBoard；建议在文档中加入 WebIDE 专项提示（用 nohup 保活、转发 6006 端口）。
+5. 整体评价：Aura 框架共卡模式的启动流程一旦配置正确即可稳定运行，8 卡资源识别与 Ray 集群拉起顺畅；主要障碍集中在文档对在线开发环境特性的说明不足，而非框架本身。
