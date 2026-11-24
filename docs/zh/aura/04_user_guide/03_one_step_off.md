@@ -1,26 +1,28 @@
-# 训推单步异步分离模式使用指南（One Step Off 策略）
+# 训推单步异步分离模式使用指南（One Step Off策略）
+
+本文档介绍训推单步异步分离模式（One Step Off策略），训练与推理任务分别部署在不同节点上独立运行、并行执行，通过权重文件和rollout数据进行异步交互，适用于大规模集群或对训练吞吐有较高要求的场景。
 
 ## 简介
 
-训推分离是 Agent SDK 提供的一种资源部署模式，训练与推理任务分别部署在不同节点上，独立运行、并行执行。在该模式下，训练集群和推理集群通过权重文件和 rollout 数据进行异步交互，适用于大规模集群或对训练吞吐有较高要求的场景。
+训推分离是Agent SDK提供的一种资源部署模式，训练与推理任务分别部署在不同节点上，独立运行、并行执行。在该模式下，训练集群和推理集群通过权重文件和rollout数据进行异步交互，适用于大规模集群或对训练吞吐有较高要求的场景。
 
 ### 模式与策略
 
-Agent SDK 的训推分离采用两层设计：
+Agent SDK的训推分离采用两层设计：
 
 - 部署模式：指训练和推理的资源部署方式，目前支持训推分离和训推共卡。
-- 训练策略：指在分离模式下，训练如何利用推理产生的数据的异步策略。目前仅支持 One Step Off 策略，即训练始终使用上一轮推理产出的轨迹数据，保持一个迭代步的滞后。
+- 训练策略：指在分离模式下，训练如何利用推理产生的数据的异步策略。目前仅支持One Step Off策略，即训练始终使用上一轮推理产出的轨迹数据，保持一个迭代步的滞后。
 
-因此，当配置文件中将 work_mode 设置为 one_step_off 时，表示同时选择了“分离部署模式”和“One Step Off 异步训练策略”。
+因此，当配置文件中将work_mode设置为one_step_off时，表示同时选择了“分离部署模式”和“One Step Off异步训练策略”。
 
 ### 运行过程
 
 分离模式下，训练和推理在不同节点上并行执行：
 
-![训推分离流程图](../figures/训推分离流程图.png)
+![训推分离模式运行流程图：推理集群生成rollout数据，训练集群取数计算优势并更新模型，新权重保存至共享存储后由推理集群自动加载](../figures/训推分离流程图.png)
 
-- 推理集群持续接收推理请求，生成 rollout 数据
-- 训练集群从数据队列获取 rollout 数据，计算优势并更新模型
+- 推理集群持续接收推理请求，生成rollout数据
+- 训练集群从数据队列获取rollout数据，计算优势并更新模型
 - 训练完成后，将新权重保存到共享存储，推理集群自动加载
 
 ### 适用场景
@@ -45,13 +47,13 @@ Agent SDK 的训推分离采用两层设计：
 
 ## 使用方法
 
-### 步骤 1：修改 hosts.conf
+### 步骤 1：修改hosts.conf
 
 文件路径：`configs/hosts.conf`
 
 分离模式下，推理节点排在前面，训练节点排在后面，且**不配置 `infer_master_index`**：
 
-**双机分离部署**（1 台推理 + 1 台训练）：
+**双机分离部署**（1台推理机 + 1台训练机）：
 
 ```shell
 # host,index,train_master_index,infer_master_index(可选)
@@ -90,7 +92,7 @@ infer_config_name=vllm_infer_i16_qwen3_8b
 | train_config_name | 训练 YAML 配置文件名（不含 .yaml 后缀）              |
 | infer_config_name | 推理 YAML 配置文件名（不含 .yaml 后缀），**分离模式必须配置** |
 
-### 步骤 3：修改训练 YAML 配置文件
+### 步骤 3：修改训练YAML 配置文件
 
 以 verl 后端、Qwen3-8B 模型为例，训练配置文件路径：`configs/train/verl_train_async_A3_t16_qwen3_8b_math_fsdp.yaml`
 
@@ -165,7 +167,7 @@ verl_conf:
 - `enable_expert_parallel`：是否开启专家并行（来自推理 YAML）
 
 > [!NOTE]
-> 此自动替换机制依赖**共享文件系统**：推理集群将配置写入共享存储的临时文件，训练主节点读取后通过 sed 替换训练 YAML，其他训练节点通过共享文件系统读取修改后的配置。仅训练主节点执行替换操作，避免多节点并发修改冲突。
+> 此自动替换机制依赖**共享文件系统**：推理集群将配置写入共享存储的临时文件，训练主节点读取后通过sed替换训练YAML，其他训练节点通过共享文件系统读取修改后的配置。仅训练主节点执行替换操作，避免多节点并发修改冲突。
 
 配置时填入默认值即可：
 
@@ -184,9 +186,9 @@ infer_instances:
         enable_expert_parallel: false
 ```
 
-### 步骤 4：修改推理 YAML 配置文件
+### 步骤 4：修改推理YAML配置文件
 
-分离模式需要单独配置推理 YAML 文件，路径：`configs/infer/vllm_infer_i16_qwen3_8b.yaml`
+分离模式需要单独配置推理YAML文件，路径：`configs/infer/vllm_infer_i16_qwen3_8b.yaml`
 
 #### 4.1 必须修改的路径参数
 
@@ -284,15 +286,15 @@ bash scripts/start_rl_with_verl_vllm.sh
 
 检查以下几点：
 
-1. 推理 YAML 中的 `infer_model_path` 是否正确指向模型权重路径
+1. 推理YAML中的 `infer_model_path` 是否正确指向模型权重路径
 2. 推理节点的卡数是否满足 `tensor_parallel_size × data_parallel_size` 的要求
 3. 推理节点是否可以访问共享存储（权重文件路径）
 
-### Q2：如何确认系统正确识别为分离模
+### Q2：如何确认系统正确识别为分离模式
 
 启动日志中会打印以下信息：
 
-```text
+```output
 [INFO] NODE_TYPE: infer    # 推理节点
 [INFO] NODE_TYPE: train    # 训练节点
 [INFO] work_mode: one_step_off

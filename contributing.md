@@ -1,32 +1,34 @@
 # 为Ascend Agent SDK贡献
 
+本文档介绍为Ascend Agent SDK贡献的完整流程，涵盖贡献方式、PR最佳实践、社区评审与合入要求以及分支与Tag命名规则，适用于计划参与Agent SDK社区建设的贡献者。
+
 感谢您考虑为Ascend Agent SDK做出贡献！我们欢迎任何形式的贡献，包括缺陷修复、功能增强、测试补充、文档改进以及使用反馈。无论您是第一次参与开源项目，还是已经具备丰富经验，您的贡献都非常宝贵。
 
-您可以通过以下方式参与 Agent SDK 社区建设：
+您可以通过以下方式参与Agent SDK社区建设：
 
-- 通过[Agent SDK新手任务池](https://gitcode.com/Ascend/AgentSDK/issues/59)参与贡献
-- 通过 [Issues](https://gitcode.com/Ascend/AgentSDK/issues) 反馈缺陷、提出建议或讨论需求
-- 提交代码，修复问题或实现新功能
-- 为已有功能补充测试用例，提升稳定性和可维护性
-- 改进用户文档、接口文档和示例内容
-- 参与 Pull Request 评审，帮助其他贡献者完善实现
+- 通过[Agent SDK新手任务池](https://gitcode.com/Ascend/AgentSDK/issues/59)参与贡献。
+- 通过[Issues](https://gitcode.com/Ascend/AgentSDK/issues)反馈缺陷、提出建议或讨论需求。
+- 提交代码，修复问题或实现新功能。
+- 为已有功能补充测试用例，提升稳定性和可维护性。
+- 改进用户文档、接口文档和示例内容。
+- 参与Pull Request评审，帮助其他贡献者完善实现。
 - 传播项目：在博客文章、社交媒体上分享Agent SDK，或给仓库点个⭐。
 
-参与贡献前，请先签署[开放项目贡献者许可协议（CLA）](https://clasign.osinfra.cn/sign/gitee_ascend-1611222220829317930)，完成签署后才能提交 Pull Request，未签署的 PR 将无法合入。在开始之前，请先阅读 [Agent SDK 项目说明](./README.md)。
+参与贡献前，请先签署[开放项目贡献者许可协议（CLA）](https://clasign.osinfra.cn/sign/gitee_ascend-1611222220829317930)，完成签署后才能提交Pull Request，未签署的PR将无法合入。在开始之前，请先阅读 [Agent SDK项目说明](./README.md)。
 
 ## 贡献方式
 
 ### Pull Request
 
-提交 PR 前，请先了解[PR最佳实践](#pr最佳实践)，掌握从 Fork 到提交、从代码审查到合并的完整 PR 流程，包括 PR 评审要求与合并规范。
+提交PR前，请先了解[PR最佳实践](#pr最佳实践)，掌握从Fork到提交、从代码审查到合并的完整PR流程，包括PR评审要求与合并规范。
 
 ### Issue
 
-通过 [Issues](https://gitcode.com/Ascend/AgentSDK/issues) 反馈缺陷、提出建议或讨论需求，我们会尽快回复。
+通过[Issues](https://gitcode.com/Ascend/AgentSDK/issues)反馈缺陷、提出建议或讨论需求，我们会尽快回复。
 
 ### SIG会议
 
-Agent SDK 社区通过 SIG 例会进行技术交流与议题评审，可提前在[会议日历](https://meeting.ascend.osinfra.cn/?sig=sig-AgentSDK)中查看例会安排，SIG 信息与成员列表参见 [SIG 成员列表](https://meeting.ascend.osinfra.cn/?sig=sig-AgentSDK)。
+Agent SDK社区通过SIG例会进行技术交流与议题评审，可提前在[会议日历](https://meeting.ascend.osinfra.cn/?sig=sig-AgentSDK)中查看例会安排，SIG信息与成员列表参见[SIG成员列表](https://gitcode.com/Ascend/community/blob/master/MindSDK/sigs/AgentSDK/sig-info.yaml)。
 
 ## PR最佳实践
 
@@ -65,7 +67,7 @@ Agent SDK 社区通过 SIG 例会进行技术交流与议题评审，可提前�
 
     2. 下载项目运行所需的第三方仓库
 
-       CI 镜像仅提供基础环境，项目依赖的第三方源码仓库需通过脚本单独下载。
+       CI镜像仅提供基础环境，项目依赖的第三方源码仓库需通过脚本单独下载。
 
        ```bash
        cd AgentSDK/aura
@@ -74,7 +76,7 @@ Agent SDK 社区通过 SIG 例会进行技术交流与议题评审，可提前�
 
     3. 在提交代码前，请补充测试用例并确保所有测试通过，本地执行UT。
 
-       单元测试按模块拆分为两个独立脚本，CI 流水线可按需调用：
+       单元测试按模块拆分为两个独立脚本，CI流水线可按需调用：
 
        ```bash
        cd AgentSDK
@@ -102,13 +104,13 @@ Agent SDK 社区通过 SIG 例会进行技术交流与议题评审，可提前�
 
 7. **提交 Pull Request**
 
-    - 保持 PR 小规模：一次 PR 只解决一个问题，建议单个 PR 的代码变更量控制在 1000 行以内（含测试）。
+    - 保持PR小规模：一次PR只解决一个问题，建议单个PR的代码变更量控制在1000行以内（含测试）。
     - 及时更新：定期同步上游主分支，及时响应评审意见。
     - 清晰描述：详细描述变更原因和方案，提供测试方法，如有必要添加截图、示例或对比结果。
 
 8. **社区评审与合入**
 
-    - PR 需满足项目评审要求，至少获得 2 位 Maintainer 或 Committer 的 `/lgtm` 以及 1 个 `/approve` 后，由 Maintainer 或 Committer 合入；禁止合并自己的 PR。
+    - PR需满足项目评审要求，至少获得2位Maintainer或Committer的`/lgtm`以及1个`/approve`后，由Maintainer或Committer合入；禁止合并自己的PR。
     - 如果涉及patch、头文件宏、API接口等更新，需提交社区在SIG例会进行评审，社区定期例会与活动参见[会议日历](https://meeting.ascend.osinfra.cn/?sig=sig-AgentSDK)。
 
 ## 分支/Tag命名规则
@@ -118,7 +120,7 @@ Agent SDK 社区通过 SIG 例会进行技术交流与议题评审，可提前�
 | 分支类型    | 分支名规则             | 示例                                  | 说明     | tag名规则                  | tag示例                                  |
 |---------|-------------------|-------------------------------------|--------|-------------------------|----------------------------------------|
 | 主干&开发   | `master`          | `-`                                 | `-`    | `-`                     | `-`                                    |
-| release | `release_<版本号>`   | `release_v26.1.0`                   | 正式版本   | `<版本号>[-beta.<序号>]`     | `v26.1.0` ， `v26.1.0-beta.1`           |
+| release | `release_<版本号>`   | `release_v26.1.0`                   | 正式版本   | `<版本号>[-beta.<序号>]`     | `v26.1.0` 、 `v26.1.0-beta.1`           |
 | poc     | `poc_<基线分支>_<描述>` | `poc_release-v26.1.0_auth-redesign` | 后续合入主干 | `poc_<基线分支>_<描述>-v<序号>` | `poc_release-v26.1.0_auth-redesign-v1` |
 
 ### Fork开源社区代码仓库
@@ -132,7 +134,7 @@ Agent SDK 社区通过 SIG 例会进行技术交流与议题评审，可提前�
 ## 参考
 
 - 开发规范<a id="dev-rule"></a>
-    - [《Ascend Python 编码风格指南》](https://gitcode.com/Ascend/community/blob/master/docs/contributor/Ascend-python-coding-style-guide.md)
+    - 《[Ascend Python 编码风格指南](https://gitcode.com/Ascend/community/blob/master/docs/contributor/Ascend-python-coding-style-guide.md)》
 - 安全编程指导<a id="sec-guide"></a>
-    - [《Ascend Python 安全编程指南》](https://gitcode.com/Ascend/community/blob/master/docs/contributor/Ascend-python-secure-coding-guide.md)
+    - 《[Ascend Python 安全编程指南](https://gitcode.com/Ascend/community/blob/master/docs/contributor/Ascend-python-secure-coding-guide.md)》
 - 更多社区相关规范，请访问[Ascend社区community](https://gitcode.com/Ascend/community)

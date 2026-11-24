@@ -108,13 +108,13 @@ AssertionError: 'uid' in tensor_dict1 and tensor_dict2 are not same object..
 
 **原因分析<a name="faq_004_analysis"></a>**
 
-yaml文件中参数test_freq参数设置不正确
+yaml文件中test_freq参数设置不正确。
 
 **解决方案<a name="faq_004_solution"></a>**
 
 将yaml文件中参数test_freq设置为-1，即可禁用验证阶段。
 
-## 提示运行triton时，utils文件部分字段找不到<a name="faq_005"></a>
+## 提示运行Triton时，utils文件部分字段找不到<a name="faq_005"></a>
 
 **问题现象<a name="faq_005_phenomenon"></a>**
 
@@ -128,16 +128,16 @@ yaml文件中参数test_freq参数设置不正确
 
 CANN8.5.1存在该文件，而CANN9.0.0已去除该文件，可通过下面的指令搜索该文件的位置。
 
-```text
+```shell
 grep -R RT_LIMIT_TYPE_SIMT_WARP_STACK_SIZE /usr/local/Ascend/ascend-toolkit/latest/include/experiment/runtime/runtime
 ```
 
-triton-ascend 3.2.0 存在该问题，可以打以下补丁进行修复：
+triton-ascend 3.2.0存在该问题，可以打以下补丁进行修复：
 
 - [triton-ascend_driver.patch](../../../aura/third_party/patch/triton-ascend_driver.patch)
 - [triton-ascend_npu_utils.patch](../../../aura/third_party/patch/triton-ascend_npu_utils.patch)
 
-triton-ascend对应PR：<https://gitcode.com/Ascend/triton-ascend/pull/1525/diffs>
+triton-ascend对应PR：[#1525 补丁修改](https://gitcode.com/Ascend/triton-ascend/pull/1525/diffs)。
 
 **解决方案<a name="faq_005_solution"></a>**
 
@@ -185,7 +185,7 @@ TypeError("CheckpointConfig.__init__() got an unexpected keyword argument 'stric
 
 将根目录下的verl版本切换到指定commit版本。
 
-```text
+```shell
 cd /
 git clone https://github.com/verl-project/verl.git
 cd verl
@@ -206,13 +206,13 @@ ModuleNotFoundError: No module named 'vllm.model_executor.layers.fused_moe.runne
 
 vllm 0.16.0rc1版本没有这个runner目录，一直到0.16.1rc0版本才有，建议直接切换到指定commit版本。
 
-vllm和vllm-ascend版本对应链接可参考：[vllm-ascend 版本发布策略](https://docs.vllm.com.cn/projects/ascend/en/latest/community/versioning_policy.html)
+vllm和vllm-ascend版本对应链接可参考：[vllm-ascend 版本发布策略](https://docs.vllm.com.cn/projects/ascend/en/latest/community/versioning_policy.html)。
 
 **解决方案<a name="faq_008_solution"></a>**
 
 将vllm切换到对应版本。
 
-```text
+```shell
 git clone https://github.com/vllm-project/vllm.git
 cd vllm
 git checkout 4034c3d32
@@ -236,13 +236,13 @@ OSError: libtorch_cuda.so: cannot open shared object file: No such file or direc
 
 **原因分析<a name="faq_009_analysis"></a>**
 
-调用了cuda版的torch，在昇腾平台上，要么调用TorchNPU，要么调用cpu版torch，所以需要卸载torch，安装cpu版torch。
+调用了CUDA版的torch，在昇腾平台上，要么调用TorchNPU，要么调用CPU版torch，所以需要卸载torch，安装CPU版torch。
 
 **解决方案<a name="faq_009_solution"></a>**
 
-安装cpu版的torch。
+安装CPU版的torch。
 
-```text
+```shell
 pip uninstall -y torch torchvision torchaudio
 pip install torch==2.9.0 torchvision==0.24.0 torchaudio==2.9.0 --index-url https://download.pytorch.org/whl/cpu
 ```
@@ -259,7 +259,7 @@ Failed to import Triton kernels. Please make sure your triton version is compati
 
 **原因分析<a name="faq_010_analysis"></a>**
 
-这个是vllm在判断当前环境是不是cuda环境，如果不是cuda环境就会抛一个ERROR，然后进入ascend-vllm的流程。
+这个是vllm在判断当前环境是不是CUDA环境，如果不是CUDA环境就会抛一个ERROR，然后进入ascend-vllm的流程。
 
 **解决方案<a name="faq_010_solution"></a>**
 
@@ -277,13 +277,13 @@ fatal error: 'moe_distribute_comm_ctx.h' file not found
 
 **原因分析<a name="faq_011_analysis"></a>**
 
-vllm-ascend对于a3服务器，在cmake编译算子时，缺少头文件路径，需补充环境变量，从而将该文件路径添加到CMakeLists的文件路径中。
+vllm-ascend对于A3服务器，在CMake编译算子时，缺少头文件路径，需补充环境变量，从而将该文件路径添加到CMakeLists的文件路径中。
 
 **解决方案<a name="faq_011_solution"></a>**
 
-添加环境变量，添加cmake编译算子时包含的头文件路径：
+添加环境变量，指定CMake编译算子时包含的头文件路径：
 
-```text
+```shell
 export CPLUS_INCLUDE_PATH=/usr/local/Ascend/cann-9.0.0/opp/built-in/op_impl/ai_core/tbe/impl/ops_transformer/ascendc/common/inc/kernel:${CPLUS_INCLUDE_PATH}
 ```
 
@@ -293,19 +293,19 @@ export CPLUS_INCLUDE_PATH=/usr/local/Ascend/cann-9.0.0/opp/built-in/op_impl/ai_c
 
 启动脚本后，出现如下报错信息：
 
-```text
+```shell
 httpcore.ConnectError: All connection attempts failed
 ```
 
 **原因分析<a name="faq_012_analysis"></a>**
 
-环境中存在http代理，导致InferExecutor 调用vLLM接口时网络连接失败。
+环境中存在http代理，导致InferExecutor调用vLLM接口时网络连接失败。
 
 **解决方案<a name="faq_012_solution"></a>**
 
 通过 `export` 指令查看所有环境变量，将代理相关的环境变量 `unset` 掉。
 
-```text
+```bash
 unset http_proxy
 unset https_proxy
 ```
@@ -344,7 +344,7 @@ You should exec "export VC_TASK_INDEX={0|1|2...}" to configure the host index
 192.168.0.2,1,1
 ```
 
-## 提示ray启动失败<a name="faq_014"></a>
+## 提示Ray启动失败<a name="faq_014"></a>
 
 **问题现象<a name="faq_014_phenomenon"></a>**
 
@@ -356,21 +356,21 @@ ConnectionError: Could not find any running Ray instance. Please specify the one
 
 **原因分析<a name="faq_014_analysis"></a>**
 
-环境问题导致ray启动失败。
+环境问题导致Ray启动失败。
 
 **解决方案<a name="faq_014_solution"></a>**
 
-尝试手动起ray，判断是否是环境存在问题，执行下面的指令前需保证指令使用的端口没有被占用：
+尝试手动起Ray，判断是否是环境存在问题，执行下面的指令前需保证指令使用的端口没有被占用：
 
 ```shell
 ray start --head --port=7894 --dashboard-port=7895
 ```
 
-如果ray存在报错，需排查环境问题，下面提供一些排查方向：
+如果Ray存在报错，需排查环境问题，下面提供一些排查方向：
 
-1. 保证ray使用的端口没有被占用
-2. 保证有足够的文件描述符供raylet进程使用
-3. 机器上其他容器是否有ray进程正在运行
+1. 保证Ray使用的端口没有被占用
+2. 保证有足够的文件描述符供Raylet进程使用
+3. 机器上其他容器是否有Ray进程正在运行
 
 ## 提示Ray会话名称不匹配<a name="faq_015"></a>
 
@@ -384,11 +384,11 @@ AssertionError: Session name session_2026-07-09_09-17-24_537353_45519 does not m
 
 **原因分析<a name="faq_015_analysis"></a>**
 
-Agent SDK 底层使用 Ray 进行分布式训练，而 Ray 依赖 Redis 来管理集群状态。之前的 Ray 会话没有正常退出，其临时文件或 Redis 中的元数据未被清理，与新启动的会话产生冲突。
+Agent SDK底层使用Ray进行分布式训练，而Ray依赖Redis来管理集群状态。之前的Ray会话没有正常退出，其临时文件或Redis中的元数据未被清理，与新启动的会话产生冲突。
 
 **解决方案<a name="faq_015_solution"></a>**
 
-进入之前没有清理 Ray 的容器，执行以下命令清理残留的 Ray 进程和临时文件：
+进入之前没有清理Ray的容器，执行以下命令清理残留的Ray进程和临时文件：
 
 ```shell
 ray stop -f

@@ -1,16 +1,18 @@
-# Qwen3-4B 共卡模式快速入门指南
+# Qwen3-4B共卡模式快速入门指南
+
+本文档介绍Qwen3-4B共卡模式（hybrid）的快速入门流程，涵盖容器环境部署、模型与数据集获取、配置文件修改、环境变量配置与训练启动，适用于需要参考学习Qwen3-4B共卡模式的用户。
 
 ## **容器环境部署**
 
-本文档以Atlas 900 A3 SuperPoD超节点（16 × 64 GB）、Ubuntu 系统为例进行说明。
+本文档以Atlas 900 A3 SuperPoD超节点（16 × 64 GB）、Ubuntu系统为例进行说明。
 
-第一步：拉取预构建镜像：
+第一步：拉取预构建镜像
 
 ```shell
 docker pull swr.cn-south-1.myhuaweicloud.com/ascendhub/agentsdk:26.2.0-cann9.0.0-torch_npu2.10.0-a3-ubuntu22.04-py3.11
 ```
 
-第二步：创建容器：
+第二步：创建容器
 
 ```shell
 docker run --name your_container_name \
@@ -50,7 +52,7 @@ docker exec -it your_container_name bash
 
 ## **模型获取**
 
-本实验使用 Qwen3-4B 模型，相关模型可以通过[ModelScope Qwen3-4B 模型仓库](https://www.modelscope.cn/models/Qwen/Qwen3-4B)获取。
+本实验使用Qwen3-4B模型，相关模型可以通过[ModelScope Qwen3-4B模型仓库](https://www.modelscope.cn/models/Qwen/Qwen3-4B)获取。
 
 ```shell
 modelscope download --model Qwen/Qwen3-4B --local_dir /path/to/Qwen3-4B
@@ -60,7 +62,7 @@ modelscope download --model Qwen/Qwen3-4B --local_dir /path/to/Qwen3-4B
 
 ### **下载数据集**
 
-本实验使用的 math 领域的 gsm8k 数据集可通过[ModelScope gsm8k 数据集](https://www.modelscope.cn/datasets/AI-ModelScope/gsm8k)获取。
+本实验使用的math领域的gsm8k数据集可通过[ModelScope gsm8k数据集](https://www.modelscope.cn/datasets/AI-ModelScope/gsm8k)获取。
 
 ```shell
 modelscope download --dataset AI-ModelScope/gsm8k --local_dir /path/to/gsm8k
@@ -79,7 +81,7 @@ python3 gsm8k.py \
 
 ## **文件修改**
 
-在快速入门 Qwen3-4B Math 场景前，需要修改以下配置文件。需要修改的配置点汇总如下，YAML 文件中的参数含义可参见对应文件头的注释：
+在快速入门Qwen3-4B Math场景前，需要修改以下配置文件。需要修改的配置点汇总如下，YAML文件中的参数含义可参见对应文件头的注释：
 
 | # | 配置文件 | 必改参数 | 说明 |
 |---|---------|---------|------|
@@ -170,7 +172,7 @@ touch aura/configs/env/env.local
 
 2. 假设得到打印信息（部分）为：
 
-    ```text
+    ```output
     docker0: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
             inet 172.17.0.1  netmask 255.255.0.0  broadcast 172.17.255.255
 
@@ -181,7 +183,7 @@ touch aura/configs/env/env.local
             inet 192.168.100.100  netmask 255.255.255.0  broadcast 192.168.100.255
     ```
 
-3. 假设本地 IP 为 192.168.0.1，那么指向本地 IP 对应虚拟网桥的值即为 enp189s0f0 ，即需要写入 `aura/configs/env/env.local`：
+3. 假设本地IP为192.168.0.1，那么指向本地IP对应虚拟网桥的值即为enp189s0f0，即需要写入 `aura/configs/env/env.local`：
 
     ```text
     DEFAULT_SOCKET_IFNAME=enp189s0f0
@@ -189,7 +191,7 @@ touch aura/configs/env/env.local
 
 ### 配置 ASCEND_RT_VISIBLE_DEVICES
 
-配置可用的 NPU 的卡数。
+配置可用的NPU卡数。
 
 ```text
 ASCEND_RT_VISIBLE_DEVICES=0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
@@ -197,7 +199,7 @@ ASCEND_RT_VISIBLE_DEVICES=0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
 
 ## **启动训练**
 
-启动训练脚本
+启动训练脚本。
 
 ```shell
 # 进入自己的工作目录
@@ -207,4 +209,4 @@ bash scripts/start_rl_with_verl_vllm.sh
 ```
 
 > [!NOTE]
-> 本文档专门针对 Qwen3-4B 共卡模式（hybrid）的启动示例，提供该场景下的快速入门步骤；通用且详细的完整启动流程请参考 [快速入门指南](../../03_quick_start.md)。
+> 本文档专门针对Qwen3-4B共卡模式（hybrid）的启动示例，提供该场景下的快速入门步骤；通用且详细的完整启动流程请参考 [快速入门指南](../../03_quick_start.md)。

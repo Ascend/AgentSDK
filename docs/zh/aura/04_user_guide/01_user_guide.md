@@ -1,19 +1,19 @@
 # 使用指南
 
-本文档介绍 Agent SDK 的核心使用方法，包括运行模式、自定义 Agent 开发、配置文件使用等内容。
+本文档介绍Agent SDK的核心使用方法，包括运行模式、自定义Agent开发、配置文件使用等内容。
 
 ## 运行模式
 
-Agent SDK 支持两种运行模式：
+Agent SDK支持两种运行模式：
 
 | 模式 | 说明 |
 |------|------|
 | **Direct 模式** | 本地部署，本地执行训练和推理任务 |
-| **Serve 模式** | 服务化部署，提供 HTTP API 接口，仅支持推理 |
+| **Serve 模式** | 服务化部署，提供HTTP API接口，仅支持推理 |
 
-### Direct 模式
+### Direct模式
 
-Direct 模式用于执行训练和推理任务，任务完成后自动退出。该模式同时支持训练和推理功能。
+Direct模式用于执行训练和推理任务，任务完成后自动退出。该模式同时支持训练和推理功能。
 
 **启动方式**
 
@@ -35,9 +35,9 @@ direct_conf:
       job_kwargs: {}
 ```
 
-### Serve 模式
+### Serve模式
 
-Serve 模式启动后，系统将长期运行并提供 HTTP API 服务。该模式仅支持推理功能，不支持训练。
+Serve模式启动后，系统将长期运行并提供HTTP API服务。该模式仅支持推理功能，不支持训练。
 
 **启动方式**
 
@@ -57,14 +57,14 @@ serve_conf:
   port: 8030
 ```
 
-**API 接口**
+**API接口**
 
-Serve 模式提供以下 HTTP API 接口：
+Serve模式提供以下HTTP API接口：
 
-| 接口路径 | HTTP 方法 | 说明 |
+| 接口路径 | HTTP方法 | 说明 |
 |---------|----------|------|
-| `/agent/invoke` | POST | Agent 轨迹生成接口，以 SSE（Server-Sent Events）流式模式返回结果 |
-| `/v1/chat/completions` | POST | 标准 Chat Completions 接口，支持流式（`stream=true`）和非流式（`stream=false`）两种模式 |
+| `/agent/invoke` | POST | Agent轨迹生成接口，以SSE（Server-Sent Events）流式模式返回结果 |
+| `/v1/chat/completions` | POST | 标准Chat Completions接口，支持流式（`stream=true`）和非流式（`stream=false`）两种模式 |
 | `/` | GET | 健康检查接口，返回欢迎信息 |
 | `/delay` | GET | 延迟测试接口，用于测试服务响应 |
 
@@ -84,9 +84,9 @@ curl -X POST http://localhost:8030/v1/chat/completions \
 
 ---
 
-## 使用 TensorBoard 查看训练指标
+## 使用TensorBoard查看训练指标
 
-在 Aura 训练 YAML 文件的 `verl_conf.trainer.logger` 列表中添加 `tensorboard`。快速入门配置已包含以下两项。
+在Aura训练YAML文件的 `verl_conf.trainer.logger` 列表中添加 `tensorboard`。快速入门配置已包含以下两项。
 
 ```yaml
 verl_conf:
@@ -100,38 +100,39 @@ verl_conf:
 
 1. **下载事件文件**
 
-   从训练环境中下载 TensorBoard 事件文件（如 `events.out.tfevents.1769777322.k8s-worker1.884335.0`）。
+   从训练环境中下载TensorBoard事件文件（如 `events.out.tfevents.1769777322.k8s-worker1.884335.0`）。
 
-   veRL 默认将日志保存在 `tensorboard_log/<project_name>/<experiment_name>/` 目录下。
-2. **安装 TensorBoard**
+   verl默认将日志保存在 `tensorboard_log/<project_name>/<experiment_name>/` 目录下。
 
-   在本地 Python 环境中执行：
+2. **安装TensorBoard**
 
-   ```
+   在本地Python环境中执行：
+
+   ```bash
    python -m pip install tensorboard
    ```
 
-3. **启动 TensorBoard**
+3. **启动TensorBoard**
 
    在本地创建 `logs/` 目录，并将下载的事件文件放入其中。随后在该目录的上一级目录执行：
 
-   ```
+   ```bash
    tensorboard --logdir=logs --port=6006
    ```
 
 4. **查看训练指标**
 
-   在浏览器中访问 [http://localhost:6006](http://localhost:6006)，进入 **Scalars** 页面，查看训练指标及其变化趋势。
+   在浏览器中访问[http://localhost:6006](http://localhost:6006)，进入**Scalars**页面，查看训练指标及其变化趋势。
 
 ---
 
-## 自定义 Agent 开发
+## 自定义Agent开发
 
-详见 [自定义 Agent 接入指南](06_custom_agent.md)。
+详见[自定义Agent接入指南](06_custom_agent.md)。
 
 ---
 
-## Engine Wrapper 对接示例
+## Engine Wrapper对接示例
 
 开发者可通过继承 `BaseEngineWrapper` 实现自定义引擎包装器。
 
@@ -143,9 +144,9 @@ verl_conf:
 >
 > - SmolAgent引擎包装器：`aura/runner/agent_engine_wrapper/smolagent/smolagent_wrapper.py`
 
-以下是一个 Mock 示例，用于调试和验证。
+以下是一个Mock示例，用于调试和验证。
 
-### 实现 MockEngineWrapper
+### 实现MockEngineWrapper
 
 ```python
 import random
@@ -276,7 +277,7 @@ verl默认配置 (ppo_megatron_trainer)
 
 2. **按key合并**：相同层级的配置项按key进行合并，后加载的配置会覆盖先加载的同名配置
 
-3. **覆盖机制**：`_self_`表示当前yaml文件的配置具有最高优先级，会覆盖之前加载的所有同名配置
+3. **覆盖机制**：`_self_`表示当前YAML文件的配置具有最高优先级，会覆盖之前加载的所有同名配置
 
 **示例说明**：
 
@@ -315,11 +316,11 @@ trainer:
 
 ## 注册自定义引擎
 
-Agent SDK 提供注册表机制，支持注册自定义的Agent。
+Agent SDK提供注册表机制，支持注册自定义的Agent。
 
-### 注册 Agent 引擎
+### 注册Agent引擎
 
-Agent 引擎通过 `AGENTS_MAPPING` 列表进行注册，在 `agents/agents_mapping.py` 中添加配置：
+Agent引擎通过 `AGENTS_MAPPING` 列表进行注册，在 `agents/agents_mapping.py` 中添加配置：
 
 ```python
 from agents.agents_mapping import AGENTS_MAPPING
@@ -352,11 +353,11 @@ AGENTS_MAPPING.append({
 
 ## 更多实践指南
 
-- 训推共卡模式（On-Policy 策略）：[02_hybrid.md](02_hybrid.md)
-- 训推单步异步分离模式（One Step Off 策略）：[03_one_step_off.md](03_one_step_off.md)
-- 训推全异步分离模式（Fully Async 策略）：[04_fully_async.md](04_fully_async.md)
+- 训推共卡模式（On-Policy策略）：[02_hybrid.md](02_hybrid.md)
+- 训推单步异步分离模式（One Step Off策略）：[03_one_step_off.md](03_one_step_off.md)
+- 训推全异步分离模式（Fully Async策略）：[04_fully_async.md](04_fully_async.md)
 - 混合批次调度（Mixed Batch Scheduling）：[05_mixed_batch.md](05_mixed_batch.md)
-- 自定义 Agent 接入指南：[06_custom_agent.md](06_custom_agent.md)
+- 自定义Agent接入指南：[06_custom_agent.md](06_custom_agent.md)
 
 ---
 

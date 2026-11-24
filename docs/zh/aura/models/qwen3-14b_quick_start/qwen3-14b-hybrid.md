@@ -1,16 +1,18 @@
-# Qwen3-14B 共卡模式快速入门指南
+# Qwen3-14B共卡模式快速入门指南
+
+本文档介绍Qwen3-14B共卡模式（hybrid）的快速上手流程，涵盖容器环境部署、模型与数据集获取、配置文件修改、环境变量配置和启动训练，适用于需要参考学习Qwen3-14B共卡模式训练部署的用户。
 
 ## **容器环境部署**
 
-本文档以 Atlas 800I A2推理服务器（8 × 64 GB）、Ubuntu 系统为例进行说明。
+本文档以Atlas 800I A2推理服务器（8 × 64 GB）、Ubuntu系统为例进行说明。
 
-第一步：拉取预构建镜像：
+第一步：拉取预构建镜像
 
 ```shell
 docker pull swr.cn-south-1.myhuaweicloud.com/ascendhub/agentsdk:26.2.0-cann9.0.0-torch_npu2.10.0-910b-ubuntu22.04-py3.11
 ```
 
-第二步：创建容器：
+第二步：创建容器
 
 ```shell
 docker run --name your_container_name \
@@ -46,11 +48,11 @@ docker exec -it your_container_name bash
 
 第四步：更新代码（推荐）
 
-预构建镜像中的代码为镜像构建时刻的快照，可能与代码仓发布分支的最新代码不一致。建议进入容器后先检查本地与远程对应分支的最新 commit 是否一致，如不一致可拉取最新代码更新。
+预构建镜像中的代码为镜像构建时刻的快照，可能与代码仓发布分支的最新代码不一致。建议进入容器后先检查本地与远程对应分支的最新commit是否一致，如不一致可拉取最新代码更新。
 
 ## **模型获取**
 
-本实验使用 Qwen3-14B 模型，相关模型可以通过[ModelScope Qwen3-14B 模型仓库](https://www.modelscope.cn/models/Qwen/Qwen3-14B)获取。
+本实验使用Qwen3-14B模型，相关模型可以通过[ModelScope Qwen3-14B 模型仓库](https://www.modelscope.cn/models/Qwen/Qwen3-14B)获取。
 
 ```shell
 modelscope download --model Qwen/Qwen3-14B --local_dir /path/to/Qwen3-14B
@@ -60,7 +62,7 @@ modelscope download --model Qwen/Qwen3-14B --local_dir /path/to/Qwen3-14B
 
 ### **下载数据集**
 
-本实验使用的 math 领域的 gsm8k 数据集可通过[ModelScope gsm8k 数据集](https://www.modelscope.cn/datasets/AI-ModelScope/gsm8k)获取。
+本实验使用的math领域的gsm8k数据集可通过[ModelScope gsm8k数据集](https://www.modelscope.cn/datasets/AI-ModelScope/gsm8k)获取。
 
 ```shell
 modelscope download --dataset AI-ModelScope/gsm8k --local_dir /path/to/gsm8k
@@ -68,7 +70,7 @@ modelscope download --dataset AI-ModelScope/gsm8k --local_dir /path/to/gsm8k
 
 ### **数据集处理**
 
-使用 verl 官方提供的数据处理脚本[gsm8k.py](https://github.com/verl-project/verl/blob/v0.7.0/examples/data_preprocess/gsm8k.py)处理数据集：
+使用verl官方提供的数据处理脚本[gsm8k.py](https://github.com/verl-project/verl/blob/v0.7.0/examples/data_preprocess/gsm8k.py)处理数据集：
 
 ```shell
 # 处理数据集
@@ -79,7 +81,7 @@ python3 gsm8k.py \
 
 ## **文件修改**
 
-在快速入门 Qwen3-14B Math 场景前，需要修改以下配置文件。需要修改的配置点汇总如下，YAML 文件中的参数含义可参见对应文件头的注释：
+在快速入门Qwen3-14B Math场景前，需要修改以下配置文件。需要修改的配置点汇总如下，YAML文件中的参数含义可参见对应文件头的注释：
 
 | # | 配置文件 | 必改参数 | 说明 |
 |---|---------|---------|------|
@@ -147,11 +149,11 @@ clean_old_ckpt=0
 
 ## **配置环境变量**
 
-### 配置 DEFAULT_SOCKET_IFNAME
+### 配置DEFAULT_SOCKET_IFNAME
 
-包含正确本地 IP 的网络接口名称。
+包含正确本地IP的网络接口名称。
 
-1. 执行 ifconfig 命令，查看网络配置：
+1. 执行ifconfig命令，查看网络配置：
 
     ```shell
     ifconfig
@@ -159,7 +161,7 @@ clean_old_ckpt=0
 
 2. 假设得到打印信息（部分）为：
 
-    ```text
+    ```output
     docker0: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
             inet 172.17.0.1  netmask 255.255.0.0  broadcast 172.17.255.255
 
@@ -170,15 +172,15 @@ clean_old_ckpt=0
             inet 192.168.100.100  netmask 255.255.255.0  broadcast 192.168.100.255
     ```
 
-3. 假设本地 IP 为 192.168.0.1，那么指向本地 IP 对应网络接口的值即为 enp189s0f0，即需要执行：
+3. 假设本地IP为192.168.0.1，那么指向本地IP对应网络接口的值即为enp189s0f0，即需要执行：
 
     ```shell
     export DEFAULT_SOCKET_IFNAME=enp189s0f0
     ```
 
-### 配置 ASCEND_RT_VISIBLE_DEVICES
+### 配置ASCEND_RT_VISIBLE_DEVICES
 
-配置可用的 NPU 的卡数。
+配置可用的NPU的卡数。
 
 ```shell
 export ASCEND_RT_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
@@ -190,7 +192,7 @@ export ASCEND_RT_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
 
 ## **启动训练**
 
-启动训练脚本
+启动训练脚本。
 
 ```shell
 # 进入自己的工作目录
@@ -200,4 +202,4 @@ bash scripts/start_rl_with_verl_vllm.sh
 ```
 
 > [!NOTE]
-> 本文档专门针对 Qwen3-14B 共卡模式（hybrid）的启动示例，提供该场景下的快速入门步骤；通用且详细的完整启动流程请参考 [快速入门指南](../../03_quick_start.md)。
+> 本文档专门针对Qwen3-14B共卡模式（hybrid）的启动示例，提供该场景下的快速入门步骤；通用且详细的完整启动流程请参考[快速入门指南](../../03_quick_start.md)。

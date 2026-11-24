@@ -1,16 +1,18 @@
 # Qwen3-4B 单步异步分离模式（One Step Off）快速入门指南
 
+本文档介绍Qwen3-4B单步异步分离模式的快速入门流程，涵盖容器环境部署、模型与数据集获取、数据格式转换、配置文件修改、环境变量配置与启动训练，适用于需要进行Qwen3-4B强化学习训练的用户。
+
 ## **容器环境部署**
 
-本文档以Atlas 900 A3 SuperPoD超节点（16 × 64 GB）、Ubuntu 系统为例进行说明。
+本文档以Atlas 900 A3 SuperPoD超节点（16 × 64 GB）、Ubuntu系统为例进行说明。
 
-第一步：拉取预构建镜像：
+第一步：拉取预构建镜像
 
 ```shell
 docker pull swr.cn-south-1.myhuaweicloud.com/ascendhub/agentsdk:26.2.0-cann9.0.0-torch_npu2.10.0-a3-ubuntu22.04-py3.11
 ```
 
-第二步：创建容器：
+第二步：创建容器
 
 ```shell
 docker run --name your_container_name \
@@ -71,7 +73,7 @@ modelscope download --dataset AI-ModelScope/gsm8k --local_dir /path/to/gsm8k
 
 ### **数据集处理**
 
-使用下面 verl 官方提供的数据处理脚本[gsm8k.py](https://github.com/verl-project/verl/blob/v0.7.0/examples/data_preprocess/gsm8k.py)处理数据集：
+使用verl官方提供的数据处理脚本[gsm8k.py](https://github.com/verl-project/verl/blob/v0.7.0/examples/data_preprocess/gsm8k.py)处理数据集：
 
 ```shell
 # 处理数据集
@@ -126,7 +128,7 @@ map_keys: {"query":"", "response":"labels", "prompt": "question"}
 | `input`                   | str  | 输入的 jsonl 文件所在目录的路径，包含 train.jsonl 和 test.jsonl                                  |
 | `tokenizer_name_or_path`  | str  | 分词器路径，必须与后续训练的模型保持一致                                                             |
 | `output_prefix`           | str  | /path/to/output/train 为输出文件路径，需提前创建，rl 为输出文件前缀                                   |
-| `handler_name`            | str  | 数据处理器名称，决定了数据的拼接模板 。`R1AlpacaStyleInstructionHandler`是 Qwen 等模型进行 SFT/RL 训练的标准格式 |
+| `handler_name`            | str  | 数据处理器名称，决定了数据的拼接模板。`R1AlpacaStyleInstructionHandler`是 Qwen 等模型进行 SFT/RL 训练的标准格式 |
 | `tokenizer_type`          | str  | 分词器类型，常用 `HuggingFaceTokenizer`                                                  |
 | `workers`                 | int  | 并行 worker 数                                                                      |
 | `log_interval`            | int  | 日志输出间隔（处理多少条数据后输出）                                                               |
@@ -262,7 +264,7 @@ touch aura/configs/env/env.local
 
 2. 假设得到打印信息（部分）为：
 
-    ```text
+    ```output
     docker0: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
             inet 172.17.0.1  netmask 255.255.0.0  broadcast 172.17.255.255
 
@@ -273,7 +275,7 @@ touch aura/configs/env/env.local
             inet 192.168.100.100  netmask 255.255.255.0  broadcast 192.168.100.255
     ```
 
-3. 假设本地 IP 为 192.168.0.1，那么指向本地 IP 对应虚拟网桥的值即为 enp189s0f0 ，即需要写入 `aura/configs/env/env.local`：
+3. 假设本地IP为192.168.0.1，那么指向本地IP对应虚拟网桥的值即为enp189s0f0，即需要写入 `aura/configs/env/env.local`：
 
     ```text
     DEFAULT_SOCKET_IFNAME=enp189s0f0

@@ -1,30 +1,32 @@
-# 自定义 Agent 接入指南
+# 自定义Agent接入指南
+
+本文档介绍自定义Agent的接入方法，说明如何通过实现BaseAgent与BaseEnv两个抽象类并在agents_mapping.py中注册，使自定义智能体接入Aura训推调框架参与强化学习训练循环，适用于需要扩展自定义智能体与环境的开发者。
 
 ## 简介
 
-Agent SDK 提供了灵活的 Agent 接入机制，允许用户将自定义的智能体接入 Aura 训推调框架。通过实现 `BaseAgent` 和 `BaseEnv` 两个核心抽象类，并在 `agents_mapping.py` 中注册，即可让自定义 Agent 参与强化学习训练循环。
+Agent SDK提供了灵活的Agent接入机制，允许用户将自定义的智能体接入Aura训推调框架。通过实现 `BaseAgent` 和 `BaseEnv` 两个核心抽象类，并在 `agents_mapping.py` 中注册，即可让自定义Agent参与强化学习训练循环。
 
 ### 核心概念
 
-Agent SDK 的 Agent 体系由以下核心组件构成：
+Agent SDK的Agent体系由以下核心组件构成：
 
 | 组件 | 说明 |
 |------|------|
 | **Agent** | 负责与模型交互，解析模型输出为工具调用，维护对话历史 |
 | **Environment** | 负责执行工具调用，返回观测结果和奖励信号 |
-| **Tool** | Agent 可调用的工具，定义工具描述和执行逻辑 |
-| **Reward Function** | 评估 Agent 行为质量的奖励函数 |
-| **agents_mapping** | Agent 注册表，将名称映射到具体的 Agent/Env/Reward 配置 |
+| **Tool** | Agent可调用的工具，定义工具描述和执行逻辑 |
+| **Reward Function** | 评估Agent行为质量的奖励函数 |
+| **agents_mapping** | Agent注册表，将名称映射到具体的Agent/Env/Reward配置 |
 
 ### 架构总览
 
-![agent架构总览](../figures/agent架构总览.png)
+![Agent体系架构总览图：基于YAML配置，通过agents_mapping.py中的映射字典动态加载继承自BaseAgent和BaseEnv的自定义Agent与环境类](../figures/agent架构总览.png)
 
 ## 快速开始
 
-### 步骤一：实现自定义 Agent
+### 步骤一：实现自定义Agent
 
-自定义 Agent 需要继承 [BaseAgent](../../../../aura/aura/runner/agent_engine_wrapper/base/agent/base_agent.py)，实现以下抽象方法：
+自定义Agent需要继承[BaseAgent](../../../../aura/aura/runner/agent_engine_wrapper/base/agent/base_agent.py)，实现以下抽象方法：
 
 ```python
 from aura.runner.agent_engine_wrapper.base.agent.base_agent import BaseAgent, Action, Step, Trajectory
@@ -58,7 +60,7 @@ class MyAgent(BaseAgent):
         return self._trajectory
 ```
 
-**关键方法说明：**
+**关键方法说明**
 
 | 方法 | 职责 | 调用时机 |
 |------|------|---------|
@@ -69,11 +71,11 @@ class MyAgent(BaseAgent):
 | `trajectory` | 返回轨迹记录 | 训练时获取 rollout 数据 |
 
 > [!NOTE]
-> 完整实现可参考内置 Agent：[ToolAgent](../../../../aura/agents/math_agent/tool_agent.py)
+> 完整实现可参考内置Agent：[ToolAgent](../../../../aura/agents/math_agent/tool_agent.py)
 
-### 步骤二：实现自定义 Environment
+### 步骤二：实现自定义Environment
 
-自定义 Environment 需要继承 [BaseEnv](../../../../aura/aura/runner/agent_engine_wrapper/base/environment/base_env.py)，实现以下抽象方法：
+自定义Environment需要继承[BaseEnv](../../../../aura/aura/runner/agent_engine_wrapper/base/environment/base_env.py)，实现以下抽象方法：
 
 ```python
 from aura.runner.agent_engine_wrapper.base.environment.base_env import BaseEnv
@@ -97,7 +99,7 @@ class MyEnvironment(BaseEnv):
         pass
 ```
 
-**关键方法说明：**
+**关键方法说明**
 
 | 方法 | 职责 | 返回值 |
 |------|------|--------|
@@ -106,11 +108,11 @@ class MyEnvironment(BaseEnv):
 | `from_dict` | 从配置字典构造实例 | `BaseEnv` 实例 |
 
 > [!NOTE]
-> 完整实现可参考内置 Environment：[ToolEnvironment](../../../../aura/agents/math_agent/environment/tool_env.py)
+> 完整实现可参考内置Environment：[ToolEnvironment](../../../../aura/agents/math_agent/environment/tool_env.py)
 
-### 步骤三：注册到 agents_mapping
+### 步骤三：注册到agents_mapping
 
-在 [agents/agents_mapping.py](../../../../aura/agents/agents_mapping.py) 的 `AGENTS_MAPPING` 列表中添加自定义 Agent 配置：
+在[agents/agents_mapping.py](../../../../aura/agents/agents_mapping.py) 的 `AGENTS_MAPPING` 列表中添加自定义Agent配置：
 
 ```python
 from agents.my_agent.my_agent import MyAgent
@@ -135,21 +137,21 @@ AGENTS_MAPPING = [
 ]
 ```
 
-**注册项字段说明：**
+**注册项字段说明**
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | `name` | str | Agent 名称，YAML 中 `agent_name` 引用此值 |
 | `agent_class` | type | 继承 `BaseAgent` 的 Agent 类 |
-| `agent_args` | dict | Agent 初始化参数 |
+| `agent_args` | dict | Agent初始化参数 |
 | `env_class` | type | 继承 `BaseEnv` 的 Environment 类 |
-| `env_args` | dict | Environment 初始化参数 |
+| `env_args` | dict | Environment初始化参数 |
 | `compute_trajectory_reward_fn` | Callable | 轨迹级奖励计算函数 |
-| `chat_parser` | type | 自定义 Chat 模板解析器 |
+| `chat_parser` | type | 自定义Chat模板解析器 |
 
-### 步骤四：配置 YAML 文件
+### 步骤四：配置YAML文件
 
-在训练配置 YAML 的 `agent_instances` 中引用自定义 Agent：
+在训练配置YAML的 `agent_instances` 中引用自定义Agent：
 
 ```yaml
 agent_instances:
@@ -182,9 +184,9 @@ agent_instances:
 
 | 参数 | 说明 |
 |------|------|
-| `name` | Agent 服务名称，训练配置中 `agent_service` 引用此值 |
-| `executor_num` | Agent 执行器数量 |
-| `executor_kwargs.agent_engine` | Agent 引擎类型，使用 `rllm` |
+| `name` | Agent服务名称，训练配置中 `agent_service` 引用此值 |
+| `executor_num` | Agent执行器数量 |
+| `executor_kwargs.agent_engine` | Agent引擎类型，使用 `rllm` |
 | `executor_kwargs.agent_engine_kwargs.agent_name` | 对应 `agents_mapping` 中注册的 Agent 名称 |
 | `executor_kwargs.agent_engine_kwargs.env_args` | 环境参数，会与 `agents_mapping` 中的 `env_args` 合并 |
 | `executor_kwargs.infer_service_params` | 模型推理采样参数 |
@@ -192,22 +194,22 @@ agent_instances:
 
 ### 参数合并机制
 
-YAML 中 `agent_engine_kwargs` 的参数会与 `agents_mapping` 中注册的参数合并，规则如下：
+YAML中 `agent_engine_kwargs` 的参数会与 `agents_mapping` 中注册的参数合并，规则如下：
 
-- `env_args`：YAML 配置与 `agents_mapping` 合并，YAML 中的值优先
-- `agent_args`：YAML 配置与 `agents_mapping` 合并，YAML 中的值优先
-- `tokenizer`：由 YAML 中 `tokenizer: ${verl_conf.actor_rollout_ref.model.path}` 自动注入
+- `env_args`：YAML配置与 `agents_mapping` 合并，YAML中的值优先
+- `agent_args`：YAML配置与 `agents_mapping` 合并，YAML中的值优先
+- `tokenizer`：由YAML中 `tokenizer: ${verl_conf.actor_rollout_ref.model.path}` 自动注入
 
-合并逻辑源码参见 [rllm_engine_wrapper.py](../../../../aura/aura/runner/agent_engine_wrapper/rllm/rllm_engine_wrapper.py)：
+合并逻辑源码参见[rllm_engine_wrapper.py](../../../../aura/aura/runner/agent_engine_wrapper/rllm/rllm_engine_wrapper.py)：
 
 ```python
 env_args = self.env_args | kwargs.get("env_args", {})
 agent_args = self.agent_args | kwargs.get("agent_args", {})
 ```
 
-## 内置 Agent 参考
+## 内置Agent参考
 
-Agent SDK 提供了以下内置 Agent，可作为自定义 Agent 的参考：
+Agent SDK提供了以下内置Agent，可作为自定义Agent的参考：
 
 | Agent 名称 | 类 | 说明 |
 |------------|-----|------|
@@ -227,14 +229,14 @@ Agent SDK 提供了以下内置 Agent，可作为自定义 Agent 的参考：
 
 ## FAQ
 
-**Q1：env_args 中的参数如何传递到自定义 Environment**
+**Q1：env_args中的参数如何传递到自定义Environment**
 
-YAML 中的 `env_args` 会与 `agents_mapping` 中的 `env_args` 合并后，通过 `env_class.from_dict()` 传入。自定义 Environment 需要实现 `from_dict` 静态方法来解析这些参数。
+YAML中的 `env_args` 会与 `agents_mapping` 中的 `env_args` 合并后，通过 `env_class.from_dict()` 传入。自定义Environment需要实现 `from_dict` 静态方法来解析这些参数。
 
-**Q2：如何调试自定义 Agent**
+**Q2：如何调试自定义Agent**
 
-可以在 `update_from_model` 和 `update_from_env` 中添加日志，或设置 `trajectory_save_dir` 保存轨迹到 JSONL 文件进行离线分析。
+可以在 `update_from_model` 和 `update_from_env` 中添加日志，或设置 `trajectory_save_dir` 保存轨迹到 JSONL文件进行离线分析。
 
-**Q3：自定义 Agent 可以不使用工具吗**
+**Q3：自定义Agent可以不使用工具吗**
 
-可以。如果 Agent 不需要工具调用，在 `update_from_model` 中始终返回 `finish` 动作即可。此时 Agent 的行为类似于单轮对话，模型输出即为最终回答。
+可以。如果Agent不需要工具调用，在 `update_from_model` 中始终返回 `finish` 动作即可。此时Agent的行为类似于单轮对话，模型输出即为最终回答。

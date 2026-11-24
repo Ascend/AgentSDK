@@ -2,19 +2,19 @@
 
 > 注意：Agent SDK可通过Python接口进行应用开发，从代码调用角度上来说所有Python侧接口都可以被调用。本章节仅列出业务提供的对外接口，其余未进行说明的接口用户请勿直接调用。
 
-Agent SDK 是一个 Agent 训推调框架，支持对接任意 Agent 引擎、训练引擎、推理引擎。本文档介绍框架对外暴露的核心接口。
+Agent SDK是一个Agent训推调框架，支持对接任意Agent引擎、训练引擎、推理引擎。本文档介绍框架对外暴露的核心接口。
 
 ---
 
 ## 一、核心基类
 
-核心基类是用户必须继承并实现的抽象类，用于自定义 Agent、环境、工具等核心组件。
+核心基类是用户必须继承并实现的抽象类，用于自定义Agent、环境、工具等核心组件。
 
-### 1.1 BaseAgent - Agent 抽象基类
+### 1.1 BaseAgent：Agent抽象基类
 
 **功能描述**
 
-Agent 抽象基类，负责与模型交互、维护对话状态、解析模型响应、记录轨迹。用户需要继承此类实现自定义 Agent。
+Agent抽象基类，负责与模型交互、维护对话状态、解析模型响应、记录轨迹。用户需要继承此类实现自定义Agent。
 
 **类定义**
 
@@ -42,15 +42,15 @@ class BaseAgent(ABC):
 
 | 方法名                 | 说明                            |
 |---------------------|-------------------------------|
-| `update_from_env`   | 从环境接收观测、奖励、终止信号，更新 Agent 内部状态 |
+| `update_from_env`   | 从环境接收观测、奖励、终止信号，更新Agent内部状态 |
 | `update_from_model` | 从模型接收响应，解析并返回动作               |
-| `reset`             | 重置 Agent 状态，开始新的轨迹            |
+| `reset`             | 重置Agent状态，开始新的轨迹            |
 
-**文件位置**: `aura/runner/agent_engine_wrapper/base/agent/base_agent.py`
+**文件位置**：`aura/runner/agent_engine_wrapper/base/agent/base_agent.py`
 
 ---
 
-### 1.2 BaseEnv - 环境抽象基类
+### 1.2 BaseEnv：环境抽象基类
 
 **功能描述**
 
@@ -81,18 +81,18 @@ class BaseEnv(ABC):
 | 方法名         | 说明                           |
 |-------------|------------------------------|
 | `reset`     | 重置环境，返回初始观测和附加信息             |
-| `step`      | 执行动作，返回 (观测, 奖励, 是否终止, 附加信息) |
+| `step`      | 执行动作，返回 (观测、奖励、是否终止、附加信息) |
 | `from_dict` | 从配置字典创建环境实例                  |
 
 **文件位置**: `aura/runner/agent_engine_wrapper/base/environment/base_env.py`
 
 ---
 
-### 1.3 BaseEngineWrapper - 引擎包装器基类
+### 1.3 BaseEngineWrapper：引擎包装器基类
 
 **功能描述**
 
-引擎包装器抽象基类，提供统一的 Agent 引擎适配接口。用户可继承此类对接不同的 Agent 引擎。
+引擎包装器抽象基类，提供统一的Agent引擎适配接口。用户可继承此类对接不同的Agent引擎。
 
 **类定义**
 
@@ -122,11 +122,11 @@ class BaseEngineWrapper(ABC):
 
 注册表接口用于注册自定义的Agent。
 
-### 2.1 AGENTS_MAPPING - Agent 配置映射
+### 2.1 AGENTS_MAPPING：Agent配置映射
 
 **功能描述**
 
-Agent 配置映射，存储已注册的 Agent 配置信息。
+Agent配置映射，存储已注册的Agent配置信息。
 
 **数据结构**
 
@@ -177,13 +177,13 @@ agent_instances:
 
 ## 三、数据类
 
-数据类定义了 Agent 运行过程中的核心数据结构。
+数据类定义了Agent运行过程中的核心数据结构。
 
-### 3.1 Step - 单步数据
+### 3.1 Step：单步数据
 
 **功能描述**
 
-记录 Agent 运行的单步信息，包含对话上下文、动作、观测、奖励等。
+记录Agent运行的单步信息，包含对话上下文、动作、观测、奖励等。
 
 **类定义**
 
@@ -206,7 +206,7 @@ class Step:
 
 | 参数名              | 类型                   | 说明                                                |
 |------------------|----------------------|---------------------------------------------------|
-| chat_completions | list[dict[str, str]] | 推理所有的完整对话上下文（含历史轮次），用于构造模型输入                      |
+| chat_completions | list[dict[str, str]] | 推理的完整对话上下文（含历史轮次），用于构造模型输入                      |
 | thought          | str                  | 模型回复中 `<think>` 标签内的内容，表示模型在本步骤的内部推理              |
 | action           | Any                  | 模型回复中 `<tool call>` 标签内的内容，表示模型决定执行的动作（如工具调用）     |
 | observation      | Any                  | 本步骤接收到的外部观测：第 0 轮为用户原始提问，后续轮次为上一轮动作的执行结果（如工具返回）   |
@@ -221,11 +221,11 @@ class Step:
 
 ---
 
-### 3.2 Trajectory - 轨迹数据
+### 3.2 Trajectory：轨迹数据
 
 **功能描述**
 
-记录 Agent 运行的完整轨迹信息，包含所有步骤和整体奖励。
+记录Agent运行的完整轨迹信息，包含所有步骤和整体奖励。
 
 **类定义**
 
@@ -263,11 +263,11 @@ class Trajectory:
 
 ---
 
-### 3.3 Action - 动作数据
+### 3.3 Action：动作数据
 
 **功能描述**
 
-记录 Agent 决定的动作信息。
+记录Agent决定的动作信息。
 
 **类定义**
 
@@ -281,11 +281,11 @@ class Action:
 
 ---
 
-### 3.4 AgentTask - 任务数据
+### 3.4 AgentTask：任务数据
 
 **功能描述**
 
-定义 Agent 任务的数据结构。
+定义Agent任务的数据结构。
 
 **类定义**
 
@@ -329,15 +329,15 @@ class AgentTask(BaseModel):
 bash scripts/start_rl_with_verl_vllm.sh
 ```
 
-程序通过脚本 `start_rl_with_verl_vllm.sh` 启动，真实的 Python 入口为 `aura/start.py`，脚本内部通过以下指令执行：
+程序通过脚本`start_rl_with_verl_vllm.sh`启动，真实的Python入口为`aura/start.py`，脚本内部通过以下指令执行：
 
 ```bash
 python aura/start.py --config-name=${CONFIG_NAME} 2>&1 | tee ${LOG_PATH}/train_unit_${timestamp}.log
 ```
 
-> 注意：运行 `start.py` 前，需先执行相关脚本以准备前置组件（如环境初始化、依赖服务启动等），确保运行环境就绪后再启动训练任务。
+> 注意：运行`start.py`前，需先执行相关脚本以准备前置组件（如环境初始化、依赖服务启动等），确保运行环境就绪后再启动训练任务。
 
-**hosts.conf 文件设置说明**
+**hosts.conf文件设置说明**
 
 服务启动需要设置hosts.conf，该文件位于aura/configs目录下，用于设置单机或者双机部署，单机部署共卡模式，双机部署分离模式，具体示例详情可见“[修改hosts.conf](./03_quick_start.md#修改hostsconf)”。
 
@@ -354,7 +354,7 @@ python aura/start.py --config-name=${CONFIG_NAME} 2>&1 | tee ${LOG_PATH}/train_u
 
 2. 双机部署分离模式，双机设置两个节点，只需设置train_master_index分别为0和1，其中设置train_master_index为0是推理节点，设置为1是训练节点。
 
-**base.conf 文件设置说明**
+**base.conf文件设置说明**
 
 服务启动需要设置base.conf文件，该文件位于aura/configs目录下，用于设置工作模式与启动的配置文件，详情可见“[修改base.conf](./03_quick_start.md#修改baseconf)”。
 
@@ -425,7 +425,7 @@ python aura/start.py --config-name=${CONFIG_NAME} 2>&1 | tee ${LOG_PATH}/train_u
 | vllm_version           | str  | vLLM 版本号 | 应为有效的vLLM版本字符串                                                        |
 | infer_model_name       | str  | 推理模型名称   | 应与主配置文件 `infer_instances.executor_kwargs.engine_kwargs.model_name` 对应 |
 | infer_model_path       | str  | 模型权重路径   | 路径必须存在且包含完整的模型文件                                                      |
-| enable_expert_parallel | bool | 是否开启专家并行 | MOE模型默认需要开启，Dense模型需要关闭，默认值为false                                     |
+| enable_expert_parallel | bool | 是否开启专家并行 | MoE模型默认需要开启，Dense模型需要关闭，默认值为false                                     |
 
 #### 部署模式配置
 
@@ -463,21 +463,21 @@ python aura/start.py --config-name=${CONFIG_NAME} 2>&1 | tee ${LOG_PATH}/train_u
 
 ### 训练配置参数（verl后端）
 
-#### verl_conf.extras 配置
+#### verl_conf.extras配置
 
 | 参数名           | 类型  | 说明           | 约束                        |
 |---------------|-----|--------------|---------------------------|
 | agent_service | str | 依赖的Agent服务名称 | 应与agent_instances中的name对应 |
 | infer_service | str | 依赖的推理服务名称    | 应与infer_instances中的name对应 |
 
-#### verl_conf.algorithm 配置
+#### verl_conf.algorithm配置
 
 | 参数名             | 类型    | 说明     | 约束                          |
 |-----------------|-------|--------|-----------------------------|
 | adv_estimator   | str   | 优势评估器  | 可选值为"grpo"或"gae"，默认值为"grpo" |
 | kl_ctrl.kl_coef | float | KL散度系数 | 应为大于0的浮点数，默认值为0.001         |
 
-#### verl_conf.data 配置
+#### verl_conf.data配置
 
 | 参数名                     | 类型   | 说明                         | 约束                                                                    |
 |-------------------------|------|----------------------------|-----------------------------------------------------------------------|
@@ -489,7 +489,7 @@ python aura/start.py --config-name=${CONFIG_NAME} 2>&1 | tee ${LOG_PATH}/train_u
 | filter_overlong_prompts | bool | 是否过滤超过max_prompt_length的样本 | 默认值为True                                                              |
 | truncation              | str  | 截断方式                       | 默认值为"error"。verl 默认仅支持 "error" 模式，其他截断方式（left、right、middle）需自定义数据集类实现 |
 
-#### verl_conf.actor_rollout_ref.model 配置
+#### verl_conf.actor_rollout_ref.model配置
 
 | 参数名                           | 类型   | 说明                                      | 约束               |
 |-------------------------------|------|-----------------------------------------|------------------|
@@ -497,12 +497,12 @@ python aura/start.py --config-name=${CONFIG_NAME} 2>&1 | tee ${LOG_PATH}/train_u
 | use_remove_padding            | bool | 是否在训练时"移除 padding token，只对真实 token 做计算" | 默认值为False        |
 | enable_gradient_checkpointing | bool | 用"以计算换显存"的方式，减少训练时的显存占用                 | 默认值为True         |
 
-> **enable_gradient_checkpointing 参数说明**：
+> **enable_gradient_checkpointing参数说明**：
 >
 > - **关闭时**：
 >
 >   ```text
->   forward → 保存所有中间激活值 → backward 直接用
+>   forward → 保存所有中间激活值 → backward直接用
 >   ```
 >
 >   训练速度会提升，但非常吃显存。
@@ -516,7 +516,7 @@ python aura/start.py --config-name=${CONFIG_NAME} 2>&1 | tee ${LOG_PATH}/train_u
 >
 >   训练变慢，显存大幅下降。
 
-#### verl_conf.actor_rollout_ref.actor 配置
+#### verl_conf.actor_rollout_ref.actor配置
 
 | 参数名                          | 类型    | 说明                              | 约束                                                        |
 |------------------------------|-------|---------------------------------|-----------------------------------------------------------|
@@ -529,7 +529,7 @@ python aura/start.py --config-name=${CONFIG_NAME} 2>&1 | tee ${LOG_PATH}/train_u
 | kl_loss_coef                 | float | KL loss的系数                      | 应为0与1之间的浮点数，默认值为0.001                                     |
 | kl_loss_type                 | str   | KL loss计算方式                     | 可选值为"kl"、"abs"、"mse"、"low_var_kl"、"full"，默认值为"low_var_kl" |
 
-#### verl_conf.actor_rollout_ref.actor.megatron 配置
+#### verl_conf.actor_rollout_ref.actor.megatron配置
 
 | 参数名                                        | 类型   | 说明                                                     | 约束             |
 |--------------------------------------------|------|--------------------------------------------------------|----------------|
@@ -538,7 +538,7 @@ python aura/start.py --config-name=${CONFIG_NAME} 2>&1 | tee ${LOG_PATH}/train_u
 | tensor_model_parallel_size                 | int  | 张量并行大小                                                 | 应为大于0的整数，默认值为4 |
 | override_transformer_config.use_flash_attn | bool | 是否使用Flash Attention（减少显存访问 + 融合 kernel 的高效attention实现） | 默认值为True       |
 
-#### verl_conf.actor_rollout_ref.rollout 配置
+#### verl_conf.actor_rollout_ref.rollout配置
 
 | 参数名                               | 类型    | 说明                                                                         | 约束                  |
 |-----------------------------------|-------|----------------------------------------------------------------------------|---------------------|
@@ -546,14 +546,14 @@ python aura/start.py --config-name=${CONFIG_NAME} 2>&1 | tee ${LOG_PATH}/train_u
 | response_length                   | int   | 响应长度                                                                       | 应为大于0的整数，默认值为2048   |
 | agent.agent_loop_manager_class    | str   | Agent循环管理器类路径                                                              | 应为有效的Python类路径      |
 | log_prob_micro_batch_size_per_gpu | int   | 每张卡处理micro_batch_size的个数                                                   | 应为大于0的整数，默认值为2      |
-| enable_chunked_prefill            | bool  | 是否把"prompt 预填充（prefill）阶段"拆成多个 chunk 来执行，开启时，对于长prompt，可有效减少KV cache 的显存占用 | 默认值为False           |
+| enable_chunked_prefill            | bool  | 是否把"prompt预填充（prefill）阶段"拆成多个chunk来执行，开启时，对于长prompt，可有效减少KV cache的显存占用 | 默认值为False           |
 | tensor_model_parallel_size        | int   | 张量并行大小                                                                     | 应为大于0的整数，默认值为4      |
 | name                              | str   | 推理引擎名称                                                                     | 默认值为"vllm"          |
-| gpu_memory_utilization            | float | rollout 推理引擎（比如vllm）允许占用的 GPU 显存比例上限                                       | 应为0到1之间的浮点数，默认值为0.6 |
-| n                                 | int   | 每个 prompt 生成多少条候选 response                                                 | 应为大于0的整数，默认值为2      |
+| gpu_memory_utilization            | float | rollout推理引擎（比如vLLM）允许占用的GPU显存比例上限                                       | 应为0到1之间的浮点数，默认值为0.6 |
+| n                                 | int   | 每个prompt生成多少条候选 response                                                 | 应为大于0的整数，默认值为2      |
 | do_sample                         | bool  | 是否进行采样                                                                     | 默认值为False           |
 
-#### verl_conf.actor_rollout_ref.ref 配置
+#### verl_conf.actor_rollout_ref.ref配置
 
 | 参数名                                   | 类型  | 说明                       | 约束             |
 |---------------------------------------|-----|--------------------------|----------------|
@@ -561,7 +561,7 @@ python aura/start.py --config-name=${CONFIG_NAME} 2>&1 | tee ${LOG_PATH}/train_u
 | megatron.pipeline_model_parallel_size | int | 流水线并行大小                  | 应为大于0的整数，默认值为2 |
 | megatron.tensor_model_parallel_size   | int | 张量并行大小                   | 应为大于0的整数，默认值为2 |
 
-#### verl_conf.trainer 配置
+#### verl_conf.trainer配置
 
 | 参数名              | 类型   | 说明                                                                   | 约束                              |
 |------------------|------|----------------------------------------------------------------------|---------------------------------|
@@ -581,7 +581,7 @@ python aura/start.py --config-name=${CONFIG_NAME} 2>&1 | tee ${LOG_PATH}/train_u
 
 ### 训练实例配置
 
-#### train_instances 配置
+#### train_instances配置
 
 | 参数名                            | 类型   | 说明          | 约束                                   |
 |--------------------------------|------|-------------|--------------------------------------|
@@ -599,7 +599,7 @@ python aura/start.py --config-name=${CONFIG_NAME} 2>&1 | tee ${LOG_PATH}/train_u
 
 ### Agent实例配置
 
-#### agent_instances 配置
+#### agent_instances配置
 
 | 参数名                                                        | 类型   | 说明                   | 约束                                    |
 |------------------------------------------------------------|------|----------------------|---------------------------------------|
@@ -617,9 +617,9 @@ python aura/start.py --config-name=${CONFIG_NAME} 2>&1 | tee ${LOG_PATH}/train_u
 | executor_kwargs.trajectory_save_dir                        | str  | 轨迹保存目录               | 应为有效的文件路径                             |
 | resource_info                                              | list | 整个agent服务的资源描述       | 默认为空列表                                |
 
-#### 黑盒 Agent 模式（vaee）配置
+#### 黑盒Agent模式（vaee）配置
 
-当 `agent_engine` 设置为 `vaee` 时，表示使用黑盒虚拟引擎模式，Agent 运行在外部独立服务中，通过 HTTP 通信。除上述通用参数外，还需配置以下参数：
+当`agent_engine`设置为`vaee`时，表示使用黑盒虚拟引擎模式，Agent运行在外部独立服务中，通过HTTP通信。除上述通用参数外，还需配置以下参数：
 
 | 参数名 | 类型 | 说明 | 约束 |
 |--------|------|------|------|
@@ -632,7 +632,7 @@ python aura/start.py --config-name=${CONFIG_NAME} 2>&1 | tee ${LOG_PATH}/train_u
 | executor_kwargs.agent_engine_kwargs.res_reward_func | str | 步骤级奖励函数路径（可选） | 应为有效的函数路径 |
 | executor_kwargs.agent_engine_kwargs.traj_refine_func | str | 轨迹聚合函数路径（可选），不配置则使用默认实现 | 应为有效的函数路径 |
 
-**黑盒 Agent 配置示例**：
+**黑盒Agent配置示例**：
 
 ```yaml
 agent_instances:
@@ -666,7 +666,7 @@ agent_instances:
 
 ### 推理实例配置
 
-#### infer_instances 配置
+#### infer_instances配置
 
 | 参数名                                               | 类型   | 说明                      | 约束                                       |
 |---------------------------------------------------|------|-------------------------|------------------------------------------|
@@ -683,7 +683,7 @@ agent_instances:
 
 ### 配置文件示例
 
-以下是一个完整的配置文件示例（verl 后端，hybrid 模式），其他配置文件参考[configs](../../../aura/configs)
+以下是一个完整的配置文件示例（verl后端，hybrid模式），其他配置文件参考[configs](../../../aura/configs)
 目录。使用前请根据实际环境修改以下配置项：
 
 | 配置项                         | 说明           |
@@ -838,11 +838,11 @@ infer_instances:
 
 ---
 
-## 五、黑盒 Agent 训练接口说明
+## 五、黑盒Agent训练接口说明
 
 ### 概述
 
-VAEE（Virtual Agent Engine Execution Wrapper）是黑盒 Agent 模式的虚拟引擎，负责通过 HTTP 与外部 Agent 服务通信，并完成轨迹聚合与奖励计算。VAEE 模式将 Agent 视为"黑盒"，不关心其内部实现，只通过标准化接口交互。
+VAEE（Virtual Agent Engine Execution Wrapper）是黑盒Agent模式的虚拟引擎，负责通过HTTP与外部Agent服务通信，并完成轨迹聚合与奖励计算。VAEE模式将Agent视为"黑盒"，不关心其内部实现，只通过标准化接口交互。
 
 ### 对外暴露的接口
 
@@ -950,9 +950,9 @@ VAEE（Virtual Agent Engine Execution Wrapper）是黑盒 Agent 模式的虚拟�
 
 **文件位置**: `aura/runner/agent_engine_wrapper/proxy_client/traj_proxy_client.py`
 
-### 5.3 黑盒 Agent 接入约束
+#### 5.3 黑盒 Agent 接入约束
 
-#### 约束 1：必须实现 HTTP 接口 `POST /v1/chat/completions`
+##### 约束 1：必须实现 HTTP 接口 `POST /v1/chat/completions`
 
 外部 Agent 服务必须暴露 `POST /v1/chat/completions` 接口，接收训练框架发送的 prompt。该接口的请求体由 `AgentProxyClient` 构造，包含 `messages`、`infer_params`、`infer_url` 等字段。
 
@@ -1049,13 +1049,13 @@ async def handle(body: ChatCompletionRequest):
     return {"code": 0}
 ```
 
-#### 约束 2：轨迹聚合与奖励函数需符合签名
+##### 约束 2：轨迹聚合与奖励函数需符合签名
 
 如果自定义 `traj_refine_func`、`res_reward_func`，其函数签名必须符合下述接口定义，否则训练流程会因类型错误而中断。如果不配置，框架使用默认实现。
 
-##### traj_refine_func — 轨迹聚合函数
+###### traj_refine_func：轨迹聚合函数
 
-**功能描述**: 将从 TrajProxy 拉取的原始请求/响应记录（`List[RequestRecord]`）聚合为轨迹级轨迹（`Episode`）。
+**功能描述**: 将从TrajProxy拉取的原始请求/响应记录（`List[RequestRecord]`）聚合为轨迹级对象（`Episode`）。
 
 **函数示例**
 
@@ -1080,7 +1080,7 @@ def traj_refine_func(
 
 **参考实现**: aura/agents/proxy_agent/math/ozy_traj_refine_reward.py
 
-##### traj_reward_func — 轨迹级奖励函数
+###### traj_reward_func：轨迹级奖励函数
 
 **功能描述**: 为整个轨迹计算最终奖励。
 

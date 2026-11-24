@@ -1,16 +1,18 @@
-# Qwen3-14B 分离模式快速入门指南
+# Qwen3-14B分离模式快速入门指南
+
+本文档介绍Qwen3-14B分离模式（One Step Off）的快速入门流程，涵盖容器环境部署、模型与数据集获取、配置文件修改及启动训练的完整步骤，适用于需要参考学习Qwen3-14B分离模式训练部署的用户。
 
 ## **容器环境部署**
 
-本文档以两台 Atlas 900 A3SuperPoD 超节点（16 × 64 GB）、Ubuntu 系统为例进行说明：一台部署训练集群，另一台部署推理集群。
+本文档以两台Atlas 900 A3 SuperPoD 超节点（16 × 64 GB）、Ubuntu系统为例进行说明：一台部署训练集群，另一台部署推理集群。
 
-第一步：拉取预构建镜像：
+第一步：拉取预构建镜像
 
 ```shell
 docker pull swr.cn-south-1.myhuaweicloud.com/ascendhub/agentsdk:26.2.0-cann9.0.0-torch_npu2.10.0-a3-ubuntu22.04-py3.11
 ```
 
-第二步：创建容器：
+第二步：创建容器
 
 ```shell
 docker run --name your_container_name \
@@ -56,7 +58,7 @@ docker exec -it your_container_name bash
 
 ## **模型获取**
 
-本实验使用 Qwen3-14B 模型，相关模型可以通过[本链接](https://www.modelscope.cn/models/Qwen/Qwen3-14B)获取。
+本实验使用Qwen3-14B模型，相关模型可以通过[Qwen3-14B模型页面](https://www.modelscope.cn/models/Qwen/Qwen3-14B)获取。
 
 ```shell
 modelscope download --model Qwen/Qwen3-14B --local_dir /path/to/Qwen3-14B
@@ -66,7 +68,7 @@ modelscope download --model Qwen/Qwen3-14B --local_dir /path/to/Qwen3-14B
 
 ### **下载数据集**
 
-本实验使用的 Math 领域的 gsm8k 数据集可通过[本链接](https://www.modelscope.cn/datasets/AI-ModelScope/gsm8k)获取。
+本实验使用的Math领域的gsm8k数据集可通过[gsm8k数据集页面](https://www.modelscope.cn/datasets/AI-ModelScope/gsm8k)获取。
 
 ```shell
 modelscope download --dataset AI-ModelScope/gsm8k --local_dir /path/to/gsm8k
@@ -74,7 +76,7 @@ modelscope download --dataset AI-ModelScope/gsm8k --local_dir /path/to/gsm8k
 
 ### **数据集处理**
 
-使用下面 verl 官方提供的数据处理脚本[gsm8k.py](https://github.com/verl-project/verl/blob/v0.7.0/examples/data_preprocess/gsm8k.py)处理数据集：
+使用下面verl官方提供的数据处理脚本[gsm8k.py](https://github.com/verl-project/verl/blob/v0.7.0/examples/data_preprocess/gsm8k.py)处理数据集：
 
 ```shell
 # 处理数据集
@@ -131,7 +133,7 @@ map_keys: {"query":"", "response":"labels", "prompt": "question"}
 | `input`                   | str  | 输入的 jsonl 文件所在目录的路径；本示例目录中仅放置 `train.jsonl`                                  |
 | `tokenizer_name_or_path`  | str  | 分词器路径，必须与后续训练的模型保持一致                                                             |
 | `output_prefix`           | str  | /path/to/output/train 为输出文件路径，需提前创建，rl 为输出文件前缀                                   |
-| `handler_name`            | str  | 数据处理器名称，决定了数据的拼接模板 。`R1AlpacaStyleInstructionHandler`是 Qwen 等模型进行 SFT/RL 训练的标准格式 |
+| `handler_name`            | str  | 数据处理器名称，决定了数据的拼接模板。`R1AlpacaStyleInstructionHandler`是 Qwen 等模型进行 SFT/RL 训练的标准格式 |
 | `tokenizer_type`          | str  | 分词器类型，常用 `HuggingFaceTokenizer`                                                  |
 | `workers`                 | int  | 并行 worker 数                                                                      |
 | `log_interval`            | int  | 日志输出间隔（处理多少条数据后输出）                                                               |
@@ -251,7 +253,7 @@ clean_old_ckpt=0
 
 ## **配置环境变量**
 
-### 配置 DEFAULT_SOCKET_IFNAME
+### 配置DEFAULT_SOCKET_IFNAME
 
 在两个节点分别将 `DEFAULT_SOCKET_IFNAME` 设置为承载 `hosts.conf` 中对应 IP 的网卡名称：
 
@@ -259,11 +261,11 @@ clean_old_ckpt=0
 export DEFAULT_SOCKET_IFNAME=<NETWORK_INTERFACE_NAME>
 ```
 
-网卡名称可通过 `ifconfig` 查询。完整说明请参考[快速入门指南](../../03_quick_start.md#配置-default_socket_ifname)。
+网卡名称可通过 `ifconfig` 查询。完整说明请参考[快速入门指南](../../03_quick_start.md#配置default_socket_ifname)。
 
-### 配置 ASCEND_RT_VISIBLE_DEVICES
+### 配置ASCEND_RT_VISIBLE_DEVICES
 
-配置可用的 NPU 的卡数。
+配置可用的NPU卡数。
 
 ```shell
 export ASCEND_RT_VISIBLE_DEVICES=0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
@@ -271,7 +273,7 @@ export ASCEND_RT_VISIBLE_DEVICES=0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
 
 ## **启动训练**
 
-先在推理节点启动脚本，再在训练节点启动相同脚本。脚本会根据 `hosts.conf` 中的本机 IP 和节点序号自动识别当前节点角色。
+先在推理节点启动脚本，再在训练节点启动相同脚本。脚本会根据 `hosts.conf` 中的本机IP和节点序号自动识别当前节点角色。
 
 ```shell
 # 进入自己的工作目录
@@ -281,4 +283,4 @@ bash scripts/start_rl_with_verl_vllm.sh
 ```
 
 > [!NOTE] 说明
-> 本文档专门针对 Qwen3-14B 分离模式（One Step Off）的启动示例，提供该场景下的快速入门步骤；通用且详细的完整启动流程请参考 [快速入门指南](../../03_quick_start.md)。
+> 本文档专门针对Qwen3-14B分离模式（One Step Off）的启动示例，提供该场景下的快速入门步骤；通用且详细的完整启动流程请参考[快速入门指南](../../03_quick_start.md)。
