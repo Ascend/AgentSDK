@@ -50,7 +50,7 @@ Agent SDK currently covers multiple directions, including the Agentic RL trainin
 
 - Before contributing, sign the [Open Project Contributor License Agreement (CLA)](https://clasign.osinfra.cn/sign/gitee_ascend-1611222220829317930).
 - If you encounter a bug, submit an [issue](https://atomgit.com/Ascend/AgentSDK/issues).
-- If you plan to contribute bug fixes, submit a pull request (PR). See [Contribution Requirements](./contributing.md).
+- If you plan to contribute bug fixes, submit a pull request (PR). See [Contribution Guide](./contributing.md).
 - If you plan to contribute new features or functionality, create an issue to discuss it with us first. Describe the background or purpose of the requirement, the design, and its impact on existing APIs. Submitting a PR without prior discussion may lead to rejection, as the evolution direction of the project might differ from your ideas.
 - For a detailed contribution process, see the [Contribution Guide](./contributing.md).
 

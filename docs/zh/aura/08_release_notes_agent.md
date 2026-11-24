@@ -3,7 +3,7 @@
 ## 关键特性
 
 - Aura新增全异步分离、混合批次调度模式训练，新增黑盒Agent特性。
-- Aura新增支持qwen3-14b，qwen3.6-27b，qwen3.6-35b-a3b模型。
+- Aura新增支持Qwen3-14B、Qwen3.6-27B、Qwen3.6-35B-A3B模型。
 
 ## 版本配套说明<a name="ZH-CN_TOPIC_0000002545204925"></a>
 
@@ -28,9 +28,9 @@
 </tbody>
 </table>
 
-### 硬件版本配套说明书
+### 硬件版本配套说明
 
-**表 1**  Agent SDK硬件版本配套表
+**表 1** Agent SDK硬件版本配套表
 
 | 芯片系列         | 产品示例                     | 架构             |
 |--------------|--------------------------|----------------|
@@ -39,7 +39,7 @@
 
 ### 相关产品版本配套说明<a name="ZH-CN_TOPIC_0000002513684954"></a>
 
-**表 2**  Agent SDK软件版本配套表
+**表 2** Agent SDK软件版本配套表
 
 | Agent SDK | CANN版本 | Ascend HDK版本 |
 |-----------|--------|--------------|
@@ -53,9 +53,9 @@
 
 - Agent SDK：本版本无兼容性问题。
 
-本节表格中"/"表示不可配套，"Y"表示可配套。
+本节表格中“/”表示不可配套，“Y”表示可配套。
 
-**表 3**  Agent SDK与CANN版本兼容
+**表 3** Agent SDK与CANN版本兼容
 
 <table style="table-layout: fixed; width: 531px"><colgroup>
 <col style="width: 156px">
@@ -90,7 +90,7 @@
 </tbody>
 </table>
 
-**表 4**  Agent SDK与Ascend HDK版本兼容
+**表 4** Agent SDK与Ascend HDK版本兼容
 
 <table style="table-layout: fixed; width: 531px"><colgroup>
 <col style="width: 156px">
@@ -133,14 +133,14 @@
 
 ### 新增特性<a name="ZH-CN_TOPIC_0000002545284925"></a>
 
-**表 5**  Agent SDK新增特性
+**表 5** Agent SDK新增特性
 
 | 组件名称 | 特性描述                                              | 配套产品型号                      |
 |------|---------------------------------------------------|-----------------------------|
 | Aura | 支持[全异步分离模式](./04_user_guide/04_fully_async.md)训练  | Atlas 900 A3 SuperPoD超节点 |
-| Aura | 支持[混合批次调度](./04_user_guide/05_mixed_batch.md)训练   | Atlas 900 A3 SuperPoD超节点 |
+| Aura | 支持[混合批次调度模式](./04_user_guide/05_mixed_batch.md)训练   | Atlas 900 A3 SuperPoD超节点 |
 | Aura | 支持[黑盒Agent](./04_user_guide/07_blackbox_agent.md) | Atlas 900 A3 SuperPoD超节点 |
-| Aura | 支持qwen3-14b，qwen3.6-27b，qwen3.6-35b-a3b模型         | Atlas 900 A3 SuperPoD超节点 |
+| Aura | 支持Qwen3-14B、Qwen3.6-27B、Qwen3.6-35B-A3B模型         | Atlas 900 A3 SuperPoD超节点 |
 
 ### 业务接口变更<a name="ZH-CN_TOPIC_0000002545204929"></a>
 
@@ -148,7 +148,7 @@
 
 - 配置参数：verl_conf.actor_rollout_ref.rollout 新增 n_gpus_per_node（每节点的NPU卡数）、prompt_length（提示词长度）、response_length（响应长度）。
 
-黑盒 Agent 模式新增以下业务接口：
+黑盒Agent模式新增以下业务接口：
 
 - 配置参数：新增 agent_engine 配置值 vaee（启用黑盒虚拟引擎模式，Agent 运行于外部独立服务）、agent_proxy_args 配置组（agent_addr、traj_addr、run_id）及 traj_proxy_args.infer_url（轨迹数据拉取地址），用于对接外部 Agent Service 与 TrajProxy。
 - 对外接口：新增 AgentProxyClient、TrajProxyClient 类，分别提供 get_agent_response()、get_records_by_session() 方法，封装与外部 Agent Service、TrajProxy 的 HTTP 通信。
@@ -178,11 +178,11 @@
 
 ## 26.2.0版本配套文档<a name="ZH-CN_TOPIC_0000002545204931"></a>
 
-**表 6**  Agent SDK 26.2.0版本配套文档
+**表 6** Agent SDK 26.2.0版本配套文档
 
 | 文档名称                                          | 内容简介                                         | 更新说明                                               |
 |-----------------------------------------------|----------------------------------------------|----------------------------------------------------|
-| 《[Agent SDK 26.2.0 用户指南](../../../aura/README.md)》 | 主要包括Agent SDK的简介、安装部署、快速入门、API接口说明以及其他常用的操作。 | 变更详见《[Agent SDK 26.2.0 用户指南](../../../aura/README.md)》。 |
+| 《[Agent SDK 26.2.0用户指南](../../../aura/README.md)》 | 主要包括Agent SDK的简介、安装部署、快速入门、API接口说明以及其他常用的操作。 | 变更详见《[Agent SDK 26.2.0 用户指南](../../../aura/README.md)》。 |
 
 ## 病毒扫描结果
 
@@ -194,7 +194,7 @@
 
 ## 修订记录
 
-**表 7** Agent SDK 版本修订记录
+**表 7** Agent SDK版本修订记录
 
 | 文档版本 | 发布日期       | 修改说明    |
 |------|------------|---------|

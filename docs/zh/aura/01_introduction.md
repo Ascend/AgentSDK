@@ -14,13 +14,13 @@
 
 <a id="fig173917397815"></a>
 
-Aura 软件架构如**图 1**所示。
+Aura 软件架构如**图1**所示。
 
 <div align="center">
 
-**图1 Aura 软件架构**
+**图1 Aura软件架构**
 
-![](figures/Aura框架架构图.png)
+![Aura软件架构图：Agent引擎、轨迹生成、调度、存储与训练推理引擎的分层协作关系](figures/Aura框架架构图.png)
 
 </div>
 
@@ -29,14 +29,14 @@ Aura 软件架构如**图 1**所示。
 | 模块                   | 说明                                    |
 |----------------------|---------------------------------------|
 | **第三方 Agent 引擎**     | 支持多种Agent引擎，包括rLLM                    |
-| **Serve (训推通信)**     | 支持训练侧向推理侧和agent侧的http通信               |
+| **Serve (训推通信)**     | 支持训练侧向推理侧和Agent侧的HTTP通信               |
 | **Rollouter (轨迹生成)** | 负责Agent轨迹生成，包含轨迹管理和自定义轨迹生成接口          |
 | **Scheduler**        | 推理请求调度器，支持负载均衡                        |
 | **Memory**           | 轨迹数据持久化存储，使用Episode格式                 |
-| **Trainer (训练任务编排)** | 训练任务管理和编排，通过data_manager协调训练和推理的数据流动。 |
+| **Trainer (训练任务编排)** | 训练任务管理和编排，通过data_manager协调训练和推理的数据流动 |
 | **推理引擎**             | 支持第三方推理引擎，包括vllm-ascend               |
 | **训练引擎**             | 支持第三方训练引擎，包括verl                      |
-| **RAY 分布式资源管理**      | 基于Ray的分布式资源管理，支持共卡/分离部署               |
+| **RAY分布式资源管理**      | 基于Ray的分布式资源管理，支持共卡/分离部署               |
 
 # 支持特性
 
@@ -44,4 +44,4 @@ Aura 软件架构如**图 1**所示。
 - [训推单步异步分离（One Step Off 策略）](04_user_guide/03_one_step_off.md)：训练与推理在不同节点上并行执行，训练和推理相差一轮的异步训练
 - [训推全异步分离（Fully Async 策略）](04_user_guide/04_fully_async.md)：在训推单步异步分离上实现训推完整解耦，训练和推理相差N轮的异步训练
 - [混合批次调度（Mixed Batch Scheduling）](04_user_guide/05_mixed_batch.md)：在训推单步异步分离上实现训推在不同节点上并行执行，训练和推理相差N轮的异步训练
-- [自定义 Agent 接入指南](04_user_guide/06_custom_agent.md)：将自定义 agent 接入 Aura 训练框架
+- [自定义Agent接入指南](04_user_guide/06_custom_agent.md)：将自定义Agent接入Aura训练框架

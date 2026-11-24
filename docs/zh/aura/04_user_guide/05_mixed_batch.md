@@ -1,5 +1,7 @@
 # 混合批次调度使用指南<a name="ZH-CN_TOPIC_MIXED_BATCH_SCHEDULING_GUIDE"></a>
 
+本文档介绍混合批次调度策略，说明其在训推分离模式下一次权重更新后推理端连续处理多个batch的批次合并与版本控制机制，适用于需要降低权重切换频率、提升NPU利用率的分离式部署场景。
+
 ## 简介
 
 混合批次调度（Mixed Batch Scheduling）是Agent SDK在训推分离模式下提供的一种调度优化策略。该策略在单步异步分离模式的基础上，让推理端在一次权重更新后连续处理多个训练batch，将推理结果流式发送给训练端，从而减少权重切换频率，但相较于单步异步分离模式，由于训推相差多个迭代，故精度会略有下降。
@@ -19,7 +21,7 @@
 
 混合批次调度是分离模式的子策略，训练和推理在不同节点上并行执行，在此基础上优化了推理端的批次处理：
 
-![训推分离流程图](../figures/混合批次调度流程图.png)
+![混合批次调度流程图：训练端先填充初始prompt批次，推理端每个生成周期连续生成多个batch并只同步一次权重](../figures/混合批次调度流程图.png)
 
 - 训练端初始化时，`initialize_rollout()`调用`send_initial_batch_groups_to_rollout()`，向推理队列填充`init_num_group_batches`（2个）prompt数据，建立初始流水线。
 - 每个生成周期开始时，推理端先按版本控制同步最新权重到推理引擎（首个周期沿用初始权重），随后在一个生成周期内**连续生成`hybrid_batch_num`（2）个batch的数据**：仍按单个batch（`global_batch_size`个prompt）粒度逐批生成，但批次之间**不等待权重同步**，直到本周期所有batch生成完毕；下一次权重同步发生在下一个生成周期开始时。
@@ -53,13 +55,13 @@
 
 ## 使用方法
 
-### 步骤 1：修改 hosts.conf
+### 步骤 1：修改hosts.conf
 
 文件路径：`configs/hosts.conf`
 
 混合批次调度是分离模式的子策略，部署方式与分离模式一致：推理节点排在前面，训练节点排在后面，且**不配置`infer_master_index`**。
 
-**双机分离部署**（1台推理 + 1台训练）：
+**双机分离部署**（1台推理机 + 1台训练机）：
 
 ```shell
 # host,index,train_master_index,infer_master_index(可选)
@@ -75,9 +77,9 @@
 | infer_master_index | 推理主节点标识。**分离模式下不配置此参数**              |
 
 > [!IMPORTANT] 关键配置
-> 混合批次调度的hosts.conf配置与分离模式完全相同，均为不配置`infer_master_index`。系统根据`VC_TASK_INDEX < MASTER_TRAIN_INDEX`判定节点为推理节点，`VC_TASK_INDEX >= MASTER_TRAIN_INDEX`判定为训练节点。详情可参考[训推单步异步分离使用指南](03_one_step_off.md#步骤-1修改-hostsconf)。
+> 混合批次调度的hosts.conf配置与分离模式完全相同，均为不配置`infer_master_index`。系统根据`VC_TASK_INDEX < MASTER_TRAIN_INDEX`判定节点为推理节点，`VC_TASK_INDEX >= MASTER_TRAIN_INDEX`判定为训练节点。详情可参考[训推单步异步分离使用指南](03_one_step_off.md#步骤-1修改hostsconf)。
 
-### 步骤 2：修改 base.conf
+### 步骤 2：修改base.conf
 
 文件路径：`configs/base.conf`
 
@@ -98,7 +100,7 @@ infer_config_name=vllm_infer_i16_qwen36_27b
 | train_config_name | 训练YAML配置文件名，**使用`mixed`版本（不含.yaml后缀）** |
 | infer_config_name | 推理YAML配置文件名（不含.yaml后缀），**分离模式必须配置** |
 
-### 步骤 3：修改训练 YAML 配置文件
+### 步骤 3：修改训练YAML配置文件
 
 以verl后端、Qwen3.6-27B模型为例，训练配置文件路径：`configs/train/verl_train_mixed_A3_t16_qwen36_27b_math_fsdp.yaml`
 
@@ -164,7 +166,7 @@ train_instances:
 > [!IMPORTANT] 关键配置
 > 这三个参数必须协同配置。`hybrid_batch_num`决定权重切换的步长，`init_num_group_batches`确保推理端初始就有足够数据，`enable_version_control`保证off-policy下推理权重版本按照期望更新。
 
-**hybrid_engine 必须关闭：**
+**hybrid_engine必须关闭：**
 
 ```yaml
 verl_conf:
@@ -189,9 +191,9 @@ verl_conf:
 
 分离模式下，`infer_instances` 中的以下参数无需手动配置，启动脚本会自动从推理集群获取并替换（[替换逻辑详见 start_verl_train_cluster.sh](../../../../aura/scripts/train/start_verl_train_cluster.sh)）：
 
-- `chat_server`：推理服务地址（由启动脚本用推理主节点 IP 拼接）
+- `chat_server`：推理服务地址（由启动脚本用推理主节点IP拼接）
 - `prefill_server_list`：Prefill实例地址列表（由启动脚本根据推理节点IP自动计算）
-- `decode_server_list`：Decode 实例地址列表（由启动脚本根据推理节点IP自动计算）
+- `decode_server_list`：Decode实例地址列表（由启动脚本根据推理节点IP自动计算）
 - `tensor_parallel_size`：推理张量并行大小（来自推理YAML）
 - `data_parallel_size`：推理数据并行大小（来自推理YAML）
 - `enable_expert_parallel`：是否开启专家并行（来自推理YAML）
@@ -216,9 +218,9 @@ infer_instances:
         enable_expert_parallel: false
 ```
 
-### 步骤 4：修改推理 YAML 配置文件
+### 步骤 4：修改推理YAML配置文件
 
-分离模式需要单独配置推理 YAML 文件，路径：`configs/infer/vllm_infer_i16_qwen36_27b.yaml`
+分离模式需要单独配置推理YAML文件，路径：`configs/infer/vllm_infer_i16_qwen36_27b.yaml`
 
 #### 4.1 必须修改的路径参数
 
@@ -257,9 +259,9 @@ gpu_memory_utilization: 0.6
 - **训练集群卡数** = `n_gpus_per_node` × `nnodes`（训练节点数）
 - **推理集群卡数** = `tensor_parallel_size` × `data_parallel_size`
 
-推理集群的节点分配由启动脚本根据推理 YAML 中的并行度参数自动计算。每个推理实例所需卡数为`tensor_parallel_size × data_parallel_size`，所需节点数为 `卡数 / 每节点卡数`。
+推理集群的节点分配由启动脚本根据推理YAML中的并行度参数自动计算。每个推理实例所需卡数为`tensor_parallel_size × data_parallel_size`，所需节点数为 `卡数 / 每节点卡数`。
 
-例如：`tensor_parallel_size=4, data_parallel_size=4`，则推理需要16卡，在A3机器（16卡/节点）上需要1个节点。
+例如：`tensor_parallel_size=4, data_parallel_size=4`，则推理需要16卡，在A3机器（每节点16卡）上需要1个节点。
 
 ### 步骤 5：启动训练
 
@@ -270,7 +272,7 @@ bash scripts/start_rl_with_verl_vllm.sh
 
 启动后，系统将根据`hosts.conf`自动识别各节点角色：
 
-- 推理节点启动 vLLM 推理集群
+- 推理节点启动vLLM推理集群
 - 训练节点等待推理集群就绪后，启动训练进程
 
 ## 工作原理解析
@@ -281,8 +283,8 @@ bash scripts/start_rl_with_verl_vllm.sh
 
 **1. 初始化阶段：**
 
-- 训练端`initialize_rollout()`调用`send_initial_batch_groups_to_rollout()`，向推理队列填充`init_num_group_batches`（2 个）prompt数据。
-- 推理端启动，训练端部署完毕并完成初始化，一次性生成`init_num_group_batches`（2 个）批次数据。
+- 训练端`initialize_rollout()`调用`send_initial_batch_groups_to_rollout()`，向推理队列填充`init_num_group_batches`（2个）prompt数据。
+- 推理端启动，训练端部署完毕并完成初始化，一次性生成`init_num_group_batches`（2个）批次数据。
 
 **2. 推理阶段：**
 
@@ -299,7 +301,7 @@ bash scripts/start_rl_with_verl_vllm.sh
 
 版本控制是混合批次调度的核心，确保off-policy下权重版本与训练数据版本的正确对应：
 
-![混合批次调度权重更新示例图](../figures/混合批次调度权重更新示例图.png)
+![版本控制权重更新示例：每两个训练迭代校验一次输入权重版本，匹配时生成weights_0X，中间版本跳过](../figures/混合批次调度权重更新示例图.png)
 
 | 概念                     | 说明                                                                         |
 |------------------------|----------------------------------------------------------------------------|
@@ -387,7 +389,7 @@ iter_4 → input_weight_version=4 → required_version=5 不匹配 → 跳过（
 
 ### Q1：混合批次调度是否是分离模式下的一种特殊模式
 
-是的。混合批次调度是分离模式的子策略，依赖分离模式的并行执行架构。共卡模式（Hybrid）下`hybrid_batch_num`必须为 1，无法使用混合批次调度。
+是的。混合批次调度是分离模式的子策略，依赖分离模式的并行执行架构。共卡模式（Hybrid）下`hybrid_batch_num`必须为1，无法使用混合批次调度。
 
 ### Q2：如何确认混合批次调度已生效
 
@@ -406,11 +408,11 @@ iter_4 → input_weight_version=4 → required_version=5 不匹配 → 跳过（
 
 ### Q3：hybrid_batch_num 应该设置为多少
 
-推荐设置为2。值越大，权重切换次数越少，但 off-policy 偏差越大（推理端使用同一份权重的时间更长）。建议通过实验对比不同`hybrid_batch_num`下的训练收敛速度和最终效果，选择效果与吞吐的最佳平衡点。
+推荐设置为2。值越大，权重切换次数越少，但off-policy偏差越大（推理端使用同一份权重的时间更长）。建议通过实验对比不同`hybrid_batch_num`下的训练收敛速度和最终效果，选择效果与吞吐的最佳平衡点。
 
 ### Q4：混合批次调度与单步异步分离模式的训练收敛效果有差异吗
 
-混合批次调度下，推理端使用同一份权重连续处理多个 batch，会导致部分batch的推理结果对应更旧的权重，off-policy偏差略大。在大多数场景下，这种偏差对最终收敛效果的影响可忽略，但建议在使用前通过小规模实验验证。
+混合批次调度下，推理端使用同一份权重连续处理多个batch，会导致部分batch的推理结果对应更旧的权重，off-policy偏差略大。在大多数场景下，这种偏差对最终收敛效果的影响可忽略，但建议在使用前通过小规模实验验证。
 
 ### Q5：如何判断混合批次调度是否有收益
 

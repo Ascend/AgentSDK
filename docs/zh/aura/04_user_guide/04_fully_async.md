@@ -1,12 +1,14 @@
-# 训推全异步分离模式使用指南（Fully Async 策略）
+# 训推全异步分离模式使用指南（Fully Async策略）
+
+本文档介绍Agent SDK的训推全异步分离模式（Fully Async策略），说明其运行过程、工作原理、关键参数与配置步骤，涵盖部署模式与训练策略选择、训练与推理YAML配置及源码调用链路，适用于卡数充足、希望训练与推理并行执行以掩盖长尾等待的用户。
 
 ## 简介
 
-训推全异步是 Agent SDK 提供的一种资源部署模式，在训推单步异步分离模式基础上进一步演进，通过 rollout 与 trainer 的完全解耦、流式数据传输、多步异步权重同步与新鲜度控制，实现 rollout 生成与 trainer 训练的时间重叠，显著缓解长尾样本带来的 NPU 空闲问题，提升整体训练吞吐。
+训推全异步是Agent SDK提供的一种资源部署模式，在训推单步异步分离模式基础上进一步演进，通过rollout与trainer的完全解耦、流式数据传输、多步异步权重同步与新鲜度控制，实现rollout生成与trainer训练的时间重叠，显著缓解长尾样本带来的NPU空闲问题，提升整体训练吞吐。
 
 ### 模式与策略
 
-Agent SDK 的训推分离采用两层设计：
+Agent SDK的训推分离采用两层设计：
 
 - 部署模式：指训练和推理的资源部署方式，目前支持训推分离和训推共卡。
 - 训练策略：指在分离模式下，训练如何利用推理产生的数据的异步策略，目前支持两种：
@@ -19,11 +21,11 @@ Agent SDK 的训推分离采用两层设计：
 
 分离模式下，训练和推理在不同节点上并行执行：
 
-![训推全异步流程图](../figures/训推全异步流程图.png)
+![训推全异步分离模式运行流程图：推理集群流式回写样本至SampleQueue，训练集群异步拉取并多版本同步权重](../figures/训推全异步流程图.png)
 
-- 推理集群持续接收推理请求，生成 rollout 轨迹数据，并以 **prompt 组**为粒度**流式写入 sample queue**；生成数量与队列积压受参数 `staleness_threshold` 与 `require_batches` 控制，超限时自动反压（暂停生成并趁机同步新权重）。
-- 训练集群从 sample queue 异步拉取样本，计算优势并更新模型；每 `trigger_parameter_sync_step` 步发布一次新权重。
-- 新权重保存到共享存储后，推理集群自动**探测并加载**新版本权重完成同步，同时将 staleness 计数重置为在途样本数。
+- 推理集群持续接收推理请求，生成 rollout 轨迹数据，并以 **prompt组**为粒度**流式写入Sample Queue**；生成数量与队列积压受参数 `staleness_threshold` 与 `require_batches` 控制，超限时自动反压（暂停生成并趁机同步新权重）。
+- 训练集群从Sample Queue异步拉取样本，计算优势并更新模型；每 `trigger_parameter_sync_step` 步发布一次新权重。
+- 新权重保存到共享存储后，推理集群自动**探测并加载**新版本权重完成同步，同时将staleness计数重置为在途样本数。
 
 ### 适用场景
 
@@ -33,7 +35,7 @@ Agent SDK 的训推分离采用两层设计：
 - 数据存在明显长尾（部分轨迹生成时间远大于均值），需要训练与推理时间重叠以掩盖长尾等待。
 
 > [!NOTE]
-> 如果集群资源有限，希望训练和推理共享同一组卡，可参考[训推共卡模式使用指南](02_hybrid.md)。若希望训练与推理并行，但保持一个迭代步滞后，可参考[训推单步异步分离模式使用指南（One Step Off 策略）](03_one_step_off.md)。
+> 如果集群资源有限，希望训练和推理共享同一组卡，可参考[训推共卡模式使用指南](02_hybrid.md)。若希望训练与推理并行，但保持一个迭代步滞后，可参考[训推单步异步分离模式使用指南（One Step Off策略）](03_one_step_off.md)。
 
 ### 与单步异步分离模式的区别
 
@@ -42,8 +44,8 @@ Agent SDK 的训推分离采用两层设计：
 | 部署方式 | 训练和推理在不同节点上            | 训练和推理在不同节点上             |
 | 执行方式 | 训练和推理并行，但保持一个迭代步滞后     | 训练和推理完全解耦并行，无迭代步滞后      |
 | 数据交互 | 批次级（DataManager 攒批传输）  | 样本级流式（SampleQueue 逐组回写） |
-| 权重同步 | 训练完直接同步到推理引擎           | 通过共享盘多版本异步同步，推理端主动探测加载  |
-| 数据新鲜度控制 | 无（天然滞后一个迭代步）           | 通过 staleness 指标与反压机制控制  |
+| 权重同步 | 训练完直接同步到推理引擎           | 通过共享存储多版本异步同步，推理端主动探测加载  |
+| 数据新鲜度控制 | 无（天然滞后一个迭代步）           | 通过staleness指标与反压机制控制  |
 | 适用规模 | 大规模集群                  | 大规模集群，长尾明显场景            |
 | 吞吐量 | 训练和推理并行，吞吐较高           | 训练与推理时间重叠，吞吐更高          |
 
@@ -59,7 +61,7 @@ Agent SDK 的训推分离采用两层设计：
 
 - **异步拉取**：训练端按 `require_batches` 设定的批次量从 `SampleQueue` 逐个取用样本，队列为空则阻塞等候，取足 `ppo_mini_batch_size × require_batches` 个样本后合并、对齐并更新参数，每消费一批即推进一次训练迭代。
 - **迭代步控制**：训练端维护本地训练步计数，每推进一个本地步累加一次；计数达到 `trigger_parameter_sync_step` 时自增权重版本号并重置计数，随后将新权重落盘到共享存储，向推理端发布新版本。
-- **陈旧度观测**：训练端统计本批样本的权重版本分布与陈旧占比（相对最新版本的过期样本数），量化 off-policy 程度，用于观测与调参。
+- **陈旧度观测**：训练端统计本批样本的权重版本分布与陈旧占比（相对最新版本的过期样本数），量化off-policy程度，用于观测与调参。
 
 ### 权重版本同步与陈旧度管理
 
@@ -78,13 +80,13 @@ Agent SDK 的训推分离采用两层设计：
 
 ## 使用方法
 
-### 步骤 1：修改 hosts.conf
+### 步骤 1：修改hosts.conf
 
 文件路径：`configs/hosts.conf`
 
 分离模式下，推理节点排在前面，训练节点排在后面，且**不配置 `infer_master_index`**：
 
-**双机分离部署**（1 台推理 + 1 台训练）：
+**双机分离部署**（1台推理机 + 1台训练机）：
 
 ```shell
 # host,index,train_master_index,infer_master_index(可选)
@@ -102,7 +104,7 @@ Agent SDK 的训推分离采用两层设计：
 > [!NOTE]
 > 分离模式的关键标志是**不配置 `infer_master_index`**。系统根据 `VC_TASK_INDEX < MASTER_TRAIN_INDEX` 判定节点为推理节点，`VC_TASK_INDEX >= MASTER_TRAIN_INDEX` 判定为训练节点。推理节点必须排在训练节点前面（节点类型判断逻辑详见 [start_rl_with_verl_vllm.sh](../../../../aura/scripts/start_rl_with_verl_vllm.sh)，参数解析详见 [utils.sh](../../../../aura/scripts/base/utils.sh)）。
 
-### 步骤 2：修改 base.conf
+### 步骤 2：修改base.conf
 
 文件路径：`configs/base.conf`
 
@@ -120,10 +122,10 @@ infer_config_name=vllm_infer_i16_qwen3_32b
 | 参数 | 说明 |
 |------|------|
 | work_mode | 设为 `fully_async` 表示全异步分离模式 |
-| train_config_name | 训练 YAML 配置文件名（不含 .yaml 后缀） |
-| infer_config_name | 推理 YAML 配置文件名（不含 .yaml 后缀），**分离模式必须配置** |
+| train_config_name | 训练YAML配置文件名（不含 .yaml 后缀） |
+| infer_config_name | 推理YAML配置文件名（不含 .yaml 后缀），**分离模式必须配置** |
 
-### 步骤 3：修改训练 YAML 配置文件
+### 步骤 3：修改训练YAML配置文件
 
 以 verl 后端、Qwen3-32B 模型为例，训练配置文件路径：`configs/train/verl_train_fully_async_A3_t16_qwen3_32b_math_fsdp.yaml`
 
@@ -211,7 +213,7 @@ verl_conf:
 
 - `trigger_parameter_sync_step` 越大，权重同步越稀疏、同步开销越低，但训练端与推理端权重版本差距越大。
 - `staleness_threshold` 越大，允许的陈旧样本越多、缓冲（`max_required_samples`）越大、反压越难触发，但 off-policy 程度越高。
-- 一般先固定 `require_batches`（训练端消费节奏），再根据"同步开销 vs 数据新鲜度"的权衡调节 `trigger_parameter_sync_step` 与 `staleness_threshold`。
+- 一般先固定 `require_batches`（训练端消费节奏），再根据“同步开销 vs 数据新鲜度”的权衡调节 `trigger_parameter_sync_step` 与 `staleness_threshold`。
 
 > [!NOTE]
 > `max_required_samples` 无需手动配置。启动时由 [fully_async/train_main.py](../../../../aura/aura/trainer/train_adapter/verl/fully_async/train_main.py) 自动计算（`= ppo_mini_batch_size × require_batches × (1 + staleness_threshold) × trigger_parameter_sync_step`），并注入 rollout 配置与 SampleQueue 容量。上述示例计算结果为 `4 × 4 × 1.5 × 4 = 96`。
@@ -228,7 +230,7 @@ verl_conf:
 - `enable_expert_parallel`：是否开启专家并行（来自推理 YAML）
 
 > [!NOTE]
-> 此自动替换机制依赖**共享文件系统**：推理集群将配置写入共享存储的临时文件，训练主节点读取后通过 sed 替换训练 YAML，其他训练节点通过共享文件系统读取修改后的配置。仅训练主节点执行替换操作，避免多节点并发修改冲突。
+> 此自动替换机制依赖**共享文件系统**：推理集群将配置写入共享存储的临时文件，训练主节点读取后通过sed替换训练YAML，其他训练节点通过共享文件系统读取修改后的配置。仅训练主节点执行替换操作，避免多节点并发修改冲突。
 
 配置时填入默认值即可：
 
@@ -247,9 +249,9 @@ infer_instances:
         enable_expert_parallel: false
 ```
 
-### 步骤 4：修改推理 YAML 配置文件
+### 步骤 4：修改推理YAML配置文件
 
-分离模式需要单独配置推理 YAML 文件，路径：`configs/infer/vllm_infer_i16_qwen3_32b.yaml`
+分离模式需要单独配置推理YAML文件，路径：`configs/infer/vllm_infer_i16_qwen3_32b.yaml`
 
 #### 4.1 必须修改的路径参数
 
@@ -288,9 +290,9 @@ gpu_memory_utilization: 0.6
 - **训练集群卡数** = `n_gpus_per_node` × `nnodes`（训练节点数）
 - **推理集群卡数** = `tensor_parallel_size` × `data_parallel_size`
 
-推理集群的节点分配由启动脚本根据推理 YAML 中的并行度参数自动计算。每个推理实例所需卡数为 `tensor_parallel_size × data_parallel_size`，所需节点数为 `卡数 / 每节点卡数`。
+推理集群的节点分配由启动脚本根据推理YAML中的并行度参数自动计算。每个推理实例所需卡数为 `tensor_parallel_size × data_parallel_size`，所需节点数为 `卡数 / 每节点卡数`。
 
-例如：`tensor_parallel_size=4, data_parallel_size=4`，则推理需要 16 卡，在Atlas 900 A3 SuperPoD超节点（16 × 64 GB）需要 1 个节点。
+例如：`tensor_parallel_size=4, data_parallel_size=4`，则推理需要16卡，在Atlas 900 A3 SuperPoD超节点（16 × 64 GB）上需要1个节点。
 
 ### 步骤 5：启动训练
 
@@ -351,7 +353,7 @@ bash scripts/start_rl_with_verl_vllm.sh
 
 检查以下几点：
 
-1. 推理 YAML 中的 `infer_model_path` 是否正确指向模型权重路径
+1. 推理YAML中的 `infer_model_path` 是否正确指向模型权重路径
 2. 推理节点的卡数是否满足 `tensor_parallel_size × data_parallel_size` 的要求
 3. 推理节点是否可以访问共享存储（权重文件路径）
 
@@ -359,7 +361,7 @@ bash scripts/start_rl_with_verl_vllm.sh
 
 启动日志中会打印以下信息：
 
-```text
+```output
 [INFO] NODE_TYPE: infer    # 推理节点
 [INFO] NODE_TYPE: train    # 训练节点
 [INFO] work_mode: fully_async
@@ -379,7 +381,7 @@ bash scripts/start_rl_with_verl_vllm.sh
 
 ### Q4：如何确认反压与权重同步在生效
 
-推理端日志会打印 staleness 与队列状态。以 `max_required_samples` 为 96 为例，当反压触发时出现：
+推理端日志会打印staleness与队列状态。以 `max_required_samples` 为 96 为例，当反压触发时出现：
 
 ```text
 [async-rollout] backpressure triggered: staleness=.../96, queue_size=.../96, current_weight_version=...
