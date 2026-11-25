@@ -34,6 +34,13 @@ class TestLoggers(unittest.TestCase):
         if 'WORLD_SIZE' in os.environ:
             del os.environ['WORLD_SIZE']
 
+        # Loggers are global objects shared across the whole test session, so handlers
+        # may have been attached by other tests before this one runs. Detach them to
+        # make the handler assertions in this class independent of test execution order.
+        self.shared_logger = logging.getLogger("test_logger")
+        self.original_handlers = list(self.shared_logger.handlers)
+        self.shared_logger.handlers.clear()
+
     def tearDown(self):
         # Restore original environment variables
         if self.original_rank is not None:
@@ -45,6 +52,10 @@ class TestLoggers(unittest.TestCase):
             os.environ['WORLD_SIZE'] = self.original_world_size
         elif 'WORLD_SIZE' in os.environ:
             del os.environ['WORLD_SIZE']
+
+        # Restore the handlers that were attached before this test case ran
+        self.shared_logger.handlers.clear()
+        self.shared_logger.handlers.extend(self.original_handlers)
 
     def test_generate_iteration_msg_string(self):
         """Test generate_iteration_msg function with string type msg"""
