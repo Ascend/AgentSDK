@@ -20,13 +20,6 @@ env:
   PR_ID: ${{ atomgit.event.pull_request.number }}
   org_name: "Ascend"
 
-permissions:
-  project: read
-  repository: read
-  id-token: write
-  pr: write
-  note: write
-
 stages:
   stage_0:
     name: CodeCheck
@@ -129,6 +122,9 @@ stages:
             uses: openlibing-pre-commit-action
 
       SCA:
+        permissions:
+          repository: read
+          id-token: write
         name: SCA
         runs-on: [ self-hosted, x86, cpu=2 ]
         container:
@@ -145,6 +141,9 @@ stages:
               project-name: MindCluster
 
       malicious-scan:
+        permissions:
+          repository: read
+          id-token: write
         name: antipoison
         runs-on: [ self-hosted, x86, cpu=2 ]
         container:
