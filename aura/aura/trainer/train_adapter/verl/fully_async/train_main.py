@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
-# SPDX-License-Identifier: Apache-2.0 OR MulanPSL-2.0
-# Copyright 2025 Meituan Ltd. and/or its affiliates
-#
+# -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
 #
@@ -15,7 +13,10 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
-#
+# -------------------------------------------------------------------------
+
+# Copyright 2025 Meituan Ltd. and/or its affiliates
+
 import os
 import threading
 
