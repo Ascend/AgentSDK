@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+
 """Semantic versioning utilities."""
 
 import re

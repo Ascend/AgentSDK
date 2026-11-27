@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+
 """Skill resolver implementation."""
 
 from typing import Any, List, Optional, Tuple

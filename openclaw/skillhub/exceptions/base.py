@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+
 """Base exception classes for SkillHub CLI."""
 
 from typing import Optional, Dict, Any

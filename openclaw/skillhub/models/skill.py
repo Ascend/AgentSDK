@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+
 """Skill-related Pydantic models."""
 
 from datetime import datetime

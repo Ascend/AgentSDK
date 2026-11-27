@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+
 """Custom exceptions for SkillHub CLI."""
 
 from skillhub.exceptions.base import (
