@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+
 """Base Git adapter implementation."""
 
 from typing import Any, Dict, List, Optional, Union

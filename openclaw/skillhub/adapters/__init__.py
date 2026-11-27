@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+
 """Platform adapters for SkillHub CLI."""
 
 from skillhub.adapters.base import BaseGitAdapter

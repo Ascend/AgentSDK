@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+
 """Service layer implementations for SkillHub CLI."""
 
 from skillhub.services.source_manager import SourceManagerImpl

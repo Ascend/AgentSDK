@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+
 """SkillHub CLI - Main entry point."""
 
 import sys

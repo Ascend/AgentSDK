@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+
 """List command - backward compatible alias for 'skill list'."""
 
 import asyncio

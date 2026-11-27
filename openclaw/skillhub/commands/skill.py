@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+
 """Skill command - primary interface for all skill operations."""
 
 import asyncio

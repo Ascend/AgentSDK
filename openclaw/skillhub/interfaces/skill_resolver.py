@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+
 """Skill resolver interface."""
 
 from abc import ABC, abstractmethod

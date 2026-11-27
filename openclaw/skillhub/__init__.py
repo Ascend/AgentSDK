@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+
 """SkillHub CLI - Decentralized skill management."""
 
 __version__ = "0.1.0"

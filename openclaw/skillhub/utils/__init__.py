@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+
 """Utility functions for SkillHub CLI."""
 
 from skillhub.utils.semver import parse_version, compare_versions, satisfies_version

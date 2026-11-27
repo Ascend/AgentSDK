@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+
 """Adapter factory for creating platform-specific adapters."""
 
 from typing import Optional

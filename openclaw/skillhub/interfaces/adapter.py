@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+
 """Git platform adapter interface."""
 
 from abc import ABC, abstractmethod
