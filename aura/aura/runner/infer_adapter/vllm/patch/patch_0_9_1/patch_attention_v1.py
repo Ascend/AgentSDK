@@ -4,17 +4,16 @@
 # This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
 #
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
+# AgentSDK is licensed under Mulan PSL v2.
+# You can use this software according to the terms and conditions of the Mulan PSL v2.
+# You may obtain a copy of Mulan PSL v2 at:
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#          http://license.coscl.org.cn/MulanPSL2
 #
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
 from dataclasses import dataclass
@@ -51,7 +50,7 @@ def forward_patch(
                              self.head_size,
                              dtype=query.dtype,
                              device=query.device)
-    
+
     if trace_flag:
         torch.ops.vllm.unified_ascend_attention_with_output(
             query=query,
@@ -62,22 +61,22 @@ def forward_patch(
     else:
         if attn_metadata is None:
             return output.view(num_tokens, self.hidden_size)
-        
+
         num_actual_tokens = attn_metadata.num_actual_tokens
-        
+
         if not (layer._k_scale_float == 1.0 and layer._v_scale_float == 1.0):
             raise ValueError(
                 f"Key scale {layer._k_scale_float} and value scale {layer._v_scale_float} "
                 "must both be 1.0 for Ascend attention backend"
             )
-        
+
         attn_type = self.attn_type
         if attn_type != AttentionType.DECODER:
             raise NotImplementedError(
                 "Encoder self-attention and encoder/decoder cross-attention "
                 "are not implemented for PallasAttentionBackendImpl"
             )
-        
+
         query = query.view(-1, self.num_heads, self.head_size)
         key = key.view(-1, self.num_kv_heads, self.head_size)
         value = value.view(-1, self.num_kv_heads, self.head_size)
@@ -101,7 +100,7 @@ def forward_patch(
                 raise RuntimeError("Attention metadata cannot be None for PrefillNoCache state")
             if attn_metadata.attn_mask is None:
                 raise RuntimeError("Attention mask cannot be None for PrefillNoCache state")
-            
+
             mask = attn_metadata.attn_mask
             torch_npu._npu_flash_attention(
                 query=query,
@@ -118,7 +117,7 @@ def forward_patch(
                 raise RuntimeError("Attention metadata cannot be None for PrefillCacheHit state")
             if attn_metadata.attn_mask is None:
                 raise RuntimeError("Attention mask cannot be None for PrefillCacheHit state")
-            
+
             compress_mask = attn_metadata.attn_mask
             batch_size = attn_metadata.query_lens.shape[0]
             block_table = attn_metadata.block_tables[:batch_size, :]
@@ -137,7 +136,7 @@ def forward_patch(
         elif attn_metadata.attn_state == AscendAttentionState.DecodeOnly:
             graph_params = get_graph_params()
             forward_context = get_forward_context()
-            
+
             if not forward_context.capturing:
                 torch_npu._npu_paged_attention(
                     query=query,
@@ -211,7 +210,7 @@ def forward_patch(
                     num_heads=self.num_heads,
                     scale_value=self.scale,
                     out=output)
-    
+
     return output.view(num_tokens, self.hidden_size)
 
 
