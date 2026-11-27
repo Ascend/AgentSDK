@@ -1,5 +1,20 @@
 #!/bin/bash
-# Copyright Huawei Technologies Co., Ltd. 2026-2026. All rights reserved.
+# -------------------------------------------------------------------------
+# This file is part of the AgentSDK project.
+# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+#
+# AgentSDK is licensed under Mulan PSL v2.
+# You can use this software according to the terms and conditions of the Mulan PSL v2.
+# You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 # 统一环境变量加载脚本
 # 加载优先级: 环境变量(已export) > env.local > env.conf > 脚本默认值
 # 用法: source ${scripts_dir}/base/load_env.sh
@@ -33,6 +48,7 @@
 # base_dir  = aura/scripts/base
 # scripts_dir = aura/scripts
 # root_dir  = aura
+
 base_dir=$(realpath "$(dirname "${BASH_SOURCE[0]}")")
 scripts_dir=$(realpath "$(dirname "${base_dir}")")
 root_dir=$(realpath "$(dirname "${scripts_dir}")")

@@ -1,5 +1,4 @@
 #!/bin/bash
-# This script is used to install.
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
 # Copyright (c) 2025 Huawei Technologies Co.,Ltd.
@@ -16,7 +15,9 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
+# This script is used to install.
 # 自定义变量
+
 install_path="${USER_PWD}"
 LOG_SIZE_THRESHOLD=$((10*1024*1024))
 declare -A param_dict=()               # 参数个数统计
@@ -91,7 +92,7 @@ function print_usage() {
 
 ### 脚本入参的相关处理函数
 function check_script_args() {
-  ######################  check params confilct ###################
+  ######################  check params conflict ###################
   if [ "${invalid_param_flag}" = y ]; then
     ms_log "ERROR: Check script para failed."
     print_usage

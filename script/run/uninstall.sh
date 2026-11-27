@@ -1,5 +1,4 @@
 #!/bin/bash
-# This script is used to uninstall.
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
 # Copyright (c) 2025 Huawei Technologies Co.,Ltd.
@@ -16,7 +15,9 @@
 # See the Mulan PSL v2 for more details.
 # -------------------------------------------------------------------------
 
+# This script is used to uninstall.
 # Simple log helper functions
+
 CUR_PATH=$(cd "$(dirname "$0")" || { echo "Failed to enter current path" ; exit ; } ; pwd)
 
 info_record_path="${HOME}/log/AgentSDK"
