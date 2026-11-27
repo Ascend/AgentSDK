@@ -1,13 +1,23 @@
 #!/usr/bin/env python3
 # coding=utf-8
-
 # -------------------------------------------------------------------------
-# Copyright (c) 2025, HUAWEI CORPORATION. All rights reserved.
+# This file is part of the AgentSDK project.
+# Copyright (c) 2025-2026 Huawei Technologies Co.,Ltd.
+#
+# AgentSDK is licensed under Mulan PSL v2.
+# You can use this software according to the terms and conditions of the Mulan PSL v2.
+# You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 # Copyright 2024 Bytedance Ltd. and/or its affiliates
 # Copyright 2023 The vLLM team.
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
-# -------------------------------------------------------------------------
-
 
 from aura.base.weight_loaders.megatron_weight_loaders import BaseMegatronWeightLoader
 

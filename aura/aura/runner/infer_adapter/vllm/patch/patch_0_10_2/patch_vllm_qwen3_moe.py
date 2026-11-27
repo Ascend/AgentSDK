@@ -3,6 +3,19 @@
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+#
+# AgentSDK is licensed under Mulan PSL v2.
+# You can use this software according to the terms and conditions of the Mulan PSL v2.
+# You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 # Copyright 2024 The Qwen team.
 # Copyright 2023 The vLLM team.
 # Copyright 2022 EleutherAI and the HuggingFace Inc. team. All rights reserved.
@@ -11,21 +24,7 @@
 # and OPT implementations in this library. It has been modified from its
 # original forms to accommodate minor architectural differences compared
 # to GPT-NeoX and OPT used by the Meta AI team that trained the model.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-# -------------------------------------------------------------------------
 
-# SPDX-License-Identifier: Apache-2.0
 import typing
 from collections.abc import Callable, Iterable
 from typing import Set
@@ -59,23 +58,23 @@ def load_weights_patch(self, weights: Iterable[tuple[str, torch.Tensor]]) -> Set
     params_dict = dict(self.named_parameters())
     loaded_params: Set[str] = set()
     expert_params_mapping = self.get_expert_mapping()
-    
+
     for name, loaded_weight in weights:
         for (param_name, weight_name, shard_id) in stacked_params_mapping:
             if weight_name not in name:
                 continue
-            
+
             if "mlp.experts" in name:
                 continue
-            
+
             name = name.replace(weight_name, param_name)
 
             if name.endswith(ignore_suffixes) and name not in params_dict:
                 continue
-            
+
             if is_pp_missing_parameter(name, self):
                 continue
-            
+
             if name.endswith("scale"):
                 name = maybe_remap_kv_scale_name(name, params_dict)
                 if name is None:
@@ -110,7 +109,7 @@ def load_weights_patch(self, weights: Iterable[tuple[str, torch.Tensor]]) -> Set
 
                 if name_mapped not in params_dict:
                     continue
-                
+
                 param = params_dict[name_mapped]
                 weight_loader = typing.cast(Callable[..., bool], param.weight_loader)
                 success = weight_loader(
@@ -129,10 +128,10 @@ def load_weights_patch(self, weights: Iterable[tuple[str, torch.Tensor]]) -> Set
 
                 if name.endswith(ignore_suffixes) and name not in params_dict:
                     continue
-                
+
                 if is_pp_missing_parameter(name, self):
                     continue
-                
+
                 if name.endswith("kv_scale"):
                     remapped_kv_scale_name = name.replace(".kv_scale", ".attn.kv_scale")
                     if remapped_kv_scale_name not in params_dict:
@@ -149,13 +148,13 @@ def load_weights_patch(self, weights: Iterable[tuple[str, torch.Tensor]]) -> Set
 
                 if name not in params_dict:
                     continue
-                
+
                 param = params_dict[name]
                 weight_loader = getattr(param, "weight_loader", default_weight_loader)
                 weight_loader(param, loaded_weight)
-        
+
         loaded_params.add(name)
-    
+
     return loaded_params
 
 
