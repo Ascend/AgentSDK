@@ -139,7 +139,7 @@ You can implement a custom engine wrapper by inheriting from `BaseEngineWrapper`
 >
 > - Base class: `aura/runner/agent_engine_wrapper/base_engine_wrapper.py`
 >
-> - RLLM engine wrapper: `aura/runner/agent_engine_wrapper/rllm/rllm_engine_wrapper.py`
+> - rLLM engine wrapper: `aura/runner/agent_engine_wrapper/rllm/rllm_engine_wrapper.py`
 >
 > - SmolAgent engine wrapper: `aura/runner/agent_engine_wrapper/smolagent/smolagent_wrapper.py`
 
@@ -334,7 +334,7 @@ AGENTS_MAPPING.append({
     "env_class": ToolEnvironment,
     "env_args": {
         "tools": ["python", "search"],
-        "reward_fn": my_reward_fn,
+        "reward_fn": math_reward_fn,
         "tool_timeout": 120,
         "max_steps": 10,
     },

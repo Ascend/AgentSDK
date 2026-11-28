@@ -140,7 +140,7 @@ verl_conf:
 >
 > - 基类：`aura/runner/agent_engine_wrapper/base_engine_wrapper.py`
 >
-> - RLLM引擎包装器：`aura/runner/agent_engine_wrapper/rllm/rllm_engine_wrapper.py`
+> - rLLM引擎包装器：`aura/runner/agent_engine_wrapper/rllm/rllm_engine_wrapper.py`
 >
 > - SmolAgent引擎包装器：`aura/runner/agent_engine_wrapper/smolagent/smolagent_wrapper.py`
 
@@ -335,7 +335,7 @@ AGENTS_MAPPING.append({
     "env_class": ToolEnvironment,
     "env_args": {
         "tools": ["python", "search"],
-        "reward_fn": my_reward_fn,
+        "reward_fn": math_reward_fn,
         "tool_timeout": 120,
         "max_steps": 10,
     },

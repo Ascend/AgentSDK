@@ -55,7 +55,7 @@ Currently, Aura only provides environment deployment procedures, including conta
 
 **Python Dependencies**: [requirements.txt](requirements.txt), containing the base dependencies required for the Aura core framework to run (such as torch, transformers, ray, etc.).
 
-**Third-party Dependencies**: [third_party/requirements_with_verl_vllm.txt](third_party/requirements_with_verl_vllm.txt), containing third-party repository dependencies such as megatron, mindspeed, and rllm.
+**Third-party Dependencies**: [third_party/requirements_with_verl_vllm.txt](third_party/requirements_with_verl_vllm.txt), containing third-party repository dependencies such as megatron, mindspeed, and rLLM.
 
 For detailed steps, please follow the [Installation Guide](../docs/zh/aura/02_installation_guide.md).
 

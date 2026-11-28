@@ -128,7 +128,7 @@ map_keys: {"query":"", "response":"labels", "prompt": "question"}
 | `output_prefix`           | str  | `/path/to/output/train` is the output file path, which you must create in advance. `rl` is the output file prefix. |
 | `handler_name`            | str  | Name of the data handler, which determines the data concatenation template. `R1AlpacaStyleInstructionHandler` is the standard format for SFT/RL training of models such as Qwen. |
 | `tokenizer_type`          | str  | Tokenizer type. `HuggingFaceTokenizer` is commonly used. |
-| `workers`                 | int  | Number of parallel workers |
+| `workers`                 | int  | Number of preprocessing worker processes. Optional. Specify a positive integer. The default is `1`. The example YAML sets it to `8`. |
 | `log_interval`            | int  | Log output interval (the number of data records processed before a log is output) |
 | `prompt_type`             | str  | Chat template for the model, for example, qwen/chatml/llama3 |
 | `dataset_additional_keys` | list | Data fields to be additionally retained |
@@ -138,7 +138,8 @@ map_keys: {"query":"", "response":"labels", "prompt": "question"}
 
 ```shell
 # Process the training set
-python3 /path/to/AgentSDK/aura/cli/preprocess_data.py gsm8k
+cd /path/to/AgentSDK/aura
+python3 -m cli.preprocess_data gsm8k
 ```
 
 **Generated Files**
@@ -146,7 +147,7 @@ python3 /path/to/AgentSDK/aura/cli/preprocess_data.py gsm8k
 After processing is complete, the following files are generated:
 
 ```text
-/path/to/output/
+/path/to/output/train/
 ├── rl_packed_attention_mask_document.bin    # Attention mask binary data
 ├── rl_packed_attention_mask_document.idx    # Attention mask index file
 ├── rl_packed_input_ids_document.bin         # Input ids binary data

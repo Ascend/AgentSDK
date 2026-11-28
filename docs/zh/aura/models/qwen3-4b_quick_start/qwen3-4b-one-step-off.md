@@ -130,7 +130,7 @@ map_keys: {"query":"", "response":"labels", "prompt": "question"}
 | `output_prefix`           | str  | /path/to/output/train 为输出文件路径，需提前创建，rl 为输出文件前缀                                   |
 | `handler_name`            | str  | 数据处理器名称，决定了数据的拼接模板。`R1AlpacaStyleInstructionHandler`是 Qwen 等模型进行 SFT/RL 训练的标准格式 |
 | `tokenizer_type`          | str  | 分词器类型，常用 `HuggingFaceTokenizer`                                                  |
-| `workers`                 | int  | 并行 worker 数                                                                      |
+| `workers`                 | int  | 数据预处理使用的进程数。可选，取正整数。未配置时默认为 1，示例 YAML 配置为 8。 |
 | `log_interval`            | int  | 日志输出间隔（处理多少条数据后输出）                                                               |
 | `prompt_type`             | str  | 指定模型对应的 chat template，例如 qwen/chatml/llama3                                      |
 | `dataset_additional_keys` | list | 需额外保留的数据字段                                                                       |
@@ -148,7 +148,7 @@ python3 /path/to/AgentSDK/aura/cli/preprocess_data.py gsm8k
 处理完成后会生成以下文件：
 
 ```text
-/path/to/output/
+/path/to/output/train/
 ├── rl_packed_attention_mask_document.bin    # attention mask 二进制数据
 ├── rl_packed_attention_mask_document.idx    # attention mask 索引文件
 ├── rl_packed_input_ids_document.bin         # input ids 二进制数据

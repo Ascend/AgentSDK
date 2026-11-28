@@ -40,7 +40,7 @@ To reduce security risks, you are advised to harden security for this scenario. 
 
     # Set an allowlist in multi-node scenarios to allow other nodes to access the listening port of the master node
     # Add a rule in the rule chain to allow a specific IP address range
-    iptables -t filter -A {rule_name} -i eth0 -p tcp --dport $port -s {allowed_external_IP} -j ACCEPT
+    iptables -t filter -A {rule_name} -i {NIC_to_restrict} -p tcp --dport $port -s {allowed_external_IP} -j ACCEPT
 
     # Block external addresses from accessing the distributed training port
     # Add a rule in the PORT-LIMIT-RULE rule chain to reject other IP addresses

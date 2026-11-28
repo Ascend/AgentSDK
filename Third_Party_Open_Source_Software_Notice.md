@@ -456,7 +456,7 @@ License text: Same as MIT License above.
 
 ---
 
-### Software: rllm
+### Software: rLLM
 
 - Version: v0.1
 - Homepage: https://github.com/rllm-org/rllm

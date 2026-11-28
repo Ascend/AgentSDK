@@ -22,7 +22,8 @@ Black-box agent mode allows you to integrate an **external standalone agent serv
 | **TrajProxyClient** | The HTTP client that pulls trajectory records from TrajProxy |
 | **External agent service** | The agent service that you implement yourself. It receives prompts, runs the agent loop, and returns results |
 | **traj_refine_func** | The trajectory aggregation function, which aggregates the raw requests and responses recorded by TrajProxy into hierarchical trajectories (Episodes) |
-| **res_reward_func** | The step-level reward function, which computes the intermediate reward for each step in a trajectory |
+| **res_reward_func** | Computes result rewards at the step level. It can score the final step. |
+| **traj_reward_func** | Takes the aggregated `Episode` and updates the reward for each trajectory in it. |
 
 ### Architecture Overview
 
@@ -214,10 +215,10 @@ A custom trajectory aggregation function (`traj_refine_func`) aggregates the raw
 
 ### (Optional) Step: Implementing the Reward Function
 
-A custom trajectory-level reward function (`res_reward_func`) computes the final reward for an entire trajectory.
+Configure `res_reward_func` to compute result rewards at the step level. The framework passes in the action and task information for each step. The example `math_res_reward_fn` checks the answer on the final step or when the maximum step count is reached. It returns 0 on earlier steps. After processing step rewards, the framework calls `traj_reward_func` to update the reward for the entire trajectory. See the [Python API reference](../05_api_python.md#constraint-2-the-trajectory-aggregation-and-reward-functions-must-match-the-signatures) for the required signatures.
 
 > [!NOTE]
-> For a complete implementation, see the built-in trajectory aggregation function: [math_res_reward_fn](../../../../aura/agents/proxy_agent/math/ozy_math_reward.py).
+> For a step-level reward implementation, see [math_res_reward_fn](../../../../aura/agents/proxy_agent/math/ozy_math_reward.py).
 > After you implement a custom function, also change `res_reward_func` in the training configuration [verl_train_hybrid_A3_t16_qwen3_8b_blackbox_math_fsdp.yaml](../../../../aura/configs/train/verl_train_hybrid_A3_t16_qwen3_8b_blackbox_math_fsdp.yaml) to the path of the corresponding function.
 
 ### Step 3: Starting Training
@@ -237,7 +238,7 @@ See the [Qwen3-8B Quick Start Guide](../../../../docs/en/aura/models/qwen3_8b.md
 
 ## Comparison with White-Box Agents
 
-| Dimension | White-box agent (rllm) | Black-box agent (vaee) |
+| Dimension | White-box agent (rLLM) | Black-box agent (vaee) |
 |------|-------------------|-------------------|
 | Agent location | Inside the training framework | External standalone service |
 | Communication | In-process calls | HTTP |
@@ -252,9 +253,9 @@ See the [Qwen3-8B Quick Start Guide](../../../../docs/en/aura/models/qwen3_8b.md
 
 No. It only needs to expose the `POST /v1/chat/completions` endpoint. Therefore, you can use any language or framework. The only requirement is that the LLM calls in the agent loop must go through `infer_url` (TrajProxy).
 
-**Q2: Must `traj_refine_func` and `res_reward_func` Be Implemented?**
+**Q2: Are custom trajectory aggregation or reward functions required?**
 
-No. If you do not configure them, the framework uses the default `default_token_traj_refine_func` and `default_traj_reward_func`. You need custom functions only when the default behavior does not meet the requirements of your scenario.
+All three functions are optional. If you omit `traj_refine_func` or `traj_reward_func`, the framework uses `default_token_traj_refine_func` or `default_traj_reward_func`, respectively. If you omit `res_reward_func`, the framework skips custom step-level reward calculation.
 
 **Q3: Which Error Conditions Must the External Agent Service Handle?**
 

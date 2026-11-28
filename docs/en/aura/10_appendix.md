@@ -6,8 +6,8 @@ Aura may use the following environment variables during runtime.
 
 |Environment Variable|Description|
 |--|--|
-|LOCAL_RANK|A `torch` distributed training setting that describes the rank of the current thread on the current node. The value range is [0, 8).|
-|RANK|A `torch` distributed training setting that describes the rank of the current thread across all nodes. The value range is [0, 8).|
+|LOCAL_RANK|Rank of the current process on its node in PyTorch distributed training. The range is [0, LOCAL_WORLD_SIZE).|
+|RANK|Global rank of the current process in the entire PyTorch distributed training job. The range is [0, WORLD_SIZE).|
 
 When Aura starts, it validates environment variables against an allowlist. Only the following environment variables are retained.
 

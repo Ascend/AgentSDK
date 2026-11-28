@@ -94,7 +94,7 @@ Modify the following parameters based on your actual environment:
 | `verl_conf.data.train_files`                        | Path of the training dataset in the parquet format                                          | `/data/train.parquet`                            |
 | `verl_conf.data.val_files`                          | Path of the validation dataset in the parquet format                                          | `/data/test.parquet`                             |
 | `verl_conf.actor_rollout_ref.model.path`            | Path of the model weights                                                       | `/data/weights/qwen3-4b`                         |
-| `train_instances.rollout_config.llm_tokenizer_path` | Path of the tokenizer (the same as the model path)                                               | `/data/weights/qwen3-4b`                         |
+| `train_instances[0].executor_kwargs.rollout_config.llm_tokenizer_path` | Tokenizer path. The example configuration references the model path. | `/data/weights/qwen3-4b` |
 
 #### 3.2 Key Configuration Items in Co-located Mode
 
@@ -137,7 +137,7 @@ verl_conf:
 verl_conf:
   actor_rollout_ref:
     rollout:
-      tensor_model_parallel_size: 4    # Training tensor parallelism size
+      tensor_model_parallel_size: 8    # Training tensor parallelism size
       data_parallel_size: 2            # Training data parallelism size
   trainer:
     n_gpus_per_node: 16               # Number of devices per node
@@ -156,7 +156,7 @@ infer_instances:
       engine_kwargs:
         chat_server: "http://0.0.0.0:8080"   # The default value is sufficient. The startup script modifies it automatically
         model_name: Qwen3-4B
-        tensor_parallel_size: 4               # Inference tensor parallelism size
+        tensor_parallel_size: 8               # Inference tensor parallelism size
         data_parallel_size: 2                 # Inference data parallelism size
 ```
 
@@ -191,7 +191,7 @@ In co-located mode, training and inference share the same group of devices and a
 | Data parallelism (DP) | `infer_instances.executor_kwargs.engine_kwargs.data_parallel_size` | Number of inference workers |
 
 > [!NOTE]
-> In co-located mode, training and inference use the same group of devices and run alternately: during inference, this group of devices performs inference, and after inference completes, device memory is released. During training, this group of devices performs training updates. Therefore, the number of devices required for training and the number of devices required for inference must be the same, and both must equal the total number of devices on the node. For example, on a single server with 16 devices, training uses TP=4/DP=4 (16 devices), inference uses TP=4/DP=4 (16 devices), and both share the same group of 16 devices.
+> In co-located mode, training and inference use the same group of devices and run alternately: during inference, this group of devices performs inference, and after inference completes, device memory is released. During training, this group of devices performs training updates. Therefore, the number of devices required for training and the number of devices required for inference must be the same, and both must equal the total number of devices on the node. For example, on a single server with 16 devices, training uses TP=8/DP=2 (16 devices), inference uses TP=8/DP=2 (16 devices), and both share the same group of 16 devices.
 
 ### Step 4: Starting Training
 

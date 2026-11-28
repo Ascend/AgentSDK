@@ -72,4 +72,4 @@ infer_model_path: /path/to/models/Qwen3-4B # 推理侧模型权重路径
 >- 分离模式在verl后端时暂时仅支持Megatron的bin格式数据集
 >- 分离多机模式下请将代码、权重均保存在共享盘内，保证数据可以同时被所有机器获取
 
-另需参照[快速入门指南](../03_quick_start.md)根据模式修改[base.conf](../../../../aura/configs/base.conf)和[hosts.conf](../../../../aura/configs/hosts.conf)，并在 `aura/configs/env/env.conf` 路径下设置 `env.local`，随后根据相应的命令一键拉起实验。
+参照[快速入门指南](../03_quick_start.md)，根据部署模式修改 [base.conf](../../../../aura/configs/base.conf) 和 [hosts.conf](../../../../aura/configs/hosts.conf)，并在 `aura/configs/env/env.local` 中设置本机所需的环境变量。完成配置后，执行相应的命令一键拉起实验。
