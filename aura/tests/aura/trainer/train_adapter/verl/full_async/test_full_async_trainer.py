@@ -25,6 +25,7 @@ import unittest
 import tempfile
 import asyncio
 import pytest
+from contextlib import ExitStack
 from unittest.mock import patch, MagicMock, mock_open, AsyncMock
 
 
@@ -42,6 +43,7 @@ class TestFullyAsyncTrainer(unittest.TestCase):
         self.mock_ray = MagicMock()
         self.mock_verl = MagicMock()
         self.mock_omegaconf = MagicMock()
+        self.mock_omegaconf.OmegaConf.select.return_value = None
         self.mock_tqdm = MagicMock()
         self.mock_np = MagicMock()
         self.mock_torch = MagicMock()
@@ -245,7 +247,7 @@ class TestFullyAsyncTrainer(unittest.TestCase):
     def test_set_total_train_steps_with_optim_config(self):
         """Test set_total_train_steps with optim config."""
         total_steps = 1000
-        self.mock_omegaconf.OmegaConf.select = MagicMock(side_effect=lambda cfg, key: True if 'optim' in key else None)
+        self.mock_omegaconf.OmegaConf.select = MagicMock(side_effect=lambda cfg, key, **kwargs: True if 'optim' in key else None)
         self.mock_omegaconf.OmegaConf.set_struct = MagicMock()
         self.mock_omegaconf.open_dict = MagicMock(return_value={})
 
@@ -358,6 +360,37 @@ class TestFullyAsyncTrainer(unittest.TestCase):
 
         self.trainer.controller.update_rollout_weights.assert_called_once_with(5)
 
+    def test_weight_export_same_version_is_not_rewritten(self):
+        self.trainer.timing_raw = {'timing_s/param_sync': 0.0}
+        self.trainer.local_trigger_step = 1
+        self.trainer.current_param_version = 8
+        asyncio.run(self.trainer._fit_update_weights())
+        asyncio.run(self.trainer._fit_update_weights())
+        self.trainer.controller.update_rollout_weights.assert_called_once_with(8)
+
+    def test_weight_export_new_version_is_published(self):
+        self.trainer.timing_raw = {'timing_s/param_sync': 0.0}
+        self.trainer.local_trigger_step = 1
+        self.trainer.current_param_version = 8
+        asyncio.run(self.trainer._fit_update_weights())
+        self.trainer.current_param_version = 9
+        asyncio.run(self.trainer._fit_update_weights())
+        self.assertEqual(self.trainer.controller.update_rollout_weights.call_count, 2)
+        self.trainer.controller.update_rollout_weights.assert_called_with(9)
+
+    def test_weight_export_failed_attempt_can_retry(self):
+        self.trainer.timing_raw = {'timing_s/param_sync': 0.0}
+        self.trainer.local_trigger_step = 1
+        self.trainer.current_param_version = 8
+        self.trainer.controller.update_rollout_weights.side_effect = [RuntimeError("export failed"), None]
+        with self.assertRaisesRegex(RuntimeError, "export failed"):
+            asyncio.run(self.trainer._fit_update_weights())
+        self.assertEqual(self.trainer.last_synced_param_version, 0)
+        asyncio.run(self.trainer._fit_update_weights())
+        asyncio.run(self.trainer._fit_update_weights())
+        self.assertEqual(self.trainer.controller.update_rollout_weights.call_count, 2)
+        self.assertEqual(self.trainer.last_synced_param_version, 8)
+
     def test_fit_save_checkpoint_no_save(self):
         """Test _fit_save_checkpoint skips when current_param_version == last_ckpt_version."""
         self.trainer.current_param_version = 1
@@ -391,6 +424,99 @@ class TestFullyAsyncTrainer(unittest.TestCase):
             self.trainer._fit_save_checkpoint(force=True)
 
             self.trainer.actor_rollout_wg.save_checkpoint.assert_called_once()
+
+    def test_fit_save_checkpoint_force_between_intervals(self):
+        """Final saves must not require a multiple of save_freq."""
+        self.trainer.current_param_version = 199
+        self.trainer.last_ckpt_version = 150
+        self.mock_config.trainer.save_freq = 50
+        with patch.object(self.trainer, '_save_checkpoint') as save:
+            self.trainer._fit_save_checkpoint(force=True)
+            save.assert_called_once_with()
+        self.assertEqual(self.trainer.last_ckpt_version, 199)
+
+    def test_fit_save_checkpoint_periodic(self):
+        """Normal steps save periodically, without force=True."""
+        self.trainer.last_ckpt_version = 0
+        self.mock_config.trainer.save_freq = 50
+        with patch.object(self.trainer, '_save_checkpoint') as save:
+            self.trainer.current_param_version = 49
+            self.trainer._fit_save_checkpoint()
+            save.assert_not_called()
+            self.trainer.current_param_version = 50
+            self.trainer._fit_save_checkpoint()
+            save.assert_called_once_with()
+            self.trainer._fit_save_checkpoint(force=True)
+            save.assert_called_once_with()
+
+    def test_fit_save_checkpoint_force_respects_disabled_saving(self):
+        self.trainer.current_param_version = 199
+        self.trainer.last_ckpt_version = 150
+        self.mock_config.trainer.save_freq = 0
+        with patch.object(self.trainer, '_save_checkpoint') as save:
+            self.trainer._fit_save_checkpoint(force=True)
+            save.assert_not_called()
+
+    def _mock_fit_pipeline(self, stack):
+        """Mock model operations, but exercise real loop/counter/stop logic."""
+        stack.enter_context(patch.object(self.trainer, '_load_checkpoint', create=True))
+        validate = stack.enter_context(patch.object(
+            self.trainer, '_fit_validate', return_value=None, create=True))
+        stack.enter_context(patch.object(self.trainer, '_fit_generate', new_callable=AsyncMock))
+        stack.enter_context(patch.object(self.trainer, '_fit_update_weights', new_callable=AsyncMock))
+        actor_update = None
+        for name in (
+            '_fit_start_profile', '_fit_compute_reward', '_fit_compute_log_prob',
+            '_fit_compute_ref_log_prob', '_fit_compute_critic', '_fit_compute_advantage',
+            '_fit_update_critic', '_fit_update_actor', '_fit_dump_data',
+            '_fit_stop_profile', '_fit_collect_metrics', '_fit_torch_memory',
+        ):
+            mocked = stack.enter_context(patch.object(self.trainer, name, create=True))
+            if name == '_fit_update_actor':
+                actor_update = mocked
+        save = stack.enter_context(patch.object(self.trainer, '_fit_save_checkpoint'))
+        return validate, actor_update, save
+
+    def test_fit_runs_exactly_configured_steps_and_finishes(self):
+        """Includes total=1 and disabled validation test_freq=0/-1."""
+        for total, test_freq in ((1, 0), (3, -1), (3, 1000), (200, 50)):
+            with self.subTest(total=total, test_freq=test_freq), ExitStack() as stack:
+                self.trainer.global_steps = 0
+                self.trainer.current_param_version = 0
+                self.trainer.local_trigger_step = 1
+                self.trainer.total_train_steps = total
+                self.mock_config.trainer.test_freq = test_freq
+                self.trainer.controller.reset_mock()
+                validate, actor_update, save = self._mock_fit_pipeline(stack)
+                asyncio.run(self.trainer.fit())
+                self.assertEqual(actor_update.call_count, total)
+                self.assertEqual(self.trainer.global_steps, total + 1)
+                self.assertEqual(self.trainer.current_param_version, total)
+                self.assertTrue(self.trainer.is_last_step)
+                validate.assert_not_called()
+                self.assertEqual(save.call_count, total + 1)
+                self.assertTrue(all(not call.kwargs for call in save.call_args_list[:-1]))
+                self.assertEqual(save.call_args.kwargs, {'force': True})
+                self.trainer.controller.finish_training.assert_called_once_with()
+
+    def test_fit_does_not_update_past_restored_step_limit(self):
+        self.trainer.total_train_steps = 200
+        self.trainer.current_param_version = 200
+        with ExitStack() as stack:
+            _, actor_update, _ = self._mock_fit_pipeline(stack)
+            self.trainer._load_checkpoint.side_effect = lambda: setattr(self.trainer, 'global_steps', 201)
+            asyncio.run(self.trainer.fit())
+            actor_update.assert_not_called()
+
+    def test_queue_trainer_does_not_enter_unwired_parent_validation(self):
+        self.trainer.total_train_steps = 1
+        with ExitStack() as stack:
+            validate, _, save = self._mock_fit_pipeline(stack)
+            validate.side_effect = AttributeError('val_dataloader is not wired for the queue trainer')
+            asyncio.run(self.trainer.fit())
+            validate.assert_not_called()
+            self.assertIn({'force': True}, [call.kwargs for call in save.call_args_list])
+            self.trainer.controller.finish_training.assert_called_once_with()
 
     def test_fit_postprocess_step(self):
         """Test _fit_postprocess_step method."""
@@ -489,6 +615,64 @@ class TestFullyAsyncTrainer(unittest.TestCase):
         """Test load_checkpoint with resume_mode='disable'."""
         result = self.trainer.load_checkpoint()
         self.assertEqual(result, 0)
+
+    def test_load_checkpoint_restores_counters_once(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = os.path.join(root, 'global_step_3')
+            os.makedirs(os.path.join(folder, 'actor'))
+            self.mock_config.trainer.resume_mode = 'resume_path'
+            self.mock_config.trainer.resume_from_path = folder + os.sep
+            self.mock_config.trainer.del_local_ckpt_after_load = False
+            self.assertEqual(self.trainer._load_checkpoint(), 3)
+            self.assertEqual(self.trainer.global_steps, 4)
+            self.assertEqual(self.trainer.current_param_version, 3)
+            self.assertEqual(self.trainer.last_ckpt_version, 3)
+            self.assertEqual(self.trainer.last_synced_param_version, 3)
+            self.assertEqual(self.trainer.load_checkpoint(), 3)
+            asyncio.run(self.trainer._maybe_sync_final_weights())
+            self.trainer.controller.update_rollout_weights.assert_not_called()
+            self.trainer.actor_rollout_wg.load_checkpoint.assert_called_once_with(
+                os.path.join(folder, 'actor'), del_local_after_load=False)
+
+    def test_load_checkpoint_failed_load_does_not_publish_counters(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = os.path.join(root, 'global_step_3')
+            os.makedirs(os.path.join(folder, 'actor'))
+            self.mock_config.trainer.resume_mode = 'resume_path'
+            self.mock_config.trainer.resume_from_path = folder
+            self.trainer.actor_rollout_wg.load_checkpoint.side_effect = RuntimeError('load failed')
+            with self.assertRaisesRegex(RuntimeError, 'load failed'):
+                self.trainer.load_checkpoint()
+            self.assertFalse(self.trainer._checkpoint_loaded)
+            self.assertEqual(self.trainer.current_param_version, 0)
+            self.assertEqual(self.trainer.global_steps, 0)
+            self.assertEqual(self.trainer.last_synced_param_version, 0)
+
+    def test_fit_after_checkpoint_does_not_skip_first_new_step(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = os.path.join(root, 'global_step_3')
+            os.makedirs(os.path.join(folder, 'actor'))
+            self.mock_config.trainer.resume_mode = 'resume_path'
+            self.mock_config.trainer.resume_from_path = folder
+            self.trainer.load_checkpoint()
+            self.trainer.total_train_steps = 5
+            with ExitStack() as stack:
+                _, update, _ = self._mock_fit_pipeline(stack)
+                asyncio.run(self.trainer.fit())
+            self.assertEqual(update.call_count, 2)
+            self.assertEqual(self.trainer.global_steps, 6)
+            self.assertEqual(self.trainer.current_param_version, 5)
+
+    def test_load_checkpoint_auto_uses_committed_pointer(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = os.path.join(root, 'global_step_3')
+            os.makedirs(os.path.join(folder, 'actor'))
+            with open(os.path.join(root, 'latest_checkpointed_iteration.txt'), 'w') as stream:
+                stream.write('3\n')
+            self.mock_config.trainer.resume_mode = 'auto'
+            self.mock_config.trainer.default_local_dir = root
+            self.assertEqual(self.trainer.load_checkpoint(), 3)
+            self.assertEqual(self.trainer.global_steps, 4)
 
     def test_load_checkpoint_hdfs_not_implemented(self):
         """Test load_checkpoint raises NotImplementedError for HDFS."""
@@ -981,20 +1165,20 @@ class TestFullyAsyncTrainerRefactoredHelpers(unittest.TestCase):
         self.mock_config.trainer.save_freq = 5
         self.assertTrue(self.trainer._should_save_now(force=False, esi_close_to_expiration=True))
 
-    def test_should_save_now_returns_false_without_force(self):
+    def test_should_save_now_returns_true_on_periodic_boundary_without_force(self):
         self.mock_config.trainer.save_freq = 5
         self.trainer.current_param_version = 5
-        self.assertFalse(self.trainer._should_save_now(force=False, esi_close_to_expiration=False))
+        self.assertTrue(self.trainer._should_save_now(force=False, esi_close_to_expiration=False))
 
     def test_should_save_now_returns_true_on_freq_boundary_with_force(self):
         self.mock_config.trainer.save_freq = 5
         self.trainer.current_param_version = 10
         self.assertTrue(self.trainer._should_save_now(force=True, esi_close_to_expiration=False))
 
-    def test_should_save_now_returns_false_off_freq_boundary_with_force(self):
+    def test_should_save_now_returns_true_off_freq_boundary_with_force(self):
         self.mock_config.trainer.save_freq = 5
         self.trainer.current_param_version = 7
-        self.assertFalse(self.trainer._should_save_now(force=True, esi_close_to_expiration=False))
+        self.assertTrue(self.trainer._should_save_now(force=True, esi_close_to_expiration=False))
 
     # ---------------- _build_remote_path / _build_critic_remote_path ----------------
 
@@ -1089,6 +1273,7 @@ class TestFullyAsyncTrainerRefactoredHelpers(unittest.TestCase):
     # ---------------- _resolve_checkpoint_folder ----------------
 
     def test_resolve_checkpoint_folder_raises_on_hdfs(self):
+        self.mock_config.trainer.resume_mode = 'auto'
         self.mock_config.trainer.default_hdfs_dir = '/hdfs'
         with self.assertRaises(NotImplementedError):
             self.trainer._resolve_checkpoint_folder()
@@ -1097,8 +1282,11 @@ class TestFullyAsyncTrainerRefactoredHelpers(unittest.TestCase):
         self.mock_config.trainer.default_hdfs_dir = None
         self.mock_config.trainer.resume_mode = 'auto'
         self.mock_config.trainer.default_local_dir = '/abs/ckpt'
-        self.mock_verl.utils.checkpoint.checkpoint_manager.find_latest_ckpt_path.return_value = '/abs/ckpt/global_step_5'
-        result = self.trainer._resolve_checkpoint_folder()
+        resolve = MagicMock(return_value='/abs/ckpt/global_step_5')
+        with patch.dict(self.FullyAsyncTrainer._resolve_checkpoint_folder.__globals__,
+                        {"resolve_checkpoint": resolve}):
+            result = self.trainer._resolve_checkpoint_folder()
+        resolve.assert_called_once_with(self.mock_config.trainer)
         self.assertEqual(result, '/abs/ckpt/global_step_5')
 
     # ---------------- _has_sample_meta_info / _is_async_metric_key / _count_stale_trajectories ----

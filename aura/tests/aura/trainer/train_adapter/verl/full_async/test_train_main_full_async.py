@@ -155,6 +155,7 @@ class TestFullyAsyncTaskRunner(unittest.TestCase):
         self.mock_config.extras.delta = 0.1
         self.mock_config.extras.consumed_train_samples = 0
         self.mock_config.trainer = MagicMock()
+        self.mock_config.trainer.resume_mode = 'disable'
         self.mock_config.trainer.device = 'cpu'
         self.mock_config.trainer.get.return_value = True
 
