@@ -35,3 +35,19 @@ class EpisodeStore(ABC):
     def get_episodes(self, workflow_id: str, limit: Optional[int] = None):
         """Retrieve episodes for a given workflow_id."""
         pass
+
+    # Optional capability: old third-party subclasses remain instantiable.
+    def append_trajectories(self, samples, request_id):
+        raise NotImplementedError("This EpisodeStore does not support replay persistence")
+
+    def get_trajectory(self, trajectory_id, source_store_id=None):
+        raise NotImplementedError("This EpisodeStore does not support replay queries")
+
+    def query(self, query=None, **filters):
+        raise NotImplementedError("This EpisodeStore does not support replay queries")
+
+    def query_page(self, query=None, *, cursor=None, **filters):
+        raise NotImplementedError("This EpisodeStore does not support replay pagination")
+
+    def get_replay_manifest(self):
+        raise NotImplementedError("This EpisodeStore does not support replay persistence")

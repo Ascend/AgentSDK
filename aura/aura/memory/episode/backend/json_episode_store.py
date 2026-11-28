@@ -25,17 +25,36 @@ from typing import Optional
 
 from aura.memory.episode.episode import Episode
 from aura.memory.episode.episode_store import EpisodeStore
+from aura.memory.replay.store_adapter import ReplayStoreCapability
 
 logger = logging.getLogger(__name__)
 
 
-class JsonEpisodeStore(EpisodeStore):
+class JsonEpisodeStore(ReplayStoreCapability, EpisodeStore):
     """Json-backed episode store implementation."""
 
-    def __init__(self, path: str):
+    def __init__(self, path: str, *, read_only=False, store_id=None,
+                 max_batch_size=256, max_batch_bytes=64 * 1024 * 1024):
         self.store_path = path
+        if type(read_only) is not bool:
+            raise ValueError("read_only must be bool")
+        self.read_only = read_only
+        self._replay_backend = None
+        self._replay_closed = False
+        self._replay_options = dict(read_only=read_only, store_id=store_id,
+                                    max_batch_size=max_batch_size, max_batch_bytes=max_batch_bytes)
+
+    def _create_replay_store(self):
+        from aura.memory.replay.json_store import JsonReplayStore
+        # Do not mix typed replay commits into the legacy stringified monitoring file.
+        return JsonReplayStore(str(self.store_path) + ".replay.jsonl", **self._replay_options)
+
+    def close(self):
+        self._close_replay()
 
     def store_episode(self, episode_dict: dict, workflow_id: str) -> None:
+        if self.read_only:
+            raise PermissionError("Read-only EpisodeStore")
 
         def convert_to_string(value):
             if isinstance(value, list):
