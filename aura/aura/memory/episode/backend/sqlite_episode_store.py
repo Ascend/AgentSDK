@@ -19,23 +19,40 @@
 
 import json
 import sqlite3
+from pathlib import Path
 from typing import Optional, List, Dict, Any
 from aura.memory.episode.episode_store import Episode, EpisodeStore
 from aura.memory.episode.episode import TerminationReason
+from aura.memory.replay.store_adapter import ReplayStoreCapability
 
 
-class SQLiteEpisodeStore(EpisodeStore):
+class SQLiteEpisodeStore(ReplayStoreCapability, EpisodeStore):
     """SQLite-backed episode store implementation."""
 
-    def __init__(self, db_path: str):
+    def __init__(self, db_path: str, *, read_only=False, store_id=None,
+                 max_batch_size=256, max_batch_bytes=64 * 1024 * 1024):
         """Initialize SQLite episode store.
 
         Args:
             db_path: Path to the SQLite database file
         """
         self.db_path = db_path
-        self.conn = sqlite3.connect(db_path, check_same_thread=False)
-        self._init_db()
+        if type(read_only) is not bool:
+            raise ValueError("read_only must be bool")
+        self.read_only = read_only
+        self._replay_backend = None
+        self._replay_closed = False
+        self._replay_options = dict(read_only=read_only, store_id=store_id,
+                                    max_batch_size=max_batch_size, max_batch_bytes=max_batch_bytes)
+        if read_only:
+            self.conn = sqlite3.connect(Path(db_path).resolve().as_uri() + "?mode=ro", uri=True, check_same_thread=False)
+        else:
+            self.conn = sqlite3.connect(db_path, check_same_thread=False)
+            self._init_db()
+
+    def _create_replay_store(self):
+        from aura.memory.replay.sqlite_store import SQLiteReplayStore
+        return SQLiteReplayStore(self.db_path, **self._replay_options)
 
     def _init_db(self) -> None:
         """Initialize the database schema."""
@@ -97,6 +114,8 @@ class SQLiteEpisodeStore(EpisodeStore):
 
     def store_episode(self, episode: Episode, workflow_id: str) -> None:
         """Store an episode with associated workflow_id."""
+        if self.read_only:
+            raise PermissionError("Read-only EpisodeStore")
         cursor = self.conn.cursor()
 
         # Insert workflow if it doesn't exist
@@ -202,6 +221,7 @@ class SQLiteEpisodeStore(EpisodeStore):
 
     def close(self) -> None:
         """Close the database connection."""
+        self._close_replay()
         if self.conn:
             self.conn.close()
             self.conn = None
