@@ -105,7 +105,7 @@ infer_config_name=vllm_infer_i16_qwen3_8b
 | `hydra.searchpath`                                  | verl 配置模板路径，改为本机 aura 代码仓中 `configs/train/verl_conf` 目录的绝对路径 | `file:///home/work/aura/configs/train/verl_conf` |
 | `verl_conf.extras.data_loader.train_data_path`      | 训练数据集路径（bin/idx 格式，不含文件后缀）                                   | `/data/train/rl`                                 |
 | `verl_conf.actor_rollout_ref.model.path`            | 模型权重路径                                                       | `/data/weights/qwen3-8b`                         |
-| `train_instances.rollout_config.llm_tokenizer_path` | 分词器路径（与模型路径一致）                                               | `/data/weights/qwen3-8b`                         |
+| `train_instances[0].executor_kwargs.rollout_config.llm_tokenizer_path` | 分词器路径，示例配置会引用模型路径 | `/data/weights/qwen3-8b` |
 
 #### 3.2 单步异步分离模式（One Step Off策略）关键配置项
 

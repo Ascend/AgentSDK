@@ -102,17 +102,9 @@ class BaseEngineWrapper(ABC):
     async def generate_trajectory(self, task: AgentTask, stream_queue=None, *args, **kwargs) -> "Trajectory": ...
 ```
 
-**参数说明（构造函数参数）**
+**构造函数说明**
 
-| 参数名                 | 类型     | 说明                  |
-|---------------------|--------|---------------------|
-| agent_name          | str    | Agent 场景名称          |
-| tokenizer           | object | 文本分词器对象             |
-| sampling_params     | dict   | 模型推理时的采样参数          |
-| max_prompt_length   | int    | 输入提示的最大长度，默认 128k   |
-| max_response_length | int    | 输出响应的最大长度，默认 8k     |
-| n_parallel_agents   | int    | 并行执行的 Agent 数量，默认 8 |
-| max_steps           | int    | Agent 执行的最大步骤数，默认 5 |
+基类的构造函数接收 `*args` 和 `**kwargs`，具体参数由各子类定义。用户指南中的自定义引擎示例将 `max_prompt_length`、`max_response_length` 和 `n_parallel_agents` 分别设为默认 131072 个 token、8192 个 token 和 8 个 Agent。实际使用 rLLM 引擎时，以本页的 [agent_instances配置](#agent_instances配置) 和 YAML 中的显式配置为准。
 
 **文件位置**: `aura/runner/agent_engine_wrapper/base_engine_wrapper.py`
 
@@ -238,26 +230,36 @@ class Trajectory:
     toolcall_reward: float = 0.0
     res_reward: float = 0.0
     prompt_id: int = 0
-    data_id: str = None
-    training_id: str = None
-    epoch_id: int = 0
-    iteration_id: int = 0
-    sample_id: int = 0
-    trajectory_id: int = 0
-    application_id: str = ""
+    data_id: Optional[str] = None
+    training_id: Optional[str] = None
+    epoch_id = 0
+    iteration_id = 0
+    sample_id = 0
+    trajectory_id = 0
+    application_id = ""
     termination_reason: str = "unknown"
 ```
 
 **参数说明**
 
-| 参数名                | 类型         | 说明     |
-|--------------------|------------|--------|
-| task               | Any        | 原始任务输入 |
-| steps              | list[Step] | 所有步骤列表 |
-| reward             | float      | 轨迹总奖励  |
-| toolcall_reward    | float      | 工具调用奖励 |
-| res_reward         | float      | 最终结果奖励 |
-| termination_reason | str        | 终止原因   |
+| 字段 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `task` | Any | `None` | 原始任务输入。 |
+| `steps` | list[Step] | 空列表 | 轨迹上的步骤，每个实例单独创建列表。 |
+| `reward` | float | `0.0` | 轨迹总奖励。 |
+| `toolcall_reward` | float | `0.0` | 工具调用奖励。 |
+| `res_reward` | float | `0.0` | 最终结果奖励。 |
+| `prompt_id` | int 或 str | `0` | 输入提示标识，rLLM 运行时可赋为字符串。 |
+| `data_id` | Optional[str] | `None` | 数据标识，生成轨迹时由引擎设置。 |
+| `training_id` | Optional[str] | `None` | 本次训练运行的标识。 |
+| `epoch_id` | int | `0` | 训练轮次编号。 |
+| `iteration_id` | int | `0` | 训练迭代编号。 |
+| `sample_id` | int | `0` | 采样编号。 |
+| `trajectory_id` | int 或 str | `0` | 轨迹标识，rLLM 生成轨迹时赋为字符串。 |
+| `application_id` | str | 空字符串 | 关联 Agent 执行记录的标识。 |
+| `termination_reason` | str | `"unknown"` | 轨迹终止原因。 |
+
+`epoch_id`、`iteration_id`、`sample_id`、`trajectory_id` 和 `application_id` 由引擎在运行时设置，初始化时来自类属性。
 
 **文件位置**: `aura/runner/agent_engine_wrapper/base/agent/base_agent.py`
 
@@ -347,12 +349,12 @@ python aura/start.py --config-name=${CONFIG_NAME} 2>&1 | tee ${LOG_PATH}/train_u
 |--------------------|------------------------------|
 | host               | 节点IP                         |
 | index              | 当前节点的索引值。从0开始计数，用于区分不同节点     |
-| train_master_index | 训练任务的主节点索引。为1时该节点启动训练任务      |
-| infer_master_index | 推理任务的主节点索引。默认为0，为1时该节点启动推理任务 |
+| train_master_index | 训练主节点标记。仅训练主节点填 `1`，该行的 `index` 用作训练主节点索引。其余节点填 `0`。 |
+| infer_master_index | 共节点部署时的推理主节点标记，填 `1` 的行用其 `index` 作为推理主节点索引。分离模式省略此列。 |
 
 1. 单机部署共卡模式，单机设置单个节点，设置train_master_index和infer_master_index均为1。
 
-2. 双机部署分离模式，双机设置两个节点，只需设置train_master_index分别为0和1，其中设置train_master_index为0是推理节点，设置为1是训练节点。
+2. 双机分离模式填写两行，各行只填前三列。推理节点填写 `index=0`、`train_master_index=0`，训练节点填写 `index=1`、`train_master_index=1`。脚本以训练主节点的 `index` 为界，较小的索引分配给推理，其余索引分配给训练。
 
 **base.conf文件设置说明**
 
@@ -604,18 +606,18 @@ python aura/start.py --config-name=${CONFIG_NAME} 2>&1 | tee ${LOG_PATH}/train_u
 | 参数名                                                        | 类型   | 说明                   | 约束                                    |
 |------------------------------------------------------------|------|----------------------|---------------------------------------|
 | name                                                       | str  | Agent服务名称            | 必须唯一，建议使用有意义的命名                       |
-| executor_num                                               | int  | 执行器数量                | 应为大于0的整数，默认值为1                        |
-| executor_kwargs.agent_engine                               | str  | Agent引擎类型            | 可选值为"rllm"等                           |
-| executor_kwargs.agent_engine_kwargs.agent_name             | str  | Agent名称              | 应为有效的内置Agent名称，如"math"                |
+| executor_num                                               | int  | 执行器数量                | 必填，大于 0 的整数                            |
+| executor_kwargs.agent_engine                               | str  | Agent引擎类型            | 例如，使用 rLLM 引擎时填 `rllm` |
+| executor_kwargs.agent_engine_kwargs.agent_name             | str  | rLLM Agent 名称         | 应为 `AGENTS_MAPPING` 中注册的名称，例如内置的 `math` 或自定义注册的名称 |
 | executor_kwargs.agent_engine_kwargs.simplify_think_content | bool | 是否简化思考内容             | 默认值为false                             |
-| executor_kwargs.agent_engine_kwargs.max_steps              | int  | 最大步数                 | 应为大于0的整数，默认值为5                        |
-| executor_kwargs.agent_engine_kwargs.max_prompt_length      | int  | agent 输入 prompt 最大长度 | 应为大于0的整数，默认值为2048                     |
-| executor_kwargs.agent_engine_kwargs.max_model_len          | int  | 模型最大上下文长度            | 应为大于0的整数，默认值为4096                     |
-| executor_kwargs.agent_engine_kwargs.n_parallel_agents      | int  | 并行Agent数量            | 应为大于0的整数，默认值为1024                     |
+| executor_kwargs.agent_engine_kwargs.env_args.max_steps     | int  | rLLM 最大轨迹步数         | 大于 0 的整数，注册项也未指定时默认 `10`           |
+| executor_kwargs.agent_engine_kwargs.max_prompt_length      | int  | rLLM 输入提示的 token 数上限 | 大于 0 的整数，rLLM 构造函数默认 `8192`           |
+| executor_kwargs.agent_engine_kwargs.max_model_len          | int  | rLLM 模型上下文的 token 数上限 | 大于 0 的整数，rLLM 构造函数默认 `16384`         |
+| executor_kwargs.agent_engine_kwargs.n_parallel_agents      | int  | 并行 Agent 数量           | 大于 0 的整数，rLLM 和 VAEE 的构造函数默认均为 `8`   |
 | executor_kwargs.agent_engine_kwargs.tokenizer              | str  | 分词器路径                | 应为有效的分词器路径                            |
 | executor_kwargs.infer_service_params                       | dict | 推理服务参数               | 包含top_p、temperature、max_tokens、model等 |
 | executor_kwargs.trajectory_save_dir                        | str  | 轨迹保存目录               | 应为有效的文件路径                             |
-| resource_info                                              | list | 整个agent服务的资源描述       | 默认为空列表                                |
+| resource_info                                              | list | 执行器的资源申请配置          | 必填，无需单独申请资源时填 `[]`                  |
 
 #### 黑盒Agent模式（vaee）配置
 
@@ -629,7 +631,8 @@ python aura/start.py --config-name=${CONFIG_NAME} 2>&1 | tee ${LOG_PATH}/train_u
 | executor_kwargs.agent_engine_kwargs.agent_proxy_args.traj_addr | str | TrajProxy 服务地址 | 应与traj_proxy_args.infer_url一致 |
 | executor_kwargs.agent_engine_kwargs.agent_proxy_args.run_id | str | 运行标识，TrajProxy 按此分组管理轨迹 | 应为唯一标识 |
 | executor_kwargs.agent_engine_kwargs.traj_proxy_args.infer_url | str | TrajProxy 服务地址，用于拉取轨迹 | 应为有效的通信地址 |
-| executor_kwargs.agent_engine_kwargs.res_reward_func | str | 步骤级奖励函数路径（可选） | 应为有效的函数路径 |
+| executor_kwargs.agent_engine_kwargs.res_reward_func | str | 步骤级结果奖励函数路径（可选），省略时跳过自定义步骤奖励计算 | 应为有效的函数路径 |
+| executor_kwargs.agent_engine_kwargs.traj_reward_func | str | 轨迹级奖励函数路径（可选），省略时使用默认实现 | 应为有效的函数路径 |
 | executor_kwargs.agent_engine_kwargs.traj_refine_func | str | 轨迹聚合函数路径（可选），不配置则使用默认实现 | 应为有效的函数路径 |
 
 **黑盒Agent配置示例**：
@@ -693,6 +696,8 @@ agent_instances:
 | `model.path`                | 模型权重路径       |
 | `tokenizer`                 | 分词器路径        |
 | `trajectory_save_dir`       | 轨迹数据保存路径     |
+
+示例在 `agent_engine_kwargs.env_args.max_steps` 中将最大轨迹步数设为 5。`max_prompt_length`、`max_model_len` 和 `n_parallel_agents` 是此示例为 rLLM 显式设置的值。
 
 ```yaml
 # 全局配置
@@ -809,7 +814,8 @@ agent_instances:
       agent_engine_kwargs:
         agent_name: math
         simplify_think_content: false
-        max_steps: 5
+        env_args:
+          max_steps: 5
         max_prompt_length: 2048
         max_model_len: 4096
         n_parallel_agents: 1024
@@ -958,13 +964,25 @@ VAEE（Virtual Agent Engine Execution Wrapper）是黑盒Agent模式的虚拟引
 
 **Agent loop 中的 LLM 调用必须走 `infer_url`**，Agent 服务的每一步 LLM 调用，**必须将请求发送到 `infer_url`**（即 TrajProxy），而非直接调用 vLLM，确保每一步 LLM 调用都经过 TrajProxy。
 
-```python
-# 正确：走 infer_url → TrajProxy 记录轨迹
-url = f"{self.infer_url}/chat/completions"
-response = await httpx.post(url, json=body)
+**正确示例（通过 TrajProxy 记录轨迹）**
 
-# 错误：直连 vLLM，TrajProxy 收不到任何记录，轨迹为空
-response = await httpx.post("http://vllm:8000/v1/chat/completions", json=body)
+```python
+import httpx
+
+async def request_inference(infer_url: str, body: dict) -> httpx.Response:
+    url = f"{infer_url.rstrip('/')}/chat/completions"
+    async with httpx.AsyncClient() as client:
+        return await client.post(url, json=body)
+```
+
+**错误示例（直连 vLLM，TrajProxy 无法记录这次调用）**
+
+```python
+import httpx
+
+async def request_vllm_directly(body: dict) -> httpx.Response:
+    async with httpx.AsyncClient() as client:
+        return await client.post("http://vllm:8000/v1/chat/completions", json=body)
 ```
 
 **最小参考实现**：
@@ -1051,7 +1069,7 @@ async def handle(body: ChatCompletionRequest):
 
 ##### 约束 2：轨迹聚合与奖励函数需符合签名
 
-如果自定义 `traj_refine_func`、`res_reward_func`，其函数签名必须符合下述接口定义，否则训练流程会因类型错误而中断。如果不配置，框架使用默认实现。
+自定义 `traj_refine_func`、`res_reward_func` 或 `traj_reward_func` 时，函数签名须符合对应接口的定义。省略聚合或轨迹级奖励函数时使用默认实现。省略 `res_reward_func` 时跳过自定义步骤奖励计算。
 
 ###### traj_refine_func：轨迹聚合函数
 
@@ -1094,4 +1112,15 @@ def traj_reward_func(
 ) -> Episode:
 ```
 
-**参考实现**: aura/agents/proxy_agent/math/ozy_math_reward.py
+默认实现见 [default_traj_reward_func](../../../aura/aura/runner/agent_engine_wrapper/vaee/default_traj_reward.py)。
+
+###### res_reward_func：步骤级结果奖励函数
+
+引擎逐步调用此函数，将当前步骤动作和任务信息作为关键字参数传入，使用返回的 `RewardOutput.reward` 设置步骤奖励。
+
+```python
+def res_reward_func(action: dict, task_info: dict) -> RewardOutput:
+    ...
+```
+
+步骤级数学奖励示例见 [math_res_reward_fn](../../../aura/agents/proxy_agent/math/ozy_math_reward.py)。

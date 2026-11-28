@@ -220,7 +220,7 @@ python3 /path/to/AgentSDK/aura/cli/preprocess_data.py gsm8k
 处理完成后会生成以下文件：
 
 ```text
-/path/to/output/
+/path/to/output/train/
 ├── rl_packed_attention_mask_document.bin    # attention mask 二进制数据
 ├── rl_packed_attention_mask_document.idx    # attention mask 索引文件
 ├── rl_packed_input_ids_document.bin         # input ids 二进制数据

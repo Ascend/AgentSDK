@@ -103,7 +103,7 @@ Modify the following parameters based on your actual environment:
 | `hydra.searchpath` | Path of the verl configuration template. Change it to the absolute path of the `configs/train/verl_conf` directory in the aura code repository on your machine. | `file:///home/work/aura/configs/train/verl_conf` |
 | `verl_conf.extras.data_loader.train_data_path` | Training dataset path (in the bin/idx format, without the file suffix). | `/data/train/rl` |
 | `verl_conf.actor_rollout_ref.model.path` | Model weight path. | `/data/weights/qwen3-8b` |
-| `train_instances.rollout_config.llm_tokenizer_path` | Tokenizer path (the same as the model path). | `/data/weights/qwen3-8b` |
+| `train_instances[0].executor_kwargs.rollout_config.llm_tokenizer_path` | Tokenizer path. The example configuration references the model path. | `/data/weights/qwen3-8b` |
 
 #### 3.2 Key Configuration Items for One-Step Asynchronous Disaggregation Mode (One Step Off Strategy)
 

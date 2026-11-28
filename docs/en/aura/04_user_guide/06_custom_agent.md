@@ -180,15 +180,27 @@ agent_instances:
 
 **`agent_instances` Configuration Items:**
 
-| Parameter | Description |
-|------|------|
-| `name` | Agent service name. The `agent_service` field in the training configuration references this value |
-| `executor_num` | Number of agent executors |
-| `executor_kwargs.agent_engine` | Agent engine type. Use `rllm` |
-| `executor_kwargs.agent_engine_kwargs.agent_name` | Name of the agent registered in `agents_mapping` |
-| `executor_kwargs.agent_engine_kwargs.env_args` | Environment parameters, which are merged with the `env_args` in `agents_mapping` |
-| `executor_kwargs.infer_service_params` | Sampling parameters for model inference |
-| `executor_kwargs.trajectory_save_dir` | Directory in which to save trajectories |
+The following table applies to the rLLM engine used in this section. Required parameters must be present in the merged YAML. Paths that start with `agent_engine_kwargs.` are relative to `executor_kwargs`.
+
+| Parameter | Type | Required | Description and default |
+|------|------|------|-------------|
+| `name` | str | Yes | Unique agent service name referenced by `agent_service` in the training configuration. |
+| `executor_num` | int | Yes | Number of executors. Specify a positive integer. |
+| `executor_kwargs.agent_engine` | str | Yes | Set to `rllm` for this engine. |
+| `agent_engine_kwargs.agent_name` | str | Yes | Name of the agent registered in `AGENTS_MAPPING`. |
+| `agent_engine_kwargs.simplify_think_content` | bool | No | Whether to simplify the reasoning content. Defaults to `false`. |
+| `agent_engine_kwargs.max_prompt_length` | int | No | Maximum number of input prompt tokens. Specify a positive integer. Defaults to `8192`. |
+| `agent_engine_kwargs.max_model_len` | int | No | Maximum number of tokens in the model context. Specify a positive integer. Defaults to `16384`. |
+| `agent_engine_kwargs.n_parallel_agents` | int | No | Number of agents to run in parallel. Specify a positive integer. Defaults to `8`. |
+| `agent_engine_kwargs.token_in_token_out` | bool | No | Whether to pass model inputs and outputs as token IDs. Defaults to `false`. |
+| `agent_engine_kwargs.env_args` | dict | No | Environment parameters that override the registered values. If omitted, the registered configuration applies. |
+| `agent_engine_kwargs.env_args.max_steps` | int | No | Maximum number of steps per trajectory. Specify a positive integer. Defaults to `10` when the registry entry also omits it. |
+| `agent_engine_kwargs.env_args.tool_timeout` | int or float | No | Timeout for a single tool call in seconds. Specify a positive number. Defaults to `2000` when the registry entry also omits it. |
+| `agent_engine_kwargs.env_args.trajectory_timeout` | int or float | No | Timeout for a single trajectory in seconds. Specify a positive number. Defaults to `7200` when the registry entry also omits it. |
+| `agent_engine_kwargs.tokenizer` | str | Yes | Path to the model tokenizer. |
+| `executor_kwargs.infer_service_params` | dict | Yes | Inference service and sampling parameters, such as `model`, `temperature`, `top_p`, and `max_tokens`. |
+| `executor_kwargs.trajectory_save_dir` | str | Yes | Path where trajectories are saved. |
+| `resource_info` | list | Yes | Resources to request for the executor. Use `[]` if the executor needs no separate resource allocation. |
 
 ### Parameter Merging Mechanism
 
@@ -223,7 +235,7 @@ Agent SDK provides the following built-in agents, which you can use as reference
 | Agent executor | [agent_executor.py](../../../../aura/aura/runner/agent_service/agent_executor.py) | The `AgentExecutor`, which creates the RLLMEngineWrapper |
 | Agent manager | [agent_manager.py](../../../../aura/aura/runner/agent_manager.py) | The `AgentManager`, which reads the configuration and creates executor instances |
 | Agent router | [agent_router.py](../../../../aura/aura/runner/agent_router.py) | The `AgentRouter`, which routes requests to specific executors |
-| RLLM engine | [rllm_engine_wrapper.py](../../../../aura/aura/runner/agent_engine_wrapper/rllm/rllm_engine_wrapper.py) | The `RLLMEngineWrapper`, the local agent execution engine |
+| rLLM engine | [rllm_engine_wrapper.py](../../../../aura/aura/runner/agent_engine_wrapper/rllm/rllm_engine_wrapper.py) | The `RLLMEngineWrapper`, the local agent execution engine |
 
 ## FAQ
 

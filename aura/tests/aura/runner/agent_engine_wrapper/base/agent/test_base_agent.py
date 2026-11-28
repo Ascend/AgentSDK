@@ -226,6 +226,8 @@ class TestTrajectory:
         assert default_trajectory.toolcall_reward == 0.0
         assert default_trajectory.res_reward == 0.0
         assert default_trajectory.prompt_id == 0
+        assert default_trajectory.data_id is None
+        assert default_trajectory.training_id is None
         assert default_trajectory.termination_reason == "unknown"
 
     def test_class_level_attributes_defaults(self, default_trajectory):
@@ -251,6 +253,8 @@ class TestTrajectory:
         assert result["steps"] == []
         assert result["reward"] == 0.0
         assert result["prompt_id"] == 0
+        assert result["data_id"] is None
+        assert result["training_id"] is None
         assert result["epoch_id"] == 0
         assert result["iteration_id"] == 0
         assert result["sample_id"] == 0
@@ -287,6 +291,8 @@ class TestTrajectory:
         """to_info_dict on empty Trajectory produces correct structure."""
         result = default_trajectory.to_info_dict()
         assert result["task"] is None
+        assert result["data_id"] is None
+        assert result["training_id"] is None
         assert result["total_steps"] == 0
         assert result["termination_reason"] == "unknown"
 

@@ -41,7 +41,7 @@ Agent SDK分布式训练服务需要在设备间进行通信，通信开启的�
 
     # 在多机场景下设定白名单，允许其他节点访问主节点的侦听端口
     # 在规则链中添加允许特定IP地址范围的规则
-    iptables -t filter -A {规则名} -i eth0 -p tcp --dport $port -s {允许外部访问的IP} -j ACCEPT
+    iptables -t filter -A {规则名} -i {要限制的网卡名} -p tcp --dport $port -s {允许外部访问的IP} -j ACCEPT
 
     # 屏蔽外部地址访问分布式训练端口
     # 在PORT-LIMIT-RULE规则链中添加拒绝其他IP地址的规则

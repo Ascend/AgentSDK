@@ -2,7 +2,7 @@
 
 ## Key Features
 
-- Aura adds training in the fully asynchronous disaggregation mode and the mixed batch scheduling mode, and adds the black-box agent feature.
+- Aura adds support for training in fully asynchronous disaggregation mode, training with mixed batch scheduling, and black-box agents.
 - Aura adds support for the Qwen3-14B, Qwen3.6-27B, and Qwen3.6-35B-A3B models.
 
 ## Version Mapping<a name="ZH-CN_TOPIC_0000002545204925"></a>
@@ -43,7 +43,7 @@
 
 | Agent SDK | CANN Version | Ascend HDK Version |
 |-----------|--------|--------------|
-| 26.2.0    | 9.0.0  | 26.0.0       |
+| 26.2.0    | 9.0.0  | 26.0.RC1     |
 
 ### Operating System Mapping
 

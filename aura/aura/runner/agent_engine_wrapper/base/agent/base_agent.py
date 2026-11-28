@@ -4,6 +4,7 @@
 # -------------------------------------------------------------------------
 # This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Copyright (c) rllm-org. All rights reserved.
 #
 # AgentSDK is licensed under Mulan PSL v2.
 # You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -19,7 +20,7 @@
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Optional
 
 
 @dataclass
@@ -66,8 +67,8 @@ class Trajectory:
     toolcall_reward: float = 0.0
     res_reward: float = 0.0
     prompt_id: int = 0
-    data_id: str = None,
-    training_id: str = None
+    data_id: Optional[str] = None
+    training_id: Optional[str] = None
     epoch_id = 0
     iteration_id = 0
     sample_id = 0

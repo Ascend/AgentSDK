@@ -113,7 +113,7 @@ infer_config_name=vllm_infer_i16_qwen36_27b
 | `hydra.searchpath`                                  | verl配置模板路径，改为aura代码仓中 `configs/train/verl_conf` 目录的绝对路径 | `file:///home/work/aura/configs/train/verl_conf` |
 | `verl_conf.extras.data_loader.train_data_path`      | 训练数据集路径（bin/idx格式，不含文件后缀）                               | `/data/train/rl`                                 |
 | `verl_conf.actor_rollout_ref.model.path`            | 模型权重路径                                                  | `/data/weights/Qwen3.6-27B`                      |
-| `train_instances.rollout_config.llm_tokenizer_path` | 分词器路径（与模型路径一致）                                          | `/data/weights/Qwen3.6-27B`                      |
+| `train_instances[0].executor_kwargs.rollout_config.llm_tokenizer_path` | 分词器路径，示例配置会引用模型路径 | `/data/weights/Qwen3.6-27B` |
 
 #### 3.2 混合批次调度关键配置项
 
@@ -161,7 +161,7 @@ train_instances:
 |--------------------------|---------------------------------------------------------------------------|---------------------------------|
 | `init_num_group_batches` | 推理端首次加载的prompt数量                                                          | 推荐为2                            |
 | `hybrid_batch_num`       | 一次权重更新后推理端连续处理的batch数量。值越大，权重切换频率越低，但off-policy偏差越大                       | 推荐为2，且与init_num_group_batches相等 |
-| `enable_version_control` | 启用版本控制后，推理端只在 `required_version == max_possible_version - 1` 时更新权重，跳过中间版本 | true                            |
+| `enable_version_control` | 启用后，常规 Off-Policy 流程仅在输入权重版本 `input_weight_version` 等于期望版本 `required_version` 时转换并落盘，跳过中间版本。期望版本为 `max_possible_version - 1`。 | true |
 
 > [!IMPORTANT] 关键配置
 > 这三个参数必须协同配置。`hybrid_batch_num`决定权重切换的步长，`init_num_group_batches`确保推理端初始就有足够数据，`enable_version_control`保证off-policy下推理权重版本按照期望更新。

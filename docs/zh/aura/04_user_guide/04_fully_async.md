@@ -94,12 +94,12 @@ Agent SDK的训推分离采用两层设计：
 <节点IP2>,1,1
 ```
 
-| 参数 | 说明 |
-|------|------|
-| host | 节点 IP 地址 |
-| index | 节点索引，从 0 开始。**推理节点索引必须小于训练节点索引** |
-| train_master_index | 训练主节点标识，设为 1 表示该节点启动训练。**仅在训练节点上配置** |
-| infer_master_index | 推理主节点标识。**分离模式下不配置此参数** |
+| 参数 | 类型 | 必填 | 格式和约束 | 示例 |
+|------|------|------|-----------|------|
+| `host` | 字符串 | 是 | 节点 IP 地址，与本机配置网卡上的地址匹配。 | `192.168.0.1` |
+| `index` | 整数 | 是 | 从 0 开始，节点序号不重复。推理节点序号小于训练主节点序号。 | `0` |
+| `train_master_index` | 整数 | 是 | 训练主节点填 `1`，其余节点填 `0`。全表仅一行填 `1`。 | `0` |
+| `infer_master_index` | 整数 | 分离模式省略 | 共节点部署时才使用此标记。分离模式只填写前三列。 | — |
 
 > [!NOTE]
 > 分离模式的关键标志是**不配置 `infer_master_index`**。系统根据 `VC_TASK_INDEX < MASTER_TRAIN_INDEX` 判定节点为推理节点，`VC_TASK_INDEX >= MASTER_TRAIN_INDEX` 判定为训练节点。推理节点必须排在训练节点前面（节点类型判断逻辑详见 [start_rl_with_verl_vllm.sh](../../../../aura/scripts/start_rl_with_verl_vllm.sh)，参数解析详见 [utils.sh](../../../../aura/scripts/base/utils.sh)）。
@@ -119,11 +119,11 @@ train_config_name=verl_train_fully_async_A3_t16_qwen3_32b_math_fsdp
 infer_config_name=vllm_infer_i16_qwen3_32b
 ```
 
-| 参数 | 说明 |
-|------|------|
-| work_mode | 设为 `fully_async` 表示全异步分离模式 |
-| train_config_name | 训练YAML配置文件名（不含 .yaml 后缀） |
-| infer_config_name | 推理YAML配置文件名（不含 .yaml 后缀），**分离模式必须配置** |
+| 参数 | 类型 | 必填 | 格式和约束 | 示例 |
+|------|------|------|-----------|------|
+| `work_mode` | 字符串 | 是 | 本模式固定为 `fully_async`。 | `fully_async` |
+| `train_config_name` | 字符串 | 是 | `configs/train/` 下的 YAML 文件名，省略 `.yaml`。 | `verl_train_fully_async_A3_t16_qwen3_32b_math_fsdp` |
+| `infer_config_name` | 字符串 | 是 | `configs/infer/` 下的 YAML 文件名，省略 `.yaml`。 | `vllm_infer_i16_qwen3_32b` |
 
 ### 步骤 3：修改训练YAML配置文件
 
@@ -138,7 +138,7 @@ infer_config_name=vllm_infer_i16_qwen3_32b
 | `hydra.searchpath`                                  | verl 配置模板路径，改为本机 aura 代码仓中 `configs/train/verl_conf` 目录的绝对路径 | `file:///home/work/aura/configs/train/verl_conf` |
 | `verl_conf.extras.data_loader.train_data_path`      | 训练数据集路径（bin/idx 格式，不含文件后缀）                                   | `/data/train/rl`                                 |
 | `verl_conf.actor_rollout_ref.model.path`            | 模型权重路径                                                       | `/data/weights/qwen3-32b`                        |
-| `train_instances.rollout_config.llm_tokenizer_path` | 分词器路径（与模型路径一致）                                               | `/data/weights/qwen3-32b`                        |
+| `train_instances[0].executor_kwargs.rollout_config.llm_tokenizer_path` | 分词器路径，示例配置会引用模型路径 | `/data/weights/qwen3-32b` |
 
 #### 3.2 全异步分离模式（Fully Async策略）关键配置项
 

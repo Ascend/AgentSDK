@@ -111,7 +111,7 @@ Modify the following parameters based on your actual environment.
 | `hydra.searchpath`                                  | Path of the verl configuration template. Change it to the absolute path of the `configs/train/verl_conf` directory in the aura code repository. | `file:///home/work/aura/configs/train/verl_conf` |
 | `verl_conf.extras.data_loader.train_data_path`      | Training dataset path (the bin/idx format, without the file suffix).                               | `/data/train/rl`                                 |
 | `verl_conf.actor_rollout_ref.model.path`            | Model weight path.                                                  | `/data/weights/Qwen3.6-27B`                      |
-| `train_instances.rollout_config.llm_tokenizer_path` | Tokenizer path (the same as the model path).                                          | `/data/weights/Qwen3.6-27B`                      |
+| `train_instances[0].executor_kwargs.rollout_config.llm_tokenizer_path` | Tokenizer path. The example configuration references the model path. | `/data/weights/Qwen3.6-27B` |
 
 #### 3.2 Key Configuration Items for Mixed Batch Scheduling
 
@@ -159,7 +159,7 @@ train_instances:
 |--------------------------|---------------------------------------------------------------------------|---------------------------------|
 | `init_num_group_batches` | Number of prompts that the inference side loads for the first time.                                                          | 2                            |
 | `hybrid_batch_num`       | Number of batches that the inference side processes consecutively after one weight update. The larger the value, the lower the weight switching frequency, but the greater the off-policy deviation.                       | 2, equal to `init_num_group_batches` |
-| `enable_version_control` | After you enable version control, the inference side updates weights only when `required_version == max_possible_version - 1`, and it skips intermediate versions. | true                            |
+| `enable_version_control` | When enabled, the standard off-policy flow converts and saves weights only when the input version `input_weight_version` matches the required version `required_version`. The required version is `max_possible_version - 1`, and intermediate versions are skipped. | true |
 
 > [!IMPORTANT]
 > You must configure these three parameters in coordination. `hybrid_batch_num` determines the step size of weight switching, `init_num_group_batches` ensures that the inference side has enough data at the start, and `enable_version_control` ensures that the inference weight version is updated as expected under off-policy.

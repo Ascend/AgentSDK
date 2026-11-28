@@ -96,7 +96,7 @@ train_config_name=verl_train_hybrid_A3_t16_qwen3_4b_math_fsdp
 | `verl_conf.data.train_files`                        | 训练数据集路径（parquet 格式）                                          | `/data/train.parquet`                            |
 | `verl_conf.data.val_files`                          | 验证数据集路径（parquet 格式）                                          | `/data/test.parquet`                             |
 | `verl_conf.actor_rollout_ref.model.path`            | 模型权重路径                                                       | `/data/weights/qwen3-4b`                         |
-| `train_instances.rollout_config.llm_tokenizer_path` | 分词器路径（与模型路径一致）                                               | `/data/weights/qwen3-4b`                         |
+| `train_instances[0].executor_kwargs.rollout_config.llm_tokenizer_path` | 分词器路径，示例配置会引用模型路径 | `/data/weights/qwen3-4b` |
 
 #### 3.2 共卡模式关键配置项
 
@@ -139,7 +139,7 @@ verl_conf:
 verl_conf:
   actor_rollout_ref:
     rollout:
-      tensor_model_parallel_size: 4    # 训练张量并行大小
+      tensor_model_parallel_size: 8    # 训练张量并行大小
       data_parallel_size: 2            # 训练数据并行大小
   trainer:
     n_gpus_per_node: 16               # 每节点卡数
@@ -158,7 +158,7 @@ infer_instances:
       engine_kwargs:
         chat_server: "http://0.0.0.0:8080"   # 默认即可，启动脚本会自动修改
         model_name: Qwen3-4B
-        tensor_parallel_size: 4               # 推理张量并行大小
+        tensor_parallel_size: 8               # 推理张量并行大小
         data_parallel_size: 2                 # 推理数据并行大小
 ```
 
@@ -193,7 +193,7 @@ verl_conf:
 | DP（数据并行） | `infer_instances.executor_kwargs.engine_kwargs.data_parallel_size` | 推理 worker 数量 |
 
 > [!NOTE]
-> 共卡模式下，训练和推理使用同一组卡，交替执行：推理时这组卡做推理，推理完成后释放显存，训练时这组卡做训练更新。因此训练所需卡数和推理所需卡数应一致，且等于节点总卡数。例如单机 16 卡，训练 TP=4/DP=4（16 卡），推理 TP=4/DP=4（16 卡），两者共享同一组 16 卡。
+> 共卡模式下，训练和推理使用同一组卡，交替执行：推理时这组卡做推理，推理完成后释放显存，训练时这组卡做训练更新。因此训练所需卡数和推理所需卡数应一致，且等于节点总卡数。例如单机 16 卡，训练 TP=8/DP=2（16 卡），推理 TP=8/DP=2（16 卡），两者共享同一组 16 卡。
 
 ### 步骤 4：启动训练
 

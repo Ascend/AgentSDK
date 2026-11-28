@@ -102,17 +102,9 @@ class BaseEngineWrapper(ABC):
     async def generate_trajectory(self, task: AgentTask, stream_queue=None, *args, **kwargs) -> "Trajectory": ...
 ```
 
-**Parameters (Constructor Parameters)**
+**Constructor**
 
-| Parameter Name      | Type   | Description                                          |
-|---------------------|--------|------------------------------------------------------|
-| agent_name          | str    | Agent scenario name                                  |
-| tokenizer           | object | Text tokenizer object                                |
-| sampling_params     | dict   | Sampling parameters for model inference              |
-| max_prompt_length   | int    | Maximum length of the input prompt, default: 128k    |
-| max_response_length | int    | Maximum length of the output response, default: 8k   |
-| n_parallel_agents   | int    | Number of agents executed in parallel, default: 8    |
-| max_steps           | int    | Maximum number of steps that the agent executes, default: 5 |
+The base class constructor accepts `*args` and `**kwargs`. Each subclass defines its own parameters. The custom engine example in the user guide sets `max_prompt_length` to 131072 tokens, `max_response_length` to 8192 tokens, and `n_parallel_agents` to 8 by default. For rLLM, see [Agent instance configuration](#agent_instances-configuration) and the values explicitly set in your YAML file.
 
 **File location**: `aura/runner/agent_engine_wrapper/base_engine_wrapper.py`
 
@@ -238,26 +230,36 @@ class Trajectory:
     toolcall_reward: float = 0.0
     res_reward: float = 0.0
     prompt_id: int = 0
-    data_id: str = None
-    training_id: str = None
-    epoch_id: int = 0
-    iteration_id: int = 0
-    sample_id: int = 0
-    trajectory_id: int = 0
-    application_id: str = ""
+    data_id: Optional[str] = None
+    training_id: Optional[str] = None
+    epoch_id = 0
+    iteration_id = 0
+    sample_id = 0
+    trajectory_id = 0
+    application_id = ""
     termination_reason: str = "unknown"
 ```
 
 **Parameters**
 
-| Parameter Name     | Type       | Description               |
-|--------------------|------------|---------------------------|
-| task               | Any        | Original task input       |
-| steps              | list[Step] | List of all steps         |
-| reward             | float      | Total trajectory reward   |
-| toolcall_reward    | float      | Tool call reward          |
-| res_reward         | float      | Final result reward       |
-| termination_reason | str        | Termination reason        |
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `task` | Any | `None` | Original task input. |
+| `steps` | list[Step] | Empty list | Steps in the trajectory. Each instance starts with its own list. |
+| `reward` | float | `0.0` | Total trajectory reward. |
+| `toolcall_reward` | float | `0.0` | Reward for tool calls. |
+| `res_reward` | float | `0.0` | Final result reward. |
+| `prompt_id` | int or str | `0` | Input prompt identifier. rLLM can assign a string at runtime. |
+| `data_id` | Optional[str] | `None` | Data identifier set by the engine when it generates the trajectory. |
+| `training_id` | Optional[str] | `None` | Identifier of the training run. |
+| `epoch_id` | int | `0` | Training epoch number. |
+| `iteration_id` | int | `0` | Training iteration number. |
+| `sample_id` | int | `0` | Sample number. |
+| `trajectory_id` | int or str | `0` | Trajectory identifier. rLLM assigns a string when it generates the trajectory. |
+| `application_id` | str | Empty string | Identifier that associates the trajectory with an agent execution record. |
+| `termination_reason` | str | `"unknown"` | Reason the trajectory ended. |
+
+The engine sets `epoch_id`, `iteration_id`, `sample_id`, `trajectory_id`, and `application_id` at runtime. Their initial values come from the class attributes.
 
 **File location**: `aura/runner/agent_engine_wrapper/base/agent/base_agent.py`
 
@@ -347,12 +349,12 @@ You must set `hosts.conf` to start the service. This file is located in the `aur
 |--------------------|--------------------------------------------------------------------------------------------|
 | host               | Node IP address                                                                            |
 | index              | Index value of the current node. It starts from 0 and distinguishes different nodes        |
-| train_master_index | Index of the master node for the training task. When it is 1, the node starts the training task |
-| infer_master_index | Index of the master node for the inference task. The default value is 0. When it is 1, the node starts the inference task |
+| train_master_index | Training master flag. Set it to `1` on the training master and to `0` on other nodes. The script uses the flagged row's `index` as the training master index. |
+| infer_master_index | Inference master flag for co-located deployment. The script uses the `index` of the row marked `1` as the inference master index. Omit this column in disaggregation mode. |
 
 1. For single-node deployment in co-located mode, configure a single node for the single machine, and set both `train_master_index` and `infer_master_index` to 1.
 
-2. For two-node deployment in disaggregation mode, configure two nodes for the two machines, and set `train_master_index` to 0 and 1 respectively. The node whose `train_master_index` is set to 0 is the inference node, and the node whose `train_master_index` is set to 1 is the training node.
+2. For two-node deployment in disaggregation mode, enter two rows and fill in only the first three columns. Use `index=0` and `train_master_index=0` for the inference node, and `index=1` and `train_master_index=1` for the training node. The script assigns indices below the training master's `index` to inference and the remaining indices to training.
 
 **`base.conf` File Settings**
 
@@ -604,18 +606,18 @@ In disaggregation mode (`one_step_off`), a separate inference configuration file
 | Parameter Name                                                        | Type   | Description                   | Constraints                                    |
 |------------------------------------------------------------|------|----------------------|---------------------------------------|
 | name                                                       | str  | Agent service name            | It must be unique. You are advised to use a meaningful name                       |
-| executor_num                                               | int  | Number of executors                | It must be an integer greater than 0. The default value is 1                        |
-| executor_kwargs.agent_engine                               | str  | Agent engine type            | Valid values are "rllm" and so on                           |
-| executor_kwargs.agent_engine_kwargs.agent_name             | str  | Agent name              | It must be a valid built-in agent name, such as "math"                |
+| executor_num | int | Number of executors | Required. Specify a positive integer. |
+| executor_kwargs.agent_engine | str | Agent engine type | For example, use `rllm` for the rLLM engine. |
+| executor_kwargs.agent_engine_kwargs.agent_name | str | rLLM agent name | Use a name registered in `AGENTS_MAPPING`, such as the built-in `math` agent or a registered custom agent. |
 | executor_kwargs.agent_engine_kwargs.simplify_think_content | bool | Whether to simplify the thinking content             | The default value is false                             |
-| executor_kwargs.agent_engine_kwargs.max_steps              | int  | Maximum number of steps                 | It must be an integer greater than 0. The default value is 5                        |
-| executor_kwargs.agent_engine_kwargs.max_prompt_length      | int  | Maximum length of the prompt that the agent receives | It must be an integer greater than 0. The default value is 2048                     |
-| executor_kwargs.agent_engine_kwargs.max_model_len          | int  | Maximum model context length            | It must be an integer greater than 0. The default value is 4096                     |
-| executor_kwargs.agent_engine_kwargs.n_parallel_agents      | int  | Number of parallel agents            | It must be an integer greater than 0. The default value is 1024                     |
+| executor_kwargs.agent_engine_kwargs.env_args.max_steps | int | Maximum number of steps per rLLM trajectory | Use a positive integer. Defaults to `10` when the registry entry also omits it. |
+| executor_kwargs.agent_engine_kwargs.max_prompt_length | int | Maximum number of rLLM input prompt tokens | Use a positive integer. The rLLM constructor defaults to `8192`. |
+| executor_kwargs.agent_engine_kwargs.max_model_len | int | Maximum context length of the rLLM model in tokens | Use a positive integer. The rLLM constructor defaults to `16384`. |
+| executor_kwargs.agent_engine_kwargs.n_parallel_agents | int | Number of agents to run in parallel | Use a positive integer. Both the rLLM and VAEE constructors default to `8`. |
 | executor_kwargs.agent_engine_kwargs.tokenizer              | str  | Tokenizer path                | It must be a valid tokenizer path                            |
 | executor_kwargs.infer_service_params                       | dict | Inference service parameters               | It contains top_p, temperature, max_tokens, model, and so on |
 | executor_kwargs.trajectory_save_dir                        | str  | Trajectory save directory               | It must be a valid file path                             |
-| resource_info                                              | list | Resource description of the entire agent service       | The default value is an empty list                                |
+| resource_info | list | Resources to request for the executor | Required. Use `[]` if the executor needs no separate resource allocation. |
 
 #### Black-Box Agent Mode (vaee) Configuration
 
@@ -629,7 +631,8 @@ When `agent_engine` is set to `vaee`, black-box virtual engine mode is used. The
 | executor_kwargs.agent_engine_kwargs.agent_proxy_args.traj_addr | str | TrajProxy service address | It must be consistent with traj_proxy_args.infer_url |
 | executor_kwargs.agent_engine_kwargs.agent_proxy_args.run_id | str | Run identifier. TrajProxy groups and manages trajectories by this value | It must be a unique identifier |
 | executor_kwargs.agent_engine_kwargs.traj_proxy_args.infer_url | str | TrajProxy service address, which is used to pull trajectories | It must be a valid communication address |
-| executor_kwargs.agent_engine_kwargs.res_reward_func | str | Path to the step-level reward function (optional) | It must be a valid function path |
+| executor_kwargs.agent_engine_kwargs.res_reward_func | str | Path to the step-level result reward function (optional). If omitted, the framework skips custom step-level reward calculation. | Use a valid function path. |
+| executor_kwargs.agent_engine_kwargs.traj_reward_func | str | Path to the trajectory-level reward function (optional). If omitted, the framework uses the default implementation. | Use a valid function path. |
 | executor_kwargs.agent_engine_kwargs.traj_refine_func | str | Path to the trajectory aggregation function (optional). If it is not configured, the default implementation is used | It must be a valid function path |
 
 **Black-box Agent configuration example**:
@@ -693,6 +696,8 @@ directory. Before use, modify the following configuration items based on your ac
 | `model.path`                | Path to the model weights       |
 | `tokenizer`                 | Tokenizer path        |
 | `trajectory_save_dir`       | Path to save the trajectory data     |
+
+This example sets the maximum number of steps per trajectory to 5 in `agent_engine_kwargs.env_args.max_steps`. It also sets `max_prompt_length`, `max_model_len`, and `n_parallel_agents` explicitly for rLLM.
 
 ```yaml
 # Global configuration
@@ -809,7 +814,8 @@ agent_instances:
       agent_engine_kwargs:
         agent_name: math
         simplify_think_content: false
-        max_steps: 5
+        env_args:
+          max_steps: 5
         max_prompt_length: 2048
         max_model_len: 4096
         n_parallel_agents: 1024
@@ -958,13 +964,25 @@ The external agent service must expose the `POST /v1/chat/completions` API to re
 
 **Every LLM call in the agent loop must go through `infer_url`.** For every LLM call, the agent service **must send the request to `infer_url`** (that is, TrajProxy) instead of calling vLLM directly, which ensures that every LLM call passes through TrajProxy.
 
-```python
-# Correct: go through infer_url so that TrajProxy records the trajectory
-url = f"{self.infer_url}/chat/completions"
-response = await httpx.post(url, json=body)
+**Correct example (send the request through TrajProxy to record the trajectory)**
 
-# Incorrect: connect to vLLM directly, so TrajProxy receives no records and the trajectory is empty
-response = await httpx.post("http://vllm:8000/v1/chat/completions", json=body)
+```python
+import httpx
+
+async def request_inference(infer_url: str, body: dict) -> httpx.Response:
+    url = f"{infer_url.rstrip('/')}/chat/completions"
+    async with httpx.AsyncClient() as client:
+        return await client.post(url, json=body)
+```
+
+**Incorrect example (call vLLM directly, bypassing TrajProxy for this request)**
+
+```python
+import httpx
+
+async def request_vllm_directly(body: dict) -> httpx.Response:
+    async with httpx.AsyncClient() as client:
+        return await client.post("http://vllm:8000/v1/chat/completions", json=body)
 ```
 
 **Minimal reference implementation**:
@@ -1051,7 +1069,7 @@ async def handle(body: ChatCompletionRequest):
 
 #### Constraint 2: The Trajectory Aggregation and Reward Functions Must Match the Signatures
 
-If you customize `traj_refine_func` or `res_reward_func`, the function signatures must match the following API definitions. Otherwise, the training process is interrupted by a type error. If you do not configure them, the framework uses the default implementation.
+Custom implementations of `traj_refine_func`, `res_reward_func`, and `traj_reward_func` must match their respective signatures below. If you omit the trajectory aggregation or trajectory-level reward function, the framework uses the default implementation. If you omit `res_reward_func`, the framework skips custom step-level reward calculation.
 
 ##### `traj_refine_func` — Trajectory Aggregation Function
 
@@ -1094,4 +1112,15 @@ def traj_reward_func(
 ) -> Episode:
 ```
 
-**Reference implementation**: `aura/agents/proxy_agent/math/ozy_math_reward.py`
+See [default_traj_reward_func](../../../aura/aura/runner/agent_engine_wrapper/vaee/default_traj_reward.py) for the default implementation.
+
+##### `res_reward_func` — Step-Level Result Reward Function
+
+The engine calls this function for each step. It passes the current step's action and task information as keyword arguments and uses the returned `RewardOutput.reward` as the step reward.
+
+```python
+def res_reward_func(action: dict, task_info: dict) -> RewardOutput:
+    ...
+```
+
+See [math_res_reward_fn](../../../aura/agents/proxy_agent/math/ozy_math_reward.py) for a step-level math reward example.

@@ -6,8 +6,8 @@ Aura在运行过程中可能会使用到以下环境变量。
 
 |环境变量名称|描述|
 |--|--|
-|LOCAL_RANK|torch分布式训练设置，用来描述当前线程在当前节点上的rank信息，取值范围为[0, 8)。|
-|RANK|torch分布式训练设置，用来描述当前线程在所有节点上的rank信息，取值范围为[0, 8)。|
+|LOCAL_RANK|PyTorch分布式训练中当前进程在本节点上的编号，取值范围为[0, LOCAL_WORLD_SIZE)。|
+|RANK|PyTorch分布式训练中当前进程在整个任务中的全局编号，取值范围为[0, WORLD_SIZE)。|
 
 Aura在启动时会使用白名单校验环境变量，只有以下环境变量将会被保留。
 
@@ -22,7 +22,7 @@ Aura在启动时会使用白名单校验环境变量，只有以下环境变量�
 |ASDOPS_LOG_PATH|算子库日志保存路径。|
 |ASDOPS_LOG_TO_BOOST_TYPE|加速库日志目录名称。|
 |ASDOPS_LOG_TO_FILE|算子库日志是否输出到文件。|
-|ASDOPS_LOG_TO_FILE_FLUSH|日志写文件是否刷新。|
+|ASDOPS_LOG_TO_FILE_FLUSH|写入日志文件时是否刷新。|
 |ASDOPS_LOG_TO_STDOUT|算子库日志是否输出到控制台。|
 |ATB_COMPARE_TILING_EVERY_KERNEL|每个Kernel运行后，比较运行前和后的NPU上tiling内容是否变化，一般用于检查是否发生tiling内存踩踏。|
 |ATB_DEVICE_TILING_BUFFER_BLOCK_NUM|Context内部DeviceTilingBuffer块数，数量与OP并行的最大并行数有关，通常使用默认值，不建议修改。|

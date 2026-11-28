@@ -182,15 +182,27 @@ agent_instances:
 
 **`agent_instances` 配置项说明：**
 
-| 参数 | 说明 |
-|------|------|
-| `name` | Agent服务名称，训练配置中 `agent_service` 引用此值 |
-| `executor_num` | Agent执行器数量 |
-| `executor_kwargs.agent_engine` | Agent引擎类型，使用 `rllm` |
-| `executor_kwargs.agent_engine_kwargs.agent_name` | 对应 `agents_mapping` 中注册的 Agent 名称 |
-| `executor_kwargs.agent_engine_kwargs.env_args` | 环境参数，会与 `agents_mapping` 中的 `env_args` 合并 |
-| `executor_kwargs.infer_service_params` | 模型推理采样参数 |
-| `executor_kwargs.trajectory_save_dir` | 轨迹保存目录 |
+下表适用于本节的 rLLM 引擎配置。“必填”按合并后的 YAML 判断。以 `agent_engine_kwargs.` 开头的路径位于 `executor_kwargs` 下。
+
+| 参数 | 类型 | 必填 | 说明和默认值 |
+|------|------|------|-------------|
+| `name` | str | 是 | 唯一的 Agent 服务名，供训练配置中的 `agent_service` 引用。 |
+| `executor_num` | int | 是 | 执行器数量，填写正整数。 |
+| `executor_kwargs.agent_engine` | str | 是 | 本节使用 `rllm`。 |
+| `agent_engine_kwargs.agent_name` | str | 是 | `AGENTS_MAPPING` 中注册的 Agent 名称。 |
+| `agent_engine_kwargs.simplify_think_content` | bool | 否 | 是否简化思考内容，默认 `false`。 |
+| `agent_engine_kwargs.max_prompt_length` | int | 否 | 输入提示的 token 数上限，填写正整数，默认 `8192`。 |
+| `agent_engine_kwargs.max_model_len` | int | 否 | 模型上下文的 token 数上限，填写正整数，默认 `16384`。 |
+| `agent_engine_kwargs.n_parallel_agents` | int | 否 | 并行 Agent 数量，填写正整数，默认 `8`。 |
+| `agent_engine_kwargs.token_in_token_out` | bool | 否 | 是否以 token ID 传递模型输入和输出，默认 `false`。 |
+| `agent_engine_kwargs.env_args` | dict | 否 | 覆盖注册项中的环境参数。省略时沿用注册项的配置。 |
+| `agent_engine_kwargs.env_args.max_steps` | int | 否 | 每条轨迹的最大执行步数，填写正整数。注册项也未指定时默认 `10`。 |
+| `agent_engine_kwargs.env_args.tool_timeout` | int 或 float | 否 | 单次工具执行的超时时间（秒），填写正数。注册项也未指定时默认 `2000`。 |
+| `agent_engine_kwargs.env_args.trajectory_timeout` | int 或 float | 否 | 单条轨迹执行的超时时间（秒），填写正数。注册项也未指定时默认 `7200`。 |
+| `agent_engine_kwargs.tokenizer` | str | 是 | 模型分词器所在路径。 |
+| `executor_kwargs.infer_service_params` | dict | 是 | 推理服务及采样参数，例如 `model`、`temperature`、`top_p`、`max_tokens`。 |
+| `executor_kwargs.trajectory_save_dir` | str | 是 | 轨迹保存位置。 |
+| `resource_info` | list | 是 | 执行器的资源申请配置。无需单独申请资源时填 `[]`。 |
 
 ### 参数合并机制
 
@@ -225,7 +237,7 @@ Agent SDK提供了以下内置Agent，可作为自定义Agent的参考：
 | Agent 执行器 | [agent_executor.py](../../../../aura/aura/runner/agent_service/agent_executor.py) | `AgentExecutor`，创建 RLLMEngineWrapper |
 | Agent 管理器 | [agent_manager.py](../../../../aura/aura/runner/agent_manager.py) | `AgentManager`，读取配置创建执行器实例 |
 | Agent 路由 | [agent_router.py](../../../../aura/aura/runner/agent_router.py) | `AgentRouter`，路由请求到具体执行器 |
-| RLLM 引擎 | [rllm_engine_wrapper.py](../../../../aura/aura/runner/agent_engine_wrapper/rllm/rllm_engine_wrapper.py) | `RLLMEngineWrapper`，本地 Agent 执行引擎 |
+| rLLM 引擎 | [rllm_engine_wrapper.py](../../../../aura/aura/runner/agent_engine_wrapper/rllm/rllm_engine_wrapper.py) | `RLLMEngineWrapper`，本地 Agent 执行引擎 |
 
 ## FAQ
 

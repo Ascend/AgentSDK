@@ -220,7 +220,7 @@ python3 /path/to/AgentSDK/aura/cli/preprocess_data.py gsm8k
 The following files are generated after processing:
 
 ```text
-/path/to/output/
+/path/to/output/train/
 ├── rl_packed_attention_mask_document.bin    # Attention mask binary data
 ├── rl_packed_attention_mask_document.idx    # Attention mask index file
 ├── rl_packed_input_ids_document.bin         # Input ids binary data

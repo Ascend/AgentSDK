@@ -95,7 +95,7 @@ verl_conf:
       calculate_log_probs: True
       log_prob_use_dynamic_bsz: False
       log_prob_micro_batch_size_per_gpu: 1
-      tensor_model_parallel_size: 4
+      tensor_model_parallel_size: 8
       gpu_memory_utilization: 0.6
       max_num_seqs: 128
       data_parallel_size: 2
@@ -251,7 +251,7 @@ infer_instances:
         prefill_server_list: []
         decode_server_list: []
         model_name: Qwen3-4B
-        tensor_parallel_size: 4
+        tensor_parallel_size: 8
         data_parallel_size: 2
         enable_expert_parallel: false
     resource_info: []

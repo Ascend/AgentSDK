@@ -52,7 +52,7 @@
 
 **Python 依赖**：[requirements.txt](requirements.txt)，包含 Aura 核心框架运行所需的基础依赖（如 torch、transformers、ray 等）。
 
-**第三方依赖**：[third_party/requirements_with_verl_vllm.txt](third_party/requirements_with_verl_vllm.txt)，包含 megatron、mindspeed、rllm 等第三方仓库依赖。
+**第三方依赖**：[third_party/requirements_with_verl_vllm.txt](third_party/requirements_with_verl_vllm.txt)，包含 megatron、mindspeed、rLLM 等第三方仓库依赖。
 
 详细步骤请遵循[安装指南](../docs/zh/aura/02_installation_guide.md)。
 

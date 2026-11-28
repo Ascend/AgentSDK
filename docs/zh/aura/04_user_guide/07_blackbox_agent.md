@@ -24,7 +24,8 @@
 | **TrajProxyClient** | 从TrajProxy拉取轨迹记录的HTTP客户端 |
 | **外部 Agent 服务** | 用户自行实现的Agent服务，接收prompt，执行agent loop，返回结果 |
 | **traj_refine_func** | 轨迹聚合函数，将TrajProxy记录的原始请求/响应聚合为层级化轨迹（Episode） |
-| **res_reward_func** | 步骤级奖励函数，为轨迹中的每一步计算中间奖励 |
+| **res_reward_func** | 步骤级结果奖励函数，为各步骤计算奖励，可在终止步骤评分 |
+| **traj_reward_func** | 轨迹级奖励函数，接收聚合后的 `Episode` 并更新其中各条轨迹的奖励 |
 
 ### 架构总览
 
@@ -216,10 +217,10 @@
 
 ### （可选）步骤：实现奖励函数
 
-自定义轨迹级奖励函数（res_reward_func），为整个轨迹计算最终奖励。
+配置 `res_reward_func` 可按步骤计算结果奖励。框架逐步传入动作和任务信息。示例 `math_res_reward_fn` 在最后一步或达到最大步数时检查答案，在此前的步骤返回 0。步骤奖励处理结束后，框架调用 `traj_reward_func` 更新整条轨迹的奖励。自定义函数的签名见《[Python接口说明](../05_api_python.md#约束-2轨迹聚合与奖励函数需符合签名)》。
 
 > [!NOTE]
-> 完整实现可参考内置轨迹聚合函数：[math_res_reward_fn](../../../../aura/agents/proxy_agent/math/ozy_math_reward.py)
+> 步骤级奖励的实现可参考 [math_res_reward_fn](../../../../aura/agents/proxy_agent/math/ozy_math_reward.py)。
 > 自定义函数实现后需要同步修改训练配置 [共卡训练配置文件](../../../../aura/configs/train/verl_train_hybrid_A3_t16_qwen3_8b_blackbox_math_fsdp.yaml) 中 `res_reward_func` 为对应函数路径
 
 ### 步骤三：启动训练
@@ -239,7 +240,7 @@
 
 ## 与白盒 Agent 对比
 
-| 维度 | 白盒 Agent (rllm) | 黑盒 Agent (vaee) |
+| 维度 | 白盒 Agent (rLLM) | 黑盒 Agent (vaee) |
 |------|-------------------|-------------------|
 | Agent 运行位置 | 训练框架内 | 外部独立服务 |
 | 通信方式 | 进程内调用 | HTTP |
@@ -254,9 +255,9 @@
 
 不需要。只要暴露 `POST /v1/chat/completions` 接口即可，可以使用任何语言或框架。唯一要求是 agent loop 中的 LLM 调用必须走 `infer_url`（TrajProxy）。
 
-**Q2：traj_refine_func和res_reward_func是否必须实现**
+**Q2：是否必须实现自定义轨迹聚合或奖励函数**
 
-不必须。如果不配置，框架会使用默认的 `default_token_traj_refine_func` 和 `default_traj_reward_func`。仅当默认行为不满足场景需求时才需要自定义。
+这三个函数均可选。`traj_refine_func` 和 `traj_reward_func` 省略时分别使用 `default_token_traj_refine_func` 和 `default_traj_reward_func`。省略 `res_reward_func` 时，框架跳过自定义步骤奖励计算。
 
 **Q3：外部Agent服务需要处理哪些异常情况**
 

@@ -70,4 +70,4 @@ infer_model_path: /path/to/models/Qwen3-4B # Model weight path on the inference 
 >- In disaggregation mode, the verl backend currently supports only the Megatron bin format dataset.
 >- In multi-node disaggregation mode, save both the code and the weights on the shared drive to ensure that all machines can obtain the data at the same time.
 
-In addition, follow the [Quick Start Guide](../03_quick_start.md) to modify [base.conf](../../../../aura/configs/base.conf) and [hosts.conf](../../../../aura/configs/hosts.conf) according to the mode, set `env.local` in the `aura/configs/env/env.conf` path, and then use the corresponding command to start the experiment with one click.
+Follow the [Quick Start Guide](../03_quick_start.md) to modify [base.conf](../../../../aura/configs/base.conf) and [hosts.conf](../../../../aura/configs/hosts.conf) for your deployment mode, and set the environment variables needed on your machine in `aura/configs/env/env.local`. After completing the configuration, run the corresponding command to start the experiment.

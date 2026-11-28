@@ -92,12 +92,12 @@ In disaggregation mode, inference nodes come first and training nodes come after
 <node IP address 2>,1,1
 ```
 
-| Parameter | Description |
-|------|------|
-| `host` | Node IP address |
-| `index` | Node index, starting from 0. **The index of an inference node must be smaller than the index of a training node.** |
-| `train_master_index` | Training master node flag. Set it to 1 to indicate that the node starts training. **Configure this parameter only on training nodes.** |
-| `infer_master_index` | Inference master node flag. **Do not configure this parameter in disaggregation mode.** |
+| Parameter | Type | Required | Format and constraints | Example |
+|------|------|------|-----------|------|
+| `host` | String | Yes | Node IP address. Use the address of the configured network interface on that node. | `192.168.0.1` |
+| `index` | Integer | Yes | A unique node index starting from 0. Inference node indices precede the training master node index. | `0` |
+| `train_master_index` | Integer | Yes | Set the training master node to `1` and all other nodes to `0`. Exactly one row must have the value `1`. | `0` |
+| `infer_master_index` | Integer | Omit in disaggregation mode | This flag applies to co-located deployment. In disaggregation mode, fill in only the first three columns. | — |
 
 > [!NOTE]
 > The key marker of disaggregation mode is that you **do not configure `infer_master_index`**. The system determines a node as an inference node when `VC_TASK_INDEX < MASTER_TRAIN_INDEX` and as a training node when `VC_TASK_INDEX >= MASTER_TRAIN_INDEX`. Inference nodes must come before training nodes. For details about the node type determination logic, see [start_rl_with_verl_vllm.sh](../../../../aura/scripts/start_rl_with_verl_vllm.sh). For details about parameter parsing, see [utils.sh](../../../../aura/scripts/base/utils.sh).
@@ -117,11 +117,11 @@ train_config_name=verl_train_fully_async_A3_t16_qwen3_32b_math_fsdp
 infer_config_name=vllm_infer_i16_qwen3_32b
 ```
 
-| Parameter | Description |
-|------|------|
-| `work_mode` | Set it to `fully_async` to enable the fully asynchronous disaggregation mode. |
-| `train_config_name` | Training YAML configuration file name (without the `.yaml` suffix). |
-| `infer_config_name` | Inference YAML configuration file name (without the `.yaml` suffix). **You must configure this parameter in disaggregation mode.** |
+| Parameter | Type | Required | Format and constraints | Example |
+|------|------|------|-----------|------|
+| `work_mode` | String | Yes | Set to `fully_async` for this mode. | `fully_async` |
+| `train_config_name` | String | Yes | Name of the YAML file in `configs/train/`, without the `.yaml` extension. | `verl_train_fully_async_A3_t16_qwen3_32b_math_fsdp` |
+| `infer_config_name` | String | Yes | Name of the YAML file in `configs/infer/`, without the `.yaml` extension. | `vllm_infer_i16_qwen3_32b` |
 
 ### Step 3: Modifying the Training YAML Configuration File
 
@@ -136,7 +136,7 @@ Modify the following parameters based on your actual environment:
 | `hydra.searchpath`                                  | Path of the verl configuration template. Change it to the absolute path of the `configs/train/verl_conf` directory in the aura code repository on your machine. | `file:///home/work/aura/configs/train/verl_conf` |
 | `verl_conf.extras.data_loader.train_data_path`      | Training dataset path (in the bin/idx format, without the file suffix). | `/data/train/rl`                                 |
 | `verl_conf.actor_rollout_ref.model.path`            | Model weight path. | `/data/weights/qwen3-32b`                        |
-| `train_instances.rollout_config.llm_tokenizer_path` | Tokenizer path (the same as the model path). | `/data/weights/qwen3-32b`                        |
+| `train_instances[0].executor_kwargs.rollout_config.llm_tokenizer_path` | Tokenizer path. The example configuration references the model path. | `/data/weights/qwen3-32b` |
 
 #### 3.2 Key Configuration Items for Fully Asynchronous Disaggregation Mode (Fully Async Strategy)
 
