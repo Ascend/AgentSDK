@@ -1,0 +1,9 @@
+diff --git a/verl/workers/engine/fsdp/transformer_impl.py b/verl/workers/engine/fsdp/transformer_impl.py
+--- a/verl/workers/engine/fsdp/transformer_impl.py
++++ b/verl/workers/engine/fsdp/transformer_impl.py
+@@ -988,4 +988,4 @@
+-                attention_mask_list = [torch.ones_like(t, dtype=torch.int32) for t in loss_mask]
++                attention_mask_list = [torch.ones_like(t, dtype=torch.int32) for t in micro_batch["input_ids"]]
+                 attention_mask = torch.nested.as_nested_tensor(attention_mask_list, layout=torch.jagged)
+                 attention_mask = torch.nested.to_padded_tensor(
+                     attention_mask, padding=0, output_size=(batch_size, max_seq_len)
