@@ -2,6 +2,10 @@ defaults:
   - ppo_trainer
   - _self_
 
+# Disabled is a strict bypass: no replay actor, database or sampler.
+replay:
+  replay_ratio: 0.0
+
 trainer:
   use_legacy_worker_impl: disable
 
