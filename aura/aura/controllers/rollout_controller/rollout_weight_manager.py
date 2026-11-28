@@ -260,14 +260,19 @@ class RolloutWeightManager:
                 # Make sure to only move the files (excluding subdirectories)
                 if os.path.isfile(src_path):
                     shutil.move(src_path, dst_path)
+                    # NFS root_squash clients must be able to read published weights.
+                    os.chmod(dst_path, 0o644)
                     moved_files.append(filename)
                 self.logger.info(f"moved the weight file: {moved_files}")
 
+            if not moved_files:
+                raise RuntimeError("No safetensors files were published")
             self.weights_version = writing_weights_version
             self.logger.info(f"|perf-stat|rollout| converted weights succeed, weights version: {self.weights_version}")
         except Exception as e:
             self.logger.error(f"failed to synchronize model weights: {e}, current version: {self.weights_version}")
             traceback.print_exc()
+            raise
 
     def _do_weights_update_with_megatron(self, path, weight_iter):
         self.logger.info("|perf-stat|rollout| start do converted weights with megatron...")

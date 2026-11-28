@@ -342,14 +342,14 @@ License text: Same as Apache License, Version 2.0 above.
 
 ### Software: vLLM
 
-- Version: ==0.16.0
+- Version: ==0.22.1
 - Homepage: https://github.com/vllm-project/vllm
 - License: Apache License, Version 2.0
 
 Copyright notice:
 
 ```text
-Copyright (c) 2023-2024 The vLLM team. All rights reserved.
+Copyright contributors to the vLLM project
 ```
 
 License text: Same as Apache License, Version 2.0 above.
@@ -358,7 +358,7 @@ License text: Same as Apache License, Version 2.0 above.
 
 ### Software: vllm-ascend
 
-- Version: ==0.16.0
+- Version: ==0.22.1rc1
 - Homepage: https://github.com/vllm-project/vllm-ascend
 - License: Apache License, Version 2.0
 
@@ -382,9 +382,17 @@ Copyright notice:
 
 ```text
 Copyright 2024 ByteDance Inc. All rights reserved.
+Copyright 2025 Meituan Ltd. and/or its affiliates
 ```
 
 License text: Same as Apache License, Version 2.0 above.
+
+Adapted source in AgentSDK:
+
+- File: `aura/aura/trainer/train_adapter/verl/full_async/full_async_trainer.py`
+- Source: [VERL v0.8.0, FullyAsyncTrainer](https://github.com/volcengine/verl/blob/v0.8.0/verl/experimental/fully_async_policy/fully_async_trainer.py)
+- Modifications: external inference weight publication, startup configuration validation, and one-step-off training lifecycle handling.
+- File license: Apache-2.0. The upstream Meituan copyright and existing Huawei modification copyright are retained; the AgentSDK root license does not replace this file's license.
 
 ---
 

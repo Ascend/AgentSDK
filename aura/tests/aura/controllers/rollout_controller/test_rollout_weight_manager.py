@@ -186,7 +186,10 @@ def make_manager(fake_env, **overrides):
         "model_name": "test_model",
     }
     default_args.update(overrides)
-    return fake_env["RolloutWeightManager"](**default_args)
+    # Unit tests use fictitious paths; construction must not create real /tmp
+    # directories or depend on host filesystem permissions.
+    with patch.object(fake_env["mod"].os, "makedirs"):
+        return fake_env["RolloutWeightManager"](**default_args)
 
 
 # ---------------------------------------------------------------------------
@@ -458,22 +461,29 @@ class TestMoveWeights:
         mgr = make_manager(fake_env)
         with patch("os.listdir") as mock_listdir, patch("os.path.isfile", return_value=True), \
              patch("os.path.exists", return_value=False), patch("os.makedirs") as mock_makedirs, \
-             patch("os.path.join", side_effect=lambda *args: "/".join(args)):
+             patch("os.path.join", side_effect=lambda *args: "/".join(args)), \
+             patch("os.chmod") as mock_chmod:
             mock_listdir.return_value = ["a.safetensors", "b.txt", "c.safetensors"]
             mgr._move_weights("/src", 7)
 
         # shutil.move should be called for a.safetensors and c.safetensors only
         assert fake_env["fake_shutil"].move.call_count == 2
+        assert mock_chmod.call_count == 2
+        mock_chmod.assert_any_call("/tmp/weights_rollout/weights_7/a.safetensors", 0o644)
+        mock_chmod.assert_any_call("/tmp/weights_rollout/weights_7/c.safetensors", 0o644)
         # weights_version updated
         assert mgr.weights_version == 7
 
     def test_move_weights_exception(self, fake_env):
-        """When move fails, error is logged and traceback printed."""
+        """Publication errors are logged and propagated without advancing the version."""
         mgr = make_manager(fake_env)
-        with patch("os.listdir", side_effect=Exception("listdir error")):
+        with patch("os.listdir", side_effect=Exception("listdir error")), \
+             patch("os.path.exists", return_value=False), patch("os.makedirs"), \
+             pytest.raises(Exception, match="listdir error"):
             mgr._move_weights("/src", 7)
         fake_env["mock_logger"].error.assert_called()
         fake_env["fake_traceback"].print_exc.assert_called_once()
+        assert mgr.weights_version == 0
 
 
 class TestDoWeightsUpdateWithMegatron:

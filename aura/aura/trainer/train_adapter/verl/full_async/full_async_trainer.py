@@ -1,20 +1,26 @@
 # -*- coding: utf-8 -*-
-# SPDX-License-Identifier: Apache-2.0 OR MulanPSL-2.0
+# SPDX-License-Identifier: Apache-2.0
 # Copyright 2025 Meituan Ltd. and/or its affiliates
 #
 # This file is part of the AgentSDK project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
 #
-# AgentSDK is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
+# Based on VERL v0.8.0, FullyAsyncTrainer:
+# https://github.com/volcengine/verl/blob/v0.8.0/verl/experimental/fully_async_policy/fully_async_trainer.py
+# Modified for AgentSDK: external inference weight publication, startup
+# configuration validation, and one-step-off training lifecycle handling.
 #
-#          http://license.coscl.org.cn/MulanPSL2
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
-# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
-# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
-# See the Mulan PSL v2 for more details.
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 #
 import os
 import time
@@ -660,6 +666,7 @@ class FullyAsyncTrainer(SeparateRayPPOTrainer):
         4. Compute reward -> 5. Compute log_prob -> 6. Compute reward ->
         7. Compute advantage -> 8. Update critic -> 9. Update actor -> 10. Post-step processing
         """
+        completed_step = self.global_steps
         logger.info(f"=== start train iteration {self.global_steps} ===")
         self.is_last_step = self.global_steps >= self.total_train_steps
         self.metrics = {"training/global_step": self.global_steps, "training/epoch": self.epoch}
@@ -716,9 +723,9 @@ class FullyAsyncTrainer(SeparateRayPPOTrainer):
 
         self._fit_torch_memory()
         self._fit_postprocess_step()
-        logger.info(f"finished train iteration {self.global_steps - 1}/{self.total_train_steps}")
+        logger.info(f"finished train iteration {completed_step}/{self.total_train_steps}")
 
-        if self.global_steps > self.total_train_steps:
+        if completed_step >= self.total_train_steps:
             raise TrainingStopException("end of training loop")
 
     async def _fit_generate(self) -> DataProto | None:
