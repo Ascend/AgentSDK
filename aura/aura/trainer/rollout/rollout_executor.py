@@ -103,6 +103,9 @@ class OneStepOffRolloutExecutor:
                 f"actual_batch_num: {actual_batch_num}"
             )
 
+            if not ray.get(self.queue_actor.begin_generation.remote()):
+                time.sleep(self.sleep_time)
+                continue
             batch_list = [ray.get(self.queue_actor.pop_queue.remote()) for _ in range(actual_batch_num)]
             batch = self.merge_batch_list(batch_list)
 
@@ -115,6 +118,8 @@ class OneStepOffRolloutExecutor:
             # Extract data from data_manager for inference
             logger.info(f'rollout_worker start, actual_batch_num={actual_batch_num}, tasks={len(indexes)} ...')
             ray.get(self.rollout_worker.generate_sequences.remote(actual_batch_num))
+            # Never mark a failed/uncertain generation as drained.
+            ray.get(self.queue_actor.end_generation.remote())
 
             iteration += actual_batch_num
             logger.info(

@@ -34,6 +34,7 @@ class RolloutServer:
         self.rollout_weight_manager = rollout_weight_manager
         self.is_shutdown = False
         self.already_quit = False
+        self.recovery_receipt = None
 
         self.logger = Loggers(__name__).get_logger()
 
@@ -44,6 +45,10 @@ class RolloutServer:
         self.router.post("/notify_weights_update")(self.handle_weights_update)
         self.router.post("/shutdown")(self.shutdown)
         self.router.post("/is_quit")(self.is_quit)
+        self.router.post('/replay/recovery_status')(self.replay_recovery_status)
+
+    async def replay_recovery_status(self):
+        return {'receipt': self.recovery_receipt}
 
     async def unlock(self):
         self.running = True

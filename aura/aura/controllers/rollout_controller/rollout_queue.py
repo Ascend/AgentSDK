@@ -35,6 +35,8 @@ class RolloutQueueActor:
         self.abort_lock = Lock()
 
         self.running = False
+        self._active_generations = 0
+        self._recovery_paused = False
         self.weight_updating_status = {}
         self.shutdown_event = threading.Event()
 
@@ -51,6 +53,8 @@ class RolloutQueueActor:
 
     def add_queue(self, batch):
         with self.queue_lock:
+            if self._recovery_paused:
+                raise RuntimeError('Late prompt arrived after recovery generation barrier')
             self.batch_queue.append(batch)
         self.logger.info(f"add batch to queue, queue size: {len(self.batch_queue)}")
 
@@ -59,6 +63,32 @@ class RolloutQueueActor:
             batch = self.batch_queue.popleft()
             self.logger.info(f"pop batch from queue, queue size: {len(self.batch_queue)}")
             return batch
+
+    def begin_generation(self):
+        with self.queue_lock:
+            if self._recovery_paused:
+                return False
+            self._active_generations += 1
+            return True
+
+    def end_generation(self):
+        with self.queue_lock:
+            if self._active_generations != 1:
+                raise RuntimeError('Unbalanced generation completion')
+            self._active_generations = 0
+
+    def quiesce_replay(self):
+        with self.queue_lock:
+            if self.batch_queue or self._active_generations:
+                return False
+            self._recovery_paused = True
+            return True
+
+    def resume_replay(self):
+        with self.queue_lock:
+            if not self._recovery_paused or self.batch_queue or self._active_generations:
+                raise RuntimeError('Rollout barrier is not quiescent')
+            self._recovery_paused = False
 
     def queue_size(self):
         return len(self.batch_queue)
