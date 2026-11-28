@@ -124,6 +124,13 @@ export TOOL_CALL_ENABLE=${TOOL_CALL_ENABLE:-false}
 # 是否启用 prefix caching，默认 true 保持原有行为；全异步（fully_async）训练建议设为 false
 export ENABLE_PREFIX_CACHING=${ENABLE_PREFIX_CACHING:-"true"}
 
+VLLM_EAGER_ARGS=()
+case "${VLLM_ENFORCE_EAGER:-false}" in
+  true) VLLM_EAGER_ARGS=(--enforce-eager) ;;
+  false) ;;
+  *) echo "Invalid VLLM_ENFORCE_EAGER: ${VLLM_ENFORCE_EAGER}"; exit 1 ;;
+esac
+
 if [[ -n "$CUDAGRAPH_MODE" ]]; then
   case "$CUDAGRAPH_MODE" in
     NONE|PIECEWISE|FULL|FULL_DECODE_ONLY|FULL_AND_PIECEWISE) ;;
@@ -306,6 +313,7 @@ function start_vllm_serve_separate()
           --gpu-memory-utilization ${GPU_MEMORY_UTILIZATION} \
           ${TOOL_CALL_ARGS} \
           --trust-remote-code \
+          "${VLLM_EAGER_ARGS[@]}" \
           --enable-chunked-prefill \
           --max-num-seqs ${MAX_NUM_SEQS} \
           ${PREFIX_CACHING_ARGS} \
@@ -348,6 +356,7 @@ function start_vllm_serve_hybrid()
           --max-num-batched-tokens ${MAX_NUM_BATCHED_TOKENS} \
           --gpu-memory-utilization ${GPU_MEMORY_UTILIZATION} \
           --trust-remote-code \
+          "${VLLM_EAGER_ARGS[@]}" \
           --enable-chunked-prefill \
           ${API_SERVER_CNT} \
           --max-num-seqs ${MAX_NUM_SEQS} \

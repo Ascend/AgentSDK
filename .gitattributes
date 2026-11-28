@@ -1,0 +1,2 @@
+# Use Linux line endings for shell scripts checked out on Windows.
+*.sh text eol=lf
