@@ -87,6 +87,9 @@ class TrainController:
         self.initialize_rollout_dataloader = initialize_rollout_dataloader
         self.consumed_train_samples = consumed_train_samples
         self.data_optimized = data_optimized
+        self.replay_demand_mode = False
+        self.replay_queue_timeout = 120.0
+        self._replay_credit_pending = False
 
         controller_config = ControllerConfig()
         self.train_server_addr = controller_config.train_server_addr
@@ -98,9 +101,47 @@ class TrainController:
         self.initialize_weight_updater()
 
     def initialize_rollout(self):
-        self.send_initial_batch_groups_to_rollout()
+        if not self.replay_demand_mode:
+            self.send_initial_batch_groups_to_rollout()
         self.unlock_rollout_unit()
         self.clean_train_updated_weights()
+
+    def enable_replay_demand(self, timeout):
+        """Issue one generation credit only when the mixer needs an online batch."""
+        self.replay_demand_mode = True
+        self.replay_queue_timeout = timeout
+        self.train_server.replay_demand_mode = True
+        self._replay_credit_pending = False
+
+    def request_online_batch(self):
+        """One credit includes both generation in progress and the ready batch.
+
+        Use only the data manager's controller copy. Keep the credit on failure:
+        retrying an ambiguous send could duplicate generation.
+        """
+        if getattr(self, '_recovery_paused', False):
+            raise RuntimeError('Source is paused for a paired checkpoint')
+        if not self.replay_demand_mode or self._replay_credit_pending:
+            return False
+        self._replay_credit_pending = True
+        sent = ray.get(self.dispatch_actor.send_batch_groups.remote(1), timeout=self.replay_queue_timeout)
+        if sent != 1:
+            raise RuntimeError("Online prompt source exhausted while replay needed a complete batch")
+        ray.get(self.dispatch_actor.unlock_rollout_unit.remote(), timeout=self.replay_queue_timeout)
+        return True
+
+    def wait_for_online_batch(self):
+        deadline = time.monotonic() + self.replay_queue_timeout
+        url = f"{DEFAULT_URL_METHOD}://{self.train_server_addr}/train/wait_batch_ready"
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError("Timed out waiting for replay's requested online batch")
+            wait = min(remaining, 30.0)
+            response = requests.post(url, params={"timeout": wait}, timeout=(5, wait + 5))
+            response.raise_for_status()
+            if response.json().get("is_ready", False):
+                return
 
     def update_rollout_weights(self, iteration: int):
         logger.info(f">>> start to export weights, iteration={iteration}...")
@@ -110,6 +151,63 @@ class TrainController:
         while not ray.get(self.weight_update_actor.update_weights_finished.remote()):
             time.sleep(DEFAULT_SLEEP_TIME)
         logger.info(f">>> finish export weights, iteration={iteration}, cost: {time.time() - start_time}")
+
+    def enable_replay_recovery(self):
+        if not self.replay_demand_mode:
+            raise RuntimeError('Recovery requires demand-driven generation')
+        ray.get(self.dispatch_actor.enable_replay_cursor.remote(), timeout=self.replay_queue_timeout)
+        self._recovery_paused = False
+
+    def confirm_replay_inference(self, path, version):
+        response = requests.post(f'{DEFAULT_URL_METHOD}://{self.rollout_server_addr}/rollout/replay/recovery_status',
+                                 timeout=self.replay_queue_timeout)
+        response.raise_for_status()
+        expected = {'path': path, 'policy_version': version, 'loaded_before_ready': True}
+        if response.json() != {'receipt': expected}:
+            raise RuntimeError('Inference did not restore the selected paired checkpoint before ready')
+
+    def _replay_queue_rpc(self, operation, payload=None):
+        response = requests.post(f'{DEFAULT_URL_METHOD}://{self.train_server_addr}/train/replay/{operation}',
+                                 json=payload, timeout=self.replay_queue_timeout)
+        response.raise_for_status()
+        return response.json()
+
+    def quiesce_replay_source(self):
+        self._recovery_paused = True
+        cursor = ray.get(self.dispatch_actor.pause_replay_source.remote(), timeout=self.replay_queue_timeout)
+        if self._replay_credit_pending:
+            self.wait_for_online_batch()
+        queue = ray.get_actor('rollout_queue', namespace=TRAIN_CONTROLLER_NAMESPACE)
+        deadline = time.monotonic() + self.replay_queue_timeout
+        while not ray.get(queue.quiesce_replay.remote(), timeout=self.replay_queue_timeout):
+            if time.monotonic() >= deadline:
+                raise TimeoutError('Rollout executor did not reach the real generation barrier')
+            time.sleep(0.01)
+        frozen = self._replay_queue_rpc('freeze')
+        if len(frozen['batches']) != int(self._replay_credit_pending):
+            raise RuntimeError('Generation credit and ready FIFO disagree')
+        return cursor, frozen['batches'], frozen['metrics']
+
+    def restore_replay_source(self, cursor, batches, metrics):
+        current, existing, _ = self.quiesce_replay_source()
+        if existing or current['produced_batches']:
+            raise RuntimeError('Restore requires fresh isolated producer/queue workers')
+        restored = ray.get(self.dispatch_actor.restore_replay_cursor.remote(cursor), timeout=self.replay_queue_timeout)
+        if restored != cursor:
+            raise RuntimeError('Producer cursor restore receipt mismatch')
+        receipt = self._replay_queue_rpc('restore', {'batches': batches, 'metrics': metrics})
+        if receipt != {'batches': [{'replay_refs': b['replay_refs']} for b in batches], 'metrics': metrics}:
+            raise RuntimeError('TrainQueue restore receipt mismatch')
+        self._replay_credit_pending = bool(batches)
+
+    def resume_replay_source(self):
+        if not self._recovery_paused:
+            raise RuntimeError('Source is not paused')
+        queue = ray.get_actor('rollout_queue', namespace=TRAIN_CONTROLLER_NAMESPACE)
+        self._replay_queue_rpc('resume')
+        ray.get(queue.resume_replay.remote(), timeout=self.replay_queue_timeout)
+        ray.get(self.dispatch_actor.resume_replay_source.remote(), timeout=self.replay_queue_timeout)
+        self._recovery_paused = False
 
     def _get_old_iter_dirs(self):
         ckpt_dir = Path(self.weight_save_dir)
@@ -226,15 +324,22 @@ class TrainController:
         return data.get("is_ready", False)
 
     def get_next_training_batch(self, last_iteration: bool = False):
+        if self.replay_demand_mode:
+            self.request_online_batch()
+            self.wait_for_online_batch()
         logger.info("waiting next training batch ...")
-        while not self.training_batch_queue_ready():
+        deadline = time.monotonic() + self.replay_queue_timeout
+        while not self.replay_demand_mode and not self.training_batch_queue_ready():
+            if self.replay_demand_mode and time.monotonic() >= deadline:
+                raise TimeoutError("Timed out waiting for replay's requested online batch")
             time.sleep(DEFAULT_SLEEP_TIME)
 
         logger.info(">>> start to get a mini batch ....")
         start_time = time.time()
         url = f"{DEFAULT_URL_METHOD}://{self.train_server_addr}/train/get_minibatch"
         try:
-            response = requests.get(url, stream=True)
+            response = (requests.get(url, stream=True, timeout=self.replay_queue_timeout)
+                        if self.replay_demand_mode else requests.get(url, stream=True))
             response.raise_for_status()
 
             metric = {}
@@ -248,10 +353,14 @@ class TrainController:
             outputs = torch.load(file_buffer, map_location="cpu")
         except Exception as e:
             logger.warning(f">>> get mini batch failed: {e}")
+            if self.replay_demand_mode:
+                raise
             return None, None
+        if self.replay_demand_mode:
+            self._replay_credit_pending = False
         logger.warning(f">>> get mini batch succeed, cost {time.time() - start_time:.2f} s")
         # A batch of data has been retrieved. The queue is idle. Unconditionally unlock the rollout unit.
-        if not last_iteration:
+        if not last_iteration and not self.replay_demand_mode:
             self.unlock_rollout_unit()
         return outputs, metric
 
