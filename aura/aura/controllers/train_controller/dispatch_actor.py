@@ -78,6 +78,45 @@ class DispatchActor:
         self.rollout_server_addr = rollout_server_addr
 
         self.data_iter_end = False
+        self._recovery_paused = False
+        self._active_sends = 0
+        self._prompt_cursor = None
+        self._cursor_factory = lambda: initialize_train_dataloader(data_loader, validate_num_samples, consumed_train_samples)[0]
+        self._cursor_config = (data_loader, validate_num_samples, consumed_train_samples)
+
+    def enable_replay_cursor(self):
+        if self._prompt_cursor is not None:
+            return
+        from aura.memory.replay.source import PromptCursor
+        from aura.memory.replay.codec import digest
+        from omegaconf import OmegaConf
+        data, validate, consumed = self._cursor_config
+        identity_config = OmegaConf.to_container(data, resolve=True) if OmegaConf.is_config(data) else vars(data)
+        self._prompt_cursor = PromptCursor(self._cursor_factory,
+            digest({'data': identity_config, 'validate': validate, 'initial_consumed': consumed}), self.train_data_iters)
+
+    async def pause_replay_source(self):
+        if self._prompt_cursor is None:
+            raise RuntimeError('Explicit recovery cursor not enabled')
+        self._recovery_paused = True
+        while self._active_sends:
+            await asyncio.sleep(0.01)
+        if self.failed_groups:
+            raise RuntimeError('Ambiguous failed generation requests cannot be checkpointed')
+        return self._prompt_cursor.state()
+
+    def restore_replay_cursor(self, state):
+        if not self._recovery_paused or self._active_sends or self.failed_groups:
+            raise RuntimeError('Prompt restore requires a paused empty dispatch')
+        self._prompt_cursor.restore(state)
+        self.train_data_iters = self._prompt_cursor.iterator
+        self.data_iter_end = self._prompt_cursor.exhausted
+        return self._prompt_cursor.state()
+
+    def resume_replay_source(self):
+        if not self._recovery_paused:
+            raise RuntimeError('Dispatch was not paused')
+        self._recovery_paused = False
 
     def data_iter_finished(self):
         return self.data_iter_end
@@ -128,7 +167,7 @@ class DispatchActor:
     def _get_from_data_iters(self):
         batch = None
         try:
-            batch = next(self.train_data_iters)
+            batch = next(self._prompt_cursor if self._prompt_cursor is not None else self.train_data_iters)
         except StopIteration:
             self.logger.warning(">>> rollout data iter end")
             self.data_iter_end = True
@@ -174,7 +213,13 @@ class DispatchActor:
         return succeed
 
     async def send_batch_groups(self, n_groups):
-        return await self._send_batch_groups_remote(n_groups)
+        if self._recovery_paused:
+            raise RuntimeError('Generation is paused for a paired checkpoint')
+        self._active_sends += 1
+        try:
+            return await self._send_batch_groups_remote(n_groups)
+        finally:
+            self._active_sends -= 1
 
     def check_stop_batch(self) -> bool:
         return self.total_prompts_for_rollout_unit >= self.total_prompts_for_training

@@ -23,7 +23,7 @@ import json
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch, ANY
 import pytest
-from fastapi import UploadFile
+from fastapi import UploadFile, HTTPException
 
 
 # ---------------------------------------------------------------------------
@@ -69,8 +69,10 @@ def fake_train_server_env():
         pass
 
     fake_fastapi.UploadFile = FakeUploadFile
+    fake_fastapi.Request = object
     fake_fastapi.File = MagicMock()
     fake_fastapi.Form = MagicMock()
+    fake_fastapi.HTTPException = HTTPException
 
     # ---- fake starlette.responses ----
     fake_starlette = types.ModuleType("starlette")
@@ -213,7 +215,9 @@ class TestInit:
             max_queue_size=10, global_batch_size=4, n_samples_per_prompt=2
         )
         assert isinstance(server.router, fake_train_server_env["fake_fastapi"].APIRouter)
-        assert len(server.router._routes) == 4
+        assert set(server.router._routes) == {
+            "/send_minibatch", "/is_batch_ready", "/wait_batch_ready", "/get_minibatch", "/is_ready",
+            "/replay/freeze", "/replay/restore", "/replay/resume"}
 
     def test_init_ray_failure(self, fake_train_server_env):
         """When ray.get_actor raises, error is logged but server is still created without dispatch_actor."""
