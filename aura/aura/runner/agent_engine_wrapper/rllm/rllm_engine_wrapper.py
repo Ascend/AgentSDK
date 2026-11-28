@@ -272,11 +272,13 @@ class RLLMEngineWrapper(BaseEngineWrapper):
 
         self.engine.update_env_and_agent(task_id, env, agent, iteration, sample_id)
         trajectory = None
-        async for item in self.engine.trajectory_generator(
-            task=task, stream_queue=stream_queue, mode=mode, prompt_id=prompt_id, server_handles=server_handles
-        ):
-            trajectory = item
-        self.engine.release_env_and_agent(task_id)
+        try:
+            async for item in self.engine.trajectory_generator(
+                task=task, stream_queue=stream_queue, mode=mode, prompt_id=prompt_id, server_handles=server_handles
+            ):
+                trajectory = item
+        finally:
+            self.engine.release_env_and_agent(task_id)
         return trajectory
 
     async def cancel_request(self, task: AgentTask):

@@ -155,6 +155,112 @@ def fake_engine_env():
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
+class TestPromptBudgetBoundary:
+    @pytest.mark.parametrize("length", [511, 512, 513])
+    def test_initial_prompt_boundary_and_cleanup(self, fake_engine_env, length):
+        engine = fake_engine_env["AgentExecutionEngine"](
+            tokenizer=MagicMock(), chat_parser=MagicMock(), max_prompt_length=512,
+            max_steps=1, env_args={}, n_parallel_agents=1,
+        )
+        agent = MagicMock()
+        agent.chat_completions = [{"role": "system", "content": "tools"}, {"role": "user", "content": "question"}]
+        env = MagicMock()
+        env.reset.return_value = ({}, {})
+        engine.agents, engine.envs, engine.stop = [agent], [env], True
+        fake_engine_env["fake_msg_handler"].convert_messages_to_tokens_and_masks.return_value = (
+            list(range(length)), [0] * length
+        )
+        try:
+            if length > 512:
+                with pytest.raises(fake_engine_env["mod"].PromptTooLongError, match="filter by the final"):
+                    asyncio.run(engine.run_agent_trajectory_async(0, "p-test"))
+                env.close.assert_called_once()
+            else:
+                assert asyncio.run(engine.run_agent_trajectory_async(0, "p-test")) is None
+                env.close.assert_not_called()
+        finally:
+            engine.executor.shutdown(wait=True)
+
+
+class TestWireTokenBudget:
+    async def run_case(self, fake, *, initial=300, responses=(325, 10), cap=512,
+                       rendered=625, token_mode=True, strict=False):
+        engine = fake["AgentExecutionEngine"](
+            tokenizer=MagicMock(), chat_parser=MagicMock(), n_parallel_agents=1,
+            max_prompt_length=512, max_model_len=1024, max_steps=3,
+            sampling_params={"max_tokens": cap}, token_in_token_out=token_mode,
+            enforce_max_prompt_length=strict, env_args={"trajectory_timeout": 7200},
+        )
+        engine.tokenizer.encode.return_value = [1] * rendered
+        engine.chat_parser.parse.return_value = "rendered history differs from wire tokens"
+        fake["fake_torch"].tensor.side_effect = lambda values, **kwargs: list(values)
+        fake["mod"].convert_messages_to_tokens_and_masks.side_effect = (
+            [([1] * initial, [0] * initial)] + [([3] * 3, [0] * 3)] * 3
+        )
+        fake["mod"].get_recent_assistant_user_messages.return_value = (
+            MagicMock(), [{"role": "tool", "content": "result"}]
+        )
+        calls = []
+
+        async def model(prompt, application_id, **kwargs):
+            calls.append((list(prompt), dict(kwargs)))
+            count = responses[len(calls) - 1]
+            assert len(prompt) + kwargs["max_tokens"] <= 1024
+            assert count <= kwargs["max_tokens"]
+            return {"prompt_tokens": list(prompt), "response_tokens": [2] * count,
+                    "logprobs": [-.5] * count, "message": "answer"}
+
+        engine.get_model_response = model
+        agent = MagicMock()
+        agent.chat_completions = [{"role": "system", "content": "tools"},
+                                  {"role": "user", "content": "question"}]
+        agent.update_from_model.return_value = MagicMock(action="tool")
+        env = MagicMock()
+        env.reset.return_value = ({}, {})
+        env.step.side_effect = lambda action: ({}, 0., len(calls) == len(responses), {})
+        env.is_multithread_safe.return_value = True
+        del env.compute_final_reward
+        engine.agents, engine.envs = [agent], [env]
+        try:
+            result = await engine.run_agent_trajectory_async(0, "p-budget", mode="Token")
+        finally:
+            engine.executor.shutdown(wait=True)
+        return result, calls, agent.trajectory.termination_reason
+
+    @pytest.mark.asyncio
+    async def test_round_trip_625_wire_628_uses_396_not_399(self, fake_engine_env):
+        result, calls, _ = await self.run_case(fake_engine_env)
+        assert [len(prompt) for prompt, _ in calls] == [300, 628]
+        assert [kwargs["max_tokens"] for _, kwargs in calls] == [512, 396]
+        assert result["response_tokens"][:325] == [2] * 325
+        assert result["logprobs"][:325] == [-.5] * 325
+
+    @pytest.mark.asyncio
+    async def test_configured_cap_respected(self, fake_engine_env):
+        _, calls, _ = await self.run_case(fake_engine_env, cap=64, responses=(10,))
+        assert calls[0][1]["max_tokens"] == 64
+
+    @pytest.mark.asyncio
+    async def test_actual_post_turn_boundary_stops_and_aligns_masks(self, fake_engine_env):
+        result, calls, reason = await self.run_case(
+            fake_engine_env, initial=512, responses=(512, 10), rendered=625)
+        assert len(calls) == 1 and reason == "TRUNCATION"
+        assert len(result["prompt_tokens"]) + len(result["response_tokens"]) == 1024
+        assert len(result["response_tokens"]) == len(result["response_masks"]) == len(result["logprobs"])
+        assert result["response_masks"] == [1] * 512
+
+    @pytest.mark.asyncio
+    async def test_exhausted_text_budget_never_falls_back_to_128(self, fake_engine_env):
+        _, calls, reason = await self.run_case(fake_engine_env, token_mode=False, rendered=1024)
+        assert not calls and reason == "TRUNCATION"
+
+    @pytest.mark.asyncio
+    async def test_strict_budget_uses_wire_not_rendered_length(self, fake_engine_env):
+        _, calls, reason = await self.run_case(
+            fake_engine_env, initial=512, rendered=1, responses=(500, 10), strict=True)
+        assert len(calls) == 1 and reason == "PROMPT_TRUNCATION"
+
+
 class TestHelpers:
     def test_create_application_id(self, fake_engine_env):
         mod = fake_engine_env["mod"]
