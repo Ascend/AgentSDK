@@ -125,10 +125,28 @@ class FullyAsyncTaskRunner:
         logger.info(f"total_train_steps {config.total_train_steps}")
         ray.get(self.components["trainer"].set_total_train_steps.remote(config.total_train_steps))
 
-        controller = start_train_controller(ray.get(self.components["trainer"].get_actor_wg.remote()), config)
+        controller_config = config
+        from aura.trainer.train_adapter.verl.full_async.replay_recovery import recovery_settings
+        joint_recovery = recovery_settings(config)
+        if config.trainer.resume_mode != "disable" and joint_recovery is None:
+            version = ray.get(self.components["trainer"].load_checkpoint.remote())
+            if version > 0:
+                completed = version * config.async_training.trigger_parameter_sync_step
+                controller_config = OmegaConf.create(OmegaConf.to_container(config, resolve=True))
+                controller_config.total_train_steps = config.total_train_steps - completed
+                controller_config.extras.consumed_train_samples = completed * config.data.train_batch_size
+                logger.info(f"[ASYNC MAIN] Resume version={version}, completed={completed}, "
+                            f"remaining={controller_config.total_train_steps}, "
+                            f"consumed_prompts={controller_config.extras.consumed_train_samples}")
+        controller = start_train_controller(ray.get(self.components["trainer"].get_actor_wg.remote()), controller_config)
         controller.pre_initialize()
+        from aura.memory.replay.config import replay_ratio
+        if replay_ratio(config) > 0:
+            controller.enable_replay_demand(config.replay.rpc_timeout)
+            self.components["replay_controller"] = controller
         controller.wait_for_rollout_unit_ready()
-        controller.initialize_rollout()
+        if joint_recovery is None:
+            controller.initialize_rollout()
 
         from aura.data_manager.data_manager import DataManager
 
@@ -139,6 +157,8 @@ class FullyAsyncTaskRunner:
 
         ray.get(self.components["trainer"].set_data_manager.remote(data_manager))
         ray.get(self.components["trainer"].set_controller.remote(controller))
+        if replay_ratio(config) > 0:
+            ray.get(self.components["trainer"].set_replay_session.remote(dict(config.replay)))
         logger.info("[ASYNC MAIN] All components initialized successfully")
 
     def _create_trainer(self, config) -> None:
@@ -172,13 +192,21 @@ class FullyAsyncTaskRunner:
         self.components["trainer"] = trainer
         logger.info("[ASYNC MAIN] FullyAsyncTrainer created and initialized successfully")
 
+        self._inject_sample_queue(trainer, config)
+
+    def _inject_sample_queue(self, trainer, config):
+        # This runner is shared by one-step-off and fully-async entry points.
+        # A named queue left by another job must never divert one-step replay.
+        if config.extras.work_mode != "fully_async":
+            return
         try:
             from aura.controllers.rollout_controller.sample_queue import get_sample_queue
             _sq = get_sample_queue()
             ray.get(trainer.set_sample_queue.remote(_sq))
             logger.info("[ASYNC MAIN] SampleQueue injected into FullyAsyncTrainer (fully_async streaming mode)")
         except Exception as _sq_e:
-            logger.debug(f"[ASYNC MAIN] SampleQueue not available, skip injection: {_sq_e}")
+            logger.error(f"[ASYNC MAIN] Required SampleQueue is unavailable: {_sq_e}")
+            raise
 
     def _run_training_loop(self) -> None:
         """Run the main training loop, handling exceptions gracefully."""
@@ -191,6 +219,13 @@ class FullyAsyncTaskRunner:
         except Exception as e:
             logger.error(f"[ASYNC MAIN] Training failed: {e}")
             self._cancel_all(futures)
+            replay_controller = self.components.get("replay_controller")
+            if replay_controller is not None:
+                # A pure-replay stale-pool error must also wake the idle rollouter.
+                try:
+                    replay_controller.finish_training()
+                except Exception as cleanup_error:
+                    logger.error(f"[ASYNC MAIN] Replay shutdown failed: {cleanup_error}")
             raise
         finally:
             logger.info("[ASYNC MAIN] Training completed or interrupted")
@@ -223,10 +258,53 @@ class FullyAsyncTaskRunner:
 
 @ray.remote
 def start_train(work_mode, train_config, rollout_config, agent_service, infer_service):
+    OmegaConf.update(train_config, "extras.work_mode", work_mode, force_add=True)
     from aura.trainer.rollout.rollout_service import start_rollout
+    from aura.trainer.train_adapter.verl.full_async.checkpoint_utils import checkpoint_version, resolve_checkpoint
+
+    from aura.trainer.train_adapter.verl.full_async.replay_recovery import recovery_settings, select_pair
+    joint_recovery = recovery_settings(train_config)
+    path = None if joint_recovery else resolve_checkpoint(train_config.trainer)
+    from aura.memory.replay.launcher import prepare_replay
+    replay_actor = prepare_replay(train_config, rollout_config)
+    version = checkpoint_version(path) if path else 0
+    env = {"RESUME_ITERATION": str(version if path else -1), "AURA_RESUME_HF_PATH": ""}
+    if joint_recovery and joint_recovery.get('from_branch'):
+        from aura.memory.replay.config import ReplayConfig
+        selected = select_pair(joint_recovery, ReplayConfig.from_mapping(train_config.replay), replay_actor)
+        body = selected['body']
+        from pathlib import Path
+        model_shard = next(item for item in body['artifacts']
+                           if Path(item['path']).name.startswith('model_world_size_'))
+        hf_path = str(Path(joint_recovery['root']) / Path(model_shard['path']).parent / 'huggingface')
+        if train_config.total_train_steps <= body['step']:
+            raise ValueError('No remaining updates after selected paired checkpoint')
+        # Pin the SAME verified commit for trainer and inference; never auto-select twice.
+        from omegaconf import open_dict
+        with open_dict(train_config):
+            train_config.replay_recovery.commit_id = body['commit_id']
+        env.update(RESUME_ITERATION=str(body['policy_version']), AURA_RESUME_HF_PATH=hf_path)
+    if joint_recovery:
+        env['AURA_PAIRED_RECOVERY'] = '1'
+    if path:
+        completed = version * train_config.async_training.trigger_parameter_sync_step
+        if train_config.total_train_steps <= completed:
+            raise ValueError("total_train_steps must exceed completed checkpoint steps")
+        # Freeze the auto-resolved checkpoint for both components.
+        train_config.trainer.resume_mode = "resume_path"
+        train_config.trainer.resume_from_path = path
+        rollout_config.train_iters = train_config.total_train_steps - completed
+        hf_path = os.path.join(path, "actor", "huggingface")
+        if not os.path.isdir(hf_path) or not any(
+            name.endswith(".safetensors") and os.path.isfile(os.path.join(hf_path, name))
+            for name in os.listdir(hf_path)
+        ):
+            raise ValueError("one-step resume requires checkpoint save_contents to include hf_model")
+        env["AURA_RESUME_HF_PATH"] = hf_path
 
     # 异步提交 rollout 任务
     ref = start_rollout.options(
+        runtime_env={"env_vars": env},
         scheduling_strategy=NodeAffinitySchedulingStrategy(
             node_id=ray.get_runtime_context().node_id,
             soft=False,  # 强制硬亲和
@@ -254,7 +332,14 @@ def start_train(work_mode, train_config, rollout_config, agent_service, infer_se
     from time import time
 
     start_time = time()
-    run_ppo(train_config, task_runner_class=FullyAsyncTaskRunner)
+    try:
+        run_ppo(train_config, task_runner_class=FullyAsyncTaskRunner)
+    finally:
+        if replay_actor is not None:
+            try:
+                ray.get(replay_actor.close_replay_store.remote(), timeout=train_config.replay.rpc_timeout)
+            finally:
+                ray.kill(replay_actor, no_restart=True)
     logger.info(f"total time: {time() - start_time:.2f} seconds")
 
 

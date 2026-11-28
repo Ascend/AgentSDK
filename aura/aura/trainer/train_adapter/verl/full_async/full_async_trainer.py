@@ -34,12 +34,13 @@ from verl.trainer.ppo import core_algos
 from verl.trainer.ppo.core_algos import agg_loss
 from verl.trainer.ppo.ray_trainer import ResourcePoolManager
 from verl.trainer.ppo.utils import Role, WorkerType, need_critic, need_reference_policy, need_reward_model
-from verl.utils.checkpoint.checkpoint_manager import find_latest_ckpt_path, should_save_ckpt_esi
+from verl.utils.checkpoint.checkpoint_manager import should_save_ckpt_esi
 from verl.utils.debug import marked_timer
 from verl.utils.tracking import Tracking
 from verl import DataProto
 
 from aura.base.log.loggers import Loggers
+from aura.trainer.train_adapter.verl.full_async.checkpoint_utils import checkpoint_version, resolve_checkpoint
 
 logger = Loggers(__name__).get_logger()
 
@@ -164,7 +165,8 @@ class FullyAsyncTrainer(SeparateRayPPOTrainer):
         self.progress_bar = None
         self.trigger_parameter_sync_step = config.async_training.trigger_parameter_sync_step
         self.last_ckpt_version = 0
-        # Last param version already pushed to rollout, used to dedupe the final sync.
+        self._checkpoint_loaded = False
+        # Last published version; inference loading is confirmed separately.
         self.last_synced_param_version = 0
         self.train_role = self._compute_train_role(config)
 
@@ -180,6 +182,74 @@ class FullyAsyncTrainer(SeparateRayPPOTrainer):
         self.metrics_aggregator = MetricsAggregator(total_gpus=total_gpus)
         self.controller = None
         self.data_manager = None
+        self._replay_session = None
+
+    def set_replay_session(self, settings):
+        from aura.memory.replay.config import ReplayConfig
+        from aura.memory.replay.runtime import ReplaySession
+        if self._replay_session is not None:
+            raise RuntimeError("Replay session already configured")
+        if self.sample_queue is not None:
+            raise ValueError("Replay is only supported by one-step-off, not the streaming SampleQueue")
+        if str(getattr(self.config.algorithm.adv_estimator, "value", self.config.algorithm.adv_estimator)).lower() != "grpo":
+            raise ValueError("Replay P2 requires trajectory-level GRPO")
+        pad_token_id = self.tokenizer.pad_token_id
+        if pad_token_id is None:
+            pad_token_id = self.tokenizer.eos_token_id
+        if pad_token_id is None:
+            raise ValueError("Replay training requires a tokenizer pad/eos token ID")
+        from aura.trainer.train_adapter.verl.full_async.replay_loss import validate_loss_config, validate_native_loss
+        validate_loss_config(self.config)
+        validate_native_loss()
+        replay_config = ReplayConfig.from_mapping(settings)
+        from aura.trainer.train_adapter.verl.full_async.replay_recovery import recovery_settings
+        recovery = recovery_settings(self.config)
+        if recovery is None:
+            self._replay_session = ReplaySession(replay_config, pad_token_id)
+            return
+        from aura.memory.replay.runtime import connect_actor
+        from aura.memory.replay.transaction import TransactionalReplaySession
+        from aura.trainer.train_adapter.verl.full_async.replay_recovery import FSDPCallbacks
+        from pathlib import Path
+        actor = connect_actor(replay_config)
+        Path(recovery['root']).mkdir(parents=True, exist_ok=True)
+        self._replay_source = self.data_manager.replay_source_adapter(replay_config, actor)
+        self._replay_model = FSDPCallbacks(self.actor_rollout_wg, recovery['root'], recovery['branch'],
+            recovery['writer_request'], self._replay_source.controller.confirm_replay_inference)
+        if recovery.get('from_branch'):
+            self._replay_session, chosen = TransactionalReplaySession.recover(
+                replay_config, pad_token_id, actor, recovery['ledger_path'], recovery['root'],
+                from_branch=recovery['from_branch'], new_branch=recovery['branch'],
+                writer_request=recovery['writer_request'], load_model=self._replay_model.load,
+                restore_source=self._replay_source.restore, commit_id=recovery.get('commit_id'))
+            self.current_param_version = chosen['body']['policy_version']
+            self.global_steps = chosen['body']['step'] + 1
+            self.local_trigger_step = 1
+            # The recovery callback already confirmed inference loaded this version.
+            self.last_synced_param_version = self.current_param_version
+            self.last_ckpt_version = self.current_param_version
+            logger.info(f'Paired replay restored: {chosen["body"]["commit_id"]}, next={self.global_steps}')
+        else:
+            self._replay_source.controller.confirm_replay_inference('', 0)
+            self._replay_session = TransactionalReplaySession.start(
+                replay_config, pad_token_id, actor, recovery['ledger_path'], branch=recovery['branch'],
+                writer_request=recovery['writer_request'])
+            self._save_paired_checkpoint(recovery)
+            self.last_ckpt_version = 0
+        self._checkpoint_loaded = True
+        self._replay_source.resume()
+
+    def _save_paired_checkpoint(self, recovery):
+        try:
+            from .replay_recovery import save_while_draining
+            result = save_while_draining(self._replay_session, self._replay_source,
+                                        self._replay_model, recovery['root'])
+        except BaseException:
+            self._replay_source.failed = True
+            self._replay_session.abort_uncertain()
+            raise
+        logger.info(f'Paired replay committed: {result["body"]["commit_id"]}, step={result["body"]["step"]}')
+        return result
 
     def init_workers(self):
         """Initialize distributed training workers using Ray backend.
@@ -239,6 +309,8 @@ class FullyAsyncTrainer(SeparateRayPPOTrainer):
 
     def set_sample_queue(self, sample_queue):
         """Inject the SampleQueue actor used for streaming sample collection."""
+        if self._replay_session is not None:
+            raise ValueError("Streaming SampleQueue cannot replace an active ReplaySession")
         self.sample_queue = sample_queue
         logger.info("[async-trainer] sample_queue set for fully_async streaming")
 
@@ -458,9 +530,18 @@ class FullyAsyncTrainer(SeparateRayPPOTrainer):
             f"[FullyAsyncTrainer] Requesting {self.required_samples} samples from queue",
         )
 
-        processed_batch, _ = self.data_manager.get_data(
-            experience_consumer_stage="train", experience_columns=None, experience_count=self.required_samples
-        )
+        def fetch_online():
+            processed, _ = self.data_manager.get_data(
+                experience_consumer_stage="train", experience_columns=None, experience_count=self.required_samples
+            )
+            return processed
+        session = getattr(self, "_replay_session", None)
+        if session is None:
+            processed_batch = fetch_online()
+        else:
+            processed_batch = session.next_batch(fetch_online, self.current_param_version)
+            if session.mixer.wants_online_prefetch(last_step=self.is_last_step):
+                self.data_manager.prefetch_online_batch()
         return 0, processed_batch
 
     def _create_actor_rollout_classes(self) -> None:
@@ -507,14 +588,15 @@ class FullyAsyncTrainer(SeparateRayPPOTrainer):
 
         self.max_steps_duration = 0
 
-        self.global_steps += 1
+        if self.global_steps == 0:
+            self.global_steps = 1
 
         # 适配verl续训
         self._load_checkpoint()
 
         # Use queue mode, no need for traditional dataloader iterator
         # Initialize to get the first batch of data
-        while True:
+        while self.global_steps <= self.total_train_steps:
             try:
                 await self.fit_step()
             except TrainingStopException:
@@ -522,11 +604,16 @@ class FullyAsyncTrainer(SeparateRayPPOTrainer):
                 break
             except Exception as e:
                 logger.error(f"[FullyAsyncTrainer] unexpected error in fit_step: {e}", exc_info=True)
+                if hasattr(self._replay_session, 'abort_uncertain'):
+                    self._replay_session.abort_uncertain()
+                    self._replay_source.failed = True
                 self._shutdown_sample_queue("[FullyAsyncTrainer] SampleQueue shutdown signaled on error")
                 raise
 
         self.progress_bar.close()
         await self._maybe_sync_final_weights()
+        # Queue-based training has no validation dataloader/rollout manager.
+        # Do not enter the parent's unconnected validation path at shutdown.
         self._fit_save_checkpoint(force=True)
         self._shutdown_sample_queue("[async-trainer] SampleQueue shutdown signaled")
         self.controller.finish_training()
@@ -574,6 +661,7 @@ class FullyAsyncTrainer(SeparateRayPPOTrainer):
         7. Compute advantage -> 8. Update critic -> 9. Update actor -> 10. Post-step processing
         """
         logger.info(f"=== start train iteration {self.global_steps} ===")
+        self.is_last_step = self.global_steps >= self.total_train_steps
         self.metrics = {"training/global_step": self.global_steps, "training/epoch": self.epoch}
         self.timing_raw = {}
         # reward message
@@ -598,7 +686,21 @@ class FullyAsyncTrainer(SeparateRayPPOTrainer):
             batch = self._fit_update_critic(batch)
 
             logger.info("start update...")
+            priority_updates = None
+            if self._replay_session is not None:
+                self._replay_session.mixer.validate_inflight(self.current_param_version)
+                from aura.trainer.train_adapter.verl.full_async.replay_loss import apply_behavior_correction
+                self.metrics.update(apply_behavior_correction(batch))
+                priority_updates = self._replay_session.priority_updates(batch)
             batch = self._fit_update_actor(batch)
+            if self._replay_session is not None:
+                from aura.memory.replay.transaction import TransactionalReplaySession
+                if isinstance(self._replay_session, TransactionalReplaySession):
+                    self._replay_model.confirm_update(self.current_param_version + 1)
+                    self.metrics.update(self._replay_session.ack_update(self.current_param_version + 1, priority_updates))
+                else:
+                    self.metrics.update(
+                        self._replay_session.commit_success(self.current_param_version, priority_updates))
             self._fit_update_local_step()
 
             logger.info(f"start update weights, self.local_trigger_step: {self.local_trigger_step}")
@@ -606,7 +708,7 @@ class FullyAsyncTrainer(SeparateRayPPOTrainer):
             self._fit_dump_data(batch)
 
         # await self._fit_validate()
-        self._fit_save_checkpoint(force=True)
+        self._fit_save_checkpoint()
         self._fit_stop_profile()
 
         logger.info("start collect metrics")
@@ -627,8 +729,25 @@ class FullyAsyncTrainer(SeparateRayPPOTrainer):
             if epoch is None or rollout_return_batch is None:
                 logger.warning("[FullyAsyncTrainer] No samples available from queue, skipping generation step")
                 return None
+            estimator = self.config.algorithm.adv_estimator
+            if str(getattr(estimator, "value", estimator)).lower() == "grpo":
+                from aura.trainer.rollout.trajectory_validation import validate_group_ids
+
+                validate_group_ids(
+                    rollout_return_batch["prompt_ids"],
+                    self.config.actor_rollout_ref.rollout.n,
+                    (self.required_samples if self.config.extras.work_mode == "fully_async"
+                     else self.config.data.train_batch_size) * self.config.actor_rollout_ref.rollout.n,
+                )
             batch = DataProto.from_dict(tensors=self._extract_generate_tensors(rollout_return_batch))
             batch.non_tensor_batch["uid"] = np.array(rollout_return_batch["prompt_ids"])
+            if self._replay_session is not None:
+                for key in ("replay_trajectory_ids", "replay_weight_versions", "replay_source_store_ids"):
+                    batch.non_tensor_batch[key] = np.array(rollout_return_batch[key])
+                if "replay_source_weight_versions" in rollout_return_batch:
+                    batch.non_tensor_batch["replay_source_weight_versions"] = np.array(
+                        rollout_return_batch["replay_source_weight_versions"])
+                batch.meta_info["trajectory_param_versions"] = rollout_return_batch["replay_weight_versions"]
             batch.meta_info["global_token_num"] = torch.sum(rollout_return_batch["attention_mask"], dim=-1).tolist()
         batch.meta_info["temperature"] = self.config.actor_rollout_ref.rollout.temperature
         return batch
@@ -658,6 +777,13 @@ class FullyAsyncTrainer(SeparateRayPPOTrainer):
         snapshot to version 1 for the forward pass, then restore the trainer's
         working version to keep MIS bookkeeping consistent.
         """
+        # MIS snapshots belong to the newly added fully-async streaming mode.
+        # One-step-off keeps its original log-prob path and replay correction.
+        if self.config.extras.work_mode != "fully_async":
+            return super()._compute_old_log_prob(batch)
+        required = ("save_model_to_cpu", "restore_model_from_cpu", "clear_cpu_model")
+        if not all(callable(getattr(self.actor_rollout_wg, method, None)) for method in required):
+            raise RuntimeError("fully_async MIS requires worker CPU snapshot APIs; check the pinned verl environment")
         mis_enter_version = self.current_param_version
         mis_enter_trigger = self.local_trigger_step
         if self.local_trigger_step == 1:
@@ -666,9 +792,11 @@ class FullyAsyncTrainer(SeparateRayPPOTrainer):
         else:
             self.actor_rollout_wg.save_model_to_cpu(self.local_trigger_step)
             self.actor_rollout_wg.restore_model_from_cpu(1)
-            old_log_prob, old_log_prob_mfu = super()._compute_old_log_prob(batch)
-            self.actor_rollout_wg.restore_model_from_cpu(self.local_trigger_step)
-            self.actor_rollout_wg.clear_cpu_model(self.local_trigger_step)
+            try:
+                old_log_prob, old_log_prob_mfu = super()._compute_old_log_prob(batch)
+            finally:
+                self.actor_rollout_wg.restore_model_from_cpu(self.local_trigger_step)
+                self.actor_rollout_wg.clear_cpu_model(self.local_trigger_step)
         logger.info(
             f"[async-trainer] MIS done: trainer_version={mis_enter_version}, "
             f"trigger_step={mis_enter_trigger}"
@@ -692,9 +820,16 @@ class FullyAsyncTrainer(SeparateRayPPOTrainer):
     async def _fit_update_weights(self) -> None:
         if self.local_trigger_step != 1:
             return
+        # The final fit() flush can repeat the last step's export. Rewriting the
+        # same DCP files can race an inference aggregation that is still reading
+        # them. A successfully published policy version must remain immutable.
+        if self.current_param_version <= self.last_synced_param_version:
+            return
 
         with marked_timer("timing_s/param_sync", self.timing_raw):
             self.controller.update_rollout_weights(self.current_param_version)
+        # Record publication only after the controller call succeeds. Inference
+        # loading is asynchronous; this is not an inference-ready receipt.
         self.last_synced_param_version = self.current_param_version
         logger.info(
             f"[FullyAsyncTrainer] _fit_update_weights, "
@@ -728,14 +863,13 @@ class FullyAsyncTrainer(SeparateRayPPOTrainer):
     def _should_save_now(self, force, esi_close_to_expiration):
         """Decide whether a checkpoint should be saved at the current step.
 
-        Conditions: (1) ``save_freq`` is positive, and (2/3/4) ESI is close to
-        expiration, or this is a forced save landing on a save_freq boundary.
+        Save when enabled and either forced, periodic, or close to ESI expiry.
+        Final saves must not depend on divisibility by the periodic interval.
         """
         if self.config.trainer.save_freq <= 0:
             return False
-        if esi_close_to_expiration:
-            return True
-        return force and self.current_param_version % self.config.trainer.save_freq == 0
+        return bool(force or esi_close_to_expiration
+                    or self.current_param_version % self.config.trainer.save_freq == 0)
 
     def _fit_postprocess_step(self) -> None:
         self.global_steps += 1
@@ -758,6 +892,12 @@ class FullyAsyncTrainer(SeparateRayPPOTrainer):
 
     def _save_checkpoint(self) -> None:
         """Persist actor (and optionally critic) model checkpoints to disk."""
+        from aura.trainer.train_adapter.verl.full_async.replay_recovery import recovery_settings
+        recovery = recovery_settings(self.config)
+        if recovery is not None:
+            self._save_paired_checkpoint(recovery)
+            self._replay_source.resume()
+            return
         local_global_step_folder = os.path.join(
             self.config.trainer.default_local_dir, f"global_step_{self.current_param_version}"
         )
@@ -823,29 +963,28 @@ class FullyAsyncTrainer(SeparateRayPPOTrainer):
         with open(local_latest_checkpointed_iteration, "w") as f:
             f.write(str(self.current_param_version))
 
+    def _load_checkpoint(self) -> int:
+        """Use the Aura loader, not the parent's incompatible step semantics."""
+        return self.load_checkpoint()
+
     def load_checkpoint(self) -> int:
         """Load model checkpoint from disk or HDFS.
 
         Returns:
             The parameter version restored from the checkpoint (0 if training from scratch).
         """
-        if self.config.trainer.resume_mode == "disable":
-            return 0
+        if self._checkpoint_loaded:
+            return self.current_param_version
         global_step_folder = self._resolve_checkpoint_folder()
         if global_step_folder is None:
+            self._checkpoint_loaded = True
             return 0
         self._restore_from_checkpoint(global_step_folder)
         return self.current_param_version
 
     def _resolve_checkpoint_folder(self):
-        """Resolve the checkpoint folder based on ``resume_mode`` (local only)."""
-        if self.config.trainer.default_hdfs_dir is not None:
-            raise NotImplementedError("load from hdfs is not implemented yet")
-        checkpoint_folder = self._resolve_local_checkpoint_folder()
-        global_step_folder = find_latest_ckpt_path(checkpoint_folder)
-        if self.config.trainer.resume_mode == "auto":
-            return global_step_folder
-        return self._resolve_resume_path(global_step_folder)
+        """Resolve once through Aura's validated, committed checkpoint pointer."""
+        return resolve_checkpoint(self.config.trainer)
 
     def _resolve_local_checkpoint_folder(self):
         """Resolve the local checkpoint folder, anchored to CWD when not absolute."""
@@ -870,18 +1009,12 @@ class FullyAsyncTrainer(SeparateRayPPOTrainer):
     def _restore_from_checkpoint(self, global_step_folder):
         """Restore model weights and global step counters from a checkpoint folder."""
         logger.info(f"[FullyAsyncTrainer] Load from checkpoint folder: {global_step_folder}")
-        self.current_param_version = int(global_step_folder.split("global_step_")[-1]).strip(" /")
-        self.global_steps = self.current_param_version * self.trigger_parameter_sync_step + 1
-        self.last_ckpt_version = self.current_param_version
-        # Weights of this version were published before the checkpoint was written.
-        self.last_synced_param_version = self.current_param_version
-        logger.info(
-            f"[FullyAsyncTrainer] Setting global step to {self.global_steps}, "
-            f"current_param_version to {self.current_param_version}"
-        )
+        version = checkpoint_version(global_step_folder)
+        actor_path = os.path.join(global_step_folder, "actor")
+        if not os.path.isdir(actor_path):
+            raise FileNotFoundError(f"Actor checkpoint does not exist: {actor_path}")
         logger.info(f"[FullyAsyncTrainer] Resuming from {global_step_folder}")
 
-        actor_path = os.path.join(global_step_folder, "actor")
         self.actor_rollout_wg.load_checkpoint(
             actor_path, del_local_after_load=self.config.trainer.del_local_ckpt_after_load
         )
@@ -891,6 +1024,17 @@ class FullyAsyncTrainer(SeparateRayPPOTrainer):
             self.critic_wg.load_checkpoint(
                 critic_path, del_local_after_load=self.config.trainer.del_local_ckpt_after_load
             )
+        # Publish counters only after model/optimizer/extra-state loading succeeds.
+        self.current_param_version = version
+        self.global_steps = version * self.trigger_parameter_sync_step + 1
+        self.last_ckpt_version = version
+        # Rollout startup restores the paired inference weights separately.
+        self.last_synced_param_version = version
+        self.local_trigger_step = 1
+        self._checkpoint_loaded = True
+        if self.progress_bar is not None:
+            self.progress_bar.update(version * self.trigger_parameter_sync_step)
+        logger.info(f"[FullyAsyncTrainer] Restored version {version}, next train step {self.global_steps}")
         logger.info("[FullyAsyncTrainer] End loading checkpoint for resume ...")
 
     def _collect_metrics_from_samples(self, batch: DataProto, metrics: dict) -> None:
