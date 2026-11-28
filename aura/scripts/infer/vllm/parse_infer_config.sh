@@ -90,6 +90,10 @@ if [[ "$CARD_TYPE" -eq "${A3_CARD}" ]]; then
   export NPU_NUM_PER_NODE=16
 fi
 
+runtime_options=$(python3 "${vllm_dir}/read_runtime_options.py" "${CONFIG_FILE}" "$NPU_NUM_PER_NODE") || exit 1
+read -r NPU_NUM_PER_NODE VLLM_ENFORCE_EAGER <<< "$runtime_options"
+export NPU_NUM_PER_NODE VLLM_ENFORCE_EAGER
+
 PREFILL_DATA_PARALLEL_SIZE_LOCAL=$((NPU_NUM_PER_NODE / PREFILL_TENSOR_PARALLEL_SIZE))
 DECODE_DATA_PARALLEL_SIZE_LOCAL=$((NPU_NUM_PER_NODE / DECODE_TENSOR_PARALLEL_SIZE))
 
