@@ -415,6 +415,9 @@ class TestRolloutWorkerCore(TestRolloutWorkerUtils):
 
     def test_handle_full_batch_trajectories(self):
         """Test handle_full_batch_trajectories method"""
+        # The single-row fixture represents one complete n=1 batch, not 32 x 8 rows.
+        self.rollout_worker.global_batch_size = 1
+        self.rollout_worker.n_samples_per_prompt = 1
         # Prepare test data
         indexes = [0]
         start_time = 1234567890
@@ -470,9 +473,9 @@ class TestRolloutWorkerCore(TestRolloutWorkerUtils):
         # Test case 1: Number of trajectories is less than concurrency and not the last batch
         self.assertFalse(self.rollout_worker.trajectories_collect_done([1, 2], 5, 0, 2))
 
-        # Test case 2: Number of trajectories is less than concurrency, but terminated trajectories plus existing trajectories are >= concurrency, and it's the last batch
+        # Terminated requests are not genuine samples and cannot complete a GRPO batch.
         self.rollout_worker.terminate_trajectories = 4
-        self.assertTrue(self.rollout_worker.trajectories_collect_done([1, 2], 5, 1, 2))
+        self.assertFalse(self.rollout_worker.trajectories_collect_done([1, 2], 5, 1, 2))
 
         # Test case 3: Number of trajectories is >= concurrency
         self.assertTrue(self.rollout_worker.trajectories_collect_done([1, 2, 3, 4, 5], 5, 0, 2))
@@ -481,9 +484,11 @@ class TestRolloutWorkerCore(TestRolloutWorkerUtils):
         """Test get_train_batch_traj method"""
         traj_groups = {
             "1": [1, 2, 3, 4, 5, 6, 7, 8],  # 8 trajectories, exactly n_sample
-            "2": [1, 2, 3, 4, 5, 6, 7, 8, 9]  # 9 trajectories, more than n_sample
+            "2": [1, 2, 3, 4, 5, 6, 7]  # incomplete group must not be selected
         }
-        trajectories = self.rollout_worker.get_train_batch_traj(traj_groups, 10, 8)
+        with self.assertRaisesRegex(ValueError, "multiple"):
+            self.rollout_worker.get_train_batch_traj(traj_groups, 10, 8)
+        trajectories = self.rollout_worker.get_train_batch_traj(traj_groups, 16, 8)
         self.assertEqual(len(trajectories), 8)
         self.assertEqual(trajectories, [1, 2, 3, 4, 5, 6, 7, 8])
 
@@ -507,13 +512,14 @@ class TestRolloutWorkerCore(TestRolloutWorkerUtils):
             # Mock handle_full_batch_trajectories method
             self.rollout_worker.handle_full_batch_trajectories = MagicMock()
 
-            # Call the method
-            self.rollout_worker.multi_batches_final_handle(traj_groups, all_prompt_ids, concurrency, indexes, start_time, resharding_to_infer)
-
-            # Verify results
-            self.rollout_worker.get_train_batch_traj.assert_called_once_with(traj_groups, concurrency, 8)
-            mock_clean_traj_groups.assert_called_once()
-            self.rollout_worker.handle_full_batch_trajectories.assert_called_once()
+            # Leftover groups are a generation/protocol failure, not an invitation to pad.
+            with self.assertRaisesRegex(ValueError, "Incomplete GRPO"):
+                self.rollout_worker.multi_batches_final_handle(
+                    traj_groups, all_prompt_ids, concurrency, indexes, start_time, resharding_to_infer
+                )
+            self.rollout_worker.get_train_batch_traj.assert_not_called()
+            mock_clean_traj_groups.assert_not_called()
+            self.rollout_worker.handle_full_batch_trajectories.assert_not_called()
 
     def test_multi_batches_generate_sequences(self):
         """Test multi_batches_generate_sequences method"""

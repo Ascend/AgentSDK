@@ -38,6 +38,12 @@ class DataManager:
     def put_data(self, output, index, metric=None):
         self.data_manager_instance.put_data(output, index, metric)
 
+    def prefetch_online_batch(self):
+        return self.data_manager_instance.prefetch_online_batch()
+
+    def replay_source_adapter(self, config, actor):
+        return self.data_manager_instance.replay_source_adapter(config, actor)
+
     def put_experience(self, batch_dict, indexes):
         self.data_manager_instance.put_experience(batch_dict, indexes)
 

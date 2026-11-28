@@ -18,6 +18,9 @@
 # -------------------------------------------------------------------------
 
 
+import asyncio
+import os
+
 import ray
 from ray.util.scheduling_strategies import NodeAffinitySchedulingStrategy
 
@@ -37,8 +40,32 @@ from aura.base.utils.pad_process import (
 logger = Loggers(__name__).get_logger()
 
 
+def _restore_inference_checkpoint(infer_service):
+    resume_hf_path = os.getenv("AURA_RESUME_HF_PATH", "")
+    if not resume_hf_path:
+        return
+    from aura.runner.infer_router import InferRouter
+
+    async def restore_inference():
+        router = await InferRouter.create()
+        instance = await router.infer_manager.get_instance.remote(infer_service)
+        count = len(instance.executor_list)
+        if not count:
+            raise RuntimeError('Cannot restore inference without executors')
+        loaded = await router.update_weights(
+            model_name=infer_service, kwargs_list=[{"path": [resume_hf_path]} for _ in range(count)])
+        if not isinstance(loaded, list) or len(loaded) != count or any(item is False for item in loaded):
+            raise RuntimeError('Checkpoint weights were not loaded by every inference executor')
+        cleared = await router.reset_prefix_cache(model_name=infer_service)
+        if not isinstance(cleared, list) or len(cleared) != count or any(item is not True for item in cleared):
+            raise RuntimeError('Checkpoint restore requires successful prefix cache reset on every executor')
+
+    asyncio.run(restore_inference())
+    logger.info(f"Restored inference weights before rollout ready: {resume_hf_path}")
+
+
 def _create_rollout_worker(rollout_config, agent_service, infer_service, generate_config=None,
-                           split_to_list=None):
+                           split_to_list=None, replay_config=None):
     """Build a RolloutWorker with hard node affinity.
 
     Args:
@@ -49,6 +76,7 @@ def _create_rollout_worker(rollout_config, agent_service, infer_service, generat
         split_to_list: Optional callable to remove padding and split to list;
             None for verl backends.
     """
+    replay_kwargs = {"replay_config": replay_config} if replay_config is not None else {}
     return RolloutWorker.options(
         scheduling_strategy=NodeAffinitySchedulingStrategy(
             node_id=ray.get_runtime_context().node_id,
@@ -75,6 +103,7 @@ def _create_rollout_worker(rollout_config, agent_service, infer_service, generat
         agent_service=agent_service,
         infer_service=infer_service,
         llm_tokenizer_path=getattr(rollout_config, 'llm_tokenizer_path', None),
+        **replay_kwargs,
     )
 
 
@@ -141,6 +170,8 @@ def start_async_rollout_worker(
         use_on_policy=generate_config.use_on_policy,
         model_name=infer_service,
     )
+    _restore_inference_checkpoint(infer_service)
+    # Notify training side only after the checkpoint's inference weights are loaded.
     controller.send_ready_to_train()
 
     executor = OneStepOffRolloutExecutor(
@@ -167,10 +198,18 @@ def start_rollout(rollout_config, agent_service, infer_service):
         infer_service: Name of the inference service.
     """
     logger.info(f"{rollout_config=}, {agent_service=}, {infer_service=}")
-    rollout_worker = _create_rollout_worker(rollout_config, agent_service, infer_service)
+    from aura.memory.replay.config import replay_ratio
+    replay_kwargs = {"replay_config": dict(rollout_config.replay)} if replay_ratio(rollout_config) > 0 else {}
+    rollout_worker = _create_rollout_worker(rollout_config, agent_service, infer_service, **replay_kwargs)
     ray.get(rollout_worker.wait_init_finished.remote(is_proxy_mode=True))
 
     controller = _create_rollout_controller(rollout_config, infer_service)
+    _restore_inference_checkpoint(infer_service)
+    if os.getenv('AURA_PAIRED_RECOVERY') == '1':
+        controller.rollout_server.recovery_receipt = {
+            'path': os.getenv('AURA_RESUME_HF_PATH', ''),
+            'policy_version': max(0, int(os.getenv('RESUME_ITERATION', '-1'))),
+            'loaded_before_ready': True}
     controller.send_ready_to_train()
 
     executor = OneStepOffRolloutExecutor(

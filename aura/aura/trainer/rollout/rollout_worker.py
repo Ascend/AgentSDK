@@ -40,6 +40,7 @@ from aura.controllers.utils.utils import DEFAULT_SLEEP_TIME
 from aura.data_manager.data_manager import DataManager
 from aura.runner.agent_router import AgentRouter
 from aura.runner.infer_adapter.async_server import AsyncServerManager, AsyncServerProxyManager
+from aura.trainer.rollout.trajectory_validation import PromptTooLongError, validate_trajectory_batch
 from aura.base.exceptions.exceptions import RolloutShutdownException
 from aura.base.analysis.data_analysis import json_save_data
 
@@ -179,6 +180,7 @@ class RolloutWorker:
         agent_service=None,
         infer_service=None,
         llm_tokenizer_path=None,
+        replay_config=None,
     ):
         # ------------------------------------------------
         import signal
@@ -197,6 +199,18 @@ class RolloutWorker:
 
         # verl这个默认为None，msrl有具体配置
         self.generate_config = generate_config
+        self._replay_config = None
+        self._replay_actor = None
+        if replay_config is not None:
+            if train_backend != "verl" or service_mode != "infer" or use_stepwise_advantage:
+                raise ValueError("Replay P2 supports one-step verl trajectory-level GRPO only")
+            from aura.memory.replay.config import ReplayConfig
+            from aura.memory.replay.runtime import connect_actor
+            import uuid
+            self._replay_config = ReplayConfig.from_mapping(replay_config)
+            self._replay_actor = connect_actor(self._replay_config)
+            self._replay_producer_id = uuid.uuid4().hex
+        self._replay_generation_version = None
 
         self.weight_save_dir = weight_save_dir
         self.actor_rollout_dispatch_size = actor_rollout_dispatch_size
@@ -481,6 +495,8 @@ class RolloutWorker:
                     await self.early_termination_requests(task, agent_router)
                     return None
                 except Exception as exp:
+                    if isinstance(exp, PromptTooLongError) or isinstance(getattr(exp, "cause", None), PromptTooLongError):
+                        raise
                     retry_count += 1
                     logger.warning(
                         f"generate trajectory failed task: {task.task_id} prompt_id: {task.prompt_id}, "
@@ -489,13 +505,23 @@ class RolloutWorker:
             raise Exception(f"generate_agent_trajectory Task failed after {self.retry_limit} retries.")
 
         futures = [asyncio.create_task(worker_with_retry(task)) for task in agent_tasks]
-        for future in asyncio.as_completed(futures):
-            try:
-                result = await future
-                logger.info(">>> get worker future")
-                yield result
-            except Exception as e:
-                logger.error(f"Task failed: {e}")
+        try:
+            for future in asyncio.as_completed(futures):
+                try:
+                    result = await future
+                    if result is None and mode == "Token":
+                        raise ValueError("Missing trajectory in a trajectory-level GRPO batch")
+                    logger.info(">>> get worker future")
+                    yield result
+                except Exception as e:
+                    logger.error(f"Task failed: {e}")
+                    if mode == "Token":
+                        raise RuntimeError("Rollout group failed; refusing partial or dummy GRPO training") from e
+        finally:
+            for future in futures:
+                if not future.done():
+                    future.cancel()
+            await asyncio.gather(*futures, return_exceptions=True)
 
     def hybrid_mode_metrics_handle(self, metrics, start_time, end_time):
         if not self.is_hybrid_mode():
@@ -566,6 +592,10 @@ class RolloutWorker:
         outputs["response_length"] = responses_length
 
     def handle_full_batch_trajectories(self, indexes, start_time, resharding_to_infer, trajectories):
+        if not self.use_stepwise_advantage:
+            validate_trajectory_batch(
+                trajectories, self.n_samples_per_prompt, self.global_batch_size * self.n_samples_per_prompt
+            )
         ## 3. 保存数据
         from aura.base.analysis.data_analysis import json_save_data
 
@@ -592,6 +622,15 @@ class RolloutWorker:
         self.add_output_for_verl(final_gen_batch_output, responses, outputs)
         self.add_output_for_msrl(responses, input_ids, outputs)
 
+        if self._replay_config is not None:
+            if self._replay_generation_version != self.current_weights_version:
+                raise RuntimeError("Weights changed during replay generation; refusing ambiguous behavior policy")
+            from aura.memory.replay.runtime import persist_trajectories
+            batch_id = f"{self._replay_producer_id}:{self.iteration}"
+            outputs["replay_refs"] = persist_trajectories(
+                trajectories, self._replay_config, self._replay_actor,
+                batch_id, self._replay_generation_version)
+
         logger.info(f"outputs keys: {list(outputs.keys())}")
 
         self.write_file(trajectories, prefix="trajectories")
@@ -616,6 +655,8 @@ class RolloutWorker:
         app_stats.print(self.iteration)
 
     def trajectories_collect_done(self, trajectories, concurrency, done_batch_count, actual_batch_num):
+        if not self.use_stepwise_advantage:
+            return len(trajectories) == concurrency
         if len(trajectories) < concurrency:
             if (done_batch_count + 1) == actual_batch_num:
                 if len(trajectories) + self.terminate_trajectories >= concurrency:
@@ -624,6 +665,11 @@ class RolloutWorker:
         return True
 
     def get_train_batch_traj(self, traj_groups, concurrency: int, n_sample: int = 8):
+        if not self.use_stepwise_advantage:
+            if concurrency <= 0 or n_sample <= 0 or concurrency % n_sample:
+                raise ValueError("Trajectory batch size must be a positive multiple of GRPO group size")
+            if any(len(group) > n_sample for group in traj_groups.values()):
+                raise ValueError("Too many trajectories for one GRPO prompt_id")
         trajectories = [traj for group in traj_groups.values() if len(group) == n_sample for traj in group][
             :concurrency
         ]
@@ -639,6 +685,11 @@ class RolloutWorker:
         if not all_prompt_ids:
             logger.info("prompt id is empty, go to next iteration")
             return
+        if not self.use_stepwise_advantage:
+            raise ValueError(
+                f"Incomplete GRPO rollout groups {sorted(map(str, all_prompt_ids))}; "
+                "refusing dummy padding or silent sample loss"
+            )
         logger.info(f"maybe early terminated, traj_groups: {len(traj_groups)}, all_prompt_ids: {len(all_prompt_ids)}")
         trajectories = self.get_train_batch_traj(traj_groups, concurrency, self.n_samples_per_prompt)
         clean_traj_groups(traj_groups, all_prompt_ids, trajectories)
@@ -699,6 +750,8 @@ class RolloutWorker:
 
     async def generate_sequences(self, actual_batch_num=1):
         resharding_to_infer = await self._do_update_model_weights(actual_batch_num)
+        if self._replay_config is not None:
+            self._replay_generation_version = self.current_weights_version
         tasks, indexes, start_time = self.get_data_for_generation()
         agent_tasks, agent_router = await self.get_agents(tasks)
         self.terminate_trajectories = 0
@@ -1043,6 +1096,9 @@ class RolloutWorker:
 
     async def update_model_weights(self, actual_batch_num=1):
         if not self.use_on_policy and self.iteration == 1:
+            # The second rollout batch still uses the initial policy, but it
+            # advances the producer window: accept the first trained version.
+            ray.get(self.rollout_weight_manager.update_max_version.remote(add_version_num=actual_batch_num))
             # After the first iteration, if entering update judgment, one_step_off weight is 0, no need to wait for weight update
             logger.info(f"|perf-stat|rollout| one_step_off skip update_weights on iteration: {self.iteration}")
             return

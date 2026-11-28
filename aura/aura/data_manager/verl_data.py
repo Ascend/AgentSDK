@@ -54,6 +54,15 @@ class VerlDataManager:
             # Processing in the case of configuration dictionary
             self._config = controller_or_config
 
+    def prefetch_online_batch(self):
+        # Same serialized controller as get_data, not the trainer's other copy.
+        return self.controller.request_online_batch()
+
+    def replay_source_adapter(self, config, actor):
+        from aura.memory.replay.source import DataManagerSource
+        self.controller.enable_replay_recovery()
+        return DataManagerSource(self.controller, config, actor)
+
     def all_consumed(self, experience_consumer_stage: str) -> int:
         """
         Check whether all the data have been consumed.
