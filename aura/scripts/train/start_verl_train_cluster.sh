@@ -47,6 +47,8 @@ fi
 
 # DEFAULT_SOCKET_IFNAME / TRITON_DISABLE_AUTOTUNE 已由 load_env.sh 从 env.conf 加载
 export GLOO_SOCKET_IFNAME=${DEFAULT_SOCKET_IFNAME:-"eth0"}
+python3 "${scripts_dir}/base/validate_train_config.py" \
+  --config-file "${TRAIN_CONFIG_FILE}" --work-mode "${WORK_MODE}" --train-engine verl || exit 1
 export TP_SOCKET_IFNAME=${DEFAULT_SOCKET_IFNAME:-"eth0"}
 
 export PYTHONPATH=/MindSpeed:/Megatron-Bridge/src:${RLLM_PATH}:${PYTHONPATH}
@@ -135,17 +137,19 @@ function get_infer_server_config()
 
 function replace_infer_server_config()
 {
-  # 修改训练的yaml配置 (仅修改主节点配置，避免冲突)
+  # Update the training YAML only on the training master.
   if [ "$VC_TASK_INDEX" = "$MASTER_TRAIN_INDEX" ]; then
-    sed -e "s|chat_server:.*|chat_server: \"http://${MASTER_ROLLOUT_HOST}:8080\"|" \
-        -e "s|prefill_server_list:.*|prefill_server_list: [${PREFILL_SERVER_LIST}]|" \
-        -e "s|decode_server_list:.*|decode_server_list: [${DECODE_SERVER_LIST}]|" \
-        -e "s|\btensor_parallel_size:.*|tensor_parallel_size: ${TENSOR_PARALLEL_SIZE}|" \
-        -e "s|\bdata_parallel_size:.*|data_parallel_size: ${DATA_PARALLEL_SIZE}|" \
-        -e "s|enable_expert_parallel:.*|enable_expert_parallel: ${ENABLE_EXPERT_PARALLEL}|" \
-        ${root_dir}/configs/train/${CONFIG_NAME}${CONFIG_EXT} > tmp.yaml
-    cp -f tmp.yaml ${root_dir}/configs/train/${CONFIG_NAME}${CONFIG_EXT}
-    rm -f tmp.yaml
+    # Restrict updates to infer_instances.*.executor_kwargs.engine_kwargs.
+    # Global text replacement can corrupt YAML and overwrite training-side
+    # parameters which happen to use the same key names.
+    python3 "${train_dir}/update_infer_server_config.py" \
+      --config-file "${root_dir}/configs/train/${CONFIG_NAME}${CONFIG_EXT}" \
+      --rollout-host "${MASTER_ROLLOUT_HOST}" \
+      --prefill-server-list "${PREFILL_SERVER_LIST}" \
+      --decode-server-list "${DECODE_SERVER_LIST}" \
+      --tensor-parallel-size "${TENSOR_PARALLEL_SIZE}" \
+      --data-parallel-size "${DATA_PARALLEL_SIZE}" \
+      --enable-expert-parallel "${ENABLE_EXPERT_PARALLEL}" || return 1
   fi
 }
 
@@ -393,7 +397,7 @@ register_sandbox_infer_model
 
 if [[ "${WORK_MODE}" != "hybrid" ]]; then
   # 训推全异步分离场景, 需要等待推理集群启动完成
-  wait_for_infer_cluster_ready
+  wait_for_infer_cluster_ready || exit 1
 fi
 
 start_ray_cluster

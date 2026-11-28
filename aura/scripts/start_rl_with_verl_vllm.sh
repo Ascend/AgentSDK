@@ -11,7 +11,7 @@ source /usr/local/Ascend/nnal/atb/set_env.sh
 source ${scripts_dir}/base/envs.sh
 source ${scripts_dir}/base/utils.sh
 
-parse_train_conf
+parse_train_conf verl
 
 if [[ "${WORK_MODE}" == "hybrid" ]]; then
   # 共卡模式, MASTER_TRAIN_INDEX默认为0
