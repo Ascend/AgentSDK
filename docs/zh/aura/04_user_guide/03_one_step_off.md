@@ -309,3 +309,7 @@ bash scripts/start_rl_with_verl_vllm.sh
 ```
 
 这是正常现象，等待推理集群就绪后会自动继续。如果长时间无法就绪，请检查推理集群的启动日志。
+
+## 可选：轨迹持久化与经验回放
+
+one-step off-policy 的 verl/GRPO 路径可启用[轨迹经验回放](./replay.md)，默认 `replay_ratio=0` 保留原训练路径。支持三策略、行为 IS 裁剪、模型与队列配对恢复、冻结轨迹库只读复用；配置、示例和使用限制统一见该指南。
