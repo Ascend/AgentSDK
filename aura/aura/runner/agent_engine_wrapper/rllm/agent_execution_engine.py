@@ -36,6 +36,7 @@ from aura.runner.agent_engine_wrapper.base.agent.base_agent import Action, BaseA
 from aura.runner.agent_engine_wrapper.base.environment.env_utils import compute_mc_return, compute_trajectory_reward
 from aura.runner.agent_engine_wrapper.base.parser.chat_template import ChatTemplateParser
 from aura.runner.agent_engine_wrapper.base_engine_wrapper import AgentTask
+from aura.trainer.rollout.trajectory_validation import PromptTooLongError
 from aura.runner.agent_engine_wrapper.rllm.msg_handler import (
     convert_messages_to_tokens_and_masks,
     get_recent_assistant_user_messages,
@@ -374,9 +375,11 @@ class AgentExecutionEngine:
         prompt_token_len = len(prompt_tokens)
         if prompt_token_len > self.max_prompt_length:
             agent.reset()
-            raise Exception(
+            await loop.run_in_executor(self.executor, env.close)
+            raise PromptTooLongError(
                 f"Trajectory {idx}: initial prompt length {prompt_token_len} "
-                f"already exceeded max_prompt_length {self.max_prompt_length}, retrying"
+                f"exceeds max_prompt_length {self.max_prompt_length}; "
+                "filter by the final Agent template before creating rollout groups"
             )
 
         step_idx_last = 0
@@ -404,17 +407,25 @@ class AgentExecutionEngine:
                         )
                         prompt_messages[idx]["content"] = modified_content
 
-            curr_step_prompt_length = len(
-                self.tokenizer.encode(
-                    self.chat_parser.parse(prompt_messages, add_generation_prompt=True, is_first_msg=True),
-                    add_special_tokens=False,
+            if self.token_in_token_out:
+                # Budget the exact IDs sent to inference. Rendering agent history
+                # again need not reproduce generated/tool-boundary tokenization.
+                prompt_for_vllm = prompt_tokens if step_idx == 0 else prompt_tokens + response_tokens
+                curr_step_prompt_length = len(prompt_for_vllm)
+            else:
+                curr_step_prompt_length = len(
+                    self.tokenizer.encode(
+                        self.chat_parser.parse(prompt_messages, add_generation_prompt=True, is_first_msg=True),
+                        add_special_tokens=False,
+                    )
                 )
-            )
 
             if not self.enforce_max_prompt_length:
-                max_tokens = max_model_len - curr_step_prompt_length
-                if max_tokens <= 0:
-                    max_tokens = 128
+                remaining = max_model_len - curr_step_prompt_length
+                if remaining <= 0:
+                    termination_reason = "TRUNCATION"
+                    break
+                max_tokens = min(max_tokens_old, remaining)
                 logger.info(
                     f"appID:{application_id}, step_idx:{step_idx}, max_model_len:{max_model_len},"
                     f" history_response_token_len:{response_token_len}, "
@@ -423,13 +434,11 @@ class AgentExecutionEngine:
             else:
                 max_tokens = max_tokens_old
 
-                prompt_str = self.chat_parser.parse(prompt_messages, add_generation_prompt=True, is_first_msg=True)
-                prompt_len = len(self.tokenizer.encode(prompt_str, add_special_tokens=False))
-                if prompt_len > self.max_prompt_length:
+                if curr_step_prompt_length > self.max_prompt_length:
                     termination_reason = "PROMPT_TRUNCATION"
                     break
 
-                if prompt_len + max_tokens > max_model_len:
+                if curr_step_prompt_length + max_tokens > max_model_len:
                     logger.warning("exit for exceed max model length error...")
                     termination_reason = "EXCEED_MODEL_LENGTH"
                     break
@@ -439,7 +448,6 @@ class AgentExecutionEngine:
 
             start_time = time.time()
             if self.token_in_token_out:
-                prompt_for_vllm = prompt_tokens if step_idx == 0 else prompt_tokens + response_tokens
                 llm_step_input_lengths.append(len(prompt_for_vllm))
                 try:
                     http_response = await self.get_model_response(
@@ -606,12 +614,16 @@ class AgentExecutionEngine:
             # Update response token length
             response_token_len += len(assistant_msg_tokens) + len(env_msg_tokens)
             # Reached maximum number of tokens for the trajectory
-            curr_step_prompt_length = len(
-                self.tokenizer.encode(
-                    self.chat_parser.parse(agent.chat_completions, add_generation_prompt=True, is_first_msg=True),
-                    add_special_tokens=False,
+            if self.token_in_token_out:
+                curr_step_prompt_length = (len(prompt_tokens) + len(response_tokens)
+                                           + len(assistant_msg_tokens) + len(env_msg_tokens))
+            else:
+                curr_step_prompt_length = len(
+                    self.tokenizer.encode(
+                        self.chat_parser.parse(agent.chat_completions, add_generation_prompt=True, is_first_msg=True),
+                        add_special_tokens=False,
+                    )
                 )
-            )
             logger.info(
                 f"trajectory performance status, prompt truncation judge, "
                 f"appID:{application_id}, step_idx:{step_idx}, "
@@ -626,15 +638,19 @@ class AgentExecutionEngine:
                 # Truncation length
                 truncation_length = max_model_len - curr_step_prompt_length
                 # Truncate the response and masks
+                # Tool tokens have mask=0 and no behavior probability. Pad them
+                # before slicing so trimming a tool suffix cannot remove valid
+                # assistant log-probabilities instead.
+                turn_logprobs = single_turn_logprobs + [0.0] * len(env_msg_tokens)
                 if truncation_length < 0:
                     truncated_response_tokens = (assistant_msg_tokens + env_msg_tokens)[:truncation_length]
                     truncated_response_masks = (assistant_msg_masks + env_msg_masks)[:truncation_length]
-                    truncated_response_logprobs = single_turn_logprobs[:truncation_length]
+                    truncated_response_logprobs = turn_logprobs[:truncation_length]
                 else:
                     # Edge case where the response is exactly the max response length.
                     truncated_response_tokens = assistant_msg_tokens + env_msg_tokens
                     truncated_response_masks = assistant_msg_masks + env_msg_masks
-                    truncated_response_logprobs = single_turn_logprobs
+                    truncated_response_logprobs = turn_logprobs
                 # Update token collections
                 response_tokens.extend(truncated_response_tokens)
                 response_masks.extend(truncated_response_masks)
