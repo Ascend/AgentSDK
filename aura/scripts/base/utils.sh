@@ -196,7 +196,9 @@ function parse_train_conf()
   esac
 
   # Determine the black box mode based on the agent_engine configuration
-  local train_yaml="${root_dir}/configs/train/${TRAIN_CONF_NAME}.yaml"
+  local train_yaml="${root_dir}/configs/train/${RESUME_TRAIN_CONF_NAME:-${TRAIN_CONF_NAME}}${CONFIG_EXT:-.yaml}"
+  python3 "${root_dir}/scripts/base/validate_train_config.py" \
+    --config-file "${train_yaml}" --work-mode "${WORK_MODE}" --train-engine "${1:-}" || exit 1
   if [[ -f "${train_yaml}" ]]; then
     export AGENT_ENGINE=$(grep "agent_engine:" "${train_yaml}" | tail -1 | awk '{print $2}')
   fi
