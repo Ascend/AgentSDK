@@ -34,9 +34,14 @@ logger = Loggers(__name__).get_logger()
 def start_train(work_mode, train_config, rollout_config, agent_service, infer_service):
     """Launch fully-async training: create the SampleQueue, start the rollout,
     then run PPO with ``FullyAsyncTaskRunner``."""
+    from omegaconf import OmegaConf
+    OmegaConf.update(train_config, "extras.work_mode", work_mode, force_add=True)
     from aura.trainer.rollout.rollout_service import start_fully_async_rollout
     from aura.controllers.rollout_controller.sample_queue import create_sample_queue
 
+    from aura.memory.replay.config import replay_ratio
+    if replay_ratio(train_config) > 0:
+        raise ValueError("Replay P1-P3 supports one-step-off only, not fully_async streaming")
     async_conf = _require_async_config(train_config)
     required_samples, max_required_samples = _compute_sample_bounds(train_config, async_conf)
     logger.info(
